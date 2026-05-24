@@ -1,0 +1,26 @@
+{
+  "name": "@hachiware-labs/nagare",
+  "version": "0.1.0",
+  "description": "Adapter-first execution ledger for coding agents",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hachiware-labs/nagare.git",
+    "directory": "packages/nagare"
+  },
+  "type": "commonjs",
+  "scripts": {
+    "prepack": "node ../../scripts/stage-package-binary.js"
+  },
+  "bin": {
+    "nagare": "bin/nagare.js"
+  },
+  "files": [
+    "bin",
+    "README.md",
+    "README_ja.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}
