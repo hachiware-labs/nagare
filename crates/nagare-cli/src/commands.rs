@@ -3,11 +3,12 @@ use std::path::Path;
 
 use nagare_core::{
     AddAgentProfileInput, AgentProfile, AgentRunPurpose, RuleResolution, RunWorkItemInput,
-    SetLocaleInput, SetNagareAgentSettingsInput, VERSION, add_agent_profile, agent_doctor,
-    agent_probe, approve_work_item, create_handoff, create_work_item, doctor, get_agent_profile,
-    get_locale_settings, get_nagare_agent_settings, get_work_item_snapshot, init_project,
-    list_agent_profiles, list_work_items, resolve_rule_for_path, run_first_scenario,
-    run_registered_agent_scenario, run_work_item_with_input, set_locale_settings,
+    SelectRunAgentInput, SetLocaleInput, SetNagareAgentSettingsInput, VERSION,
+    accept_dispatch_plan, add_agent_profile, agent_doctor, agent_probe, approve_work_item,
+    create_handoff, create_work_item, doctor, get_agent_profile, get_locale_settings,
+    get_nagare_agent_settings, get_work_item_snapshot, init_project, list_agent_profiles,
+    list_work_items, resolve_rule_for_path, run_first_scenario, run_registered_agent_scenario,
+    run_work_item_with_input, select_agent_for_work_item_run, set_locale_settings,
     set_nagare_agent_settings, verify_work_item,
 };
 
@@ -295,10 +296,13 @@ fn item_command(args: &[String]) -> Result<(), String> {
         Some("list") => item_list_command(&args[1..]),
         Some("show") => item_show_command(&args[1..]),
         Some("preview") => item_preview_command(&args[1..]),
+        Some("dispatch") => item_dispatch_command(&args[1..]),
         Some("run") => item_run_command(&args[1..]),
         Some("review") => item_review_command(&args[1..]),
         Some(command) => Err(format!("unknown item command `{command}`")),
-        None => Err("item command required: create, list, show, preview, run, review".to_string()),
+        None => Err(
+            "item command required: create, list, show, preview, dispatch, run, review".to_string(),
+        ),
     }
 }
 
@@ -343,20 +347,31 @@ fn item_run_command(args: &[String]) -> Result<(), String> {
         .positionals
         .first()
         .ok_or_else(|| "item run requires a work item id".to_string())?;
-    let agent;
     let path = parsed.optional("--path");
-    if let Some(explicit_agent) = parsed.optional("--agent") {
-        agent = explicit_agent.to_string();
-    } else if let Some(path) = path {
-        let resolution =
-            resolve_rule_for_path(&root, Some(path), None).map_err(|e| e.to_string())?;
-        print_rule_resolution(&resolution);
-        agent = resolution.agent_profile_id;
+    let agent_selection = select_agent_for_work_item_run(
+        &root,
+        work_item_id,
+        SelectRunAgentInput {
+            explicit_agent_profile_id: parsed.optional("--agent"),
+            dispatch_plan_id: parsed.optional("--dispatch-plan"),
+            path,
+        },
+    )
+    .map_err(|e| e.to_string())?;
+    if let Some(resolution) = &agent_selection.rule_resolution {
+        print_rule_resolution(resolution);
+    }
+    if let Some(dispatch_plan_id) = &agent_selection.dispatch_plan_id {
+        println!(
+            "selected_agent: {} source={} dispatch_plan={}",
+            agent_selection.agent_profile_id, agent_selection.source, dispatch_plan_id
+        );
     } else {
-        agent = get_nagare_agent_settings(&root)
-            .map_err(|e| e.to_string())?
-            .work_agent;
-    };
+        println!(
+            "selected_agent: {} source={}",
+            agent_selection.agent_profile_id, agent_selection.source
+        );
+    }
     let command = parsed.optional("--command");
     let prompt = parsed.optional("--prompt");
     if command.is_none() && prompt.is_none() {
@@ -366,7 +381,7 @@ fn item_run_command(args: &[String]) -> Result<(), String> {
         root,
         work_item_id,
         RunWorkItemInput {
-            agent_profile_id: agent.as_str(),
+            agent_profile_id: agent_selection.agent_profile_id.as_str(),
             path,
             prompt,
             dev_command: command,
@@ -382,6 +397,35 @@ fn item_run_command(args: &[String]) -> Result<(), String> {
         result.run.exit_code,
         result.evidence_id,
         result.item_status
+    );
+    Ok(())
+}
+
+fn item_dispatch_command(args: &[String]) -> Result<(), String> {
+    match args.first().map(String::as_str) {
+        Some("accept") => item_dispatch_accept_command(&args[1..]),
+        Some(command) => Err(format!("unknown item dispatch command `{command}`")),
+        None => Err("item dispatch command required: accept".to_string()),
+    }
+}
+
+fn item_dispatch_accept_command(args: &[String]) -> Result<(), String> {
+    let parsed = ParsedArgs::parse(args)?;
+    let work_item_id = parsed
+        .positionals
+        .first()
+        .ok_or_else(|| "item dispatch accept requires a work item id".to_string())?;
+    let result = accept_dispatch_plan(
+        parsed.root()?,
+        work_item_id,
+        parsed
+            .optional("--dispatch-plan")
+            .or(parsed.optional("--plan")),
+    )
+    .map_err(|e| e.to_string())?;
+    println!(
+        "dispatch_plan {} {} target_agent={}",
+        result.plan.id, result.plan.status, result.plan.target_agent_profile_id
     );
     Ok(())
 }

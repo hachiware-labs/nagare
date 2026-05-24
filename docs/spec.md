@@ -53,13 +53,15 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | --- | --- | --- | --- | --- | --- |
 | 4.1.1 | Nagare 本体が使う既定 Agent Profile を設定できる。 | Agent Profile が存在する | `nagare agent use --work-agent ... --review-agent ... --dispatch-agent ...` を実行する | `.nagare/project.toml` の `[nagare_agents]` が更新される | 実装済み |
 | 4.1.2 | 既定 Agent Profile を確認できる。 | Project が初期化済み | `nagare agent defaults` を実行する | work_agent、review_agent、dispatch_agent が表示される | 実装済み |
-| 4.1.3 | `item run` で agent が省略された場合は `work_agent` を使う。 | `work_agent` が設定済み | `nagare item run <work_id>` を実行する | Agent Run の agent_profile_id が `work_agent` になる | 実装済み |
+| 4.1.3 | `item run` で agent と採用済み DispatchPlan が省略された場合は `work_agent` を使う。 | `work_agent` が設定済み | `nagare item run <work_id>` を実行する | Agent Run の agent_profile_id が `work_agent` になる | 実装済み |
 | 4.2.1 | dispatch_agent は Work Item の実行前確認に使う。 | dispatch_agent が設定済み | `nagare item preview <work_id>` を実行する | dispatch_agent の AgentRun が `dispatch_preview` として記録される | 実装済み |
 | 4.2.2 | dispatch は Work Item の実作業を進めない。 | Work Item が存在する | Preview を実行する | AgentRun と Evidence は残るが、Work Item status は実行結果で進まない | 実装済み |
 | 4.2.3 | review_agent は実行後の評価に使う。 | review_agent が設定済み | `nagare item review <work_id>` を実行する | review_agent の AgentRun が `review` として記録される | 実装済み |
 | 4.2.4 | dispatch preview の結果は Dispatch Plan として保存する。 | dispatch preview が成功する | Preview または Handoff Dispatch を実行する | DispatchPlan が AgentRun、ResolvedRunPacket、Artifact と紐づいて ledger に保存される | 実装済み |
 | 4.2.5 | dispatch_agent には小さな候補 Agent Profile リストだけを渡す。 | dispatch preview を開始する | `nagare item preview` を実行する | Project Rule、既定 agent、登録 profile から最大 5 件の候補 summary が prompt に含まれる | 実装済み |
 | 4.2.6 | dispatch_agent は候補リストから target Agent Profile を選べる。 | dispatch_agent が JSON を返す | `target_agent_profile_id` を含む dispatch output を保存する | 存在する Agent Profile なら DispatchPlan.target_agent_profile_id に採用され、不正 ID は fallback target になる | 実装済み |
+| 4.2.7 | DispatchPlan は `draft`、`accepted`、`superseded` の lifecycle を持つ。 | DispatchPlan が存在する | Preview または accept を実行する | 新しい preview は古い draft を superseded にし、accept は選択 plan を accepted にする | 実装済み |
+| 4.2.8 | DispatchPlan を実行前に採用できる。 | draft DispatchPlan が存在する | `nagare item dispatch accept <work_id>` を実行する | 対象 plan が accepted になり、同じ Work Item の他 plan は superseded になる | 実装済み |
 
 ## 5. Agent Health / Capability Probe
 
@@ -94,6 +96,7 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | 7.1.3 | `--prompt` は `process.codex-cli` adapter 経由で `codex exec` に渡す。 | adapter が `process.codex-cli` で Codex CLI が利用可能 | `item run --prompt <text>` を実行する | `codex exec --cd <working_dir> <prompt>` の結果が AgentRun に保存される | 実装済み |
 | 7.1.4 | Agent Run の cwd は Agent Profile の `working_dir` を使う。 | Agent Profile に working_dir がある | Run を開始する | process cwd または Codex `--cd` が working_dir になる | 実装済み |
 | 7.1.5 | `item run --path` は Project Rule で解決した Agent Profile を使う。 | Project Rule が存在し、`--agent` が省略されている | `nagare item run <work_id> --path <path>` を実行する | matching rule の default_agent で AgentRun が作成される | 実装済み |
+| 7.1.6 | `item run` は採用済み DispatchPlan の target Agent Profile を使える。 | accepted DispatchPlan が存在し、`--agent` が省略されている | `nagare item run <work_id>` または `--dispatch-plan <id>` を実行する | AgentRun の agent_profile_id が DispatchPlan.target_agent_profile_id になる | 実装済み |
 | 7.2.1 | `stdio.codex-app-server` は Agent Profile として登録・確認できる。 | Codex app-server runtime が設定済み | agent add/list/show/doctor/probe を実行する | profile と probe 結果が扱える | 実装済み |
 | 7.2.2 | `stdio.codex-app-server` の実実行は stdio JSON-RPC adapter で扱う。 | Run Packet が存在する | app-server adapter で run を開始する | `initialize`、`thread/start`、`turn/start`、`turn/completed` の transcript が AgentRun artifact に保存される | 実装済み |
 | 7.3.1 | Codex MCP Server、Claude Code、HTTP adapter、SDK adapter は初期 Agent adapter に含めない。 | Adapter を登録または選定する | 初期 adapter scope を確認する | 対応予定は `process.codex-cli` と `stdio.codex-app-server` のみになる | 実装済み |

@@ -293,7 +293,7 @@ JSON-RPC over stdio で `initialize`、`thread/start`、`turn/start`、`turn/com
 - `AgentRunPurpose`: work、dispatch_preview、review
 - `ResolvedSkillContext`: id、work_item_id、agent_profile_id、capability_probe_id、project_rule_ids、declared_skill_set_ids、applied_skill_set_ids、skipped_skill_set_ids、capabilities_in_force、instruction_sources、artifact_uri、content_hash、locale
 - `ResolvedRunPacket`: id、work_item_id、agent_profile_id、adapter_id、purpose、working_dir、goal、path、permission_policy_id、workspace_policy_id、resolved_skill_context_id、project_rule_ids、verification、constraints、artifact_uri、content_hash、locale
-- `DispatchPlan`: id、work_item_id、agent_run_id、dispatch_agent_profile_id、target_agent_profile_id、resolved_run_packet_id、raw_output_artifact_id、path、summary、risks、missing_information、locale
+- `DispatchPlan`: id、work_item_id、status、agent_run_id、dispatch_agent_profile_id、target_agent_profile_id、resolved_run_packet_id、raw_output_artifact_id、path、summary、risks、missing_information、locale
 - `Artifact`: id、work_item_id、agent_run_id、artifact_type、uri、title、locale
 - `Evidence`: id、work_item_id、claim、basis、artifact_id、produced_by、locale
 - `VerificationResult`: id、work_item_id、result、artifact_id、locale
@@ -330,12 +330,13 @@ Agent Management 型:
 1. `nagare item create` で Work Item を `ready` として作成する。
 2. `nagare item preview` で Agent Profile、Project Rule、Skill Set、Policy、Verification、Run Packet を確認する。
 3. dispatch_agent は最大 5 件の compact な Agent Profile 候補から target Agent Profile を選び、DispatchPlan に記録する。
-4. `nagare item run` で Agent Run を開始する。
-5. Adapter が stdout/stderr、成果物、exit code を回収する。
-6. 成功なら Work Item を `ready_for_review` にする。
-7. Evidence と実行ログ Artifact を保存する。
-8. `nagare verify` が通る。
-9. `nagare decision approve` で `done` にする。
+4. `nagare item dispatch accept` で DispatchPlan を accepted にする。
+5. `nagare item run` で accepted DispatchPlan の target Agent Profile を使い Agent Run を開始する。
+6. Adapter が stdout/stderr、成果物、exit code を回収する。
+7. 成功なら Work Item を `ready_for_review` にする。
+8. Evidence と実行ログ Artifact を保存する。
+9. `nagare verify` が通る。
+10. `nagare decision approve` で `done` にする。
 
 ### Agent Run 失敗
 
@@ -349,7 +350,8 @@ Agent Management 型:
 
 1. 失敗またはレビュー結果から Handoff Packet を作成する。
 2. `from_agent_profile`、`to_agent_profile`、reason、summary を保存する。
-3. 次の `item preview` / `item run` は Handoff を入力文脈に含める。
+3. `handoff dispatch` は `item preview` と同じ dispatch_agent / candidate context / DispatchPlan lifecycle を使う。
+4. 採用済み DispatchPlan があれば、次の `item run` はその target Agent Profile を使う。
 
 ### Human Approval
 
@@ -422,6 +424,8 @@ Ledger-owned（観測事実として保存するもの）:
 - Dispatch target の最終判断は Nagare の `dispatch_agent` が行う。
 - Dispatch prompt の Agent context は最大 5 件の Agent Profile summary に制限し、巨大な instruction source 本文は渡さない。
 - Dispatch output の JSON `target_agent_profile_id` は、登録済み Agent Profile に一致する場合だけ DispatchPlan に採用する。
+- DispatchPlan は `draft` / `accepted` / `superseded` の lifecycle を持つ。
+- `item run` の agent 解決順は、明示 `--agent`、明示 accepted `--dispatch-plan`、最新 accepted DispatchPlan、Project Rule、`work_agent` とする。
 
 ### マイグレーション
 
@@ -663,7 +667,8 @@ nagare item create --title <title> [--description <text>] [--root <path>]
 nagare item list [--root <path>]
 nagare item show <work_id> [--root <path>]
 nagare item preview <work_id> [--path <path>] [--agent <agent_profile_id>] [--prompt <text> | --command <command>] [--root <path>]
-nagare item run <work_id> [--path <path>] [--agent <agent_profile_id>] [--prompt <text> | --command <command>] [--root <path>]
+nagare item dispatch accept <work_id> [--dispatch-plan <dispatch_plan_id>] [--root <path>]
+nagare item run <work_id> [--path <path>] [--agent <agent_profile_id>] [--dispatch-plan <dispatch_plan_id>] [--prompt <text> | --command <command>] [--root <path>]
 nagare item review <work_id> [--agent <agent_profile_id>] [--prompt <text> | --command <command>] [--root <path>]
 nagare verify <work_id> --command <command> [--root <path>]
 nagare handoff create <work_id> --from-agent <agent_profile_id> --to-agent <agent_profile_id> --reason <text> [--summary <text>] [--root <path>]

@@ -318,6 +318,183 @@ fn dispatch_preview_and_review_runs_do_not_advance_item_status() {
 }
 
 #[test]
+fn accepted_dispatch_plan_selects_target_for_work_run() {
+    let root = env::temp_dir().join(format!("nagare-dispatch-accept-test-{}", timestamp()));
+    init_project(&root).expect("project should init");
+    add_agent_profile(
+        &root,
+        AddAgentProfileInput {
+            id: "research-agent",
+            display_name: "Research Agent",
+            runtime: "codex-local",
+            adapter: "process.codex-cli",
+            role: "researcher",
+            working_dir: ".",
+            description: "Research and source synthesis.",
+            specialties: vec!["research".to_string()],
+        },
+    )
+    .expect("profile should be added");
+    let layout = ProjectLayout::new(&root);
+    let mut config = fs::read_to_string(&layout.config_path).expect("config should read");
+    config.push_str(
+        r#"
+
+[[project_rules]]
+id = "docs-research"
+match = ["docs/**"]
+default_agent = "research-agent"
+"#,
+    );
+    fs::write(&layout.config_path, config).expect("config should write");
+
+    let item = create_work_item(&root, "Research documentation", "")
+        .expect("item should create")
+        .item;
+    let preview = run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "codex-cli",
+            path: Some("docs/topic.md"),
+            prompt: None,
+            dev_command: Some(scenario_command("dispatch ok", true).as_str()),
+            purpose: AgentRunPurpose::DispatchPreview,
+        },
+    )
+    .expect("dispatch preview should run");
+    let dispatch_plan_id = preview.dispatch_plan_id.expect("plan should exist");
+
+    let accepted = accept_dispatch_plan(&root, &item.id, Some(&dispatch_plan_id))
+        .expect("plan should be accepted")
+        .plan;
+    assert_eq!(accepted.status, DispatchPlanStatus::Accepted);
+    assert_eq!(accepted.target_agent_profile_id, "research-agent");
+
+    let selection = select_agent_for_work_item_run(
+        &root,
+        &item.id,
+        SelectRunAgentInput {
+            explicit_agent_profile_id: None,
+            dispatch_plan_id: None,
+            path: None,
+        },
+    )
+    .expect("accepted plan should select run agent");
+    assert_eq!(selection.agent_profile_id, "research-agent");
+    assert_eq!(selection.source, RunAgentSelectionSource::DispatchPlan);
+    assert_eq!(
+        selection.dispatch_plan_id.as_deref(),
+        Some(dispatch_plan_id.as_str())
+    );
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn dispatch_agent_json_can_choose_between_writing_and_research_agents() {
+    let root = env::temp_dir().join(format!("nagare-dispatch-json-test-{}", timestamp()));
+    init_project(&root).expect("project should init");
+    add_agent_profile(
+        &root,
+        AddAgentProfileInput {
+            id: "writing-agent",
+            display_name: "Writing Agent",
+            runtime: "codex-local",
+            adapter: "process.codex-cli",
+            role: "writer",
+            working_dir: ".",
+            description: "Drafts and edits user-facing prose.",
+            specialties: vec!["writing".to_string(), "editing".to_string()],
+        },
+    )
+    .expect("writing profile should be added");
+    add_agent_profile(
+        &root,
+        AddAgentProfileInput {
+            id: "research-agent",
+            display_name: "Research Agent",
+            runtime: "codex-local",
+            adapter: "process.codex-cli",
+            role: "researcher",
+            working_dir: ".",
+            description: "Collects sources and synthesizes findings.",
+            specialties: vec!["research".to_string(), "synthesis".to_string()],
+        },
+    )
+    .expect("research profile should be added");
+    let layout = ProjectLayout::new(&root);
+    let mut config = fs::read_to_string(&layout.config_path).expect("config should read");
+    config.push_str(
+        r#"
+
+[[project_rules]]
+id = "docs-writing-default"
+match = ["docs/**"]
+default_agent = "writing-agent"
+"#,
+    );
+    fs::write(&layout.config_path, config).expect("config should write");
+    fs::write(
+        root.join("dispatch.json"),
+        r#"{"target_agent_profile_id":"research-agent","summary":"Research is required before writing.","risks":["source quality"],"missing_information":["source list"]}"#,
+    )
+    .expect("dispatch output should write");
+
+    let item = create_work_item(&root, "Research before writing", "")
+        .expect("item should create")
+        .item;
+    let command = if cfg!(windows) {
+        "type dispatch.json"
+    } else {
+        "cat dispatch.json"
+    };
+    let preview = run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "codex-cli",
+            path: Some("docs/topic.md"),
+            prompt: None,
+            dev_command: Some(command),
+            purpose: AgentRunPurpose::DispatchPreview,
+        },
+    )
+    .expect("dispatch preview should run");
+    let dispatch_plan_id = preview.dispatch_plan_id.expect("plan should exist");
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot should load");
+    assert_eq!(snapshot.dispatch_plans[0].status, DispatchPlanStatus::Draft);
+    assert_eq!(
+        snapshot.dispatch_plans[0].target_agent_profile_id,
+        "research-agent"
+    );
+    assert_eq!(
+        snapshot.dispatch_plans[0].summary,
+        "Research is required before writing."
+    );
+    assert_eq!(snapshot.dispatch_plans[0].risks, vec!["source quality"]);
+    assert_eq!(
+        snapshot.dispatch_plans[0].missing_information,
+        vec!["source list"]
+    );
+
+    accept_dispatch_plan(&root, &item.id, Some(&dispatch_plan_id))
+        .expect("plan should be accepted");
+    let selection = select_agent_for_work_item_run(
+        &root,
+        &item.id,
+        SelectRunAgentInput {
+            explicit_agent_profile_id: None,
+            dispatch_plan_id: None,
+            path: Some("docs/topic.md"),
+        },
+    )
+    .expect("accepted plan should beat rule fallback");
+    assert_eq!(selection.agent_profile_id, "research-agent");
+    assert_eq!(selection.source, RunAgentSelectionSource::DispatchPlan);
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
 fn dispatch_plan_suggestion_parses_agent_json() {
     let output = r#"item/completed: {"params":{"item":{"text":"```json\n{\"target_agent_profile_id\":\"research-agent\",\"summary\":\"Use the research agent.\",\"risks\":[\"needs sources\"],\"missing_information\":[\"source list\"]}\n```"}}}"#;
     let suggestion = parse_dispatch_plan_suggestion(output).expect("suggestion should parse");

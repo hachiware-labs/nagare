@@ -246,6 +246,8 @@ pub struct HumanDecision {
 pub struct DispatchPlan {
     pub id: String,
     pub work_item_id: String,
+    #[serde(default = "default_dispatch_plan_status")]
+    pub status: DispatchPlanStatus,
     pub agent_run_id: String,
     pub dispatch_agent_profile_id: String,
     pub target_agent_profile_id: String,
@@ -260,6 +262,28 @@ pub struct DispatchPlan {
     #[serde(default = "default_locale_language")]
     pub locale: String,
     pub created_at: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DispatchPlanStatus {
+    Draft,
+    Accepted,
+    Superseded,
+}
+
+impl fmt::Display for DispatchPlanStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Draft => f.write_str("draft"),
+            Self::Accepted => f.write_str("accepted"),
+            Self::Superseded => f.write_str("superseded"),
+        }
+    }
+}
+
+pub fn default_dispatch_plan_status() -> DispatchPlanStatus {
+    DispatchPlanStatus::Draft
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -542,6 +566,40 @@ pub struct RunWorkItemInput<'a> {
 }
 
 #[derive(Debug, Clone)]
+pub struct SelectRunAgentInput<'a> {
+    pub explicit_agent_profile_id: Option<&'a str>,
+    pub dispatch_plan_id: Option<&'a str>,
+    pub path: Option<&'a str>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunAgentSelectionSource {
+    Explicit,
+    DispatchPlan,
+    ProjectRule,
+    Default,
+}
+
+impl fmt::Display for RunAgentSelectionSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Explicit => f.write_str("explicit"),
+            Self::DispatchPlan => f.write_str("dispatch_plan"),
+            Self::ProjectRule => f.write_str("project_rule"),
+            Self::Default => f.write_str("default"),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SelectRunAgentResult {
+    pub agent_profile_id: String,
+    pub source: RunAgentSelectionSource,
+    pub dispatch_plan_id: Option<String>,
+    pub rule_resolution: Option<RuleResolution>,
+}
+
+#[derive(Debug, Clone)]
 pub struct AdapterRunRequest<'a> {
     pub working_dir: &'a Path,
     pub run_packet: &'a ResolvedRunPacket,
@@ -632,6 +690,11 @@ pub struct VerifyResult {
 #[derive(Debug, Clone)]
 pub struct HandoffResult {
     pub handoff: HandoffPacket,
+}
+
+#[derive(Debug, Clone)]
+pub struct AcceptDispatchPlanResult {
+    pub plan: DispatchPlan,
 }
 
 #[derive(Debug, Clone)]

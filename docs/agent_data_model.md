@@ -295,6 +295,7 @@ Skill Sets and Run Packet.
 {
   "id": "dispatch_0001",
   "work_item_id": "work_0001",
+  "status": "accepted",
   "agent_run_id": "run_0001",
   "dispatch_agent_profile_id": "codex-dispatch",
   "target_agent_profile_id": "codex-impl",
@@ -314,6 +315,14 @@ to the dispatch agent. Nagare accepts the selected ID only when it matches a
 registered Agent Profile; otherwise it falls back to the Project Rule or default
 target.
 
+`status` controls the execution lifecycle:
+
+- `draft`: dispatch agent proposal recorded by preview or handoff dispatch.
+- `accepted`: the plan was selected by `nagare item dispatch accept` and can
+  route `nagare item run` when `--agent` is omitted.
+- `superseded`: replaced by a newer draft or accepted plan for the same Work
+  Item.
+
 ## Resolution Rules
 
 1. Load built-in defaults.
@@ -331,7 +340,11 @@ target.
 13. Create `ResolvedRunPacket`.
 14. Start an Agent Run through the adapter.
 15. For dispatch preview, give the dispatch agent a compact candidate list.
-16. Parse dispatch output JSON and create `DispatchPlan`.
+16. Parse dispatch output JSON and create draft `DispatchPlan`.
+17. Optionally accept the DispatchPlan.
+18. For `item run`, resolve agent in this order: explicit `--agent`,
+    explicit accepted `--dispatch-plan`, latest accepted DispatchPlan,
+    Project Rule path, then `work_agent`.
 
 If a required skill set is unavailable, the current implementation records it
 in `skipped_skill_set_ids` and adds the reason to Run Packet constraints. Later

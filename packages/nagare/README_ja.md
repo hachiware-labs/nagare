@@ -25,4 +25,6 @@ nagare agent doctor codex-impl
 nagare agent probe codex-impl
 nagare rule check README.md
 nagare item create --title "Repair failing agent work item"
+nagare item preview work_0001 --command "echo dispatch preview && exit /B 0"
+nagare item dispatch accept work_0001
 ```

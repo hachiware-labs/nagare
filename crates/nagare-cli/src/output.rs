@@ -71,8 +71,9 @@ pub(crate) fn print_snapshot(snapshot: &WorkItemSnapshot) {
     println!("dispatch_plans:");
     for plan in &snapshot.dispatch_plans {
         println!(
-            "  {}\tdispatch_agent={}\ttarget_agent={}\trun={}\tsummary={}",
+            "  {}\t{}\tdispatch_agent={}\ttarget_agent={}\trun={}\tsummary={}",
             plan.id,
+            plan.status,
             plan.dispatch_agent_profile_id,
             plan.target_agent_profile_id,
             plan.agent_run_id,
@@ -252,7 +253,8 @@ Usage:
   nagare item list [--root <path>]
   nagare item show <work_id> [--root <path>]
   nagare item preview <work_id> [--path <path>] [--agent <agent_profile_id>] [--prompt <text> | --command <command>] [--root <path>]
-  nagare item run <work_id> [--path <path>] [--agent <agent_profile_id>] [--prompt <text> | --command <command>] [--root <path>]
+  nagare item dispatch accept <work_id> [--dispatch-plan <dispatch_plan_id>] [--root <path>]
+  nagare item run <work_id> [--path <path>] [--agent <agent_profile_id>] [--dispatch-plan <dispatch_plan_id>] [--prompt <text> | --command <command>] [--root <path>]
   nagare item review <work_id> [--agent <agent_profile_id>] [--prompt <text> | --command <command>] [--root <path>]
   nagare verify <work_id> --command <command> [--root <path>]
   nagare handoff create <work_id> --from-agent <agent_profile_id> --to-agent <agent_profile_id> --reason <text> [--summary <text>] [--root <path>]

@@ -499,6 +499,7 @@ pub fn run_work_item_with_input(
         DispatchPlan {
             id,
             work_item_id: work_item_id.to_string(),
+            status: DispatchPlanStatus::Draft,
             agent_run_id: run.id.clone(),
             dispatch_agent_profile_id: input.agent_profile_id.to_string(),
             target_agent_profile_id,
@@ -518,6 +519,12 @@ pub fn run_work_item_with_input(
     ledger.evidence.push(evidence);
     let dispatch_plan_id = dispatch_plan.as_ref().map(|plan| plan.id.clone());
     if let Some(plan) = dispatch_plan {
+        for existing in &mut ledger.dispatch_plans {
+            if existing.work_item_id == work_item_id && existing.status == DispatchPlanStatus::Draft
+            {
+                existing.status = DispatchPlanStatus::Superseded;
+            }
+        }
         ledger.dispatch_plans.push(plan);
     }
     ledger

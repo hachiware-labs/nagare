@@ -1,5 +1,6 @@
 mod adapters;
 mod config;
+mod dispatch;
 mod layout;
 mod model;
 mod scenario;
@@ -9,6 +10,7 @@ mod util;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+pub use dispatch::*;
 pub use layout::{
     DoctorReport, InitResult, ProjectLayout, ToolStatus, doctor, init_project, resolve_root,
 };
