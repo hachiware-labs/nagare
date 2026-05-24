@@ -292,8 +292,8 @@ JSON-RPC over stdio で `initialize`、`thread/start`、`turn/start`、`turn/com
 - `AgentRun`: id、work_item_id、agent_profile_id、adapter、purpose、status、exit_code、artifact_id、locale
 - `AgentRunPurpose`: work、dispatch_preview、review
 - `ResolvedSkillContext`: id、work_item_id、agent_profile_id、capability_probe_id、project_rule_ids、declared_skill_set_ids、applied_skill_set_ids、skipped_skill_set_ids、capabilities_in_force、instruction_sources、artifact_uri、content_hash、locale
-- `ResolvedRunPacket`: id、work_item_id、agent_profile_id、adapter_id、purpose、working_dir、goal、path、permission_policy_id、workspace_policy_id、resolved_skill_context_id、project_rule_ids、verification、constraints、artifact_uri、content_hash、locale
-- `DispatchPlan`: id、work_item_id、status、agent_run_id、dispatch_agent_profile_id、target_agent_profile_id、resolved_run_packet_id、raw_output_artifact_id、path、summary、risks、missing_information、locale
+- `ResolvedRunPacket`: id、work_item_id、agent_profile_id、adapter_id、purpose、working_dir、goal、path、dispatch_plan_id、permission_policy_id、workspace_policy_id、resolved_skill_context_id、project_rule_ids、verification、constraints、artifact_uri、content_hash、locale
+- `DispatchPlan`: id、work_item_id、status、agent_run_id、dispatch_agent_profile_id、target_agent_profile_id、resolved_run_packet_id、raw_output_artifact_id、path、summary、risks、missing_information、selection_warnings、locale
 - `Artifact`: id、work_item_id、agent_run_id、artifact_type、uri、title、locale
 - `Evidence`: id、work_item_id、claim、basis、artifact_id、produced_by、locale
 - `VerificationResult`: id、work_item_id、result、artifact_id、locale
@@ -424,8 +424,11 @@ Ledger-owned（観測事実として保存するもの）:
 - Dispatch target の最終判断は Nagare の `dispatch_agent` が行う。
 - Dispatch prompt の Agent context は最大 5 件の Agent Profile summary に制限し、巨大な instruction source 本文は渡さない。
 - Dispatch output の JSON `target_agent_profile_id` は、登録済み Agent Profile に一致する場合だけ DispatchPlan に採用する。
+- Dispatch output contract は JSON object とし、`target_agent_profile_id` と `summary` を必須、`risks` と `missing_information` を任意とする。
+- JSON parse 失敗、target 欠落、未知 target は実行を止めず、fallback target と `selection_warnings` として記録する。
 - DispatchPlan は `draft` / `accepted` / `superseded` の lifecycle を持つ。
 - `item run` の agent 解決順は、明示 `--agent`、明示 accepted `--dispatch-plan`、最新 accepted DispatchPlan、Project Rule、`work_agent` とする。
+- Context Budget は初期MVPでは固定値とし、dispatch candidate は最大 5 件までに制限する。ユーザー設定化は、画面UIと運用上限が固まるまで行わない。
 
 ### マイグレーション
 
@@ -656,6 +659,7 @@ nagare doctor [--root <path>]
 nagare locale show [--root <path>]
 nagare locale use [--language <locale>] [--timezone <timezone>] [--root <path>]
 nagare agent add --id <agent_profile_id> --runtime <runtime_id> --adapter <adapter_id> [--display-name <text>] [--role <role>] [--working-dir <relative_path>] [--description <text>] [--specialties <csv>] [--root <path>]
+nagare agent update <agent_profile_id> [--display-name <text>] [--role <role>] [--working-dir <relative_path>] [--description <text>] [--specialties <csv>] [--root <path>]
 nagare agent list [--root <path>]
 nagare agent show <agent_profile_id> [--root <path>]
 nagare agent defaults [--root <path>]

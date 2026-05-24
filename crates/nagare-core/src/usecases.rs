@@ -69,6 +69,51 @@ pub fn add_agent_profile(
     };
     existing.insert(profile.id.clone(), profile.clone());
 
+    let path = write_agent_profile_file(&layout, &profile)?;
+
+    Ok(AddAgentProfileResult { profile, path })
+}
+
+pub fn update_agent_profile(
+    root: impl Into<PathBuf>,
+    agent_profile_id: &str,
+    input: UpdateAgentProfileInput<'_>,
+) -> Result<UpdateAgentProfileResult, NagareError> {
+    let layout = ensure_project(root)?;
+    validate_agent_profile_id(agent_profile_id)?;
+    let mut profile = get_agent_profile_from_layout(&layout, agent_profile_id)?;
+    if let Some(display_name) = input.display_name {
+        profile.display_name = if display_name.trim().is_empty() {
+            profile.id.clone()
+        } else {
+            display_name.trim().to_string()
+        };
+    }
+    if let Some(role) = input.role {
+        profile.role = if role.trim().is_empty() {
+            "implementer".to_string()
+        } else {
+            role.trim().to_string()
+        };
+    }
+    if let Some(working_dir) = input.working_dir {
+        profile.working_dir = normalize_working_dir(working_dir)?;
+    }
+    if let Some(description) = input.description {
+        profile.description = description.trim().to_string();
+    }
+    if let Some(specialties) = input.specialties {
+        profile.specialties = normalize_specialties(specialties);
+    }
+    profile.source = AgentProfileSource::ProjectAgentDirectory;
+    let path = write_agent_profile_file(&layout, &profile)?;
+    Ok(UpdateAgentProfileResult { profile, path })
+}
+
+fn write_agent_profile_file(
+    layout: &ProjectLayout,
+    profile: &AgentProfile,
+) -> Result<PathBuf, NagareError> {
     fs::create_dir_all(&layout.agents_dir)?;
     let path = layout.agents_dir.join(format!("{}.toml", profile.id));
     let document = AgentProfileFile {
@@ -86,8 +131,7 @@ pub fn add_agent_profile(
     };
     let raw = toml::to_string_pretty(&document)?;
     fs::write(&path, raw)?;
-
-    Ok(AddAgentProfileResult { profile, path })
+    Ok(path)
 }
 
 pub fn get_nagare_agent_settings(
@@ -295,6 +339,7 @@ pub fn run_work_item(
         work_item_id,
         RunWorkItemInput {
             agent_profile_id,
+            dispatch_plan_id: None,
             path: None,
             prompt: None,
             dev_command: Some(command),
@@ -384,6 +429,7 @@ pub fn run_work_item_with_input(
         working_dir: path_uri(&working_dir),
         goal: goal.clone(),
         path: rule_resolution.path.clone(),
+        dispatch_plan_id: input.dispatch_plan_id.map(ToOwned::to_owned),
         permission_policy_id: rule_resolution.permission_policy_id.clone(),
         workspace_policy_id: rule_resolution.workspace_policy_id.clone(),
         resolved_skill_context_id: skill_context_id.clone(),
@@ -476,16 +522,40 @@ pub fn run_work_item_with_input(
             .as_ref()
             .map(|resolution| resolution.agent_profile_id.clone())
             .unwrap_or_else(|| input.agent_profile_id.to_string());
-        let target_agent_profile_id = dispatch_suggestion
+        let mut selection_warnings = Vec::new();
+        let target_agent_profile_id = match dispatch_suggestion
             .as_ref()
             .and_then(|suggestion| suggestion.target_agent_profile_id.as_deref())
-            .filter(|target| valid_dispatch_targets.contains_key(*target))
-            .map(ToOwned::to_owned)
-            .unwrap_or(fallback_target_agent_profile_id);
+        {
+            Some(target) if valid_dispatch_targets.contains_key(target) => target.to_string(),
+            Some(target) => {
+                selection_warnings.push(format!(
+                    "dispatch output target_agent_profile_id `{target}` is not registered; used fallback target `{fallback_target_agent_profile_id}`"
+                ));
+                fallback_target_agent_profile_id
+            }
+            None => {
+                if dispatch_suggestion.is_some() {
+                    selection_warnings.push(format!(
+                        "dispatch output missing required target_agent_profile_id; used fallback target `{fallback_target_agent_profile_id}`"
+                    ));
+                } else {
+                    selection_warnings.push(format!(
+                        "dispatch output was not valid dispatch JSON; used fallback target `{fallback_target_agent_profile_id}`"
+                    ));
+                }
+                fallback_target_agent_profile_id
+            }
+        };
         let summary = dispatch_suggestion
             .as_ref()
             .and_then(|suggestion| suggestion.summary.clone())
-            .unwrap_or_else(|| summarize_dispatch_output(&output.stdout));
+            .unwrap_or_else(|| {
+                selection_warnings.push(
+                    "dispatch output missing summary; summarized raw output".to_string(),
+                );
+                summarize_dispatch_output(&output.stdout)
+            });
         let risks = dispatch_suggestion
             .as_ref()
             .map(|suggestion| suggestion.risks.clone())
@@ -509,6 +579,7 @@ pub fn run_work_item_with_input(
             summary,
             risks,
             missing_information,
+            selection_warnings,
             locale: locale.clone(),
             created_at: ended_at.clone(),
         }

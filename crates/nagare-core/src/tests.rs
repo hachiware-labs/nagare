@@ -126,6 +126,7 @@ fn run_auto_probes_missing_and_stale_capability_snapshot() {
         &item.id,
         RunWorkItemInput {
             agent_profile_id: "codex-cli",
+            dispatch_plan_id: None,
             path: None,
             prompt: None,
             dev_command: Some(command.as_str()),
@@ -146,6 +147,7 @@ fn run_auto_probes_missing_and_stale_capability_snapshot() {
         &item.id,
         RunWorkItemInput {
             agent_profile_id: "codex-cli",
+            dispatch_plan_id: None,
             path: None,
             prompt: None,
             dev_command: Some(command.as_str()),
@@ -230,6 +232,48 @@ fn agent_profile_routing_hints_are_persisted() {
 }
 
 #[test]
+fn agent_profile_can_be_updated_as_project_local_override() {
+    let root = env::temp_dir().join(format!("nagare-agent-update-test-{}", timestamp()));
+    init_project(&root).expect("project should init");
+    add_agent_profile(
+        &root,
+        AddAgentProfileInput {
+            id: "draft-agent",
+            display_name: "Draft Agent",
+            runtime: "codex-local",
+            adapter: "process.codex-cli",
+            role: "writer",
+            working_dir: ".",
+            description: "Initial profile.",
+            specialties: vec!["drafting".to_string()],
+        },
+    )
+    .expect("profile should be added");
+
+    let updated = update_agent_profile(
+        &root,
+        "draft-agent",
+        UpdateAgentProfileInput {
+            display_name: Some("Research Writer"),
+            role: Some("researcher"),
+            working_dir: Some("."),
+            description: Some("Research and writing profile."),
+            specialties: Some(vec!["research".to_string(), "writing".to_string()]),
+        },
+    )
+    .expect("profile should update");
+
+    assert!(updated.path.ends_with(".nagare/agents/draft-agent.toml"));
+    let profile = get_agent_profile(&root, "draft-agent").expect("profile should load");
+    assert_eq!(profile.display_name, "Research Writer");
+    assert_eq!(profile.role, "researcher");
+    assert_eq!(profile.description, "Research and writing profile.");
+    assert_eq!(profile.specialties, vec!["research", "writing"]);
+    assert_eq!(profile.source, AgentProfileSource::ProjectAgentDirectory);
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
 fn nagare_agent_settings_can_select_default_work_agent() {
     let root = env::temp_dir().join(format!("nagare-agent-settings-test-{}", timestamp()));
     init_project(&root).expect("project should init");
@@ -280,6 +324,7 @@ fn dispatch_preview_and_review_runs_do_not_advance_item_status() {
         &item.id,
         RunWorkItemInput {
             agent_profile_id: "codex-cli",
+            dispatch_plan_id: None,
             path: None,
             prompt: None,
             dev_command: Some(command.as_str()),
@@ -296,6 +341,7 @@ fn dispatch_preview_and_review_runs_do_not_advance_item_status() {
         &item.id,
         RunWorkItemInput {
             agent_profile_id: "codex-app-server",
+            dispatch_plan_id: None,
             path: None,
             prompt: None,
             dev_command: Some(command.as_str()),
@@ -314,6 +360,82 @@ fn dispatch_preview_and_review_runs_do_not_advance_item_status() {
     assert_eq!(snapshot.dispatch_plans.len(), 1);
     assert_eq!(snapshot.dispatch_plans[0].agent_run_id, preview.run.id);
     assert_eq!(snapshot.dispatch_plans[0].summary, "agent purpose run");
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn handoff_dispatch_uses_same_plan_lifecycle() {
+    let root = env::temp_dir().join(format!("nagare-handoff-dispatch-test-{}", timestamp()));
+    init_project(&root).expect("project should init");
+    add_agent_profile(
+        &root,
+        AddAgentProfileInput {
+            id: "repair-agent",
+            display_name: "Repair Agent",
+            runtime: "codex-local",
+            adapter: "process.codex-cli",
+            role: "implementer",
+            working_dir: ".",
+            description: "Handles repair work.",
+            specialties: vec!["repair".to_string()],
+        },
+    )
+    .expect("profile should be added");
+    let item = create_work_item(&root, "Handoff dispatch", "")
+        .expect("item should create")
+        .item;
+    create_handoff(
+        &root,
+        &item.id,
+        "codex-cli",
+        "repair-agent",
+        "Initial agent failed",
+        "Use repair profile for retry.",
+    )
+    .expect("handoff should create");
+    fs::write(
+        root.join("dispatch.json"),
+        r#"{"target_agent_profile_id":"repair-agent","summary":"Retry with repair agent.","risks":[],"missing_information":[]}"#,
+    )
+    .expect("dispatch output should write");
+    let command = if cfg!(windows) {
+        "type dispatch.json"
+    } else {
+        "cat dispatch.json"
+    };
+
+    let preview = run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "codex-cli",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(command),
+            purpose: AgentRunPurpose::DispatchPreview,
+        },
+    )
+    .expect("handoff dispatch should create plan");
+    let dispatch_plan_id = preview.dispatch_plan_id.expect("plan should exist");
+    let accepted = accept_dispatch_plan(&root, &item.id, Some(&dispatch_plan_id))
+        .expect("handoff dispatch plan should accept")
+        .plan;
+    assert_eq!(accepted.status, DispatchPlanStatus::Accepted);
+    assert_eq!(accepted.target_agent_profile_id, "repair-agent");
+
+    let selection = select_agent_for_work_item_run(
+        &root,
+        &item.id,
+        SelectRunAgentInput {
+            explicit_agent_profile_id: None,
+            dispatch_plan_id: None,
+            path: None,
+        },
+    )
+    .expect("accepted handoff dispatch should select repair agent");
+    assert_eq!(selection.agent_profile_id, "repair-agent");
+    assert_eq!(selection.source, RunAgentSelectionSource::DispatchPlan);
     fs::remove_dir_all(root).ok();
 }
 
@@ -356,6 +478,7 @@ default_agent = "research-agent"
         &item.id,
         RunWorkItemInput {
             agent_profile_id: "codex-cli",
+            dispatch_plan_id: None,
             path: Some("docs/topic.md"),
             prompt: None,
             dev_command: Some(scenario_command("dispatch ok", true).as_str()),
@@ -385,6 +508,30 @@ default_agent = "research-agent"
     assert_eq!(selection.source, RunAgentSelectionSource::DispatchPlan);
     assert_eq!(
         selection.dispatch_plan_id.as_deref(),
+        Some(dispatch_plan_id.as_str())
+    );
+
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: selection.agent_profile_id.as_str(),
+            dispatch_plan_id: selection.dispatch_plan_id.as_deref(),
+            path: None,
+            prompt: None,
+            dev_command: Some(scenario_command("accepted dispatch run", true).as_str()),
+            purpose: AgentRunPurpose::Work,
+        },
+    )
+    .expect("work run should use accepted dispatch plan");
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot should load");
+    let packet = snapshot
+        .resolved_run_packets
+        .iter()
+        .find(|packet| packet.purpose == AgentRunPurpose::Work)
+        .expect("work run packet should exist");
+    assert_eq!(
+        packet.dispatch_plan_id.as_deref(),
         Some(dispatch_plan_id.as_str())
     );
     fs::remove_dir_all(root).ok();
@@ -453,6 +600,7 @@ default_agent = "writing-agent"
         &item.id,
         RunWorkItemInput {
             agent_profile_id: "codex-cli",
+            dispatch_plan_id: None,
             path: Some("docs/topic.md"),
             prompt: None,
             dev_command: Some(command),
@@ -491,6 +639,49 @@ default_agent = "writing-agent"
     .expect("accepted plan should beat rule fallback");
     assert_eq!(selection.agent_profile_id, "research-agent");
     assert_eq!(selection.source, RunAgentSelectionSource::DispatchPlan);
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn dispatch_contract_fallback_records_selection_warnings() {
+    let root = env::temp_dir().join(format!("nagare-dispatch-contract-test-{}", timestamp()));
+    init_project(&root).expect("project should init");
+    let item = create_work_item(&root, "Invalid dispatch output", "")
+        .expect("item should create")
+        .item;
+    fs::write(
+        root.join("dispatch.json"),
+        r#"{"summary":"No target provided."}"#,
+    )
+    .expect("dispatch output should write");
+    let command = if cfg!(windows) {
+        "type dispatch.json"
+    } else {
+        "cat dispatch.json"
+    };
+
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "codex-cli",
+            dispatch_plan_id: None,
+            path: Some("README.md"),
+            prompt: None,
+            dev_command: Some(command),
+            purpose: AgentRunPurpose::DispatchPreview,
+        },
+    )
+    .expect("dispatch preview should fallback");
+
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot should load");
+    let plan = &snapshot.dispatch_plans[0];
+    assert_eq!(plan.target_agent_profile_id, "codex-cli");
+    assert_eq!(plan.summary, "No target provided.");
+    assert!(plan.selection_warnings.iter().any(|warning| {
+        warning.contains("missing required target_agent_profile_id")
+            && warning.contains("fallback target `codex-cli`")
+    }));
     fs::remove_dir_all(root).ok();
 }
 
@@ -588,6 +779,7 @@ fn run_with_path_records_resolved_skill_context_and_run_packet() {
         &item.id,
         RunWorkItemInput {
             agent_profile_id: "codex-cli",
+            dispatch_plan_id: None,
             path: Some("README.md"),
             prompt: None,
             dev_command: Some(command.as_str()),
@@ -670,6 +862,7 @@ skill_sets = ["network-only"]
         &item.id,
         RunWorkItemInput {
             agent_profile_id: "codex-cli",
+            dispatch_plan_id: None,
             path: Some("secure/config.rs"),
             prompt: None,
             dev_command: Some(scenario_command("skill skip", true).as_str()),

@@ -273,6 +273,7 @@ Skill Sets and Run Packet.
   "working_dir": "file://./crates/nagare-core",
   "goal": "Refactor core run orchestration",
   "path": "crates/nagare-core/src/lib.rs",
+  "dispatch_plan_id": "dispatch_0001",
   "permission_policy_id": "medium-code-task",
   "workspace_policy_id": "worktree-per-item",
   "resolved_skill_context_id": "skillctx_0001",
@@ -305,6 +306,7 @@ Skill Sets and Run Packet.
   "summary": "Use codex-impl with the rust-core rule and run cargo test --workspace.",
   "risks": ["core usecase file is approaching the 800-line split threshold"],
   "missing_information": [],
+  "selection_warnings": [],
   "locale": "ja-JP",
   "created_at": "2026-05-24T15:01:20+09:00"
 }
@@ -313,7 +315,24 @@ Skill Sets and Run Packet.
 `target_agent_profile_id` is selected from the compact candidate list returned
 to the dispatch agent. Nagare accepts the selected ID only when it matches a
 registered Agent Profile; otherwise it falls back to the Project Rule or default
-target.
+target. Contract violations are recorded in `selection_warnings`.
+
+Dispatch output contract:
+
+```json
+{
+  "target_agent_profile_id": "research-agent",
+  "summary": "Research is required before writing.",
+  "risks": ["source quality"],
+  "missing_information": ["source list"]
+}
+```
+
+`target_agent_profile_id` and `summary` are required. `risks` and
+`missing_information` are optional arrays of strings. If JSON parsing fails,
+the target is missing, or the target does not match a registered Agent Profile,
+Nagare uses the Project Rule or default fallback target and records the reason
+in `selection_warnings`.
 
 `status` controls the execution lifecycle:
 
@@ -345,6 +364,12 @@ target.
 18. For `item run`, resolve agent in this order: explicit `--agent`,
     explicit accepted `--dispatch-plan`, latest accepted DispatchPlan,
     Project Rule path, then `work_agent`.
+19. If a DispatchPlan selected the run agent, persist `dispatch_plan_id` in
+    `ResolvedRunPacket`.
+
+The compact candidate list is fixed to at most 5 Agent Profiles in the initial
+MVP. This is intentionally not project-configurable yet; the goal is to keep
+dispatch context small until the full UI and operating limits are clear.
 
 If a required skill set is unavailable, the current implementation records it
 in `skipped_skill_set_ids` and adds the reason to Run Packet constraints. Later

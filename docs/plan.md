@@ -41,3 +41,4 @@
 - [x] [SEED-auto-probe-refresh] Run / Preview 前に CapabilityProbe の未取得・stale・runtime / adapter / version 不一致を検出し、自動更新するようにした
 - [x] [SEED-dispatch-agent-routing] Agent Profile に description / specialties を追加し、dispatch_agent が最大 5 件の compact candidate から target_agent_profile_id を JSON で選べるようにした
 - [x] [SEED-dispatch-plan-lifecycle] DispatchPlan に draft / accepted / superseded を追加し、`item dispatch accept` と accepted plan による `item run` の agent 選定を実装した
+- [x] [SEED-agent-update-contract] `agent update`、dispatch output contract の fallback 記録、ResolvedRunPacket.dispatch_plan_id、固定 Context Budget、handoff dispatch lifecycle test を実装した

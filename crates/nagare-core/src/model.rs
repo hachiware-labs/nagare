@@ -259,6 +259,8 @@ pub struct DispatchPlan {
     pub risks: Vec<String>,
     #[serde(default)]
     pub missing_information: Vec<String>,
+    #[serde(default)]
+    pub selection_warnings: Vec<String>,
     #[serde(default = "default_locale_language")]
     pub locale: String,
     pub created_at: String,
@@ -341,6 +343,8 @@ pub struct ResolvedRunPacket {
     #[serde(default)]
     pub goal: String,
     pub path: Option<String>,
+    #[serde(default)]
+    pub dispatch_plan_id: Option<String>,
     pub permission_policy_id: Option<String>,
     pub workspace_policy_id: Option<String>,
     pub resolved_skill_context_id: String,
@@ -410,6 +414,21 @@ pub struct AddAgentProfileInput<'a> {
 
 #[derive(Debug, Clone)]
 pub struct AddAgentProfileResult {
+    pub profile: AgentProfile,
+    pub path: PathBuf,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct UpdateAgentProfileInput<'a> {
+    pub display_name: Option<&'a str>,
+    pub role: Option<&'a str>,
+    pub working_dir: Option<&'a str>,
+    pub description: Option<&'a str>,
+    pub specialties: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct UpdateAgentProfileResult {
     pub profile: AgentProfile,
     pub path: PathBuf,
 }
@@ -559,6 +578,7 @@ pub(crate) struct SkillSetResolution {
 #[derive(Debug, Clone)]
 pub struct RunWorkItemInput<'a> {
     pub agent_profile_id: &'a str,
+    pub dispatch_plan_id: Option<&'a str>,
     pub path: Option<&'a str>,
     pub prompt: Option<&'a str>,
     pub dev_command: Option<&'a str>,

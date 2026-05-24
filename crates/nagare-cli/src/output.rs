@@ -71,12 +71,13 @@ pub(crate) fn print_snapshot(snapshot: &WorkItemSnapshot) {
     println!("dispatch_plans:");
     for plan in &snapshot.dispatch_plans {
         println!(
-            "  {}\t{}\tdispatch_agent={}\ttarget_agent={}\trun={}\tsummary={}",
+            "  {}\t{}\tdispatch_agent={}\ttarget_agent={}\trun={}\twarnings={}\tsummary={}",
             plan.id,
             plan.status,
             plan.dispatch_agent_profile_id,
             plan.target_agent_profile_id,
             plan.agent_run_id,
+            comma_list(&plan.selection_warnings),
             plan.summary
         );
     }
@@ -173,7 +174,7 @@ pub(crate) fn dispatch_prompt(
             "-".to_string(),
         ));
     format!(
-        "Prepare a dispatch preview for path `{path}`.\nMatched rule: {matched_rule}\nRule target agent profile: {rule_target_agent}\nReview agent profile: {review_agent}\nSkill sets: {skill_sets}\nPermission policy: {permission_policy}\nWorkspace policy: {workspace_policy}\nVerification: {verification}\n\nCandidate agent profiles are intentionally compact. Select only from this list:\n{candidate_lines}\n\nReturn one JSON object only with keys: target_agent_profile_id, summary, risks, missing_information. Keep summary concise and do not include full instruction-source contents.",
+        "Prepare a dispatch preview for path `{path}`.\nMatched rule: {matched_rule}\nRule target agent profile: {rule_target_agent}\nReview agent profile: {review_agent}\nSkill sets: {skill_sets}\nPermission policy: {permission_policy}\nWorkspace policy: {workspace_policy}\nVerification: {verification}\n\nCandidate agent profiles are intentionally compact. Select only from this list:\n{candidate_lines}\n\nReturn one JSON object only. Required keys: target_agent_profile_id, summary. Optional keys: risks, missing_information. target_agent_profile_id must exactly match one candidate id. Keep summary concise and do not include full instruction-source contents.",
     )
 }
 
@@ -242,6 +243,7 @@ Usage:
   nagare locale show [--root <path>]
   nagare locale use [--language <locale>] [--timezone <timezone>] [--root <path>]
   nagare agent add --id <agent_profile_id> --runtime <runtime_id> --adapter <adapter_id> [--display-name <text>] [--role <role>] [--working-dir <relative_path>] [--description <text>] [--specialties <csv>] [--root <path>]
+  nagare agent update <agent_profile_id> [--display-name <text>] [--role <role>] [--working-dir <relative_path>] [--description <text>] [--specialties <csv>] [--root <path>]
   nagare agent list [--root <path>]
   nagare agent show <agent_profile_id> [--root <path>]
   nagare agent defaults [--root <path>]

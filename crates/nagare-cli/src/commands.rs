@@ -3,13 +3,13 @@ use std::path::Path;
 
 use nagare_core::{
     AddAgentProfileInput, AgentProfile, AgentRunPurpose, RuleResolution, RunWorkItemInput,
-    SelectRunAgentInput, SetLocaleInput, SetNagareAgentSettingsInput, VERSION,
-    accept_dispatch_plan, add_agent_profile, agent_doctor, agent_probe, approve_work_item,
+    SelectRunAgentInput, SetLocaleInput, SetNagareAgentSettingsInput, UpdateAgentProfileInput,
+    VERSION, accept_dispatch_plan, add_agent_profile, agent_doctor, agent_probe, approve_work_item,
     create_handoff, create_work_item, doctor, get_agent_profile, get_locale_settings,
     get_nagare_agent_settings, get_work_item_snapshot, init_project, list_agent_profiles,
     list_work_items, resolve_rule_for_path, run_first_scenario, run_registered_agent_scenario,
     run_work_item_with_input, select_agent_for_work_item_run, set_locale_settings,
-    set_nagare_agent_settings, verify_work_item,
+    set_nagare_agent_settings, update_agent_profile, verify_work_item,
 };
 
 use crate::args::ParsedArgs;
@@ -75,6 +75,7 @@ fn doctor_command(args: &[String]) -> Result<(), String> {
 fn agent_command(args: &[String]) -> Result<(), String> {
     match args.first().map(String::as_str) {
         Some("add") => agent_add_command(&args[1..]),
+        Some("update") => agent_update_command(&args[1..]),
         Some("list") => agent_list_command(&args[1..]),
         Some("show") => agent_show_command(&args[1..]),
         Some("defaults") => agent_defaults_command(&args[1..]),
@@ -82,9 +83,10 @@ fn agent_command(args: &[String]) -> Result<(), String> {
         Some("doctor") => agent_doctor_command(&args[1..]),
         Some("probe") => agent_probe_command(&args[1..]),
         Some(command) => Err(format!("unknown agent command `{command}`")),
-        None => {
-            Err("agent command required: add, list, show, defaults, use, doctor, probe".to_string())
-        }
+        None => Err(
+            "agent command required: add, update, list, show, defaults, use, doctor, probe"
+                .to_string(),
+        ),
     }
 }
 
@@ -119,6 +121,48 @@ fn agent_add_command(args: &[String]) -> Result<(), String> {
         result.profile.runtime,
         result.profile.role,
         result.profile.working_dir,
+        result.path.display()
+    );
+    Ok(())
+}
+
+fn agent_update_command(args: &[String]) -> Result<(), String> {
+    let parsed = ParsedArgs::parse(args)?;
+    let agent_profile_id = parsed
+        .positionals
+        .first()
+        .ok_or_else(|| "agent update requires an agent profile id".to_string())?;
+    let has_update = parsed.optional("--display-name").is_some()
+        || parsed.optional("--role").is_some()
+        || parsed.optional("--working-dir").is_some()
+        || parsed.optional("--description").is_some()
+        || parsed.optional("--specialties").is_some();
+    if !has_update {
+        return Err(
+            "agent update requires --display-name, --role, --working-dir, --description, or --specialties"
+                .to_string(),
+        );
+    }
+    let result = update_agent_profile(
+        parsed.root()?,
+        agent_profile_id,
+        UpdateAgentProfileInput {
+            display_name: parsed.optional("--display-name"),
+            role: parsed.optional("--role"),
+            working_dir: parsed.optional("--working-dir"),
+            description: parsed.optional("--description"),
+            specialties: parsed
+                .optional("--specialties")
+                .map(|value| parse_comma_list(Some(value))),
+        },
+    )
+    .map_err(|e| e.to_string())?;
+    println!(
+        "agent {} updated role={} working_dir={} specialties={} path={}",
+        result.profile.id,
+        result.profile.role,
+        result.profile.working_dir,
+        comma_list(&result.profile.specialties),
         result.path.display()
     );
     Ok(())
@@ -382,6 +426,7 @@ fn item_run_command(args: &[String]) -> Result<(), String> {
         work_item_id,
         RunWorkItemInput {
             agent_profile_id: agent_selection.agent_profile_id.as_str(),
+            dispatch_plan_id: agent_selection.dispatch_plan_id.as_deref(),
             path,
             prompt,
             dev_command: command,
@@ -492,6 +537,7 @@ fn run_item_with_nagare_agent(
         work_item_id,
         RunWorkItemInput {
             agent_profile_id: agent,
+            dispatch_plan_id: None,
             path,
             prompt,
             dev_command: command,
