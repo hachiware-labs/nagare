@@ -52,6 +52,10 @@ pub(crate) struct AgentProfileFileEntry {
     pub(crate) role: String,
     #[serde(default = "default_working_dir")]
     pub(crate) working_dir: String,
+    #[serde(default)]
+    pub(crate) description: String,
+    #[serde(default)]
+    pub(crate) specialties: Vec<String>,
 }
 
 pub(crate) fn load_agent_profiles(
@@ -124,6 +128,8 @@ impl AgentProfileFileEntry {
             adapter: adapter.to_string(),
             role: self.role,
             working_dir: normalize_working_dir(&self.working_dir)?,
+            description: self.description,
+            specialties: normalize_specialties(self.specialties),
             source,
         })
     }
@@ -131,6 +137,14 @@ impl AgentProfileFileEntry {
 
 pub(crate) fn default_working_dir() -> String {
     ".".to_string()
+}
+
+pub(crate) fn normalize_specialties(specialties: Vec<String>) -> Vec<String> {
+    specialties
+        .into_iter()
+        .map(|specialty| specialty.trim().to_string())
+        .filter(|specialty| !specialty.is_empty())
+        .collect()
 }
 
 pub(crate) fn get_agent_profile_from_layout(

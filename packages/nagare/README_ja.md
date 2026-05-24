@@ -17,7 +17,7 @@ install された `nagare` binary からコマンドを実行します。
 ```powershell
 nagare init
 nagare locale show
-nagare agent add --id codex-impl --runtime codex-local --adapter process.codex-cli --working-dir .
+nagare agent add --id codex-impl --runtime codex-local --adapter process.codex-cli --working-dir . --description "実装と検証向け" --specialties implementation,verification
 nagare agent list
 nagare agent use --work-agent codex-impl --dispatch-agent codex-impl
 nagare agent defaults

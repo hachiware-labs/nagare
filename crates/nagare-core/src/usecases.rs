@@ -63,6 +63,8 @@ pub fn add_agent_profile(
             input.role.to_string()
         },
         working_dir: normalize_working_dir(input.working_dir)?,
+        description: input.description.trim().to_string(),
+        specialties: normalize_specialties(input.specialties),
         source: AgentProfileSource::ProjectAgentDirectory,
     };
     existing.insert(profile.id.clone(), profile.clone());
@@ -77,6 +79,8 @@ pub fn add_agent_profile(
             adapter: profile.adapter.clone(),
             role: profile.role.clone(),
             working_dir: profile.working_dir.clone(),
+            description: profile.description.clone(),
+            specialties: profile.specialties.clone(),
         }),
         agent_profiles: BTreeMap::new(),
     };
@@ -461,11 +465,37 @@ pub fn run_work_item_with_input(
     } else {
         item.status
     };
+    let dispatch_suggestion = parse_dispatch_plan_suggestion(&output.stdout);
+    let valid_dispatch_targets = if dispatch_plan_id.is_some() {
+        load_agent_profiles(&layout)?
+    } else {
+        BTreeMap::new()
+    };
     let dispatch_plan = dispatch_plan_id.map(|id| {
-        let target_agent_profile_id = dispatch_target_resolution
+        let fallback_target_agent_profile_id = dispatch_target_resolution
             .as_ref()
             .map(|resolution| resolution.agent_profile_id.clone())
             .unwrap_or_else(|| input.agent_profile_id.to_string());
+        let target_agent_profile_id = dispatch_suggestion
+            .as_ref()
+            .and_then(|suggestion| suggestion.target_agent_profile_id.as_deref())
+            .filter(|target| valid_dispatch_targets.contains_key(*target))
+            .map(ToOwned::to_owned)
+            .unwrap_or(fallback_target_agent_profile_id);
+        let summary = dispatch_suggestion
+            .as_ref()
+            .and_then(|suggestion| suggestion.summary.clone())
+            .unwrap_or_else(|| summarize_dispatch_output(&output.stdout));
+        let risks = dispatch_suggestion
+            .as_ref()
+            .map(|suggestion| suggestion.risks.clone())
+            .filter(|risks| !risks.is_empty())
+            .unwrap_or_else(|| extract_prefixed_lines(&output.stdout, "risk:"));
+        let missing_information = dispatch_suggestion
+            .as_ref()
+            .map(|suggestion| suggestion.missing_information.clone())
+            .filter(|missing_information| !missing_information.is_empty())
+            .unwrap_or_else(|| extract_prefixed_lines(&output.stdout, "missing:"));
         DispatchPlan {
             id,
             work_item_id: work_item_id.to_string(),
@@ -475,9 +505,9 @@ pub fn run_work_item_with_input(
             resolved_run_packet_id: resolved_run_packet.id.clone(),
             raw_output_artifact_id: artifact_id.clone(),
             path: rule_resolution.path.clone(),
-            summary: summarize_dispatch_output(&output.stdout),
-            risks: extract_prefixed_lines(&output.stdout, "risk:"),
-            missing_information: extract_prefixed_lines(&output.stdout, "missing:"),
+            summary,
+            risks,
+            missing_information,
             locale: locale.clone(),
             created_at: ended_at.clone(),
         }
@@ -675,144 +705,5 @@ pub fn approve_work_item(
     Ok(DecisionResult {
         decision,
         item_status: WorkItemStatus::Done,
-    })
-}
-
-pub fn run_first_scenario(root: impl Into<PathBuf>) -> Result<ScenarioResult, NagareError> {
-    let root = root.into();
-    init_project(&root)?;
-    let item = create_work_item(
-        &root,
-        "Repair failing agent run",
-        "Demonstrate Codex CLI failure, Codex App Server handoff, verification, and approval.",
-    )?
-    .item;
-    let codex_run = run_work_item(
-        &root,
-        &item.id,
-        "codex-cli",
-        scenario_command("codex attempt failed", false).as_str(),
-    )?
-    .run;
-    let handoff = create_handoff(
-        &root,
-        &item.id,
-        "codex-cli",
-        "codex-app-server",
-        "Codex agent profile produced a failing run",
-        "Retry with Codex App Server agent profile using the captured run log as evidence.",
-    )?
-    .handoff;
-    let codex_app_run = run_work_item(
-        &root,
-        &item.id,
-        "codex-app-server",
-        scenario_command("codex app server retry fixed the task", true).as_str(),
-    )?
-    .run;
-    let verification = verify_work_item(
-        &root,
-        &item.id,
-        scenario_command("verification passed", true).as_str(),
-    )?
-    .verification;
-    let decision = approve_work_item(
-        &root,
-        &item.id,
-        "Required verification passed after cross-agent handoff.",
-    )?
-    .decision;
-    let final_status = get_work_item_snapshot(&root, &item.id)?.item.status;
-
-    Ok(ScenarioResult {
-        work_item_id: item.id,
-        codex_run_id: codex_run.id,
-        handoff_id: handoff.id,
-        codex_app_run_id: codex_app_run.id,
-        verification_id: verification.id,
-        decision_id: decision.id,
-        final_status,
-    })
-}
-
-pub fn run_registered_agent_scenario(
-    root: impl Into<PathBuf>,
-) -> Result<ScenarioResult, NagareError> {
-    let root = root.into();
-    init_project(&root)?;
-    add_agent_profile(
-        &root,
-        AddAgentProfileInput {
-            id: "codex-impl-smoke",
-            display_name: "Codex CLI Smoke Implementer",
-            runtime: "codex-local",
-            adapter: "process.codex-cli",
-            role: "implementer",
-            working_dir: ".",
-        },
-    )?;
-    add_agent_profile(
-        &root,
-        AddAgentProfileInput {
-            id: "codex-app-smoke",
-            display_name: "Codex App Server Smoke Implementer",
-            runtime: "codex-app-local",
-            adapter: "stdio.codex-app-server",
-            role: "implementer",
-            working_dir: ".",
-        },
-    )?;
-
-    let item = create_work_item(
-        &root,
-        "Repair failing registered agent run",
-        "Demonstrate registered Agent Profiles, handoff, verification, and approval.",
-    )?
-    .item;
-    let codex_run = run_work_item(
-        &root,
-        &item.id,
-        "codex-impl-smoke",
-        scenario_command("registered codex attempt failed", false).as_str(),
-    )?
-    .run;
-    let handoff = create_handoff(
-        &root,
-        &item.id,
-        "codex-impl-smoke",
-        "codex-app-smoke",
-        "Registered Codex agent profile produced a failing run",
-        "Retry with the registered Codex App Server profile using the captured run log as evidence.",
-    )?
-    .handoff;
-    let codex_app_run = run_work_item(
-        &root,
-        &item.id,
-        "codex-app-smoke",
-        scenario_command("registered codex app server retry fixed the task", true).as_str(),
-    )?
-    .run;
-    let verification = verify_work_item(
-        &root,
-        &item.id,
-        scenario_command("registered verification passed", true).as_str(),
-    )?
-    .verification;
-    let decision = approve_work_item(
-        &root,
-        &item.id,
-        "Required verification passed after registered agent handoff.",
-    )?
-    .decision;
-    let final_status = get_work_item_snapshot(&root, &item.id)?.item.status;
-
-    Ok(ScenarioResult {
-        work_item_id: item.id,
-        codex_run_id: codex_run.id,
-        handoff_id: handoff.id,
-        codex_app_run_id: codex_app_run.id,
-        verification_id: verification.id,
-        decision_id: decision.id,
-        final_status,
     })
 }

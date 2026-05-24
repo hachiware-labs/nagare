@@ -41,7 +41,7 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | ID | 仕様 | Given | When | Done | 状態 |
 | --- | --- | --- | --- | --- | --- |
 | 3.1.1 | Project-local Agent Profile を登録できる。 | Project が初期化済み | `nagare agent add --id <id> --runtime <runtime> --adapter <adapter>` を実行する | `.nagare/agents/<id>.toml` が作成される | 実装済み |
-| 3.1.2 | Agent Profile には表示名、role、runtime、adapter、working_dir を保存できる。 | Project が初期化済み | `nagare agent add` に各 option を渡す | 保存された TOML に値が残る | 実装済み |
+| 3.1.2 | Agent Profile には表示名、role、runtime、adapter、working_dir、description、specialties を保存できる。 | Project が初期化済み | `nagare agent add` に各 option を渡す | 保存された TOML に値が残る | 実装済み |
 | 3.1.3 | Agent Profile の `working_dir` は Project 内の相対 path に限定する。 | Project が初期化済み | workspace 外または絶対 path を指定する | 登録または実行が拒否される | 実装済み |
 | 3.2.1 | 登録済み Agent Profile を一覧表示できる。 | Agent Profile が存在する | `nagare agent list` を実行する | profile ID、adapter、runtime、role が確認できる | 実装済み |
 | 3.2.2 | 登録済み Agent Profile の詳細を表示できる。 | Agent Profile が存在する | `nagare agent show <agent_profile_id>` を実行する | display_name、adapter、runtime、working_dir が確認できる | 実装済み |
@@ -58,6 +58,8 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | 4.2.2 | dispatch は Work Item の実作業を進めない。 | Work Item が存在する | Preview を実行する | AgentRun と Evidence は残るが、Work Item status は実行結果で進まない | 実装済み |
 | 4.2.3 | review_agent は実行後の評価に使う。 | review_agent が設定済み | `nagare item review <work_id>` を実行する | review_agent の AgentRun が `review` として記録される | 実装済み |
 | 4.2.4 | dispatch preview の結果は Dispatch Plan として保存する。 | dispatch preview が成功する | Preview または Handoff Dispatch を実行する | DispatchPlan が AgentRun、ResolvedRunPacket、Artifact と紐づいて ledger に保存される | 実装済み |
+| 4.2.5 | dispatch_agent には小さな候補 Agent Profile リストだけを渡す。 | dispatch preview を開始する | `nagare item preview` を実行する | Project Rule、既定 agent、登録 profile から最大 5 件の候補 summary が prompt に含まれる | 実装済み |
+| 4.2.6 | dispatch_agent は候補リストから target Agent Profile を選べる。 | dispatch_agent が JSON を返す | `target_agent_profile_id` を含む dispatch output を保存する | 存在する Agent Profile なら DispatchPlan.target_agent_profile_id に採用され、不正 ID は fallback target になる | 実装済み |
 
 ## 5. Agent Health / Capability Probe
 
@@ -78,6 +80,7 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | 6.2.1 | Project Rule は path / glob に応じて Agent Profile、Skill Set、Policy、Verification を選ぶ。 | Project Rule が存在する | `nagare rule check <path>` を実行する | matching rule と選択根拠が表示される | 実装済み |
 | 6.2.2 | `item preview` は dispatch_agent で実行前確認を記録する。 | Work Item と dispatch_agent が存在する | `nagare item preview <work_id>` を実行する | `dispatch_preview` 目的の AgentRun、Artifact、Evidence、DispatchPlan が保存される | 実装済み |
 | 6.2.3 | `item preview` は Project Rule、Skill Set、Policy、Verification を解決して表示する。 | Project Rule が存在する | `nagare item preview <work_id> --path <path>` を実行する | Agent Profile、Project Rule、Skill Set、Policy、Verification が表示され、dispatch prompt に含まれる | 実装済み |
+| 6.2.4 | dispatch prompt は Agent instruction source の全文を含めない。 | Agent Profile と Probe が存在する | dispatch preview prompt を生成する | 候補 context は profile summary に限定され、大きな AGENTS.md / SOUL.md などは直接展開しない | 実装済み |
 | 6.3.1 | Resolved Skill Context は実行時に使った Rule、Skill Set、Capability、Instruction source を固定する。 | Preview または Run が実行される | AgentRun を作成する | `ResolvedSkillContext` が ledger と artifact に保存される | 実装済み |
 | 6.3.2 | Resolved Run Packet は実行時に使った Work Item、Agent Profile、実行目的、working_dir、goal、Policy、Verification、Resolved Skill Context を固定する。 | Preview または Run が実行される | AgentRun を作成する | `ResolvedRunPacket` が ledger と artifact に保存され、Adapter 実行入力として使われる | 実装済み |
 | 6.3.3 | Work Item 詳細で解決済み Skill Context と Run Packet を確認できる。 | 解決済み記録が存在する | `nagare item show <work_id>` を実行する | resolved_skill_contexts と resolved_run_packets が表示される | 実装済み |

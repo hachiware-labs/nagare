@@ -83,6 +83,8 @@ runtime = "codex-local"
 adapter = "process-codex-cli"
 role = "implementer"
 working_dir = "."
+description = "Codex CLI implementation profile"
+specialties = ["implementation", "verification"]
 declared_skill_sets = ["nagare-core", "repo-default"]
 permission_policy = "medium-code-task"
 workspace_policy = "worktree-per-item"
@@ -96,6 +98,8 @@ runtime = "codex-app-local"
 adapter = "stdio-codex-app-server"
 role = "implementer"
 working_dir = "."
+description = "Codex app-server implementation and planning profile"
+specialties = ["planning", "review"]
 declared_skill_sets = ["nagare-core", "repo-default"]
 permission_policy = "medium-code-task"
 workspace_policy = "worktree-per-item"
@@ -152,11 +156,16 @@ runtime = "codex-local"
 adapter = "process.codex-cli"
 role = "implementer"
 working_dir = "packages/app"
+description = "コード実装と検証を担当する Codex CLI agent"
+specialties = ["implementation", "verification"]
 ```
 
 These files are created by `nagare agent add`. They override same-id profiles
 from `.nagare/project.toml`. `working_dir` is the directory where the agent run
 starts. It must be a relative path inside the project; the default is `"."`.
+`description` and `specialties` are compact routing hints for the Nagare
+dispatch agent. They are not treated as observed capability; actual availability
+still comes from CapabilityProbe.
 
 ## Nagare Agent Defaults
 
@@ -173,6 +182,8 @@ dispatch_agent = "codex-impl"
 - `work_agent`: default target for `nagare item run` when `--agent` is omitted.
 - `review_agent`: default profile for review-oriented flows.
 - `dispatch_agent`: default profile that will propose or resolve dispatch plans.
+  It receives only a small Agent Profile candidate list, then returns a selected
+  `target_agent_profile_id` in DispatchPlan-oriented JSON.
 
 ## Ledger JSON Shapes
 
@@ -298,6 +309,11 @@ Skill Sets and Run Packet.
 }
 ```
 
+`target_agent_profile_id` is selected from the compact candidate list returned
+to the dispatch agent. Nagare accepts the selected ID only when it matches a
+registered Agent Profile; otherwise it falls back to the Project Rule or default
+target.
+
 ## Resolution Rules
 
 1. Load built-in defaults.
@@ -314,7 +330,8 @@ Skill Sets and Run Packet.
 12. Create `ResolvedSkillContext`.
 13. Create `ResolvedRunPacket`.
 14. Start an Agent Run through the adapter.
-15. For dispatch preview, create `DispatchPlan`.
+15. For dispatch preview, give the dispatch agent a compact candidate list.
+16. Parse dispatch output JSON and create `DispatchPlan`.
 
 If a required skill set is unavailable, the current implementation records it
 in `skipped_skill_set_ids` and adds the reason to Run Packet constraints. Later

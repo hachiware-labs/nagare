@@ -181,6 +181,8 @@ fn agent_profile_working_dir_is_used_for_runs() {
             adapter: "process.codex-cli",
             role: "implementer",
             working_dir: "packages/app",
+            description: "",
+            specialties: Vec::new(),
         },
     )
     .expect("profile should be added");
@@ -200,6 +202,34 @@ fn agent_profile_working_dir_is_used_for_runs() {
 }
 
 #[test]
+fn agent_profile_routing_hints_are_persisted() {
+    let root = env::temp_dir().join(format!("nagare-agent-hints-test-{}", timestamp()));
+    init_project(&root).expect("project should init");
+    add_agent_profile(
+        &root,
+        AddAgentProfileInput {
+            id: "research-agent",
+            display_name: "Research Agent",
+            runtime: "codex-local",
+            adapter: "process.codex-cli",
+            role: "researcher",
+            working_dir: ".",
+            description: "Handles source gathering and synthesis.",
+            specialties: vec!["research".to_string(), "synthesis".to_string()],
+        },
+    )
+    .expect("profile should be added");
+
+    let profile = get_agent_profile(&root, "research-agent").expect("profile should load");
+    assert_eq!(
+        profile.description,
+        "Handles source gathering and synthesis."
+    );
+    assert_eq!(profile.specialties, vec!["research", "synthesis"]);
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
 fn nagare_agent_settings_can_select_default_work_agent() {
     let root = env::temp_dir().join(format!("nagare-agent-settings-test-{}", timestamp()));
     init_project(&root).expect("project should init");
@@ -212,6 +242,8 @@ fn nagare_agent_settings_can_select_default_work_agent() {
             adapter: "process.codex-cli",
             role: "implementer",
             working_dir: ".",
+            description: "",
+            specialties: Vec::new(),
         },
     )
     .expect("profile should be added");
@@ -286,6 +318,23 @@ fn dispatch_preview_and_review_runs_do_not_advance_item_status() {
 }
 
 #[test]
+fn dispatch_plan_suggestion_parses_agent_json() {
+    let output = r#"item/completed: {"params":{"item":{"text":"```json\n{\"target_agent_profile_id\":\"research-agent\",\"summary\":\"Use the research agent.\",\"risks\":[\"needs sources\"],\"missing_information\":[\"source list\"]}\n```"}}}"#;
+    let suggestion = parse_dispatch_plan_suggestion(output).expect("suggestion should parse");
+
+    assert_eq!(
+        suggestion.target_agent_profile_id.as_deref(),
+        Some("research-agent")
+    );
+    assert_eq!(
+        suggestion.summary.as_deref(),
+        Some("Use the research agent.")
+    );
+    assert_eq!(suggestion.risks, vec!["needs sources"]);
+    assert_eq!(suggestion.missing_information, vec!["source list"]);
+}
+
+#[test]
 fn project_rule_resolution_selects_most_specific_rule() {
     let root = env::temp_dir().join(format!("nagare-rule-test-{}", timestamp()));
     init_project(&root).expect("project should init");
@@ -298,6 +347,8 @@ fn project_rule_resolution_selects_most_specific_rule() {
             adapter: "process.codex-cli",
             role: "implementer",
             working_dir: ".",
+            description: "",
+            specialties: Vec::new(),
         },
     )
     .expect("profile should be added");

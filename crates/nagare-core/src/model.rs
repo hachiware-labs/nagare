@@ -348,6 +348,10 @@ pub struct AgentProfile {
     pub adapter: String,
     pub role: String,
     pub working_dir: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub specialties: Vec<String>,
     #[serde(skip)]
     pub source: AgentProfileSource,
 }
@@ -376,6 +380,8 @@ pub struct AddAgentProfileInput<'a> {
     pub adapter: &'a str,
     pub role: &'a str,
     pub working_dir: &'a str,
+    pub description: &'a str,
+    pub specialties: Vec<String>,
 }
 
 #[derive(Debug, Clone)]

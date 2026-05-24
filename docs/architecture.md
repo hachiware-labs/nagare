@@ -305,7 +305,7 @@ Agent Management 型:
 
 - `RuntimeDeclaration`
 - `AdapterDeclaration`
-- `AgentProfileDeclaration`: runtime、adapter、role、working_dir を持つ
+- `AgentProfileDeclaration`: runtime、adapter、role、working_dir、description、specialties を持つ
 - `DeclaredSkillSet`
 - `CapabilityProbe`
 - `ResolvedSkillContext`
@@ -329,12 +329,13 @@ Agent Management 型:
 
 1. `nagare item create` で Work Item を `ready` として作成する。
 2. `nagare item preview` で Agent Profile、Project Rule、Skill Set、Policy、Verification、Run Packet を確認する。
-3. `nagare item run` で Agent Run を開始する。
-4. Adapter が stdout/stderr、成果物、exit code を回収する。
-5. 成功なら Work Item を `ready_for_review` にする。
-6. Evidence と実行ログ Artifact を保存する。
-7. `nagare verify` が通る。
-8. `nagare decision approve` で `done` にする。
+3. dispatch_agent は最大 5 件の compact な Agent Profile 候補から target Agent Profile を選び、DispatchPlan に記録する。
+4. `nagare item run` で Agent Run を開始する。
+5. Adapter が stdout/stderr、成果物、exit code を回収する。
+6. 成功なら Work Item を `ready_for_review` にする。
+7. Evidence と実行ログ Artifact を保存する。
+8. `nagare verify` が通る。
+9. `nagare decision approve` で `done` にする。
 
 ### Agent Run 失敗
 
@@ -418,6 +419,9 @@ Ledger-owned（観測事実として保存するもの）:
 - Run / Preview は fresh な CapabilityProbe を ResolvedSkillContext に紐づける。
 - Preview / Run は ResolvedSkillContext と ResolvedRunPacket を ledger と artifact に保存する。
 - Preview / Handoff Dispatch は DispatchPlan を ledger に保存し、raw output artifact を参照する。
+- Dispatch target の最終判断は Nagare の `dispatch_agent` が行う。
+- Dispatch prompt の Agent context は最大 5 件の Agent Profile summary に制限し、巨大な instruction source 本文は渡さない。
+- Dispatch output の JSON `target_agent_profile_id` は、登録済み Agent Profile に一致する場合だけ DispatchPlan に採用する。
 
 ### マイグレーション
 
@@ -647,7 +651,7 @@ nagare init [--root <path>]
 nagare doctor [--root <path>]
 nagare locale show [--root <path>]
 nagare locale use [--language <locale>] [--timezone <timezone>] [--root <path>]
-nagare agent add --id <agent_profile_id> --runtime <runtime_id> --adapter <adapter_id> [--display-name <text>] [--role <role>] [--working-dir <relative_path>] [--root <path>]
+nagare agent add --id <agent_profile_id> --runtime <runtime_id> --adapter <adapter_id> [--display-name <text>] [--role <role>] [--working-dir <relative_path>] [--description <text>] [--specialties <csv>] [--root <path>]
 nagare agent list [--root <path>]
 nagare agent show <agent_profile_id> [--root <path>]
 nagare agent defaults [--root <path>]

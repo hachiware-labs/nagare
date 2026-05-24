@@ -50,8 +50,8 @@ Register project-local Agent Profiles first:
 
 ```powershell
 nagare locale use --language en-US --timezone America/Los_Angeles
-nagare agent add --id codex-impl-smoke --display-name "Codex CLI Smoke Implementer" --runtime codex-local --adapter process.codex-cli --role implementer --working-dir .
-nagare agent add --id codex-app-smoke --display-name "Codex App Server Smoke Implementer" --runtime codex-app-local --adapter stdio.codex-app-server --role implementer --working-dir .
+nagare agent add --id codex-impl-smoke --display-name "Codex CLI Smoke Implementer" --runtime codex-local --adapter process.codex-cli --role implementer --working-dir . --description "Implementation and verification" --specialties implementation,verification
+nagare agent add --id codex-app-smoke --display-name "Codex App Server Smoke Implementer" --runtime codex-app-local --adapter stdio.codex-app-server --role implementer --working-dir . --description "Planning and review" --specialties planning,review
 nagare agent list
 nagare agent use --work-agent codex-impl-smoke --review-agent codex-app-smoke --dispatch-agent codex-impl-smoke
 nagare agent defaults
@@ -135,8 +135,8 @@ $tmp = Join-Path $env:TEMP "nagare-first"
 $env:NAGARE_ROOT = $tmp
 nagare init
 nagare locale use --language en-US --timezone America/Los_Angeles
-nagare agent add --id codex-impl-smoke --runtime codex-local --adapter process.codex-cli --working-dir .
-nagare agent add --id codex-app-smoke --runtime codex-app-local --adapter stdio.codex-app-server --working-dir .
+nagare agent add --id codex-impl-smoke --runtime codex-local --adapter process.codex-cli --working-dir . --description "Implementation and verification" --specialties implementation,verification
+nagare agent add --id codex-app-smoke --runtime codex-app-local --adapter stdio.codex-app-server --working-dir . --description "Planning and review" --specialties planning,review
 nagare agent use --work-agent codex-impl-smoke --review-agent codex-app-smoke --dispatch-agent codex-impl-smoke
 nagare agent probe codex-impl-smoke
 nagare item create --title "Repair failing agent run"

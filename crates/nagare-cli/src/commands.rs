@@ -1,7 +1,10 @@
+use std::collections::BTreeSet;
+use std::path::Path;
+
 use nagare_core::{
-    AddAgentProfileInput, AgentRunPurpose, RunWorkItemInput, SetLocaleInput,
-    SetNagareAgentSettingsInput, VERSION, add_agent_profile, agent_doctor, agent_probe,
-    approve_work_item, create_handoff, create_work_item, doctor, get_agent_profile,
+    AddAgentProfileInput, AgentProfile, AgentRunPurpose, RuleResolution, RunWorkItemInput,
+    SetLocaleInput, SetNagareAgentSettingsInput, VERSION, add_agent_profile, agent_doctor,
+    agent_probe, approve_work_item, create_handoff, create_work_item, doctor, get_agent_profile,
     get_locale_settings, get_nagare_agent_settings, get_work_item_snapshot, init_project,
     list_agent_profiles, list_work_items, resolve_rule_for_path, run_first_scenario,
     run_registered_agent_scenario, run_work_item_with_input, set_locale_settings,
@@ -10,6 +13,8 @@ use nagare_core::{
 
 use crate::args::ParsedArgs;
 use crate::output::*;
+
+const DISPATCH_AGENT_CANDIDATE_LIMIT: usize = 5;
 
 pub(crate) fn run(args: Vec<String>) -> Result<(), String> {
     match args.first().map(String::as_str) {
@@ -90,6 +95,8 @@ fn agent_add_command(args: &[String]) -> Result<(), String> {
     let display_name = parsed.optional("--display-name").unwrap_or(id);
     let role = parsed.optional("--role").unwrap_or("implementer");
     let working_dir = parsed.optional("--working-dir").unwrap_or(".");
+    let description = parsed.optional("--description").unwrap_or("");
+    let specialties = parse_comma_list(parsed.optional("--specialties"));
     let result = add_agent_profile(
         parsed.root()?,
         AddAgentProfileInput {
@@ -99,6 +106,8 @@ fn agent_add_command(args: &[String]) -> Result<(), String> {
             adapter,
             role,
             working_dir,
+            description,
+            specialties,
         },
     )
     .map_err(|e| e.to_string())?;
@@ -140,8 +149,19 @@ fn agent_show_command(args: &[String]) -> Result<(), String> {
     println!("adapter: {}", profile.adapter);
     println!("role: {}", profile.role);
     println!("working_dir: {}", profile.working_dir);
+    println!("description: {}", empty_label(&profile.description));
+    println!("specialties: {}", comma_list(&profile.specialties));
     println!("source: {}", profile.source);
     Ok(())
+}
+
+fn parse_comma_list(value: Option<&str>) -> Vec<String> {
+    value
+        .unwrap_or("")
+        .split(',')
+        .map(|item| item.trim().to_string())
+        .filter(|item| !item.is_empty())
+        .collect()
 }
 
 fn agent_defaults_command(args: &[String]) -> Result<(), String> {
@@ -387,11 +407,11 @@ fn run_item_with_nagare_agent(
         .ok_or_else(|| format!("item {purpose} requires a work item id"))?;
     let defaults = get_nagare_agent_settings(&root).map_err(|e| e.to_string())?;
     let default_agent = match default_agent_key {
-        "dispatch_agent" => defaults.dispatch_agent,
-        "review_agent" => defaults.review_agent,
-        _ => defaults.work_agent,
+        "dispatch_agent" => defaults.dispatch_agent.as_str(),
+        "review_agent" => defaults.review_agent.as_str(),
+        _ => defaults.work_agent.as_str(),
     };
-    let agent = parsed.optional("--agent").unwrap_or(default_agent.as_str());
+    let agent = parsed.optional("--agent").unwrap_or(default_agent);
     let command = parsed.optional("--command");
     let path = parsed.optional("--path");
     let resolution = if purpose == AgentRunPurpose::DispatchPreview {
@@ -407,11 +427,18 @@ fn run_item_with_nagare_agent(
     } else {
         None
     };
-    let generated_prompt = if parsed.optional("--prompt").is_none() {
-        resolution.as_ref().map(dispatch_prompt)
-    } else {
-        None
-    };
+    let generated_prompt =
+        if purpose == AgentRunPurpose::DispatchPreview && parsed.optional("--prompt").is_none() {
+            let candidates = dispatch_agent_candidates(
+                &root,
+                &defaults.work_agent,
+                &defaults.review_agent,
+                resolution.as_ref(),
+            )?;
+            Some(dispatch_prompt(resolution.as_ref(), &candidates))
+        } else {
+            None
+        };
     let prompt = match parsed.optional("--prompt") {
         Some(prompt) => Some(prompt),
         None => generated_prompt.as_deref(),
@@ -440,6 +467,51 @@ fn run_item_with_nagare_agent(
         result.item_status
     );
     Ok(())
+}
+
+fn dispatch_agent_candidates(
+    root: &Path,
+    default_work_agent: &str,
+    default_review_agent: &str,
+    resolution: Option<&RuleResolution>,
+) -> Result<Vec<AgentProfile>, String> {
+    let profiles = list_agent_profiles(root).map_err(|e| e.to_string())?;
+    let mut selected_ids = Vec::new();
+    let mut seen = BTreeSet::new();
+
+    if let Some(resolution) = resolution {
+        push_unique(&mut selected_ids, &mut seen, &resolution.agent_profile_id);
+        push_unique(
+            &mut selected_ids,
+            &mut seen,
+            &resolution.review_agent_profile_id,
+        );
+    }
+    push_unique(&mut selected_ids, &mut seen, default_work_agent);
+    push_unique(&mut selected_ids, &mut seen, default_review_agent);
+    for profile in &profiles {
+        push_unique(&mut selected_ids, &mut seen, &profile.id);
+        if selected_ids.len() >= DISPATCH_AGENT_CANDIDATE_LIMIT {
+            break;
+        }
+    }
+
+    let mut candidates = Vec::new();
+    for selected_id in selected_ids {
+        if let Some(profile) = profiles.iter().find(|profile| profile.id == selected_id) {
+            candidates.push(profile.clone());
+        }
+        if candidates.len() >= DISPATCH_AGENT_CANDIDATE_LIMIT {
+            break;
+        }
+    }
+    Ok(candidates)
+}
+
+fn push_unique(selected_ids: &mut Vec<String>, seen: &mut BTreeSet<String>, id: &str) {
+    if !id.trim().is_empty() && seen.insert(id.to_string()) {
+        selected_ids.push(id.to_string());
+    }
 }
 
 fn verify_command(args: &[String]) -> Result<(), String> {

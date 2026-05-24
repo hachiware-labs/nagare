@@ -83,12 +83,13 @@ pub(crate) fn print_snapshot(snapshot: &WorkItemSnapshot) {
 
 pub(crate) fn print_agent_profile_row(profile: &AgentProfile) {
     println!(
-        "{}\t{}\t{}\t{}\t{}\t{}",
+        "{}\t{}\t{}\t{}\t{}\t{}\t{}",
         profile.id,
         profile.adapter,
         profile.runtime,
         profile.role,
         profile.working_dir,
+        comma_list(&profile.specialties),
         profile.source
     );
 }
@@ -125,18 +126,80 @@ pub(crate) fn print_rule_resolution(resolution: &RuleResolution) {
     }
 }
 
-pub(crate) fn dispatch_prompt(resolution: &RuleResolution) -> String {
+pub(crate) fn dispatch_prompt(
+    resolution: Option<&RuleResolution>,
+    candidates: &[AgentProfile],
+) -> String {
+    let candidate_lines = if candidates.is_empty() {
+        "- none".to_string()
+    } else {
+        candidates
+            .iter()
+            .map(compact_agent_candidate)
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let (
+        path,
+        matched_rule,
+        rule_target_agent,
+        review_agent,
+        skill_sets,
+        permission_policy,
+        workspace_policy,
+        verification,
+    ) = resolution
+        .map(|resolution| {
+            (
+                resolution.path.as_deref().unwrap_or("-"),
+                resolution.matched_rule_id.as_deref().unwrap_or("-"),
+                resolution.agent_profile_id.as_str(),
+                resolution.review_agent_profile_id.as_str(),
+                comma_list(&resolution.skill_set_ids),
+                resolution.permission_policy_id.as_deref().unwrap_or("-"),
+                resolution.workspace_policy_id.as_deref().unwrap_or("-"),
+                comma_list(&resolution.verification),
+            )
+        })
+        .unwrap_or((
+            "-",
+            "-",
+            "-",
+            "-",
+            "-".to_string(),
+            "-",
+            "-",
+            "-".to_string(),
+        ));
     format!(
-        "Prepare a dispatch preview for path `{}`.\nMatched rule: {}\nTarget agent profile: {}\nReview agent profile: {}\nSkill sets: {}\nPermission policy: {}\nWorkspace policy: {}\nVerification: {}\nReturn a concise execution plan. Put notable risks on lines beginning with `risk:` and missing information on lines beginning with `missing:`.",
-        resolution.path.as_deref().unwrap_or("-"),
-        resolution.matched_rule_id.as_deref().unwrap_or("-"),
-        resolution.agent_profile_id,
-        resolution.review_agent_profile_id,
-        comma_list(&resolution.skill_set_ids),
-        resolution.permission_policy_id.as_deref().unwrap_or("-"),
-        resolution.workspace_policy_id.as_deref().unwrap_or("-"),
-        comma_list(&resolution.verification),
+        "Prepare a dispatch preview for path `{path}`.\nMatched rule: {matched_rule}\nRule target agent profile: {rule_target_agent}\nReview agent profile: {review_agent}\nSkill sets: {skill_sets}\nPermission policy: {permission_policy}\nWorkspace policy: {workspace_policy}\nVerification: {verification}\n\nCandidate agent profiles are intentionally compact. Select only from this list:\n{candidate_lines}\n\nReturn one JSON object only with keys: target_agent_profile_id, summary, risks, missing_information. Keep summary concise and do not include full instruction-source contents.",
     )
+}
+
+fn compact_agent_candidate(profile: &AgentProfile) -> String {
+    format!(
+        "- id: {} | role: {} | adapter: {} | working_dir: {} | specialties: {} | description: {}",
+        profile.id,
+        profile.role,
+        profile.adapter,
+        profile.working_dir,
+        comma_list(&profile.specialties),
+        compact_text(&profile.description, 160)
+    )
+}
+
+fn compact_text(value: &str, max_chars: usize) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return "-".to_string();
+    }
+    let mut chars = trimmed.chars();
+    let compact = chars.by_ref().take(max_chars).collect::<String>();
+    if chars.next().is_some() {
+        format!("{compact}...")
+    } else {
+        compact
+    }
 }
 
 pub(crate) fn print_locale_settings(settings: &LocaleSettings) {
@@ -164,6 +227,10 @@ pub(crate) fn comma_list(values: &[String]) -> String {
     }
 }
 
+pub(crate) fn empty_label(value: &str) -> &str {
+    if value.trim().is_empty() { "-" } else { value }
+}
+
 pub(crate) fn print_help() {
     println!(
         "nagare {VERSION}
@@ -173,7 +240,7 @@ Usage:
   nagare doctor [--root <path>]
   nagare locale show [--root <path>]
   nagare locale use [--language <locale>] [--timezone <timezone>] [--root <path>]
-  nagare agent add --id <agent_profile_id> --runtime <runtime_id> --adapter <adapter_id> [--display-name <text>] [--role <role>] [--working-dir <relative_path>] [--root <path>]
+  nagare agent add --id <agent_profile_id> --runtime <runtime_id> --adapter <adapter_id> [--display-name <text>] [--role <role>] [--working-dir <relative_path>] [--description <text>] [--specialties <csv>] [--root <path>]
   nagare agent list [--root <path>]
   nagare agent show <agent_profile_id> [--root <path>]
   nagare agent defaults [--root <path>]

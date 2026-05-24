@@ -4,7 +4,7 @@ use std::path::Path;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::adapters::{ProcessCodexCliAdapter, StdioCodexAppServerAdapter};
@@ -181,6 +181,53 @@ pub(crate) fn write_json_artifact<T: Serialize>(
 }
 
 pub(crate) fn summarize_dispatch_output(output: &str) -> String {
+    let text = dispatch_text_output(output);
+    if !text.trim().is_empty() {
+        return text.trim().to_string();
+    }
+
+    output
+        .lines()
+        .map(str::trim)
+        .find(|line| {
+            !line.is_empty()
+                && !line.to_ascii_lowercase().starts_with("risk:")
+                && !line.to_ascii_lowercase().starts_with("missing:")
+        })
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| {
+            first_nonempty_line(output).unwrap_or_else(|| "(no dispatch output)".to_string())
+        })
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub(crate) struct DispatchPlanSuggestion {
+    pub(crate) target_agent_profile_id: Option<String>,
+    pub(crate) summary: Option<String>,
+    #[serde(default)]
+    pub(crate) risks: Vec<String>,
+    #[serde(default)]
+    pub(crate) missing_information: Vec<String>,
+}
+
+pub(crate) fn parse_dispatch_plan_suggestion(output: &str) -> Option<DispatchPlanSuggestion> {
+    let text = dispatch_text_output(output);
+    let json = extract_json_object(&text).or_else(|| extract_json_object(output))?;
+    let mut suggestion = serde_json::from_str::<DispatchPlanSuggestion>(&json).ok()?;
+    suggestion.target_agent_profile_id = suggestion
+        .target_agent_profile_id
+        .map(|id| id.trim().to_string())
+        .filter(|id| !id.is_empty());
+    suggestion.summary = suggestion
+        .summary
+        .map(|summary| summary.trim().to_string())
+        .filter(|summary| !summary.is_empty());
+    suggestion.risks = normalize_text_list(suggestion.risks);
+    suggestion.missing_information = normalize_text_list(suggestion.missing_information);
+    Some(suggestion)
+}
+
+fn dispatch_text_output(output: &str) -> String {
     let deltas = output
         .lines()
         .filter_map(|line| line.trim().strip_prefix("agent.delta: "))
@@ -203,18 +250,42 @@ pub(crate) fn summarize_dispatch_output(output: &str) -> String {
         }
     }
 
-    output
-        .lines()
-        .map(str::trim)
-        .find(|line| {
-            !line.is_empty()
-                && !line.to_ascii_lowercase().starts_with("risk:")
-                && !line.to_ascii_lowercase().starts_with("missing:")
-        })
-        .map(ToOwned::to_owned)
-        .unwrap_or_else(|| {
-            first_nonempty_line(output).unwrap_or_else(|| "(no dispatch output)".to_string())
-        })
+    output.trim().to_string()
+}
+
+fn extract_json_object(text: &str) -> Option<String> {
+    let trimmed = text.trim();
+    if let Some(fenced) = extract_fenced_json(trimmed) {
+        return Some(fenced);
+    }
+    let start = trimmed.find('{')?;
+    let end = trimmed.rfind('}')?;
+    if end <= start {
+        return None;
+    }
+    Some(trimmed[start..=end].to_string())
+}
+
+fn extract_fenced_json(text: &str) -> Option<String> {
+    let fence_start = text.find("```")?;
+    let after_fence = &text[fence_start + 3..];
+    let content_start = after_fence.find('\n').map(|index| index + 1).unwrap_or(0);
+    let after_header = &after_fence[content_start..];
+    let fence_end = after_header.find("```")?;
+    let content = after_header[..fence_end].trim();
+    if content.starts_with('{') {
+        Some(content.to_string())
+    } else {
+        None
+    }
+}
+
+fn normalize_text_list(values: Vec<String>) -> Vec<String> {
+    values
+        .into_iter()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect()
 }
 
 pub(crate) fn extract_prefixed_lines(output: &str, prefix: &str) -> Vec<String> {

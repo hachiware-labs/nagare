@@ -158,7 +158,8 @@ An agent profile is what users run Work Items with. It binds a runtime and
 adapter to a role, workspace policy, permission policy, skill set, and limits.
 It also declares `working_dir`, the project-relative directory where the agent
 process starts. This is separate from the directory where the profile TOML file
-is stored.
+is stored. `description` and `specialties` are compact routing hints that the
+Nagare dispatch agent can use when selecting from a small candidate list.
 
 ```toml
 [agent_profiles.codex-impl]
@@ -168,6 +169,8 @@ runtime = "codex-local"
 adapter = "process.codex-cli"
 role = "implementer"
 working_dir = "."
+description = "Implementation-focused Codex CLI profile"
+specialties = ["implementation", "verification"]
 workspace_policy = "worktree-per-item"
 permission_policy = "medium-code-task"
 declared_skill_sets = ["nagare-core", "repo-default"]
@@ -182,6 +185,8 @@ runtime = "codex-app-local"
 adapter = "stdio.codex-app-server"
 role = "reviewer"
 working_dir = "apps/web"
+description = "Review-focused Codex app-server profile"
+specialties = ["review", "planning"]
 workspace_policy = "read-only-worktree"
 permission_policy = "review-only"
 declared_skill_sets = ["nagare-core", "code-review"]
@@ -192,6 +197,9 @@ temporary development fallback for the earliest CLI slice.
 
 Agent profile records are declarations. They should not claim that a tool
 actually supports a skill or capability. That is discovered through probes.
+Dispatch uses the declarations as a compact shortlist only; large instruction
+source bodies such as AGENTS.md or SOUL.md are not expanded into the dispatch
+prompt.
 
 ## Nagare Agent Defaults
 
