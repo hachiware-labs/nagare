@@ -22,6 +22,115 @@ Nagare は、Agent 実行環境そのものではなく、Agent 作業を Work I
 - Artifacts: log、Run Packet、Probe 出力、diff、screenshot、transcript などの大きい証跡。
 - npm package: 配布経路。製品操作面は `nagare` コマンドに統一する。
 
+### 1.1 レイヤー責務
+
+Nagare の実装は、以下のレイヤーに分ける。依存方向は常に外側から内側へ向ける。
+内側のレイヤーは外側の都合を知らない。
+
+| レイヤー | 責務 | 置き場所の目安 | 禁止事項 |
+| --- | --- | --- | --- |
+| Presentation / CLI | 引数 parsing、人間向け出力、exit code、command routing | `crates/nagare-cli/src/*` | ledger JSON、TOML、process 実行、状態遷移を直接扱わない |
+| UseCase | 1つのユーザー操作を成立させる orchestration。Domain と Port を組み合わせる | `crates/nagare-core/src/usecases/*` | CLI 表示文言、具体的な filesystem/process 実装を持たない |
+| Domain | Work Item、Agent Run、Evidence、Verification、Handoff、Decision、Run Packet の型、不変条件、状態遷移 | `crates/nagare-core/src/domain/*` | filesystem、process spawn、TOML/JSON I/O、CLI 出力を持たない |
+| Agent Management | Runtime、Adapter、Agent Profile、Skill Set、Project Rule、Policy、Capability Probe、Resolved Context の解決 | `crates/nagare-core/src/agent/*` | Work Item の完了判定や Human Decision を所有しない |
+| Adapter Kernel | Resolved Run Packet を runtime 固有 protocol へ変換し、Run Event / output を正規化する | `crates/nagare-core/src/adapters/*` | Work Item を `done` にしない。Human Decision を作らない |
+| Infrastructure | JSON ledger、artifact store、TOML config、process、clock、filesystem | `crates/nagare-core/src/infra/*` | Domain rule を判断しない。UseCase を呼ばない |
+| Distribution | npm wrapper、binary staging、package metadata | `scripts/*`, `packages/*` | product behavior を実装しない |
+
+### 1.2 主要コンポーネント責務
+
+| コンポーネント | 責務 | 主な入力 | 主な出力 |
+| --- | --- | --- | --- |
+| Project Layout | `.nagare` 配下の標準 path を決める | project root | config / ledger / artifacts / logs path |
+| Config Repository | `.nagare/project.toml` と `.nagare/agents/*.toml` を読む/書く | TOML files | Locale、Nagare Agent defaults、Agent Profile、Runtime、Project Rule |
+| Ledger Repository | ledger-owned entity を load/save する | `ledger.json` | WorkItem、AgentRun、Evidence、Verification、Handoff、Decision、Resolved records |
+| Artifact Store | 大きい証跡を file として保存する | bytes / structured record | artifact URI |
+| Work Item Service | Work Item の作成、表示 snapshot、状態遷移を扱う | Work Item command | WorkItem / WorkItemSnapshot |
+| Agent Registry Service | Agent Profile の登録、一覧、詳細、health/probe を扱う | Agent Profile command | AgentProfile / AgentDoctorReport / CapabilityProbe |
+| Rule Resolver | path から Project Rule、Agent Profile、Skill Set、Policy、Verification を解決する | path、optional agent override | RuleResolution |
+| Run Resolver | RuleResolution と Probe から ResolvedSkillContext / ResolvedRunPacket を作る | Work Item、Agent Profile、RuleResolution、Probe | ResolvedSkillContext / ResolvedRunPacket |
+| Probe Resolver | Run / Preview 前に CapabilityProbe を再利用または更新する | Agent Profile、Runtime、既存 Probe | CapabilityProbe |
+| Skill Set Resolver | Agent capability と Skill Set required capability を照合し、applied / skipped を決める | Skill Set、CapabilityProbe | SkillSetResolution |
+| Run Orchestrator | Agent Run を開始し、Artifact / Evidence / AgentRun を記録する | ResolvedRunPacket、prompt、adapter | RunWorkItemResult |
+| Dispatch Planner | dispatch preview の Agent 出力を実行前確認用の DispatchPlan として保存する | AgentRun、ResolvedRunPacket、Artifact | DispatchPlan |
+| Verification Service | command / verifier の結果を VerificationResult と Evidence にする | Work Item、verifier | VerifyResult |
+| Handoff Service | Handoff Packet を作り、次工程の文脈を残す | Work Item、from/to Agent | HandoffPacket |
+| Decision Service | Human Decision を保存し、`done` 遷移を成立させる | Work Item、rationale | HumanDecision |
+| Adapter Implementations | runtime 固有の実行方法を隠蔽する | Prepared run | AdapterRunOutput / RunEvent |
+
+### 1.3 単一責務とファイルサイズ制約
+
+Nagare は機能追加よりも、責務境界を維持することを優先する。ファイル分割の基準は以下とする。
+
+- 1ファイルは原則 1000 行未満に保つ。
+- 800 行を超えたら、次の変更で分割候補として扱う。
+- 1000 行を超えるファイルは、機能追加前に分割計画を作る。
+- 1ファイルは1つの主要責務だけを持つ。例: CLI parsing、ledger repository、rule resolution、adapter 実装を同じ file に混ぜない。
+- public API を集約する `lib.rs` や `main.rs` は薄い module 宣言と re-export に寄せる。実装本体を置き続けない。
+- テストは対象 module の近くに置く。ただし scenario / CLI smoke のような横断テストは専用 module に分ける。
+- 機能追加で既存ファイルが 1000 行を超える場合、同じ差分内で分割するか、先に分割 commit を作る。
+
+現在の実装では `crates/nagare-core/src/lib.rs` と `crates/nagare-cli/src/main.rs`
+を薄い入口にし、主要責務を module へ分割済みである。後続でさらに責務が増えた場合は、
+以下の詳細構造へ段階的に分割する。
+
+```text
+crates/nagare-core/src/
+  lib.rs                 public API と module export のみ
+  layout.rs              ProjectLayout / root resolution
+  error.rs               NagareError
+  domain/
+    mod.rs
+    work_item.rs
+    run.rs
+    evidence.rs
+    verification.rs
+    handoff.rs
+    decision.rs
+  config/
+    mod.rs
+    project.rs
+    agent_profile.rs
+  ledger/
+    mod.rs
+    json_store.rs
+    snapshot.rs
+  agent/
+    mod.rs
+    registry.rs
+    probe.rs
+    rule_resolution.rs
+    run_resolution.rs
+  adapters/
+    mod.rs
+    process_codex_cli.rs
+    stdio_codex_app_server.rs
+  usecases/
+    mod.rs
+    item.rs
+    agent.rs
+    locale.rs
+    verify.rs
+    handoff.rs
+    decision.rs
+  scenario.rs
+
+crates/nagare-cli/src/
+  main.rs                command dispatch のみ
+  args.rs                ParsedArgs / root option
+  output.rs              print helpers
+  commands/
+    mod.rs
+    init.rs
+    agent.rs
+    rule.rs
+    item.rs
+    locale.rs
+    verify.rs
+    handoff.rs
+    decision.rs
+```
+
 Nagare が所有するもの:
 
 - Work Item
@@ -29,6 +138,7 @@ Nagare が所有するもの:
 - Agent Profile
 - Run Request
 - Run Packet
+- Dispatch Plan
 - Agent Run
 - Artifact
 - Evidence
@@ -154,16 +264,25 @@ Core の現在の実装入口:
 Agent Run の `purpose` を `dispatch_preview` として記録する。`item review` は
 `nagare_agents.review_agent` を使い、`purpose` を `review` として記録する。
 preview / review は Artifact と Evidence を残すが、Work Item status を実行結果で進めない。
+dispatch preview はさらに DispatchPlan を保存し、AgentRun、ResolvedRunPacket、
+実行ログ Artifact と紐づける。
 `--path` が指定された場合は Project Rule を解決し、Agent Profile、Skill Set、
 Permission Policy、Workspace Policy、Verification を表示する。`item run --path` で
 `--agent` が省略された場合は、Project Rule の `default_agent` を実行先に使う。
+Run / Preview 前には CapabilityProbe を確認し、未取得、古い、runtime / adapter /
+runtime_version 不一致の場合は自動で再 probe する。MVP では stale 判定 TTL は
+24 時間の内部既定値とする。
+Skill Set は Agent の CapabilityProbe と照合し、
+required capability を満たすものを `applied_skill_set_ids`、満たさないものを
+`skipped_skill_set_ids` に記録する。skip 理由は Run Packet の constraints に残す。
 Agent Profile は
 `working_dir` を持ち、実行時の cwd は project root からの相対 path として解決する。
 `--prompt` は `process.codex-cli` adapter 経由で
 `codex exec --cd <working_dir> <prompt>` を実行し、
 `--command` は smoke 用 fallback として adapter I/F の内側で実行する。
-`stdio.codex-app-server` は Agent Profile として登録済みだが、実実行 adapter は
-次の実装対象である。
+`stdio.codex-app-server` adapter は `codex app-server --listen stdio://` を起動し、
+JSON-RPC over stdio で `initialize`、`thread/start`、`turn/start`、`turn/completed`
+を扱う。app-server の通知 transcript は AgentRun artifact に保存する。
 
 ### 型定義
 
@@ -173,7 +292,8 @@ Agent Profile は
 - `AgentRun`: id、work_item_id、agent_profile_id、adapter、purpose、status、exit_code、artifact_id、locale
 - `AgentRunPurpose`: work、dispatch_preview、review
 - `ResolvedSkillContext`: id、work_item_id、agent_profile_id、capability_probe_id、project_rule_ids、declared_skill_set_ids、applied_skill_set_ids、skipped_skill_set_ids、capabilities_in_force、instruction_sources、artifact_uri、content_hash、locale
-- `ResolvedRunPacket`: id、work_item_id、agent_profile_id、adapter_id、path、permission_policy_id、workspace_policy_id、resolved_skill_context_id、project_rule_ids、verification、constraints、artifact_uri、content_hash、locale
+- `ResolvedRunPacket`: id、work_item_id、agent_profile_id、adapter_id、purpose、working_dir、goal、path、permission_policy_id、workspace_policy_id、resolved_skill_context_id、project_rule_ids、verification、constraints、artifact_uri、content_hash、locale
+- `DispatchPlan`: id、work_item_id、agent_run_id、dispatch_agent_profile_id、target_agent_profile_id、resolved_run_packet_id、raw_output_artifact_id、path、summary、risks、missing_information、locale
 - `Artifact`: id、work_item_id、agent_run_id、artifact_type、uri、title、locale
 - `Evidence`: id、work_item_id、claim、basis、artifact_id、produced_by、locale
 - `VerificationResult`: id、work_item_id、result、artifact_id、locale
@@ -277,6 +397,7 @@ Ledger-owned（観測事実として保存するもの）:
 - CapabilityProbe
 - ResolvedSkillContext
 - ResolvedRunPacket
+- DispatchPlan
 - RunRequest
 - AgentRun
 - Artifact
@@ -292,8 +413,11 @@ Ledger-owned（観測事実として保存するもの）:
 - Evidence は claim と basis を必ず持つ。
 - Verification Result は log Artifact と紐づく。
 - Handoff は from/to の Agent Profile を必ず持つ。
-- Run Packet は解決済み Project Rule、Skill Context、Policy の hash / id を持つ。
+- Run Packet は解決済み Project Rule、Skill Context、Policy、実行目的、作業ディレクトリ、実行目標の hash / id または値を持つ。
+- Skill Set は required capability を満たす場合だけ applied として記録し、満たさない場合は skipped と constraints に記録する。
+- Run / Preview は fresh な CapabilityProbe を ResolvedSkillContext に紐づける。
 - Preview / Run は ResolvedSkillContext と ResolvedRunPacket を ledger と artifact に保存する。
+- Preview / Handoff Dispatch は DispatchPlan を ledger に保存し、raw output artifact を参照する。
 
 ### マイグレーション
 

@@ -19,6 +19,7 @@ Ledger-owned:
   CapabilityProbe
   ResolvedSkillContext
   ResolvedRunPacket
+  DispatchPlan
   AgentRun
   Artifact
   Evidence
@@ -182,7 +183,7 @@ dispatch_agent = "codex-impl"
   "id": "probe_0001",
   "agent_profile_id": "codex-impl",
   "runtime_id": "codex-local",
-  "adapter_id": "process-codex-cli",
+  "adapter_id": "process.codex-cli",
   "runtime_version": "codex-cli 0.130.0",
   "available": true,
   "discovered_capabilities": [
@@ -208,6 +209,18 @@ dispatch_agent = "codex-impl"
   "probed_at": "2026-05-24T15:00:00+09:00"
 }
 ```
+
+Run / Preview reuses the latest CapabilityProbe only when all of the following
+are true:
+
+- `agent_profile_id` matches the selected Agent Profile.
+- `runtime_id` matches the current Agent Profile runtime.
+- `adapter_id` matches the normalized current Agent Profile adapter.
+- `runtime_version` matches the current runtime healthcheck detail.
+- `probed_at` is within the current TTL. MVP default is 24 hours.
+
+If any condition fails, Nagare records a new CapabilityProbe before resolving
+Skill Sets and Run Packet.
 
 ### ResolvedSkillContext
 
@@ -244,11 +257,15 @@ dispatch_agent = "codex-impl"
   "id": "runpkt_0001",
   "work_item_id": "work_0001",
   "agent_profile_id": "codex-impl",
-  "runtime_id": "codex-local",
-  "adapter_id": "process-codex-cli",
+  "adapter_id": "process.codex-cli",
+  "purpose": "work",
+  "working_dir": "file://./crates/nagare-core",
+  "goal": "Refactor core run orchestration",
+  "path": "crates/nagare-core/src/lib.rs",
   "permission_policy_id": "medium-code-task",
   "workspace_policy_id": "worktree-per-item",
   "resolved_skill_context_id": "skillctx_0001",
+  "project_rule_ids": ["nagare-core"],
   "verification": ["cargo test --workspace"],
   "constraints": [
     "Do not push to main",
@@ -258,6 +275,26 @@ dispatch_agent = "codex-impl"
   "content_hash": "sha256:...",
   "locale": "ja-JP",
   "created_at": "2026-05-24T15:01:10+09:00"
+}
+```
+
+### DispatchPlan
+
+```json
+{
+  "id": "dispatch_0001",
+  "work_item_id": "work_0001",
+  "agent_run_id": "run_0001",
+  "dispatch_agent_profile_id": "codex-dispatch",
+  "target_agent_profile_id": "codex-impl",
+  "resolved_run_packet_id": "runpkt_0001",
+  "raw_output_artifact_id": "art_0001",
+  "path": "crates/nagare-core/src/lib.rs",
+  "summary": "Use codex-impl with the rust-core rule and run cargo test --workspace.",
+  "risks": ["core usecase file is approaching the 800-line split threshold"],
+  "missing_information": [],
+  "locale": "ja-JP",
+  "created_at": "2026-05-24T15:01:20+09:00"
 }
 ```
 
@@ -272,14 +309,17 @@ dispatch_agent = "codex-impl"
 7. Load the agent profile.
 8. Load runtime and adapter declarations.
 9. Load declared skill sets from agent profile + project rule + work item overrides.
-10. Run or reuse a valid capability probe.
-11. Drop skill sets whose required capabilities are unavailable.
+10. Run or reuse a fresh capability probe.
+11. Compare required capabilities and record skill sets as applied or skipped.
 12. Create `ResolvedSkillContext`.
 13. Create `ResolvedRunPacket`.
 14. Start an Agent Run through the adapter.
+15. For dispatch preview, create `DispatchPlan`.
 
-If a required skill set is dropped, Nagare should mark the Work Item
-`needs_human` unless the user explicitly allows degraded execution.
+If a required skill set is unavailable, the current implementation records it
+in `skipped_skill_set_ids` and adds the reason to Run Packet constraints. Later
+policy enforcement can decide whether this should block execution or require
+human approval.
 
 ## Minimum CLI Contract
 
@@ -316,4 +356,5 @@ stable, move the ledger-owned entities to SQLite tables with the same names.
 
 Current implementation persists `ResolvedSkillContext` and `ResolvedRunPacket`
 for every `item preview` / `item run`. They are stored both as ledger-owned
-records and as JSON artifacts under `.nagare/artifacts/`.
+records and as JSON artifacts under `.nagare/artifacts/`. Dispatch preview also
+stores `DispatchPlan` in the ledger and links it to the run log artifact.

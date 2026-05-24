@@ -469,11 +469,13 @@ nagare item preview work_0001 --path apps/web/src/App.tsx
 nagare item run work_0001 --path apps/web/src/App.tsx
 ```
 
-The `item preview` command is the pre-run confirmation step. In the current
-slice it runs the configured `dispatch_agent` and records an Agent Run with
-purpose `dispatch_preview` without advancing the Work Item status. The later
-rule-resolution slice will add Project Rule, Skill Set, policy, verification
-command, and Run Packet display.
+The `item preview` command is the pre-run confirmation step. It runs the
+configured `dispatch_agent`, resolves Project Rule / Skill Set / policy /
+verification context when a path is provided, records Resolved Skill Context and
+Resolved Run Packet, and stores an Agent Run with purpose `dispatch_preview`
+without advancing the Work Item status. A successful preview also stores a
+DispatchPlan that links the dispatch AgentRun, target Agent Profile,
+ResolvedRunPacket, and raw output Artifact.
 
 The `item review` command runs the configured `review_agent` and records an
 Agent Run with purpose `review` without advancing the Work Item status.
@@ -481,19 +483,13 @@ The `handoff dispatch` command uses the same `dispatch_agent` path after a
 handoff has been created, so the next target can be assessed again before
 another `item run`.
 
-The `item run` command should eventually require only a Work Item and enough
-context to match a Project Rule. The user should not have to pass `--command`
-for normal agent use.
+The `item run` command can use a real agent through `--prompt`. `--command`
+remains a smoke-test fallback and should not be treated as an Agent adapter.
 
 ## MVP Implication
 
-The next implementation slice should connect the current project-local Agent
-Profile registry and probe snapshots to path-based run resolution:
-
-- resolved skill context records
-- project rules
-- run packet resolution
-- `nagare rule check <path>`
-
-After that, adapter execution can use the resolved Run Packet instead of
-ad-hoc command flags.
+Current implementation connects the project-local Agent Profile registry,
+probe snapshots, path-based rule resolution, Resolved Skill Context, Resolved
+Run Packet, DispatchPlan, and adapter execution. The next slice should deepen
+Skill Set compatibility checks and policy enforcement before broadening agent
+support.

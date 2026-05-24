@@ -146,6 +146,8 @@ nagare item show work_0001
 Remove-Item Env:\NAGARE_ROOT
 ```
 
-## 次のステップ
+## 実際の Codex App Server 実行
 
-次の実装スライスは、Resolved Skill Context / Resolved Run Packet を ledger に保存し、`stdio.codex-app-server` の実行 adapter を接続することです。
+`stdio.codex-app-server` adapter の Agent Profile に対して `--prompt` を使うと、
+Nagare は `codex app-server --listen stdio://` を起動し、thread を作成して turn を開始します。
+app-server の transcript は AgentRun artifact として保存されます。

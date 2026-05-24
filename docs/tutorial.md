@@ -149,8 +149,9 @@ nagare item show work_0001
 Remove-Item Env:\NAGARE_ROOT
 ```
 
-## Next Step
+## Real Codex App Server
 
-The next implementation slice is persisting Resolved Skill Context / Resolved
-Run Packet records, then connecting the real `stdio.codex-app-server` execution
-adapter.
+For a live Codex App Server run, use `--prompt` with an Agent Profile whose
+adapter is `stdio.codex-app-server`. Nagare starts `codex app-server --listen
+stdio://`, creates a thread, starts a turn, and records the app-server transcript
+as the run artifact.

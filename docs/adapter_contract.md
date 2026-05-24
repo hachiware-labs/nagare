@@ -74,6 +74,16 @@ exposing Codex-specific threads, turns, approval flow, and streamed events.
 Codex MCP Server is not used as a Nagare agent adapter. SDKs in other languages
 are integration helpers, not Nagare agent adapters.
 
+Current `stdio.codex-app-server` execution uses JSON-RPC over stdio:
+
+1. `initialize`
+2. `thread/start`
+3. `turn/start`
+4. collect notifications until `turn/completed`
+
+The MVP stores the app-server transcript as the run log artifact. Later slices
+can normalize individual notifications into first-class Run Events.
+
 ## Normalized Run Event Types
 
 ```text

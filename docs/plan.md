@@ -3,7 +3,6 @@
 # current
 - [ ] [SEED-agent-data-model] Agent Profile / Skill / Capability Probe / Resolved Skill Context / Resolved Run Packet のデータ形式を `docs/agent_data_model.md` に固定し、実装時の schema seed とする
 - [ ] [SEED-adapter-kernel] MVP 1 として Agent Profile、Run Packet、Run Event、Artifact、Evidence、Verification Result、Permission Policy、Workspace Policy の正規モデルを `nagare-core` に整理する。完了条件: `cargo test --workspace` と CLI smoke test が PASS する
-- [ ] [SEED-codex-adapters] `process.codex-cli` / `stdio.codex-app-server` を demo command ではなく adapter trait 経由で実行する。完了条件: first scenario が adapter trait 経由でも `done` に到達する
 
 # future
 - MVP 1: Agent Management Kernel。Runtime、Adapter、Agent Profile、Skill Set、Project Rule、Permission Policy、Run Packet Preview を実装する
@@ -34,3 +33,9 @@
 - [x] [SEED-nagare-agent-usage] `item preview` / `handoff dispatch` は `dispatch_agent`、`item review` は `review_agent` を既定で使用し、AgentRun purpose として記録するようにした
 - [x] [SEED-rule-resolution] path から Project Rule、Agent Profile、Skill Set、Policy、Verification を解決する `nagare rule check <path>` と `item preview --path` / `item run --path` の最小形を実装した
 - [x] [SEED-resolved-run-records] `item preview` / `item run` で ResolvedSkillContext と ResolvedRunPacket を ledger と artifact に保存するようにした
+- [x] [SEED-architecture-split] 機能追加前に `nagare-core/src/lib.rs` と `nagare-cli/src/main.rs` を責務別 module へ分割した。全 Rust 実装ファイルを1000行未満にし、`cargo test --workspace` と CLI help smoke を通した
+- [x] [SEED-run-packet-adapter-input] 旧 `RunPacket` を廃止し、`ResolvedRunPacket` に purpose / working_dir / goal を持たせて Adapter 実行入力とログ記録の中心にした
+- [x] [SEED-codex-adapters] `process.codex-cli` / `stdio.codex-app-server` を adapter trait 経由で実行するようにした。`stdio.codex-app-server` は JSON-RPC over stdio で thread/turn transcript を保存する
+- [x] [SEED-dispatch-plan-records] dispatch preview / handoff dispatch の結果を DispatchPlan として ledger に保存し、AgentRun、ResolvedRunPacket、raw output Artifact と紐づけた
+- [x] [SEED-skill-set-resolution] Skill Set required capability を Agent capability と照合し、applied / skipped と skip 理由を ResolvedSkillContext / Run Packet constraints に記録するようにした
+- [x] [SEED-auto-probe-refresh] Run / Preview 前に CapabilityProbe の未取得・stale・runtime / adapter / version 不一致を検出し、自動更新するようにした

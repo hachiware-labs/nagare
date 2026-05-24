@@ -57,6 +57,7 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | 4.2.1 | dispatch_agent は Work Item の実行前確認に使う。 | dispatch_agent が設定済み | `nagare item preview <work_id>` を実行する | dispatch_agent の AgentRun が `dispatch_preview` として記録される | 実装済み |
 | 4.2.2 | dispatch は Work Item の実作業を進めない。 | Work Item が存在する | Preview を実行する | AgentRun と Evidence は残るが、Work Item status は実行結果で進まない | 実装済み |
 | 4.2.3 | review_agent は実行後の評価に使う。 | review_agent が設定済み | `nagare item review <work_id>` を実行する | review_agent の AgentRun が `review` として記録される | 実装済み |
+| 4.2.4 | dispatch preview の結果は Dispatch Plan として保存する。 | dispatch preview が成功する | Preview または Handoff Dispatch を実行する | DispatchPlan が AgentRun、ResolvedRunPacket、Artifact と紐づいて ledger に保存される | 実装済み |
 
 ## 5. Agent Health / Capability Probe
 
@@ -65,19 +66,20 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | 5.1.1 | Agent Profile の runtime が利用可能か確認できる。 | Agent Profile が存在する | `nagare agent doctor <agent_profile_id>` を実行する | runtime command の存在と healthcheck 結果が表示される | 実装済み |
 | 5.1.2 | Agent Profile の capability snapshot を取得できる。 | Agent Profile が存在する | `nagare agent probe <agent_profile_id>` を実行する | CapabilityProbe が ledger に保存される | 実装済み |
 | 5.1.3 | CapabilityProbe は runtime、adapter、利用可否、発見 capability、instruction source、locale を保存する。 | Probe が実行される | Probe が完了する | 後続の解決処理で参照できる snapshot が残る | 実装済み |
-| 5.2.1 | Skill Set の適用可否は Probe 結果を使って判断する。 | Declared Skill Set と Probe が存在する | Run Packet を解決する | required capability を満たさない Skill Set は除外または `needs_human` になる | 計画 |
+| 5.1.4 | Run / Preview 前に CapabilityProbe を自動更新する。 | Agent Run を開始する | Probe が未取得、古い、runtime / adapter / runtime_version が一致しない | 新しい CapabilityProbe が ledger に保存され、その probe が ResolvedSkillContext に紐づく | 実装済み |
+| 5.2.1 | Skill Set の適用可否は Probe 結果または adapter capability を使って判断する。 | Declared Skill Set と Agent capability が存在する | Run Packet を解決する | required capability を満たさない Skill Set は `skipped_skill_set_ids` に記録され、制約として残る | 実装済み |
 
 ## 6. Skill Set / Project Rule / Run Packet
 
 | ID | 仕様 | Given | When | Done | 状態 |
 | --- | --- | --- | --- | --- | --- |
 | 6.1.1 | Skill Set は Agent に渡したい instruction、schema、playbook、rubric、script の束として宣言する。 | Project config が存在する | Skill Set を設定する | 宣言は config-owned entity として保存される | 進行中 |
-| 6.1.2 | Skill Set は Agent Profile に接続されるが、実際に使えるかは Probe 後に決める。 | Agent Profile と Skill Set が存在する | Run Packet を解決する | applied / skipped skill set が記録される | 計画 |
+| 6.1.2 | Skill Set は Agent Profile に接続されるが、実際に使えるかは Probe または adapter capability で決める。 | Agent Profile と Skill Set が存在する | Run Packet を解決する | applied / skipped skill set が記録される | 実装済み |
 | 6.2.1 | Project Rule は path / glob に応じて Agent Profile、Skill Set、Policy、Verification を選ぶ。 | Project Rule が存在する | `nagare rule check <path>` を実行する | matching rule と選択根拠が表示される | 実装済み |
-| 6.2.2 | `item preview` は dispatch_agent で実行前確認を記録する。 | Work Item と dispatch_agent が存在する | `nagare item preview <work_id>` を実行する | `dispatch_preview` 目的の AgentRun、Artifact、Evidence が保存される | 実装済み |
+| 6.2.2 | `item preview` は dispatch_agent で実行前確認を記録する。 | Work Item と dispatch_agent が存在する | `nagare item preview <work_id>` を実行する | `dispatch_preview` 目的の AgentRun、Artifact、Evidence、DispatchPlan が保存される | 実装済み |
 | 6.2.3 | `item preview` は Project Rule、Skill Set、Policy、Verification を解決して表示する。 | Project Rule が存在する | `nagare item preview <work_id> --path <path>` を実行する | Agent Profile、Project Rule、Skill Set、Policy、Verification が表示され、dispatch prompt に含まれる | 実装済み |
 | 6.3.1 | Resolved Skill Context は実行時に使った Rule、Skill Set、Capability、Instruction source を固定する。 | Preview または Run が実行される | AgentRun を作成する | `ResolvedSkillContext` が ledger と artifact に保存される | 実装済み |
-| 6.3.2 | Resolved Run Packet は実行時に使った Work Item、Agent Profile、Policy、Verification、Resolved Skill Context を固定する。 | Preview または Run が実行される | AgentRun を作成する | `ResolvedRunPacket` が ledger と artifact に保存される | 実装済み |
+| 6.3.2 | Resolved Run Packet は実行時に使った Work Item、Agent Profile、実行目的、working_dir、goal、Policy、Verification、Resolved Skill Context を固定する。 | Preview または Run が実行される | AgentRun を作成する | `ResolvedRunPacket` が ledger と artifact に保存され、Adapter 実行入力として使われる | 実装済み |
 | 6.3.3 | Work Item 詳細で解決済み Skill Context と Run Packet を確認できる。 | 解決済み記録が存在する | `nagare item show <work_id>` を実行する | resolved_skill_contexts と resolved_run_packets が表示される | 実装済み |
 
 ## 7. Work Item Run / Adapter
@@ -90,7 +92,7 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | 7.1.4 | Agent Run の cwd は Agent Profile の `working_dir` を使う。 | Agent Profile に working_dir がある | Run を開始する | process cwd または Codex `--cd` が working_dir になる | 実装済み |
 | 7.1.5 | `item run --path` は Project Rule で解決した Agent Profile を使う。 | Project Rule が存在し、`--agent` が省略されている | `nagare item run <work_id> --path <path>` を実行する | matching rule の default_agent で AgentRun が作成される | 実装済み |
 | 7.2.1 | `stdio.codex-app-server` は Agent Profile として登録・確認できる。 | Codex app-server runtime が設定済み | agent add/list/show/doctor/probe を実行する | profile と probe 結果が扱える | 実装済み |
-| 7.2.2 | `stdio.codex-app-server` の実実行は stdio event stream adapter で扱う。 | Run Packet が存在する | app-server adapter で run を開始する | thread / turn / approval / stream event が Nagare event に正規化される | 計画 |
+| 7.2.2 | `stdio.codex-app-server` の実実行は stdio JSON-RPC adapter で扱う。 | Run Packet が存在する | app-server adapter で run を開始する | `initialize`、`thread/start`、`turn/start`、`turn/completed` の transcript が AgentRun artifact に保存される | 実装済み |
 | 7.3.1 | Codex MCP Server、Claude Code、HTTP adapter、SDK adapter は初期 Agent adapter に含めない。 | Adapter を登録または選定する | 初期 adapter scope を確認する | 対応予定は `process.codex-cli` と `stdio.codex-app-server` のみになる | 実装済み |
 
 ## 8. Artifact / Evidence
