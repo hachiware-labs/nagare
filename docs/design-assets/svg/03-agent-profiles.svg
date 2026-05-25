@@ -25,8 +25,8 @@
     <text x="232" y="48" class="title">Agent Profiles</text>
     <rect x="1232" y="26" width="106" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
   <text x="1246" y="48" class="body" style="fill:#ffffff">Add Agent</text>
-    <rect x="1350" y="26" width="92" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
-  <text x="1364" y="48" class="body" style="fill:#020617">Defaults</text>
+    <rect x="1340" y="26" width="92" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="1354" y="48" class="body" style="fill:#020617">Defaults</text>
     <rect x="232" y="92" width="782" height="622" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
     <text x="252" y="128" class="h2">Profiles</text><text x="252" y="148" class="small">Compare routing hints, runtime, adapter, and probe state</text>
     <rect x="252" y="166" width="742" height="54" rx="0" fill="#ffffff" stroke="#e2e8f0"/><text x="266" y="187" class="body">research-agent</text><text x="266" y="205" class="small">Research Agent</text><text x="424.25" y="187" class="small">researcher</text><text x="424.25" y="205" class="small">research, synthesis</text><text x="582.5" y="187" class="small">process.codex-cli</text><text x="582.5" y="205" class="small">working_dir .</text><text x="740.75" y="187" class="small">healthy</text><text x="740.75" y="205" class="small">probe fresh</text><rect x="913" y="181" width="67" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
@@ -42,8 +42,10 @@
     <text x="1062" y="282" class="h3">writing-agent</text>
     <text x="1062" y="328" class="tiny">dispatch_agent</text>
     <text x="1062" y="354" class="h3">dispatch-app</text>
-    <rect x="1062" y="420" width="148" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
-  <text x="1076" y="442" class="body" style="fill:#ffffff">Change defaults</text>
+    <text x="1062" y="400" class="tiny">supervisor_agent</text>
+    <text x="1062" y="426" class="h3">codex-impl</text>
+    <rect x="1062" y="492" width="148" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
+  <text x="1076" y="514" class="body" style="fill:#ffffff">Change defaults</text>
   
   
 </svg>

@@ -146,22 +146,23 @@ function tableRow(x, y, w, cols, badges = []) {
 
 function workItemBoard() {
   const rows = [
-    [[["work_0048", "READMEの英語版を更新"], ["実行中", "2分前"], ["writing-agent", "target accepted"], ["次: 完了待ち", "artifact pending"]], [["0", "gray"]]],
-    [[["work_0042", "調査ソース一覧を作成"], ["要確認", "12分前"], ["research-agent", "run succeeded"], ["次: 検証", "evidenceあり"]], [["0", "gray"]]],
-    [[["work_0041", "dispatch fallbackを修正"], ["失敗", "28分前"], ["writing-agent", "run failed"], ["次: handoff検討", "stderrあり"]], [["1", "red"]]],
-    [[["work_0038", "tutorial copyを下書き"], ["下書き", "2時間前"], ["未確定", "dispatch draft"], ["次: 依頼先確認", "candidate 3"]], [["0", "gray"]]],
+    [[["work_0048", "README英語版を更新"], ["実行中", "2分前"], ["writing-agent", "判断: 実行"], ["criteria", "未評価"]], [["0", "gray"]]],
+    [[["work_0042", "調査ソース一覧を作成"], ["要確認", "12分前"], ["research-agent", "判断: 質問"], ["criteria", "1 failed"]], [["回復", "amber"]]],
+    [[["work_0041", "dispatch fallbackを修正"], ["失敗", "28分前"], ["writing-agent", "失敗: diffなし"], ["回復案", "draftあり"]], [["2", "red"]]],
+    [[["work_0038", "tutorial copyを下書き"], ["下書き", "2時間前"], ["未確定", "dispatch draft"], ["次", "判断確認"]], [["0", "gray"]]],
   ];
   const body = `
     ${txt(232, 48, "Work Items", "title")}
     ${pill(1110, 30, "locale ja-JP", "blue")}
     ${pill(1226, 30, "dispatch: dispatch-app", "gray")}
     ${rect(232, 82, 894, 188, C.surface, C.line, 8)}
-    ${sectionTitle(252, 118, "仕事を依頼", "対象と依頼文だけ入れて、依頼先を確認する")}
+    ${sectionTitle(252, 118, "仕事を依頼", "依頼文、作業フォルダ、受入条件から始める")}
     ${rect(252, 138, 690, 58, C.surface2, C.line, 7)}
     ${txt(272, 172, "docsの変更点を確認して、READMEに反映して", "body")}
-    ${pill(252, 214, "対象 docs/", "blue")}
-    ${pill(348, 214, "目的: 更新", "gray")}
-    ${pill(448, 214, "Agentおまかせ", "green")}
+    ${pill(252, 214, "work_folder docs/", "blue")}
+    ${pill(388, 214, "criteria 2", "green")}
+    ${pill(482, 214, "expected README", "gray")}
+    ${pill(626, 214, "Agentおまかせ", "green")}
     ${button(952, 142, "依頼先を確認", true, 134)}
     ${button(952, 184, "下書き保存", false, 110)}
     ${rect(1150, 82, 246, 702, C.surface, C.line, 8)}
@@ -172,29 +173,33 @@ function workItemBoard() {
     ${pill(1248, 226, "検証待ち", "amber")}
     ${txt(1170, 288, "担当", "h3")}
     ${txt(1170, 314, "research-agent", "body")}
-    ${txt(1170, 366, "次の操作", "h3")}
-    ${txt(1170, 392, "Evidenceを検証してから承認する", "small")}
-    ${button(1170, 430, "検証を実行", true, 112)}
-    ${button(1170, 478, "詳細を見る", false, 100)}
-    ${button(1170, 526, "分析を開く", false, 104)}
-    ${line(1170, 596, 1374, 596)}
-    ${txt(1170, 636, "分析・デバッグ", "h3")}
-    ${txt(1170, 662, "Agent / Dispatch / Run は", "small")}
-    ${txt(1170, 682, "詳細フィルタで絞り込む", "small")}
+    ${txt(1170, 366, "最新判断", "h3")}
+    ${txt(1170, 392, "requires_human: true", "small")}
+    ${txt(1170, 414, "source: supervisor-agent", "small")}
+    ${txt(1170, 458, "次の操作", "h3")}
+    ${txt(1170, 484, "criteria failed の回復案を確認", "small")}
+    ${button(1170, 522, "回復案を見る", true, 124)}
+    ${button(1170, 568, "詳細を見る", false, 100)}
+    ${button(1170, 614, "分析を開く", false, 104)}
+    ${line(1170, 674, 1374, 674)}
+    ${txt(1170, 712, "分析・デバッグ", "h3")}
+    ${txt(1170, 738, "Agent / Dispatch / Run は", "small")}
+    ${txt(1170, 758, "詳細フィルタで絞り込む", "small")}
     ${rect(232, 302, 894, 482, C.surface, C.line, 8)}
     ${sectionTitle(252, 338, "作業キュー", "依頼、担当Agent、次の操作をまとめて見る")}
     ${button(990, 326, "詳細フィルタ", false, 116)}
     ${txt(252, 374, "すぐ確認", "h3")}
     ${pill(252, 390, "要確認 6", "amber")}
     ${pill(340, 390, "失敗 3", "red")}
-    ${pill(410, 390, "承認待ち 4", "green")}
-    ${pill(510, 390, "実行中 2", "blue")}
+    ${pill(410, 390, "criteria failed 2", "amber")}
+    ${pill(552, 390, "recovery 4", "blue")}
+    ${pill(656, 390, "実行中 2", "blue")}
     ${rect(252, 424, 854, 40, C.surface2, C.line, 7)}
     ${txt(272, 449, "依頼文・Agent・証跡で検索", "small")}
     ${txt(266, 492, "作業", "tiny")}
     ${txt(420, 492, "状態", "tiny")}
-    ${txt(572, 492, "担当", "tiny")}
-    ${txt(724, 492, "次の操作", "tiny")}
+    ${txt(572, 492, "Agent/判断", "tiny")}
+    ${txt(724, 492, "Review/Recovery", "tiny")}
     ${txt(1048, 492, "警告", "tiny")}
     ${rows.map((row, i) => tableRow(252, 504 + i * 62, 854, row[0], row[1])).join("")}
   `;
@@ -203,9 +208,10 @@ function workItemBoard() {
 
 function workItemDetail() {
   const timeline = `
-    ${pill(512, 120, "current target: research-agent", "blue")}
-    ${pill(730, 120, "人への質問あり", "amber")}
-    ${pill(900, 120, "7 events", "gray")}
+    ${pill(512, 120, "target: research-agent", "blue")}
+    ${pill(684, 120, "criteria failed", "amber")}
+    ${pill(814, 120, "recovery draft", "amber")}
+    ${pill(946, 120, "9 events", "gray")}
     ${line(548, 168, 548, 728, C.line)}
 
     ${circle(548, 186, 8, C.blueSoft, C.blue)}
@@ -214,88 +220,90 @@ function workItemDetail() {
     ${txt(694, 202, "調査ソース一覧を作成", "h3")}
     ${txt(884, 202, "12:03", "small")}
 
-    ${circle(548, 250, 8, C.greenSoft, C.green)}
+    ${circle(548, 250, 8, C.blueSoft, C.blue)}
     ${rect(574, 230, 420, 46, C.surface, C.line, 7)}
-    ${pill(594, 241, "Dispatch", "green")}
-    ${txt(706, 256, "target research-agent", "h3")}
-    ${pill(884, 241, "0 warnings", "green")}
+    ${pill(594, 241, "判断", "blue")}
+    ${txt(706, 256, "dispatch to research-agent", "h3")}
+    ${pill(894, 241, "0.82", "blue")}
 
     ${circle(548, 314, 8, C.greenSoft, C.green)}
     ${rect(574, 294, 420, 46, C.surface, C.line, 7)}
-    ${pill(594, 305, "Run", "green")}
-    ${txt(668, 320, "exit 0 / 44s / research-agent", "h3")}
-    ${txt(914, 320, "12:05", "small")}
+    ${pill(594, 305, "Dispatch", "green")}
+    ${txt(706, 320, "accepted / no warnings", "h3")}
+    ${txt(914, 320, "12:04", "small")}
 
-    ${circle(548, 378, 8, C.blueSoft, C.blue)}
+    ${circle(548, 378, 8, C.greenSoft, C.green)}
     ${rect(574, 358, 420, 46, C.surface, C.line, 7)}
-    ${pill(594, 369, "Artifact", "blue")}
-    ${txt(696, 384, "art_0010 / ev_0011", "h3")}
-    ${pill(856, 369, "2 records", "blue")}
+    ${pill(594, 369, "Run", "green")}
+    ${txt(668, 384, "exit 0 / art_0010 / diff_0011", "h3")}
+    ${txt(914, 384, "12:05", "small")}
 
     ${circle(548, 442, 8, C.amberSoft, C.amber)}
     ${rect(574, 422, 420, 46, C.surface, C.line, 7)}
     ${pill(594, 433, "Review", "amber")}
-    ${txt(684, 448, "追加条件の確認が必要", "h3")}
-    ${pill(866, 433, "question", "amber")}
+    ${txt(684, 448, "criteria: 1 pass / 1 failed", "h3")}
+    ${pill(886, 433, "changes", "amber")}
 
     ${circle(548, 542, 10, C.amberSoft, C.amber)}
     ${rect(574, 486, 420, 142, "#ffffff", C.blue, 8)}
-    ${txt(594, 510, "⌄ 人への質問", "h3")}
-    ${pill(704, 493, "selected", "blue")}
-    ${pill(786, 493, "回答待ち", "amber")}
-    ${txt(594, 550, "release note のURLを追加してよいですか？", "h3")}
-    ${txt(594, 572, "Agentが判断できない前提を人に確認中。", "small")}
-    ${button(594, 586, "回答する", true, 96)}
-    ${button(702, 586, "Artifact", false, 86)}
-    ${button(800, 586, "Handoff", false, 96)}
+    ${txt(594, 510, "⌄ 回復案", "h3")}
+    ${pill(730, 493, "selected", "blue")}
+    ${pill(812, 493, "missing_artifact", "amber")}
+    ${txt(594, 550, "expected release source list が不足", "h3")}
+    ${txt(594, 572, "review_changes から回復候補を作成。", "small")}
+    ${button(594, 586, "採用して適用", true, 118)}
+    ${button(726, 586, "失敗Run", false, 92)}
+    ${button(830, 586, "Handoff", false, 96)}
 
     ${circle(548, 672, 8, C.graySoft, C.gray)}
     ${rect(574, 652, 420, 46, C.surface, C.line, 7)}
-    ${pill(594, 663, "Verification", "gray")}
-    ${txt(714, 678, "回答後に検証", "h3")}
+    ${pill(594, 663, "判断", "gray")}
+    ${txt(704, 678, "apply recovery or ask human", "h3")}
     ${txt(914, 678, "next", "small")}
 
     ${circle(548, 734, 8, C.graySoft, C.gray)}
-    ${txt(574, 740, "必要なら Handoff / 再実行 / 追加指示をこの下に追加", "tiny")}
+    ${txt(574, 740, "回復後に Run / Review / Verification / Approval が続く", "tiny")}
   `;
   const body = `
     ${txt(232, 48, "work_0042 / 調査ソース一覧を作成", "title")}
     ${pill(694, 27, "要確認", "amber")}
-    ${button(1196, 26, "検証を実行", true, 112)}
-    ${disabledButton(1320, 26, "承認は検証後", 118)}
+    ${button(1128, 26, "次へ進める", true, 112)}
+    ${button(1248, 26, "判断を確認", false, 104)}
+    ${disabledButton(1360, 26, "承認不可", 76)}
     ${rect(232, 92, 248, 692, C.surface, C.line, 8)}
-    ${sectionTitle(252, 128, "概要", "文脈を見失わない")}
-    ${txt(252, 178, "対象", "h3")}
-    ${txt(252, 202, "docs/research/source-list.md", "small")}
+    ${sectionTitle(252, 128, "概要", "DoDと次の操作を固定表示")}
+    ${txt(252, 178, "work_folder", "h3")}
+    ${txt(252, 202, "docs/research", "small")}
     ${txt(252, 248, "Agents", "h3")}
     ${txt(252, 272, "dispatch: dispatch-app", "small")}
-    ${txt(252, 296, "target: research-agent", "small")}
-    ${txt(252, 340, "最新状態", "h3")}
-    ${pill(252, 356, "依頼先決定", "green")}
-    ${pill(252, 388, "run成功", "green")}
-    ${pill(252, 420, "回答待ち", "amber")}
-    ${txt(252, 476, "次に必要", "h3")}
-    ${txt(252, 502, "Agentからの質問に回答する", "small")}
+    ${txt(252, 296, "supervisor: codex-impl", "small")}
+    ${txt(252, 320, "target: research-agent", "small")}
+    ${txt(252, 364, "DoD", "h3")}
+    ${pill(252, 380, "criteria 1/2", "amber")}
+    ${pill(252, 412, "expected 1 missing", "amber")}
+    ${pill(252, 444, "verify hint", "gray")}
+    ${txt(252, 500, "次に必要", "h3")}
+    ${txt(252, 526, "回復案を採用する", "small")}
     ${txt(512, 104, "実行タイムライン", "h2")}
     ${timeline}
     ${rect(1024, 92, 372, 692, C.surface, C.line, 8)}
-    ${sectionTitle(1044, 128, "Inspector: 人への質問", "selected timeline item")}
-    ${pill(1044, 168, "selected", "blue")} ${pill(1128, 168, "回答待ち", "amber")}
-    ${txt(1044, 220, "次の操作", "h3")}
-    ${txt(1044, 246, "質問に回答し、後続の検証へ進める。", "small")}
-    ${txt(1044, 278, "前後", "h3")}
-    ${button(1044, 296, "Review", false, 82)}
-    ${button(1138, 296, "Verification", false, 112)}
-    ${txt(1044, 350, "質問", "h3")}
-    ${rect(1044, 368, 318, 78, C.surface2, C.line, 6)}
-    ${txt(1060, 396, "release note のURLを", "small")}
-    ${txt(1060, 416, "成果物に追加してよいですか？", "small")}
-    ${txt(1044, 496, "回答後の処理", "h3")}
-    ${pill(1044, 514, "instruction update", "amber")}
-    ${pill(1182, 514, "verification next", "gray")}
-    ${button(1044, 566, "回答する", true, 96)}
-    ${button(1156, 566, "Artifactを見る", false, 120)}
-    ${button(1044, 614, "Handoff作成", false, 116)}
+    ${sectionTitle(1044, 128, "Inspector: 回復案", "selected timeline item")}
+    ${pill(1044, 168, "draft", "amber")} ${pill(1114, 168, "review_changes", "amber")} ${pill(1236, 168, "research-agent", "blue")}
+    ${txt(1044, 220, "停止理由", "h3")}
+    ${txt(1044, 246, "acceptance criteria の source coverage が未充足。", "small")}
+    ${txt(1044, 278, "回復候補", "h3")}
+    ${rect(1044, 296, 318, 70, C.surface2, C.line, 6)}
+    ${txt(1060, 324, "rerun_with_contract_reminder", "small")}
+    ${txt(1060, 344, "OutputContractとexpected artifactsを再注入", "small")}
+    ${txt(1044, 400, "関連", "h3")}
+    ${pill(1044, 418, "review_0012", "amber")}
+    ${pill(1154, 418, "art_0010", "blue")}
+    ${pill(1244, 418, "diff_0011", "gray")}
+    ${txt(1044, 496, "次の操作", "h3")}
+    ${txt(1044, 522, "採用すると同じWork ItemでAgent再実行へ進む。", "small")}
+    ${button(1044, 566, "採用して適用", true, 126)}
+    ${button(1186, 566, "Handoff作成", false, 116)}
+    ${button(1044, 614, "失敗Runを見る", false, 126)}
   `;
   return appChrome("Work Items", body);
 }
@@ -304,7 +312,7 @@ function agentProfiles() {
   const body = `
     ${txt(232, 48, "Agent Profiles", "title")}
     ${button(1232, 26, "Add Agent", true, 106)}
-    ${button(1350, 26, "Defaults", false, 92)}
+    ${button(1340, 26, "Defaults", false, 92)}
     ${rect(232, 92, 782, 622, C.surface, C.line, 8)}
     ${sectionTitle(252, 128, "Profiles", "Compare routing hints, runtime, adapter, and probe state")}
     ${tableRow(252, 166, 742, [["research-agent", "Research Agent"], ["researcher", "research, synthesis"], ["process.codex-cli", "working_dir ."], ["healthy", "probe fresh"]], [["default", "blue"]])}
@@ -318,7 +326,9 @@ function agentProfiles() {
     ${txt(1062, 282, "writing-agent", "h3")}
     ${txt(1062, 328, "dispatch_agent", "tiny")}
     ${txt(1062, 354, "dispatch-app", "h3")}
-    ${button(1062, 420, "Change defaults", true, 148)}
+    ${txt(1062, 400, "supervisor_agent", "tiny")}
+    ${txt(1062, 426, "codex-impl", "h3")}
+    ${button(1062, 492, "Change defaults", true, 148)}
   `;
   return appChrome("Agents", body);
 }
@@ -368,7 +378,8 @@ function settings() {
     ${txt(642, 184, "work_agent: writing-agent", "small")}
     ${txt(642, 218, "review_agent: writing-agent", "small")}
     ${txt(642, 252, "dispatch_agent: dispatch-app", "small")}
-    ${button(642, 304, "Change defaults", true, 148)}
+    ${txt(642, 286, "supervisor_agent: codex-impl", "small")}
+    ${button(642, 324, "Change defaults", true, 148)}
     ${rect(1032, 92, 364, 280, C.surface, C.line, 8)}
     ${sectionTitle(1052, 128, "Dispatch Context Budget", "Fixed for MVP")}
     ${txt(1052, 184, "candidate limit", "tiny")}
@@ -411,6 +422,44 @@ function dispatchReview() {
     ${button(64, 836, "この内容で依頼", true, 136)}
     ${button(214, 836, "選び直す", false, 100)}
     ${button(328, 836, "Agentを指定", false, 118)}
+  `);
+}
+
+function workflowDecisionInspector() {
+  return inspectorShell("Workflow Decision Inspector", "Next action chosen by Nagare or supervisor agent", `
+    ${pill(64, 142, "action: apply_recovery", "blue")} ${pill(236, 142, "source supervisor_agent", "amber")} ${pill(414, 142, "confidence 0.78", "blue")}
+    ${txt(64, 204, "Reason", "h2")}
+    ${txt(64, 236, "Review failed one acceptance criterion and a matching RecoveryPlan exists.", "body")}
+    ${txt(64, 304, "Decision fields", "h2")}
+    ${tableRow(64, 330, 832, [["requires_human", "true"], ["target_agent", "research-agent"], ["agent_run", "run_0021"]], [["warning", "amber"]])}
+    ${txt(64, 434, "Command hint", "h2")}
+    ${rect(64, 458, 832, 78, C.surface2, C.line, 6)}
+    ${txt(84, 490, "nagare item recover accept work_0042 && nagare item recover apply work_0042", "mono")}
+    ${txt(64, 604, "Warnings", "h2")}
+    ${pill(64, 628, "human confirmation required", "amber")}
+    ${pill(248, 628, "supervisor output parsed", "green")}
+    ${button(64, 800, "Advance", true, 102)}
+    ${button(182, 800, "Advance until blocked", false, 178)}
+    ${button(378, 800, "Open supervisor run", false, 170)}
+  `);
+}
+
+function recoveryInspector() {
+  return inspectorShell("Recovery Inspector", "Choose and apply the safest recovery path", `
+    ${pill(64, 142, "draft", "amber")} ${pill(136, 142, "failure: missing_artifact", "red")} ${pill(328, 142, "target research-agent", "blue")}
+    ${txt(64, 204, "Primary plan", "h2")}
+    ${txt(64, 236, "Rerun with OutputContract reminder and expected artifact list.", "body")}
+    ${txt(64, 304, "Candidate plans", "h2")}
+    ${tableRow(64, 330, 832, [["plan_0017", "rerun_with_contract_reminder"], ["failure", "missing_artifact"], ["target", "research-agent"]], [["primary", "blue"]])}
+    ${tableRow(64, 400, 832, [["plan_0018", "handoff_to_agent"], ["failure", "review_changes"], ["target", "research-agent"]], [["secondary", "gray"]])}
+    ${txt(64, 504, "Prompt hint", "h2")}
+    ${rect(64, 528, 832, 86, C.surface2, C.line, 6)}
+    ${txt(84, 560, "Output must include source_list.md and satisfy criterion_002.", "small")}
+    ${txt(64, 680, "Next action", "h2")}
+    ${txt(64, 712, "Accept the primary plan, then apply it to create a new AgentRun.", "body")}
+    ${button(64, 800, "Accept plan", true, 116)}
+    ${button(196, 800, "Apply accepted", false, 132)}
+    ${button(344, 800, "Create handoff", false, 142)}
   `);
 }
 
@@ -482,38 +531,48 @@ function verification() {
 }
 
 function reviewInspector() {
-  return inspectorShell("Review Inspector", "Decision point after artifacts and verification", `
-    ${pill(64, 142, "selected review", "gray")} ${pill(198, 142, "question requested", "amber")} ${pill(354, 142, "review-agent", "blue")}
+  return inspectorShell("Review Inspector", "Verdict, findings, and acceptance criteria coverage", `
+    ${pill(64, 142, "selected review", "gray")} ${pill(198, 142, "criteria failed", "amber")} ${pill(330, 142, "review-agent", "blue")}
     ${txt(64, 204, "Verdict", "h2")}
-    ${txt(64, 236, "Approve after source list includes release note links.", "body")}
-    ${txt(64, 306, "Findings", "h2")}
-    ${tableRow(64, 332, 832, [["finding_001", "missing source URL"], ["severity", "medium"], ["linked", "art_0010"]], [["open", "amber"]])}
-    ${tableRow(64, 402, 832, [["finding_002", "README update ok"], ["severity", "low"], ["linked", "ev_0011"]], [["ok", "green"]])}
-    ${txt(64, 506, "Referenced records", "h2")}
-    ${pill(64, 530, "Artifact art_0010", "blue")}
-    ${pill(210, 530, "Evidence ev_0011", "green")}
-    ${pill(360, 530, "Verification failed", "red")}
-    ${txt(64, 624, "Next action", "h2")}
-    ${txt(64, 656, "Request changes or handoff to research-agent for source repair.", "body")}
-    ${button(64, 800, "Request changes", true, 154)}
-    ${button(236, 800, "Create handoff", false, 142)}
-    ${button(394, 800, "Open artifact", false, 124)}
+    ${txt(64, 236, "Request changes: one required source category is missing.", "body")}
+    ${txt(64, 296, "Criteria results", "h2")}
+    ${tableRow(64, 322, 832, [["criterion_001", "READMEに反映"], ["status", "passed"], ["note", "art_0010"]], [["passed", "green"]])}
+    ${tableRow(64, 392, 832, [["criterion_002", "release note source"], ["status", "failed"], ["note", "missing URL"]], [["failed", "red"]])}
+    ${txt(64, 496, "Findings", "h2")}
+    ${tableRow(64, 522, 832, [["finding_001", "missing source URL"], ["severity", "medium"], ["linked", "criterion_002"]], [["open", "amber"]])}
+    ${txt(64, 626, "Referenced records", "h2")}
+    ${pill(64, 650, "Artifact art_0010", "blue")}
+    ${pill(210, 650, "ReviewResult rev_0012", "amber")}
+    ${pill(390, 650, "Diff diff_0011", "gray")}
+    ${txt(64, 726, "Next action", "h2")}
+    ${txt(64, 758, "Create or apply a RecoveryPlan before approval.", "body")}
+    ${button(64, 820, "Recovery plan", true, 138)}
+    ${button(220, 820, "Create handoff", false, 142)}
+    ${button(378, 820, "Open artifact", false, 124)}
   `);
 }
 
 function handoff() {
-  return inspectorShell("Handoff Inspector", "Move a failed item to a better agent", `
+  return inspectorShell("Handoff Inspector", "Package current state for the next agent", `
     ${txt(64, 154, "Create handoff", "h2")}
     ${txt(64, 202, "from agent", "tiny")} ${txt(340, 202, "to agent", "tiny")}
     ${rect(64, 218, 250, 38, C.surface2, C.line, 6)} ${rect(340, 218, 250, 38, C.surface2, C.line, 6)}
     ${txt(82, 244, "writing-agent", "body")} ${txt(358, 244, "research-agent", "body")}
-    ${txt(64, 310, "reason", "tiny")}
-    ${rect(64, 326, 832, 88, C.surface2, C.line, 6)}
-    ${txt(84, 358, "Initial run failed because source context was missing.", "small")}
-    ${txt(64, 482, "Existing handoffs", "h2")}
-    ${tableRow(64, 510, 832, [["handoff_0012", "writing-agent -> research-agent"], ["reason", "missing sources"], ["state", "dispatch ready"]], [])}
+    ${txt(64, 300, "packet contents", "h2")}
+    ${pill(64, 326, "current_state", "blue")}
+    ${pill(188, 326, "open_questions 1", "amber")}
+    ${pill(330, 326, "artifacts 2", "blue")}
+    ${pill(438, 326, "diff 1", "gray")}
+    ${pill(520, 326, "failed verify 1", "red")}
+    ${pill(660, 326, "review 1", "amber")}
+    ${txt(64, 402, "next_request", "tiny")}
+    ${rect(64, 418, 832, 88, C.surface2, C.line, 6)}
+    ${txt(84, 450, "Find missing release note sources and update the source list.", "small")}
+    ${txt(64, 570, "Existing handoffs", "h2")}
+    ${tableRow(64, 598, 832, [["handoff_0012", "writing-agent -> research-agent"], ["reason", "missing sources"], ["state", "dispatch ready"]], [])}
     ${button(64, 800, "Create handoff", true, 144)}
     ${button(224, 800, "Dispatch handoff", false, 156)}
+    ${button(396, 800, "Open review", false, 120)}
   `);
 }
 
@@ -532,16 +591,17 @@ function agentEdit() {
 }
 
 function defaultsModal() {
-  return inspectorShell("Defaults Modal", "Choose work, review, and dispatch agents", `
+  return inspectorShell("Defaults Modal", "Choose Nagare agents used by workflow decisions", `
     ${rect(150, 140, 660, 600, C.surface, C.line, 12)}
     ${txt(190, 186, "Default Agents", "title")}
     ${txt(190, 248, "work_agent", "tiny")} ${rect(190, 264, 580, 42, C.surface2, C.line, 6)} ${txt(208, 292, "writing-agent", "body")}
     ${txt(190, 348, "review_agent", "tiny")} ${rect(190, 364, 580, 42, C.surface2, C.line, 6)} ${txt(208, 392, "writing-agent", "body")}
     ${txt(190, 448, "dispatch_agent", "tiny")} ${rect(190, 464, 580, 42, C.surface2, C.line, 6)} ${txt(208, 492, "dispatch-app", "body")}
-    ${pill(190, 540, "dispatch-app probe stale", "amber")}
-    ${txt(190, 588, "Warning: probe before using this agent for dispatch.", "small")}
-    ${button(548, 668, "Cancel", false, 92)}
-    ${button(654, 668, "Save", true, 88)}
+    ${txt(190, 548, "supervisor_agent", "tiny")} ${rect(190, 564, 580, 42, C.surface2, C.line, 6)} ${txt(208, 592, "codex-impl", "body")}
+    ${pill(190, 628, "dispatch-app probe stale", "amber")}
+    ${pill(358, 628, "supervision contract required", "blue")}
+    ${button(548, 680, "Cancel", false, 92)}
+    ${button(654, 680, "Save", true, 88)}
   `);
 }
 
@@ -560,6 +620,8 @@ const mocks = [
   ["12-handoff-inspector", handoff()],
   ["13-agent-edit-modal", agentEdit()],
   ["14-defaults-modal", defaultsModal()],
+  ["15-workflow-decision-inspector", workflowDecisionInspector()],
+  ["16-recovery-inspector", recoveryInspector()],
 ];
 
 for (const [name, svg] of mocks) {

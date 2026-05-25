@@ -14,21 +14,36 @@
   
     <rect x="36" y="36" width="888" height="888" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
     <text x="64" y="82" class="title">Handoff Inspector</text>
-    <text x="64" y="106" class="small">Move a failed item to a better agent</text>
+    <text x="64" y="106" class="small">Package current state for the next agent</text>
     
     <text x="64" y="154" class="h2">Create handoff</text>
     <text x="64" y="202" class="tiny">from agent</text> <text x="340" y="202" class="tiny">to agent</text>
     <rect x="64" y="218" width="250" height="38" rx="6" fill="#f8fafc" stroke="#e2e8f0"/> <rect x="340" y="218" width="250" height="38" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
     <text x="82" y="244" class="body">writing-agent</text> <text x="358" y="244" class="body">research-agent</text>
-    <text x="64" y="310" class="tiny">reason</text>
-    <rect x="64" y="326" width="832" height="88" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
-    <text x="84" y="358" class="small">Initial run failed because source context was missing.</text>
-    <text x="64" y="482" class="h2">Existing handoffs</text>
-    <rect x="64" y="510" width="832" height="54" rx="0" fill="#ffffff" stroke="#e2e8f0"/><text x="78" y="531" class="body">handoff_0012</text><text x="78" y="549" class="small">writing-agent -&gt; research-agent</text><text x="346" y="531" class="small">reason</text><text x="346" y="549" class="small">missing sources</text><text x="614" y="531" class="small">state</text><text x="614" y="549" class="small">dispatch ready</text>
+    <text x="64" y="300" class="h2">packet contents</text>
+    <rect x="64" y="326" width="109" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="73" y="342" class="tiny" style="fill:#4338ca">current_state</text>
+    <rect x="188" y="326" width="130" height="24" rx="12" fill="#fffbeb" stroke="#fffbeb"/>
+  <text x="197" y="342" class="tiny" style="fill:#b45309">open_questions 1</text>
+    <rect x="330" y="326" width="95" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="339" y="342" class="tiny" style="fill:#4338ca">artifacts 2</text>
+    <rect x="438" y="326" width="60" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="447" y="342" class="tiny" style="fill:#475569">diff 1</text>
+    <rect x="520" y="326" width="123" height="24" rx="12" fill="#fef2f2" stroke="#fef2f2"/>
+  <text x="529" y="342" class="tiny" style="fill:#b91c1c">failed verify 1</text>
+    <rect x="660" y="326" width="74" height="24" rx="12" fill="#fffbeb" stroke="#fffbeb"/>
+  <text x="669" y="342" class="tiny" style="fill:#b45309">review 1</text>
+    <text x="64" y="402" class="tiny">next_request</text>
+    <rect x="64" y="418" width="832" height="88" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="84" y="450" class="small">Find missing release note sources and update the source list.</text>
+    <text x="64" y="570" class="h2">Existing handoffs</text>
+    <rect x="64" y="598" width="832" height="54" rx="0" fill="#ffffff" stroke="#e2e8f0"/><text x="78" y="619" class="body">handoff_0012</text><text x="78" y="637" class="small">writing-agent -&gt; research-agent</text><text x="346" y="619" class="small">reason</text><text x="346" y="637" class="small">missing sources</text><text x="614" y="619" class="small">state</text><text x="614" y="637" class="small">dispatch ready</text>
     <rect x="64" y="800" width="144" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
   <text x="78" y="822" class="body" style="fill:#ffffff">Create handoff</text>
     <rect x="224" y="800" width="156" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
   <text x="238" y="822" class="body" style="fill:#020617">Dispatch handoff</text>
+    <rect x="396" y="800" width="120" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="410" y="822" class="body" style="fill:#020617">Open review</text>
   
   
 </svg>

@@ -34,8 +34,9 @@
     <text x="642" y="184" class="small">work_agent: writing-agent</text>
     <text x="642" y="218" class="small">review_agent: writing-agent</text>
     <text x="642" y="252" class="small">dispatch_agent: dispatch-app</text>
-    <rect x="642" y="304" width="148" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
-  <text x="656" y="326" class="body" style="fill:#ffffff">Change defaults</text>
+    <text x="642" y="286" class="small">supervisor_agent: codex-impl</text>
+    <rect x="642" y="324" width="148" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
+  <text x="656" y="346" class="body" style="fill:#ffffff">Change defaults</text>
     <rect x="1032" y="92" width="364" height="280" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
     <text x="1052" y="128" class="h2">Dispatch Context Budget</text><text x="1052" y="148" class="small">Fixed for MVP</text>
     <text x="1052" y="184" class="tiny">candidate limit</text>

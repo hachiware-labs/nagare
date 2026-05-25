@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="960" viewBox="0 0 960 960">
+  <rect width="960" height="960" fill="#f8fafc"/>
+  <style>
+    .title{font:700 24px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h2{font:700 17px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h3{font:700 14px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .body{font:500 13px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .small{font:500 11px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .tiny{font:600 10px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .mono{font:500 12px Consolas,Menlo,monospace;fill:#020617}
+    .nav{font:650 13px Inter,Segoe UI,Arial,sans-serif;fill:#334155}
+    .nav-on{font:700 13px Inter,Segoe UI,Arial,sans-serif;fill:#4338ca}
+  </style>
+  
+    <rect x="36" y="36" width="888" height="888" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="64" y="82" class="title">Recovery Inspector</text>
+    <text x="64" y="106" class="small">Choose and apply the safest recovery path</text>
+    
+    <rect x="64" y="142" width="53" height="24" rx="12" fill="#fffbeb" stroke="#fffbeb"/>
+  <text x="73" y="158" class="tiny" style="fill:#b45309">draft</text> <rect x="136" y="142" width="193" height="24" rx="12" fill="#fef2f2" stroke="#fef2f2"/>
+  <text x="145" y="158" class="tiny" style="fill:#b91c1c">failure: missing_artifact</text> <rect x="328" y="142" width="165" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="337" y="158" class="tiny" style="fill:#4338ca">target research-agent</text>
+    <text x="64" y="204" class="h2">Primary plan</text>
+    <text x="64" y="236" class="body">Rerun with OutputContract reminder and expected artifact list.</text>
+    <text x="64" y="304" class="h2">Candidate plans</text>
+    <rect x="64" y="330" width="832" height="54" rx="0" fill="#ffffff" stroke="#e2e8f0"/><text x="78" y="351" class="body">plan_0017</text><text x="78" y="369" class="small">rerun_with_contract_reminder</text><text x="319" y="351" class="small">failure</text><text x="319" y="369" class="small">missing_artifact</text><text x="560" y="351" class="small">target</text><text x="560" y="369" class="small">research-agent</text><rect x="815" y="345" width="67" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="824" y="361" class="tiny" style="fill:#4338ca">primary</text>
+    <rect x="64" y="400" width="832" height="54" rx="0" fill="#ffffff" stroke="#e2e8f0"/><text x="78" y="421" class="body">plan_0018</text><text x="78" y="439" class="small">handoff_to_agent</text><text x="314.33333333333337" y="421" class="small">failure</text><text x="314.33333333333337" y="439" class="small">review_changes</text><text x="550.6666666666667" y="421" class="small">target</text><text x="550.6666666666667" y="439" class="small">research-agent</text><rect x="801" y="415" width="81" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="810" y="431" class="tiny" style="fill:#475569">secondary</text>
+    <text x="64" y="504" class="h2">Prompt hint</text>
+    <rect x="64" y="528" width="832" height="86" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="84" y="560" class="small">Output must include source_list.md and satisfy criterion_002.</text>
+    <text x="64" y="680" class="h2">Next action</text>
+    <text x="64" y="712" class="body">Accept the primary plan, then apply it to create a new AgentRun.</text>
+    <rect x="64" y="800" width="116" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
+  <text x="78" y="822" class="body" style="fill:#ffffff">Accept plan</text>
+    <rect x="196" y="800" width="132" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="210" y="822" class="body" style="fill:#020617">Apply accepted</text>
+    <rect x="344" y="800" width="142" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="358" y="822" class="body" style="fill:#020617">Create handoff</text>
+  
+  
+</svg>
