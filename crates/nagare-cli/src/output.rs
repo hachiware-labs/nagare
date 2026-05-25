@@ -22,6 +22,21 @@ pub(crate) fn print_snapshot(snapshot: &WorkItemSnapshot) {
         println!("description: {}", snapshot.item.description);
     }
     println!("locale: {}", snapshot.item.locale);
+    println!(
+        "completion: state={} next_action={} blocking_reason={} hint={}",
+        snapshot.completion.state,
+        snapshot.completion.next_action,
+        snapshot
+            .completion
+            .blocking_reason
+            .as_deref()
+            .unwrap_or("-"),
+        snapshot
+            .completion
+            .next_command_hint
+            .as_deref()
+            .unwrap_or("-")
+    );
     println!("timeline:");
     for event in &snapshot.timeline {
         println!(
@@ -41,6 +56,16 @@ pub(crate) fn print_snapshot(snapshot: &WorkItemSnapshot) {
             run.id, run.purpose, run.agent_profile_id, run.status, run.exit_code, run.artifact_id
         );
     }
+    println!("artifacts:");
+    for artifact in &snapshot.artifacts {
+        println!(
+            "  {}\t{}\tagent_run={}\t{}",
+            artifact.id,
+            artifact.artifact_type,
+            artifact.agent_run_id.as_deref().unwrap_or("-"),
+            artifact.title
+        );
+    }
     println!("evidence:");
     for evidence in &snapshot.evidence {
         println!("  {}\t{}", evidence.id, evidence.claim);
@@ -48,6 +73,17 @@ pub(crate) fn print_snapshot(snapshot: &WorkItemSnapshot) {
     println!("verification:");
     for verification in &snapshot.verification_results {
         println!("  {}\t{}", verification.id, verification.result);
+    }
+    println!("review_results:");
+    for review in &snapshot.review_results {
+        println!(
+            "  {}\t{}\tagent={}\tfindings={}\trequested_changes={}",
+            review.id,
+            review.verdict,
+            review.agent_profile_id,
+            comma_list(&review.findings),
+            comma_list(&review.requested_changes)
+        );
     }
     println!("resolved_skill_contexts:");
     for context in &snapshot.resolved_skill_contexts {
@@ -110,6 +146,18 @@ pub(crate) fn print_snapshot(snapshot: &WorkItemSnapshot) {
             plan.agent_run_id,
             comma_list(&plan.selection_warnings),
             plan.summary
+        );
+    }
+    println!("recovery_plans:");
+    for plan in &snapshot.recovery_plans {
+        println!(
+            "  {}\t{}\taction={}\ttarget_agent={}\treason={}\thint={}",
+            plan.id,
+            plan.status,
+            plan.action,
+            plan.target_agent_profile_id.as_deref().unwrap_or("-"),
+            plan.reason,
+            plan.command_hint.as_deref().unwrap_or("-")
         );
     }
 }
@@ -264,6 +312,9 @@ Usage:
   nagare item answer <work_id> --answer <text> [--question <text>] [--root <path>]
   nagare item preview <work_id> [--path <path>] [--agent <agent_profile_id>] [--prompt <text> | --command <command>] [--root <path>]
   nagare item dispatch accept <work_id> [--dispatch-plan <dispatch_plan_id>] [--root <path>]
+  nagare item recover <work_id> [--root <path>]
+  nagare item recover accept <work_id> [--recovery-plan <recovery_plan_id>] [--root <path>]
+  nagare item recover apply <work_id> [--recovery-plan <recovery_plan_id>] [--prompt <text> | --command <command>] [--root <path>]
   nagare item run <work_id> [--path <path>] [--agent <agent_profile_id>] [--dispatch-plan <dispatch_plan_id>] [--prompt <text> | --command <command>] [--root <path>]
   nagare item review <work_id> [--agent <agent_profile_id>] [--prompt <text> | --command <command>] [--root <path>]
   nagare verify <work_id> --command <command> [--root <path>]

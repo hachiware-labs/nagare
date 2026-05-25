@@ -110,6 +110,8 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | 7.1.14 | 人の回答は次のAgent実行に渡される。 | HumanFeedback が存在する | 次の `item run` を実行する | prompt に `## Nagare Human Feedback` が追加され、Run Packet constraints に `human_feedback_context_applied` が残る | 実装済み |
 | 7.1.15 | Work Item Snapshot は実行履歴を Timeline event として正規化する。 | Work Item に run、artifact、evidence、question、human feedback、verification、handoff、decision が存在する | `nagare item show <work_id>` を実行する | request から decision までの主要 event が `timeline` に時系列で表示される | 実装済み |
 | 7.1.16 | Agentからの質問と人の回答は同じTimeline上で追える。 | AgentOutputRecord.questions と HumanFeedback が存在する | Snapshot を取得する | `question` と `human_feedback` event が関連 id と summary を持って表示される | 実装済み |
+| 7.1.17 | Work Item Snapshot は完遂に向けた次アクションを算出する。 | Work Item の ledger record が存在する | `nagare item show <work_id>` を実行する | `completion.state`、`blocking_reason`、`next_action`、`next_command_hint` が表示される | 実装済み |
+| 7.1.18 | Review出力はReviewResultとして保存し、状態遷移に接続する。 | review purpose のAgentRunが終了する | `## Nagare Review` をparseする | `ReviewResult` が保存され、pass は `ready_for_verification`、request_changes は `changes_requested`、blocked/questions は `needs_input` になる | 実装済み |
 | 7.2.1 | `stdio.codex-app-server` は Agent Profile として登録・確認できる。 | Codex app-server runtime が設定済み | agent add/list/show/doctor/probe を実行する | profile と probe 結果が扱える | 実装済み |
 | 7.2.2 | `stdio.codex-app-server` の実実行は stdio JSON-RPC adapter で扱う。 | Run Packet が存在する | app-server adapter で run を開始する | `initialize`、`thread/start`、`turn/start`、`turn/completed` の transcript が AgentRun artifact に保存される | 実装済み |
 | 7.3.1 | Codex MCP Server、Claude Code、HTTP adapter、SDK adapter は初期 Agent adapter に含めない。 | Adapter を登録または選定する | 初期 adapter scope を確認する | 対応予定は `process.codex-cli` と `stdio.codex-app-server` のみになる | 実装済み |
@@ -123,6 +125,8 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | 8.2.1 | Agent Run の結果から Evidence を生成する。 | Run が終了する | Ledger を更新する | 成功または失敗 claim と basis が保存される | 実装済み |
 | 8.2.2 | Evidence の自動生成文言は Project locale に合わせる。 | Project locale が設定済み | Evidence を生成する | 日本語または英語の claim / basis が保存される | 実装済み |
 | 8.2.3 | Evidence は Artifact を根拠として参照する。 | Artifact が存在する | Evidence を作成する | evidence.artifact_id から根拠 artifact を参照できる | 実装済み |
+| 8.2.4 | Git workspace の変更ファイルをArtifact化する。 | Agent Run がGit work tree内で終了する | run 後に workspace を確認する | `.nagare/artifacts/` に `changed_files` Artifact が保存される | 実装済み |
+| 8.2.5 | Git diff をArtifact化する。 | tracked file に差分がある | run 後に `git diff --binary` を取得する | `diff_patch` Artifact が保存され、Timeline に artifact event として出る | 実装済み |
 
 ## 9. Verification
 
@@ -184,3 +188,12 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | MSG-RUN-0001 | run `<run_id>` completed | stdout | Agent Run 完了 | 7.1.1 |
 | MSG-VERIFY-0001 | verification `<id>` passed | stdout | 検証成功 | 9.1.2 |
 | MSG-DEC-0001 | work item approved | stdout | Human approval 成功 | 11.1.1 |
+
+## 14. Recovery / Completion
+
+| ID | 仕様 | Given | When | Done | 状態 |
+| --- | --- | --- | --- | --- | --- |
+| 14.1.1 | Work Item の停止理由からRecoveryPlanを作成できる。 | Work Item が停止または要対応状態である | `nagare item recover <work_id>` を実行する | action、reason、summary、target_agent、command_hint を持つ draft RecoveryPlan が保存される | 実装済み |
+| 14.1.2 | RecoveryPlan は lifecycle を持つ。 | draft RecoveryPlan が存在する | `nagare item recover accept <work_id>` を実行する | 選択 plan が accepted になり、同じ Work Item の他 draft は superseded になる | 実装済み |
+| 14.1.3 | OutputContract欠落は定型出力再生成のRecoveryPlanになる。 | 最新 AgentOutputRecord が `unparsed` である | `nagare item recover <work_id>` を実行する | `rerun_with_contract_reminder` action と prompt_hint が保存される | 実装済み |
+| 14.1.4 | 採用済みRecoveryPlanをAgent再実行に適用できる。 | accepted RecoveryPlan がある | `nagare item recover apply <work_id>` を実行する | target Agent Profile で再実行され、結果が通常の AgentRun / AgentOutputRecord として保存される | 実装済み |

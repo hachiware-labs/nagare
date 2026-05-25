@@ -3,14 +3,16 @@ use std::path::Path;
 
 use nagare_core::{
     AddAgentProfileInput, AgentOutputContractPurpose, AgentOutputContractUpdate,
-    AgentOutputInjection, AgentProfile, AgentRunPurpose, AnswerWorkItemInput, RuleResolution,
-    RunWorkItemInput, SelectRunAgentInput, SetLocaleInput, SetNagareAgentSettingsInput,
-    UpdateAgentProfileInput, VERSION, accept_dispatch_plan, add_agent_profile, agent_doctor,
-    agent_probe, answer_work_item, approve_work_item, create_handoff, create_work_item, doctor,
-    get_agent_profile, get_locale_settings, get_nagare_agent_settings, get_work_item_snapshot,
-    init_project, list_agent_profiles, list_work_items, resolve_rule_for_path, run_first_scenario,
-    run_registered_agent_scenario, run_work_item_with_input, select_agent_for_work_item_run,
-    set_locale_settings, set_nagare_agent_settings, update_agent_profile, verify_work_item,
+    AgentOutputInjection, AgentProfile, AgentRunPurpose, AnswerWorkItemInput,
+    ApplyRecoveryPlanInput, RuleResolution, RunWorkItemInput, SelectRunAgentInput, SetLocaleInput,
+    SetNagareAgentSettingsInput, UpdateAgentProfileInput, VERSION, accept_dispatch_plan,
+    accept_recovery_plan, add_agent_profile, agent_doctor, agent_probe, answer_work_item,
+    apply_recovery_plan, approve_work_item, create_handoff, create_recovery_plan, create_work_item,
+    doctor, get_agent_profile, get_locale_settings, get_nagare_agent_settings,
+    get_work_item_snapshot, init_project, list_agent_profiles, list_work_items,
+    resolve_rule_for_path, run_first_scenario, run_registered_agent_scenario,
+    run_work_item_with_input, select_agent_for_work_item_run, set_locale_settings,
+    set_nagare_agent_settings, update_agent_profile, verify_work_item,
 };
 
 use crate::args::ParsedArgs;
@@ -394,12 +396,13 @@ fn item_command(args: &[String]) -> Result<(), String> {
         Some("show") => item_show_command(&args[1..]),
         Some("preview") => item_preview_command(&args[1..]),
         Some("dispatch") => item_dispatch_command(&args[1..]),
+        Some("recover") => item_recover_command(&args[1..]),
         Some("run") => item_run_command(&args[1..]),
         Some("review") => item_review_command(&args[1..]),
         Some("answer") => item_answer_command(&args[1..]),
         Some(command) => Err(format!("unknown item command `{command}`")),
         None => Err(
-            "item command required: create, list, show, preview, dispatch, run, review, answer"
+            "item command required: create, list, show, preview, dispatch, recover, run, review, answer"
                 .to_string(),
         ),
     }
@@ -545,6 +548,82 @@ fn item_dispatch_accept_command(args: &[String]) -> Result<(), String> {
     println!(
         "dispatch_plan {} {} target_agent={}",
         result.plan.id, result.plan.status, result.plan.target_agent_profile_id
+    );
+    Ok(())
+}
+
+fn item_recover_command(args: &[String]) -> Result<(), String> {
+    match args.first().map(String::as_str) {
+        Some("apply") => item_recover_apply_command(&args[1..]),
+        Some("accept") => item_recover_accept_command(&args[1..]),
+        _ => item_recover_create_command(args),
+    }
+}
+
+fn item_recover_create_command(args: &[String]) -> Result<(), String> {
+    let parsed = ParsedArgs::parse(args)?;
+    let work_item_id = parsed
+        .positionals
+        .first()
+        .ok_or_else(|| "item recover requires a work item id".to_string())?;
+    let result = create_recovery_plan(parsed.root()?, work_item_id).map_err(|e| e.to_string())?;
+    println!(
+        "recovery_plan {} {} action={} reason={} target_agent={}",
+        result.plan.id,
+        result.plan.status,
+        result.plan.action,
+        result.plan.reason,
+        result
+            .plan
+            .target_agent_profile_id
+            .as_deref()
+            .unwrap_or("-")
+    );
+    Ok(())
+}
+
+fn item_recover_accept_command(args: &[String]) -> Result<(), String> {
+    let parsed = ParsedArgs::parse(args)?;
+    let work_item_id = parsed
+        .positionals
+        .first()
+        .ok_or_else(|| "item recover accept requires a work item id".to_string())?;
+    let result = accept_recovery_plan(
+        parsed.root()?,
+        work_item_id,
+        parsed
+            .optional("--recovery-plan")
+            .or(parsed.optional("--plan")),
+    )
+    .map_err(|e| e.to_string())?;
+    println!(
+        "recovery_plan {} {} action={} reason={}",
+        result.plan.id, result.plan.status, result.plan.action, result.plan.reason
+    );
+    Ok(())
+}
+
+fn item_recover_apply_command(args: &[String]) -> Result<(), String> {
+    let parsed = ParsedArgs::parse(args)?;
+    let work_item_id = parsed
+        .positionals
+        .first()
+        .ok_or_else(|| "item recover apply requires a work item id".to_string())?;
+    let result = apply_recovery_plan(
+        parsed.root()?,
+        work_item_id,
+        ApplyRecoveryPlanInput {
+            recovery_plan_id: parsed
+                .optional("--recovery-plan")
+                .or(parsed.optional("--plan")),
+            prompt: parsed.optional("--prompt"),
+            dev_command: parsed.optional("--command"),
+        },
+    )
+    .map_err(|e| e.to_string())?;
+    println!(
+        "recovery_plan {} applied run={} status={} item_status={}",
+        result.plan.id, result.run.run.id, result.run.run.status, result.run.item_status
     );
     Ok(())
 }

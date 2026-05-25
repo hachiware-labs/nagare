@@ -372,6 +372,32 @@ contract block is missing, Nagare records `parse_status: "unparsed"` and
 `output_contract_unparsed` in warnings while keeping the raw run log artifact.
 Questions set the Work Item status to `needs_input`.
 
+### ReviewResult
+
+```json
+{
+  "id": "review_0001",
+  "work_item_id": "work_0001",
+  "agent_run_id": "run_0002",
+  "agent_profile_id": "codex-review",
+  "verdict": "request_changes",
+  "summary": ["Verification evidence is incomplete."],
+  "findings": ["No test log was referenced."],
+  "requested_changes": ["Add verification evidence before approval."],
+  "referenced_artifacts": ["art_0003"],
+  "questions": [],
+  "next_action": "run_agent",
+  "artifact_id": "art_0004",
+  "locale": "ja-JP",
+  "created_at": "2026-05-24T15:08:00+09:00"
+}
+```
+
+`ReviewResult` is derived from a parsed `## Nagare Review` block. Verdicts are
+`pass`, `request_changes`, `blocked`, and `unknown`. `pass` moves the Work Item
+to `ready_for_verification`; `request_changes` moves it to `changes_requested`;
+questions or `blocked` move it to `needs_input`.
+
 ### HumanFeedback
 
 ```json
@@ -410,8 +436,46 @@ constraints.
 `WorkItemTimelineEvent` is a read-model generated from the ledger. It does not
 replace the source records. The MVP event types are `request`, `dispatch`,
 `run`, `artifact`, `evidence`, `agent_output`, `question`, `human_feedback`,
-`verification`, `handoff`, and `decision`. The UI should render this as the
+`review`, `verification`, `handoff`, `recovery`, and `decision`. The UI should render this as the
 single Work Item flow and open the selected event in the inspector.
+
+### WorkItemCompletion
+
+```json
+{
+  "state": "blocked",
+  "blocking_reason": "verification_failed: cargo test --workspace",
+  "next_action": "recover",
+  "next_command_hint": "nagare item recover work_0001"
+}
+```
+
+`WorkItemCompletion` is a read model on `WorkItemSnapshot`. It is calculated
+from ledger records and tells CLI/UI what should happen next.
+
+### RecoveryPlan
+
+```json
+{
+  "id": "recovery_0001",
+  "work_item_id": "work_0001",
+  "status": "draft",
+  "action": "rerun_with_contract_reminder",
+  "target_agent_profile_id": "codex-impl",
+  "reason": "output_contract_missing",
+  "summary": "Ask `codex-impl` to restate the final output using `nagare.result.v1`.",
+  "source_event_id": "out_0001",
+  "command_hint": "nagare item recover apply work_0001",
+  "prompt_hint": "Restate the previous run output using the required contract.",
+  "warnings": [],
+  "locale": "ja-JP",
+  "created_at": "2026-05-24T15:09:00+09:00"
+}
+```
+
+RecoveryPlan actions are `rerun_same_agent`, `rerun_with_contract_reminder`,
+`handoff`, `ask_human`, `run_verification`, `request_changes`, and `redispatch`.
+The lifecycle is `draft`, `accepted`, `superseded`.
 
 `status` controls the execution lifecycle:
 

@@ -21,6 +21,8 @@ pub struct Ledger {
     #[serde(default)]
     pub verification_results: Vec<VerificationResult>,
     #[serde(default)]
+    pub review_results: Vec<ReviewResult>,
+    #[serde(default)]
     pub handoffs: Vec<HandoffPacket>,
     #[serde(default)]
     pub decisions: Vec<HumanDecision>,
@@ -28,6 +30,8 @@ pub struct Ledger {
     pub human_feedback: Vec<HumanFeedback>,
     #[serde(default)]
     pub dispatch_plans: Vec<DispatchPlan>,
+    #[serde(default)]
+    pub recovery_plans: Vec<RecoveryPlan>,
     #[serde(default)]
     pub capability_probes: Vec<CapabilityProbe>,
     #[serde(default)]
@@ -47,10 +51,12 @@ impl Default for Ledger {
             artifacts: Vec::new(),
             evidence: Vec::new(),
             verification_results: Vec::new(),
+            review_results: Vec::new(),
             handoffs: Vec::new(),
             decisions: Vec::new(),
             human_feedback: Vec::new(),
             dispatch_plans: Vec::new(),
+            recovery_plans: Vec::new(),
             capability_probes: Vec::new(),
             resolved_skill_contexts: Vec::new(),
             resolved_run_packets: Vec::new(),
@@ -102,6 +108,8 @@ pub enum WorkItemStatus {
     FailedVerification,
     NeedsHandoff,
     ReadyForReview,
+    ReadyForVerification,
+    ChangesRequested,
     Done,
 }
 
@@ -114,6 +122,8 @@ impl fmt::Display for WorkItemStatus {
             Self::FailedVerification => "failed_verification",
             Self::NeedsHandoff => "needs_handoff",
             Self::ReadyForReview => "ready_for_review",
+            Self::ReadyForVerification => "ready_for_verification",
+            Self::ChangesRequested => "changes_requested",
             Self::Done => "done",
         };
         f.write_str(value)

@@ -299,10 +299,13 @@ JSON-RPC over stdio で `initialize`、`thread/start`、`turn/start`、`turn/com
 - `AgentOutputContract`: contract、instruction_pack、required、injection
 - `AgentOutputContracts`: work、review、dispatch の purpose別 OutputContract
 - `AgentOutputRecord`: AgentRun の最終出力を OutputContract に沿ってparseした結果。fields、questions、next_action、warnings を持つ
+- `ReviewResult`: review AgentOutputRecord から導出する評価結果。verdict、findings、requested_changes、referenced_artifacts を持ち、Work Item 状態遷移に接続する
 - `HumanFeedback`: AgentOutputRecord の質問に対する人の回答。次のAgent promptへ接続される
-- `WorkItemTimelineEvent`: ledger の各recordから生成する read model。request、dispatch、run、artifact、evidence、question、human_feedback、verification、handoff、decision をWork Itemの一本の流れとして表示する
+- `WorkItemCompletion`: Snapshot上のread model。state、blocking_reason、next_action、next_command_hint を持つ
+- `WorkItemTimelineEvent`: ledger の各recordから生成する read model。request、dispatch、run、artifact、evidence、question、human_feedback、review、verification、handoff、recovery、decision をWork Itemの一本の流れとして表示する
 - `ResolvedRunPacket`: id、work_item_id、agent_profile_id、adapter_id、purpose、working_dir、goal、path、work_folder、dispatch_plan_id、permission_policy_id、workspace_policy_id、resolved_skill_context_id、output_contract、verification、constraints、artifact_uri、content_hash、locale
 - `DispatchPlan`: id、work_item_id、status、agent_run_id、dispatch_agent_profile_id、target_agent_profile_id、resolved_run_packet_id、raw_output_artifact_id、path、summary、risks、missing_information、selection_warnings、locale
+- `RecoveryPlan`: id、work_item_id、status、action、target_agent_profile_id、reason、summary、source_event_id、command_hint、prompt_hint、warnings、locale
 - `Artifact`: id、work_item_id、agent_run_id、artifact_type、uri、title、locale
 - `Evidence`: id、work_item_id、claim、basis、artifact_id、produced_by、locale
 - `VerificationResult`: id、work_item_id、result、artifact_id、locale
@@ -340,10 +343,12 @@ Agent Management 型:
 4. `nagare item dispatch accept` で DispatchPlan を accepted にする。
 5. `nagare item run` で accepted DispatchPlan の target Agent Profile を使い Agent Run を開始する。
 6. Adapter が stdout/stderr、成果物、exit code を回収する。
-7. 成功なら Work Item を `ready_for_review` にする。
-8. Evidence と実行ログ Artifact を保存する。
-9. `nagare verify` が通る。
-10. `nagare decision approve` で `done` にする。
+7. Git work tree に差分があれば changed files / diff patch Artifact を保存する。
+8. 成功なら Work Item を `ready_for_review` にする。
+9. Evidence と実行ログ Artifact を保存する。
+10. Review が pass なら `ready_for_verification` にする。
+11. `nagare verify` が通る。
+12. `nagare decision approve` で `done` にする。
 
 ### Agent Run 失敗
 
@@ -352,6 +357,8 @@ Agent Management 型:
 3. 失敗ログを Artifact として保存する。
 4. Evidence に失敗 claim と basis を保存する。
 5. 必要なら `nagare handoff create` で別 Agent Profile へ引き継ぐ。
+6. `nagare item recover` は停止理由から draft RecoveryPlan を作成する。
+7. `nagare item recover accept` で回復案を採用し、必要なら `recover apply` で再実行する。
 
 ### Handoff
 
@@ -669,6 +676,9 @@ nagare item list [--root <path>]
 nagare item show <work_id> [--root <path>]
 nagare item preview <work_id> [--path <path>] [--work-folder <path>] [--agent <agent_profile_id>] [--prompt <text> | --command <command>] [--root <path>]
 nagare item dispatch accept <work_id> [--dispatch-plan <dispatch_plan_id>] [--root <path>]
+nagare item recover <work_id> [--root <path>]
+nagare item recover accept <work_id> [--recovery-plan <recovery_plan_id>] [--root <path>]
+nagare item recover apply <work_id> [--recovery-plan <recovery_plan_id>] [--prompt <text> | --command <command>] [--root <path>]
 nagare item run <work_id> [--path <path>] [--work-folder <path>] [--agent <agent_profile_id>] [--dispatch-plan <dispatch_plan_id>] [--prompt <text> | --command <command>] [--root <path>]
 nagare item review <work_id> [--agent <agent_profile_id>] [--prompt <text> | --command <command>] [--root <path>]
 nagare verify <work_id> --command <command> [--root <path>]

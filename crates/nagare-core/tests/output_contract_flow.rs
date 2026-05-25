@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use nagare_core::*;
@@ -28,12 +29,30 @@ fn pass_command() -> &'static str {
     }
 }
 
+fn run_git(root: &std::path::Path, args: &[&str]) {
+    let status = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(args)
+        .status()
+        .expect("git should run");
+    assert!(status.success(), "git command failed: {args:?}");
+}
+
 fn event_count(snapshot: &WorkItemSnapshot, event_type: &str) -> usize {
     snapshot
         .timeline
         .iter()
         .filter(|event| event.event_type == event_type)
         .count()
+}
+
+fn modify_tracked_file_and_emit_result_command() -> String {
+    if cfg!(windows) {
+        "echo changed> tracked.txt && echo ## Nagare Result && echo status: succeeded && echo summary: && echo - changed tracked file && echo next_action: verify".to_string()
+    } else {
+        "printf 'changed\n' > tracked.txt; printf '## Nagare Result\nstatus: succeeded\nsummary:\n- changed tracked file\nnext_action: verify\n'".to_string()
+    }
 }
 
 #[test]
@@ -61,6 +80,12 @@ fn nagare_result_questions_set_work_item_needs_input() {
     .expect("run should parse result");
     let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
     assert_eq!(snapshot.item.status, WorkItemStatus::NeedsInput);
+    assert_eq!(snapshot.completion.state, "blocked");
+    assert_eq!(snapshot.completion.next_action, "answer_question");
+    assert_eq!(
+        snapshot.completion.blocking_reason.as_deref(),
+        Some("release note URLを追加してよいですか？")
+    );
     assert!(
         snapshot
             .timeline
@@ -176,6 +201,7 @@ fn missing_required_nagare_result_records_unparsed_warning() {
 
     let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
     assert_eq!(snapshot.item.status, WorkItemStatus::ReadyForReview);
+    assert_eq!(snapshot.completion.next_action, "review");
     assert_eq!(snapshot.agent_outputs.len(), 1);
     let output = &snapshot.agent_outputs[0];
     assert_eq!(output.parse_status, AgentOutputParseStatus::Unparsed);
@@ -190,6 +216,42 @@ fn missing_required_nagare_result_records_unparsed_warning() {
             .timeline
             .iter()
             .any(|event| { event.event_type == "agent_output" && event.status == "unparsed" })
+    );
+    let recovery = create_recovery_plan(&root, &item.id).expect("recovery should create");
+    assert_eq!(
+        recovery.plan.action,
+        RecoveryAction::RerunWithContractReminder
+    );
+    assert_eq!(recovery.plan.reason, "output_contract_missing");
+    let accepted = accept_recovery_plan(&root, &item.id, Some(&recovery.plan.id))
+        .expect("recovery should accept");
+    assert_eq!(accepted.plan.status, RecoveryPlanStatus::Accepted);
+    assert!(accepted.plan.prompt_hint.is_some());
+
+    fs::write(
+        root.join("fixed.md"),
+        "## Nagare Result\nstatus: succeeded\nsummary:\n- restated with the required contract\nnext_action: verify\n",
+    )
+    .expect("fixed output should write");
+    let applied = apply_recovery_plan(
+        &root,
+        &item.id,
+        ApplyRecoveryPlanInput {
+            recovery_plan_id: Some(&accepted.plan.id),
+            prompt: None,
+            dev_command: Some(cat_command("fixed.md").as_str()),
+        },
+    )
+    .expect("contract recovery should apply");
+    assert_eq!(applied.run.item_status, WorkItemStatus::ReadyForReview);
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
+    assert_eq!(
+        snapshot
+            .agent_outputs
+            .last()
+            .expect("latest output")
+            .parse_status,
+        AgentOutputParseStatus::Parsed
     );
     fs::remove_dir_all(root).ok();
 }
@@ -223,6 +285,7 @@ fn nagare_result_handoff_next_action_sets_needs_handoff() {
 
     let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
     assert_eq!(snapshot.item.status, WorkItemStatus::NeedsHandoff);
+    assert_eq!(snapshot.completion.next_action, "create_handoff");
     assert_eq!(
         snapshot.agent_outputs[0].next_action.as_deref(),
         Some("create_handoff")
@@ -265,7 +328,10 @@ fn nagare_review_questions_set_work_item_needs_input() {
 
     let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
     assert_eq!(snapshot.item.status, WorkItemStatus::NeedsInput);
+    assert_eq!(snapshot.completion.next_action, "answer_question");
     assert_eq!(snapshot.agent_outputs.len(), 1);
+    assert_eq!(snapshot.review_results.len(), 1);
+    assert_eq!(snapshot.review_results[0].verdict, ReviewVerdict::Blocked);
     assert_eq!(snapshot.agent_outputs[0].purpose, AgentRunPurpose::Review);
     assert_eq!(snapshot.agent_outputs[0].contract, "nagare.review.v1");
     assert_eq!(
@@ -278,6 +344,71 @@ fn nagare_review_questions_set_work_item_needs_input() {
             .iter()
             .any(|event| event.event_type == "question")
     );
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn review_pass_and_request_changes_drive_work_item_status() {
+    let root = test_root("review-status-transition");
+    init_project(&root).expect("project should init");
+    let item = create_work_item(&root, "Review transition", "")
+        .expect("item")
+        .item;
+
+    fs::write(
+        root.join("changes.md"),
+        "## Nagare Review\nverdict: request_changes\nsummary:\n- Implementation needs one more fix.\nfindings:\n- Missing test evidence.\nrequested_changes:\n- Add verification evidence before approval.\nquestions:\nnext_action: run_agent\n",
+    )
+    .expect("request changes output should write");
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "codex-app-server",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(cat_command("changes.md").as_str()),
+            purpose: AgentRunPurpose::Review,
+        },
+    )
+    .expect("request changes review should run");
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
+    assert_eq!(snapshot.item.status, WorkItemStatus::ChangesRequested);
+    assert_eq!(snapshot.completion.next_action, "run_agent");
+    assert_eq!(
+        snapshot.completion.blocking_reason.as_deref(),
+        Some("Add verification evidence before approval.")
+    );
+    assert_eq!(
+        snapshot.review_results[0].verdict,
+        ReviewVerdict::RequestChanges
+    );
+
+    fs::write(
+        root.join("pass.md"),
+        "## Nagare Review\nverdict: pass\nsummary:\n- Review passed.\nfindings:\n- No blocker.\nquestions:\nnext_action: verify\n",
+    )
+    .expect("pass output should write");
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "codex-app-server",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(cat_command("pass.md").as_str()),
+            purpose: AgentRunPurpose::Review,
+        },
+    )
+    .expect("pass review should run");
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
+    assert_eq!(snapshot.item.status, WorkItemStatus::ReadyForVerification);
+    assert_eq!(snapshot.completion.next_action, "verify");
+    assert_eq!(snapshot.review_results.len(), 2);
+    assert_eq!(snapshot.review_results[1].verdict, ReviewVerdict::Pass);
+    assert_eq!(event_count(&snapshot, "review"), 2);
     fs::remove_dir_all(root).ok();
 }
 
@@ -324,6 +455,7 @@ fn dispatch_preview_selects_registered_agent_and_records_timeline() {
 
     let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
     let plan = &snapshot.dispatch_plans[0];
+    assert_eq!(snapshot.completion.next_action, "run_agent");
     assert_eq!(preview.dispatch_plan_id.as_deref(), Some(plan.id.as_str()));
     assert_eq!(plan.target_agent_profile_id, "research-agent");
     assert_eq!(plan.risks, vec!["source quality".to_string()]);
@@ -611,6 +743,9 @@ fn multi_agent_question_handoff_review_and_approval_workflow_completes() {
 
     let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
     assert_eq!(snapshot.item.status, WorkItemStatus::Done);
+    assert_eq!(snapshot.review_results.len(), 2);
+    assert_eq!(snapshot.completion.state, "done");
+    assert_eq!(snapshot.completion.next_action, "done");
     assert_eq!(snapshot.dispatch_plans.len(), 2);
     assert_eq!(
         snapshot.dispatch_plans[0].status,
@@ -643,5 +778,141 @@ fn multi_agent_question_handoff_review_and_approval_workflow_completes() {
             && event.status == "approve"
             && event.title == "complex workflow completed"
     }));
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn work_run_collects_changed_files_and_diff_artifacts() {
+    let root = test_root("git-artifact-collection");
+    fs::create_dir_all(&root).expect("root should create");
+    Command::new("git")
+        .arg("-C")
+        .arg(&root)
+        .arg("init")
+        .status()
+        .expect("git init should run");
+    fs::write(root.join("tracked.txt"), "initial\n").expect("tracked file should write");
+    run_git(&root, &["add", "tracked.txt"]);
+    run_git(
+        &root,
+        &[
+            "-c",
+            "user.email=nagare@example.invalid",
+            "-c",
+            "user.name=Nagare Test",
+            "commit",
+            "-m",
+            "initial",
+        ],
+    );
+    init_project(&root).expect("project should init");
+    let item = create_work_item(&root, "Collect artifacts", "")
+        .expect("item")
+        .item;
+
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "codex-cli",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(modify_tracked_file_and_emit_result_command().as_str()),
+            purpose: AgentRunPurpose::Work,
+        },
+    )
+    .expect("work run should collect git artifacts");
+
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
+    assert!(snapshot.artifacts.iter().any(|artifact| {
+        artifact.artifact_type == "changed_files" && artifact.title.contains("changed files")
+    }));
+    let diff_artifact = snapshot
+        .artifacts
+        .iter()
+        .find(|artifact| artifact.artifact_type == "diff_patch")
+        .expect("diff artifact should exist");
+    assert!(
+        snapshot
+            .timeline
+            .iter()
+            .any(|event| event.event_type == "artifact" && event.id == diff_artifact.id)
+    );
+    let diff_path = diff_artifact
+        .uri
+        .strip_prefix("file://")
+        .expect("artifact uri should be file");
+    let diff = fs::read_to_string(diff_path).expect("diff artifact should read");
+    assert!(diff.contains("tracked.txt"));
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn completion_state_points_to_recovery_after_failed_verification() {
+    let root = test_root("completion-failed-verification");
+    init_project(&root).expect("project should init");
+    fs::write(
+        root.join("done.md"),
+        "## Nagare Result\nstatus: succeeded\nsummary:\n- work finished\nnext_action: verify\n",
+    )
+    .expect("done output should write");
+    let item = create_work_item(&root, "Needs recovery", "")
+        .expect("item")
+        .item;
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "codex-cli",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(cat_command("done.md").as_str()),
+            purpose: AgentRunPurpose::Work,
+        },
+    )
+    .expect("work should run");
+    verify_work_item(
+        &root,
+        &item.id,
+        if cfg!(windows) {
+            "cmd /C exit 1"
+        } else {
+            "false"
+        },
+    )
+    .expect("verification failure should record");
+
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
+    assert_eq!(snapshot.item.status, WorkItemStatus::FailedVerification);
+    assert_eq!(snapshot.completion.state, "blocked");
+    assert_eq!(snapshot.completion.next_action, "recover");
+    assert!(
+        snapshot
+            .completion
+            .blocking_reason
+            .as_deref()
+            .is_some_and(|reason| reason.contains("verification_failed"))
+    );
+    let first = create_recovery_plan(&root, &item.id).expect("first recovery should create");
+    assert_eq!(first.plan.action, RecoveryAction::RerunSameAgent);
+    assert_eq!(first.plan.reason, "verification_failed");
+    let second = create_recovery_plan(&root, &item.id).expect("second recovery should create");
+    assert_eq!(second.plan.status, RecoveryPlanStatus::Draft);
+    let accepted =
+        accept_recovery_plan(&root, &item.id, None).expect("latest draft recovery should accept");
+    assert_eq!(accepted.plan.id, second.plan.id);
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
+    assert_eq!(snapshot.recovery_plans.len(), 2);
+    assert_eq!(
+        snapshot.recovery_plans[0].status,
+        RecoveryPlanStatus::Superseded
+    );
+    assert_eq!(
+        snapshot.recovery_plans[1].status,
+        RecoveryPlanStatus::Accepted
+    );
+    assert_eq!(event_count(&snapshot, "recovery"), 2);
     fs::remove_dir_all(root).ok();
 }

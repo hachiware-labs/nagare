@@ -47,3 +47,8 @@
 - [x] [SEED-human-feedback-flow] `needs_input` のWork Itemに対して人が回答し、その回答を後続のAgent prompt / Run Packetへ接続する最小形を実装した
 - [x] [SEED-timeline-event-model] Work Item Snapshot に request、dispatch、run、artifact、evidence、question、human_feedback、verification、handoff、decision を正規化した Timeline event を追加し、`item show` で確認できるようにした
 - [x] [SEED-real-codex-output-contract-smoke] 実 `process.codex-cli` adapter で `codex exec` を呼び、Nagare Result を `AgentOutputRecord` としてparseし、Verification / Decision を通して `done` まで到達する smoke を確認した
+- [x] [SEED-completion-next-action] Work Item Snapshot に completion state / blocking reason / next action / command hint を追加し、CLIで確認できるようにした
+- [x] [SEED-review-result-transition] ReviewResult を導入し、review verdict を ready_for_verification / changes_requested / needs_input の状態遷移に接続した
+- [x] [SEED-recovery-plan] RecoveryPlan と draft / accepted / superseded lifecycle、`item recover` / `item recover accept` を実装した
+- [x] [SEED-contract-recovery-apply] OutputContract欠落時に rerun_with_contract_reminder のRecoveryPlanを作り、`item recover apply` で再出力runへ接続した
+- [x] [SEED-git-artifact-collection] Agent Run 後にGit changed files と diff patch をArtifactとして保存し、Timeline/CLIで確認できるようにした

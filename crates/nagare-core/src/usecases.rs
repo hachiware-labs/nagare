@@ -485,6 +485,11 @@ pub fn run_work_item_with_input(
     } else {
         Some(ledger.next_id("out"))
     };
+    let review_result_id = if input.purpose == AgentRunPurpose::Review {
+        Some(ledger.next_id("review"))
+    } else {
+        None
+    };
     let agent_profile = get_agent_profile_from_layout(&layout, input.agent_profile_id)?;
     let adapter_id = normalize_adapter_id(&agent_profile.adapter)?;
     let working_dir = resolve_profile_working_dir(&layout, &agent_profile)?;
@@ -614,6 +619,14 @@ pub fn run_work_item_with_input(
         locale: locale.clone(),
         created_at: ended_at.clone(),
     };
+    let collected_artifacts = collect_git_run_artifacts(
+        &layout,
+        &mut ledger,
+        work_item_id,
+        &run_id,
+        &locale,
+        &ended_at,
+    )?;
     let run = AgentRun {
         id: run_id.clone(),
         work_item_id: work_item_id.to_string(),
@@ -642,6 +655,9 @@ pub fn run_work_item_with_input(
             created_at: &ended_at,
         })
     });
+    let review_result = review_result_id
+        .zip(agent_output.as_ref())
+        .map(|(id, output)| review_result_from_agent_output(id, output));
     let item_status = if input.purpose == AgentRunPurpose::Work {
         if agent_output_requires_input(agent_output.as_ref()) {
             WorkItemStatus::NeedsInput
@@ -652,10 +668,11 @@ pub fn run_work_item_with_input(
         } else {
             WorkItemStatus::FailedVerification
         }
-    } else if input.purpose == AgentRunPurpose::Review
-        && agent_output_requires_input(agent_output.as_ref())
-    {
-        WorkItemStatus::NeedsInput
+    } else if input.purpose == AgentRunPurpose::Review {
+        review_result
+            .as_ref()
+            .map(|review| review_work_item_status(review, item.status))
+            .unwrap_or(item.status)
     } else {
         item.status
     };
@@ -735,9 +752,13 @@ pub fn run_work_item_with_input(
 
     ledger.runs.push(run.clone());
     ledger.artifacts.push(artifact);
+    ledger.artifacts.extend(collected_artifacts);
     ledger.evidence.push(evidence);
     if let Some(record) = agent_output {
         ledger.agent_outputs.push(record);
+    }
+    if let Some(review) = review_result {
+        ledger.review_results.push(review);
     }
     let dispatch_plan_id = dispatch_plan.as_ref().map(|plan| plan.id.clone());
     if let Some(plan) = dispatch_plan {
