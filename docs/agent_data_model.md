@@ -22,6 +22,9 @@ Ledger-owned:
   Artifact
   Evidence
   VerificationResult
+  ReviewResult
+  RecoveryPlan
+  WorkflowDecision
   HandoffPacket
   HumanDecision
 ```
@@ -52,6 +55,7 @@ timezone = "Asia/Tokyo"
 work_agent = "codex-impl"
 review_agent = "codex-app-impl"
 dispatch_agent = "codex-impl"
+supervisor_agent = "codex-impl"
 
 [runtimes.codex-local]
 kind = "process"
@@ -273,6 +277,7 @@ the Run Packet.
   "working_dir": "file://./crates/nagare-core",
   "goal": "Refactor core run orchestration",
   "path": "crates/nagare-core/src/lib.rs",
+  "work_folder": "crates/nagare-core",
   "dispatch_plan_id": "dispatch_0001",
   "permission_policy_id": "medium-code-task",
   "workspace_policy_id": "worktree-per-item",
@@ -385,6 +390,13 @@ Questions set the Work Item status to `needs_input`.
   "findings": ["No test log was referenced."],
   "requested_changes": ["Add verification evidence before approval."],
   "referenced_artifacts": ["art_0003"],
+  "criteria_results": [
+    {
+      "criterion": "cargo test --workspace passes",
+      "status": "passed",
+      "note": "cargo test --workspace passes: pass"
+    }
+  ],
   "questions": [],
   "next_action": "run_agent",
   "artifact_id": "art_0004",
@@ -395,8 +407,10 @@ Questions set the Work Item status to `needs_input`.
 
 `ReviewResult` is derived from a parsed `## Nagare Review` block. Verdicts are
 `pass`, `request_changes`, `blocked`, and `unknown`. `pass` moves the Work Item
-to `ready_for_verification`; `request_changes` moves it to `changes_requested`;
-questions or `blocked` move it to `needs_input`.
+to `ready_for_verification` only when all Work Item acceptance criteria are
+covered as `passed`; otherwise it moves to `changes_requested`.
+`request_changes` moves it to `changes_requested`; questions or `blocked` move
+it to `needs_input`.
 
 ### HumanFeedback
 
@@ -436,8 +450,9 @@ constraints.
 `WorkItemTimelineEvent` is a read-model generated from the ledger. It does not
 replace the source records. The MVP event types are `request`, `dispatch`,
 `run`, `artifact`, `evidence`, `agent_output`, `question`, `human_feedback`,
-`review`, `verification`, `handoff`, `recovery`, and `decision`. The UI should render this as the
-single Work Item flow and open the selected event in the inspector.
+`review`, `verification`, `handoff`, `recovery`, `workflow_decision`, and
+`decision`. The UI should render this as the single Work Item flow and open the
+selected event in the inspector.
 
 ### WorkItemCompletion
 
@@ -462,6 +477,7 @@ from ledger records and tells CLI/UI what should happen next.
   "status": "draft",
   "action": "rerun_with_contract_reminder",
   "target_agent_profile_id": "codex-impl",
+  "failure_class": "contract_violation",
   "reason": "output_contract_missing",
   "summary": "Ask `codex-impl` to restate the final output using `nagare.result.v1`.",
   "source_event_id": "out_0001",
@@ -479,11 +495,72 @@ The lifecycle is `draft`, `accepted`, `superseded`.
 
 `status` controls the execution lifecycle:
 
-- `draft`: dispatch agent proposal recorded by preview or handoff dispatch.
-- `accepted`: the plan was selected by `nagare item dispatch accept` and can
-  route `nagare item run` when `--agent` is omitted.
+- `draft`: recovery candidate recorded by `nagare item recover`.
+- `accepted`: the plan was selected by `nagare item recover accept` and can be
+  applied when the action supports agent rerun.
 - `superseded`: replaced by a newer draft or accepted plan for the same Work
   Item.
+
+`failure_class` is the machine-readable recovery cause. Current values include
+`contract_violation`, `review_changes`, `verification_failure`,
+`missing_artifact`, `no_diff`, `missing_input`, `needs_handoff`,
+`verification_pending`, and `continue_workflow`. A single recovery request may
+create multiple draft candidates when secondary risks such as missing artifacts
+or missing diff evidence are detected.
+
+### WorkflowDecision
+
+```json
+{
+  "id": "wfd_0001",
+  "work_item_id": "work_0001",
+  "action": "run_review",
+  "source": "deterministic",
+  "reason": "ready_for_review",
+  "requires_human": false,
+  "target_agent_profile_id": "codex-review",
+  "agent_run_id": null,
+  "confidence": 0.7,
+  "command_hint": "nagare item review work_0001",
+  "warnings": [],
+  "locale": "ja-JP",
+  "created_at": "2026-05-24T15:10:00+09:00"
+}
+```
+
+`WorkflowDecision` is recorded by `item advance` and by explicit decision
+creation. It is the audit record for why Nagare selected dispatch, accept,
+run, review, verification, recovery, human input, handoff, approval, or done as
+the next step. When `item advance --supervisor true` is used, Nagare records a
+`workflow_supervision` AgentRun and derives the decision from the supervisor
+agent's `## Nagare Workflow Decision` output contract.
+
+### HandoffPacket
+
+```json
+{
+  "id": "handoff_0001",
+  "work_item_id": "work_0001",
+  "from_agent_profile": "research-agent",
+  "to_agent_profile": "implementation-agent",
+  "reason": "Research is complete and implementation should continue.",
+  "summary": "Use docs/source-a.md and produce a verifiable implementation summary.",
+  "current_state": "needs_handoff",
+  "open_questions": [],
+  "artifact_ids": ["art_0001", "art_0002"],
+  "diff_artifact_ids": ["art_0002"],
+  "failed_verification_ids": [],
+  "review_result_ids": ["review_0001"],
+  "next_request": "Use docs/source-a.md and produce a verifiable implementation summary.",
+  "locale": "ja-JP",
+  "created_at": "2026-05-24T15:11:00+09:00"
+}
+```
+
+The latest HandoffPacket is injected into the next Agent Run as
+`## Nagare Handoff Context`; the Run Packet records
+`handoff_context_applied` in constraints. This keeps handoff context compact
+without expanding full instruction sources.
 
 ## Resolution Rules
 

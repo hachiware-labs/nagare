@@ -2,15 +2,17 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 use nagare_core::{
-    AddAgentProfileInput, AgentOutputContractPurpose, AgentOutputContractUpdate,
-    AgentOutputInjection, AgentProfile, AgentRunPurpose, AnswerWorkItemInput,
-    ApplyRecoveryPlanInput, RuleResolution, RunWorkItemInput, SelectRunAgentInput, SetLocaleInput,
+    AddAgentProfileInput, AdvanceUntilBlockedInput, AdvanceWorkItemInput,
+    AgentOutputContractPurpose, AgentOutputContractUpdate, AgentOutputInjection, AgentProfile,
+    AgentRunPurpose, AnswerWorkItemInput, ApplyRecoveryPlanInput, CreateWorkItemInput,
+    RuleResolution, RunWorkItemInput, SelectRunAgentInput, SetLocaleInput,
     SetNagareAgentSettingsInput, UpdateAgentProfileInput, VERSION, accept_dispatch_plan,
-    accept_recovery_plan, add_agent_profile, agent_doctor, agent_probe, answer_work_item,
-    apply_recovery_plan, approve_work_item, create_handoff, create_recovery_plan, create_work_item,
-    doctor, get_agent_profile, get_locale_settings, get_nagare_agent_settings,
-    get_work_item_snapshot, init_project, list_agent_profiles, list_work_items,
-    resolve_rule_for_path, run_first_scenario, run_registered_agent_scenario,
+    accept_recovery_plan, add_agent_profile, advance_work_item_once,
+    advance_work_item_until_blocked, agent_doctor, agent_probe, answer_work_item,
+    apply_recovery_plan, approve_work_item, create_handoff, create_recovery_plan,
+    create_work_item_with_input, doctor, get_agent_profile, get_locale_settings,
+    get_nagare_agent_settings, get_work_item_snapshot, init_project, list_agent_profiles,
+    list_work_items, resolve_rule_for_path, run_first_scenario, run_registered_agent_scenario,
     run_work_item_with_input, select_agent_for_work_item_run, set_locale_settings,
     set_nagare_agent_settings, update_agent_profile, verify_work_item,
 };
@@ -223,6 +225,13 @@ fn agent_show_command(args: &[String]) -> Result<(), String> {
         profile.output_contracts.dispatch.required,
         profile.output_contracts.dispatch.injection
     );
+    println!(
+        "output_contract.supervision: {} / {} / required={} / injection={}",
+        profile.output_contracts.supervision.contract,
+        profile.output_contracts.supervision.instruction_pack,
+        profile.output_contracts.supervision.required,
+        profile.output_contracts.supervision.injection
+    );
     println!("source: {}", profile.source);
     Ok(())
 }
@@ -266,6 +275,13 @@ fn parse_bool(value: &str) -> Result<bool, String> {
     }
 }
 
+fn parse_usize(value: &str) -> Result<usize, String> {
+    value
+        .trim()
+        .parse::<usize>()
+        .map_err(|_| format!("expected a positive integer, got `{value}`"))
+}
+
 fn parse_output_injection(value: &str) -> Result<AgentOutputInjection, String> {
     match value.trim() {
         "prompt_suffix" => Ok(AgentOutputInjection::PromptSuffix),
@@ -296,9 +312,15 @@ fn agent_use_command(args: &[String]) -> Result<(), String> {
     let work_agent = parsed.optional("--work-agent");
     let review_agent = parsed.optional("--review-agent");
     let dispatch_agent = parsed.optional("--dispatch-agent");
-    if work_agent.is_none() && review_agent.is_none() && dispatch_agent.is_none() {
+    let supervisor_agent = parsed.optional("--supervisor-agent");
+    if work_agent.is_none()
+        && review_agent.is_none()
+        && dispatch_agent.is_none()
+        && supervisor_agent.is_none()
+    {
         return Err(
-            "agent use requires --work-agent, --review-agent, or --dispatch-agent".to_string(),
+            "agent use requires --work-agent, --review-agent, --dispatch-agent, or --supervisor-agent"
+                .to_string(),
         );
     }
     let settings = set_nagare_agent_settings(
@@ -307,6 +329,7 @@ fn agent_use_command(args: &[String]) -> Result<(), String> {
             work_agent,
             review_agent,
             dispatch_agent,
+            supervisor_agent,
         },
     )
     .map_err(|e| e.to_string())?;
@@ -399,10 +422,11 @@ fn item_command(args: &[String]) -> Result<(), String> {
         Some("recover") => item_recover_command(&args[1..]),
         Some("run") => item_run_command(&args[1..]),
         Some("review") => item_review_command(&args[1..]),
+        Some("advance") => item_advance_command(&args[1..]),
         Some("answer") => item_answer_command(&args[1..]),
         Some(command) => Err(format!("unknown item command `{command}`")),
         None => Err(
-            "item command required: create, list, show, preview, dispatch, recover, run, review, answer"
+            "item command required: create, list, show, preview, dispatch, recover, run, review, advance, answer"
                 .to_string(),
         ),
     }
@@ -412,7 +436,19 @@ fn item_create_command(args: &[String]) -> Result<(), String> {
     let parsed = ParsedArgs::parse(args)?;
     let title = parsed.required("--title")?;
     let description = parsed.optional("--description").unwrap_or_default();
-    let result = create_work_item(parsed.root()?, title, description).map_err(|e| e.to_string())?;
+    let result = create_work_item_with_input(
+        parsed.root()?,
+        CreateWorkItemInput {
+            title: title.to_string(),
+            description: description.to_string(),
+            acceptance_criteria: parse_comma_list(parsed.optional("--acceptance")),
+            expected_artifacts: parse_comma_list(parsed.optional("--artifact")),
+            verification_hint: parsed.optional("--verification").map(ToOwned::to_owned),
+            work_folder: parsed.optional("--work-folder").map(ToOwned::to_owned),
+            constraints: parse_comma_list(parsed.optional("--constraint")),
+        },
+    )
+    .map_err(|e| e.to_string())?;
     println!("created {} {}", result.item.id, result.item.status);
     Ok(())
 }
@@ -634,6 +670,86 @@ fn item_preview_command(args: &[String]) -> Result<(), String> {
 
 fn item_review_command(args: &[String]) -> Result<(), String> {
     run_item_with_nagare_agent(args, AgentRunPurpose::Review, "review_agent")
+}
+
+fn item_advance_command(args: &[String]) -> Result<(), String> {
+    let parsed = ParsedArgs::parse(args)?;
+    let work_item_id = parsed
+        .positionals
+        .first()
+        .ok_or_else(|| "item advance requires a work item id".to_string())?;
+    let step = AdvanceWorkItemInput {
+        path: parsed.optional("--path"),
+        prompt: parsed.optional("--prompt"),
+        dev_command: parsed.optional("--command"),
+        dispatch_dev_command: parsed.optional("--dispatch-command"),
+        review_dev_command: parsed.optional("--review-command"),
+        verification_command: parsed.optional("--verify-command"),
+        use_supervisor: parsed
+            .optional("--supervisor")
+            .map(parse_bool)
+            .transpose()?
+            .unwrap_or(false),
+        supervisor_dev_command: parsed.optional("--supervisor-command"),
+    };
+    let until_blocked = parsed
+        .optional("--until-blocked")
+        .map(parse_bool)
+        .transpose()?
+        .unwrap_or(false);
+    if until_blocked {
+        let max_steps = parsed
+            .optional("--max-steps")
+            .map(parse_usize)
+            .transpose()?
+            .unwrap_or(8);
+        let result = advance_work_item_until_blocked(
+            parsed.root()?,
+            work_item_id,
+            AdvanceUntilBlockedInput { step, max_steps },
+        )
+        .map_err(|e| e.to_string())?;
+        println!(
+            "advance_until_blocked steps={} final_status={} stopped_reason={}",
+            result.steps.len(),
+            result.final_status,
+            result.stopped_reason
+        );
+        for step in result.steps {
+            println!(
+                "  decision={} action={} advanced={} item_status={} message={}",
+                step.decision.id,
+                step.decision.action,
+                step.advanced,
+                step.item_status,
+                step.message
+            );
+        }
+        return Ok(());
+    }
+    let result =
+        advance_work_item_once(parsed.root()?, work_item_id, step).map_err(|e| e.to_string())?;
+    println!(
+        "advance decision={} action={} advanced={} item_status={} message={}",
+        result.decision.id,
+        result.decision.action,
+        result.advanced,
+        result.item_status,
+        result.message
+    );
+    if let Some(run_id) = result.run_id {
+        println!("run: {run_id}");
+    }
+    if let Some(plan_id) = result.dispatch_plan_id {
+        println!("dispatch_plan: {plan_id}");
+    }
+    if let Some(plan_id) = result.recovery_plan_id {
+        println!("recovery_plan: {plan_id}");
+    }
+    if let Some(verification_id) = result.verification_id {
+        println!("verification: {verification_id}");
+    }
+    Ok(())
 }
 
 fn run_item_with_nagare_agent(

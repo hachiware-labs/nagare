@@ -52,3 +52,11 @@
 - [x] [SEED-recovery-plan] RecoveryPlan と draft / accepted / superseded lifecycle、`item recover` / `item recover accept` を実装した
 - [x] [SEED-contract-recovery-apply] OutputContract欠落時に rerun_with_contract_reminder のRecoveryPlanを作り、`item recover apply` で再出力runへ接続した
 - [x] [SEED-git-artifact-collection] Agent Run 後にGit changed files と diff patch をArtifactとして保存し、Timeline/CLIで確認できるようにした
+- [x] [SEED-work-item-dod] Work Item に acceptance criteria、expected artifacts、verification hint、work folder、constraints を追加し、Run Packet と prompt に反映した
+- [x] [SEED-supervisor-agent-default] Nagare Agent defaults に supervisor_agent を追加し、`workflow_supervision` AgentRun から WorkflowDecision を作れるようにした
+- [x] [SEED-workflow-decision] WorkflowDecision を台帳と Timeline に追加し、次アクション判断を監査可能にした
+- [x] [SEED-item-advance] `nagare item advance` と `--until-blocked` を実装し、dispatch / run / review / verify / recover を停止点まで推進できるようにした
+- [x] [SEED-recovery-intelligence] RecoveryPlan に failure_class と追加候補を追加し、contract violation、review changes、verification failure、missing artifact、no diff を分類した
+- [x] [SEED-criteria-aware-review] ReviewResult に criteria_results を追加し、acceptance criteria 未充足では承認できないようにした
+- [x] [SEED-rich-handoff-packet] HandoffPacket に状態、未解決質問、artifact、diff、review、failed verification、next request を追加し、後続Runへcontext注入した
+- [x] [SEED-complex-workflow-regression] review changes と verification failure から recovery を経由して approval gate に戻る複雑ワークフロー回帰テストを追加した

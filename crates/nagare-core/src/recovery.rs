@@ -12,6 +12,8 @@ pub struct RecoveryPlan {
     pub status: RecoveryPlanStatus,
     pub action: RecoveryAction,
     pub target_agent_profile_id: Option<String>,
+    #[serde(default = "default_recovery_failure_class")]
+    pub failure_class: String,
     pub reason: String,
     pub summary: String,
     pub source_event_id: Option<String>,
@@ -102,14 +104,20 @@ pub fn create_recovery_plan(
     let mut ledger = load_ledger(&layout)?;
     let item = ledger.work_item(work_item_id)?.clone();
     let snapshot = WorkItemSnapshot::from_ledger(item, &ledger);
-    let mut plan = recovery_plan_for_snapshot(&snapshot, &layout, &mut ledger, &locale)?;
+    let mut plans = recovery_plans_for_snapshot(&snapshot, &layout, &mut ledger, &locale)?;
     for existing in &mut ledger.recovery_plans {
         if existing.work_item_id == work_item_id && existing.status == RecoveryPlanStatus::Draft {
             existing.status = RecoveryPlanStatus::Superseded;
         }
     }
-    plan.status = RecoveryPlanStatus::Draft;
-    ledger.recovery_plans.push(plan.clone());
+    for plan in &mut plans {
+        plan.status = RecoveryPlanStatus::Draft;
+    }
+    let plan = plans
+        .first()
+        .cloned()
+        .ok_or_else(|| NagareError::InvalidState("no recovery plan candidate".to_string()))?;
+    ledger.recovery_plans.extend(plans);
     save_ledger(&layout, &ledger)?;
     Ok(CreateRecoveryPlanResult { plan })
 }
@@ -221,6 +229,20 @@ fn recovery_plan_for_apply<'a>(
     Ok(plan)
 }
 
+fn recovery_plans_for_snapshot(
+    snapshot: &WorkItemSnapshot,
+    layout: &ProjectLayout,
+    ledger: &mut Ledger,
+    locale: &str,
+) -> Result<Vec<RecoveryPlan>, NagareError> {
+    let primary = recovery_plan_for_snapshot(snapshot, layout, ledger, locale)?;
+    let mut plans = vec![primary];
+    plans.extend(additional_recovery_candidates(
+        snapshot, layout, ledger, locale,
+    )?);
+    Ok(plans)
+}
+
 fn recovery_plan_for_snapshot(
     snapshot: &WorkItemSnapshot,
     layout: &ProjectLayout,
@@ -258,6 +280,7 @@ fn recovery_plan_for_snapshot(
         source_event_id,
         command_hint,
         prompt_hint,
+        failure_class,
     ) = if let Some(output) = unparsed {
         (
             RecoveryAction::RerunWithContractReminder,
@@ -273,6 +296,7 @@ fn recovery_plan_for_snapshot(
                 "Restate the previous run output for Work Item `{}` using the required `{}` contract. Return only the final contract block.",
                 snapshot.item.id, output.contract
             )),
+            "contract_violation".to_string(),
         )
     } else if snapshot.item.status == WorkItemStatus::NeedsInput {
         (
@@ -287,6 +311,7 @@ fn recovery_plan_for_snapshot(
             latest_question_event(snapshot),
             snapshot.completion.next_command_hint.clone(),
             None,
+            "missing_input".to_string(),
         )
     } else if snapshot.item.status == WorkItemStatus::NeedsHandoff && snapshot.handoffs.is_empty() {
         (
@@ -297,6 +322,7 @@ fn recovery_plan_for_snapshot(
             latest_agent_output_event(snapshot),
             snapshot.completion.next_command_hint.clone(),
             None,
+            "needs_handoff".to_string(),
         )
     } else if snapshot.item.status == WorkItemStatus::NeedsHandoff {
         (
@@ -307,6 +333,26 @@ fn recovery_plan_for_snapshot(
             snapshot.handoffs.last().map(|handoff| handoff.id.clone()),
             snapshot.completion.next_command_hint.clone(),
             None,
+            "needs_handoff".to_string(),
+        )
+    } else if snapshot.item.status == WorkItemStatus::FailedVerification {
+        let verification = failed_verification.ok_or_else(|| {
+            NagareError::InvalidState(
+                "failed_verification item has no failed verification".to_string(),
+            )
+        })?;
+        (
+            RecoveryAction::RerunSameAgent,
+            latest_work_agent.clone(),
+            "verification_failed".to_string(),
+            format!(
+                "Fix the failure from `{}` and run verification again.",
+                verification.command
+            ),
+            Some(verification.id.clone()),
+            Some(format!("nagare item run {}", snapshot.item.id)),
+            None,
+            "verification_failure".to_string(),
         )
     } else if let Some(review) = latest_review_change {
         (
@@ -321,19 +367,7 @@ fn recovery_plan_for_snapshot(
             Some(review.id.clone()),
             Some(format!("nagare item run {}", snapshot.item.id)),
             None,
-        )
-    } else if let Some(verification) = failed_verification {
-        (
-            RecoveryAction::RerunSameAgent,
-            latest_work_agent.clone(),
-            "verification_failed".to_string(),
-            format!(
-                "Fix the failure from `{}` and run verification again.",
-                verification.command
-            ),
-            Some(verification.id.clone()),
-            Some(format!("nagare item run {}", snapshot.item.id)),
-            None,
+            "review_changes".to_string(),
         )
     } else if snapshot.item.status == WorkItemStatus::ReadyForVerification {
         (
@@ -347,6 +381,7 @@ fn recovery_plan_for_snapshot(
                 .map(|review| review.id.clone()),
             snapshot.completion.next_command_hint.clone(),
             None,
+            "verification_pending".to_string(),
         )
     } else {
         (
@@ -357,6 +392,7 @@ fn recovery_plan_for_snapshot(
             snapshot.timeline.last().map(|event| event.id.clone()),
             snapshot.completion.next_command_hint.clone(),
             None,
+            "continue_workflow".to_string(),
         )
     };
 
@@ -366,6 +402,7 @@ fn recovery_plan_for_snapshot(
         status: RecoveryPlanStatus::Draft,
         action,
         target_agent_profile_id,
+        failure_class,
         reason,
         summary,
         source_event_id,
@@ -375,6 +412,109 @@ fn recovery_plan_for_snapshot(
         locale: locale.to_string(),
         created_at: timestamp(),
     })
+}
+
+fn additional_recovery_candidates(
+    snapshot: &WorkItemSnapshot,
+    layout: &ProjectLayout,
+    ledger: &mut Ledger,
+    locale: &str,
+) -> Result<Vec<RecoveryPlan>, NagareError> {
+    let mut plans = Vec::new();
+    let latest_work_agent = snapshot
+        .runs
+        .iter()
+        .rev()
+        .find(|run| run.purpose == AgentRunPurpose::Work)
+        .map(|run| run.agent_profile_id.clone())
+        .or_else(|| {
+            load_project_config(layout)
+                .ok()
+                .map(|config| config.nagare_agents.work_agent)
+        });
+    let latest_work_run = snapshot
+        .runs
+        .iter()
+        .rev()
+        .find(|run| run.purpose == AgentRunPurpose::Work);
+    let has_diff = snapshot
+        .artifacts
+        .iter()
+        .any(|artifact| artifact.artifact_type == "diff_patch");
+
+    let missing_expected_artifacts = missing_expected_artifacts(snapshot);
+    if !missing_expected_artifacts.is_empty() {
+        plans.push(RecoveryPlan {
+            id: ledger.next_id("recovery"),
+            work_item_id: snapshot.item.id.clone(),
+            status: RecoveryPlanStatus::Draft,
+            action: RecoveryAction::RequestChanges,
+            target_agent_profile_id: latest_work_agent.clone(),
+            failure_class: "missing_artifact".to_string(),
+            reason: "expected_artifact_missing".to_string(),
+            summary: format!(
+                "Expected artifacts are missing from the latest agent output: {}.",
+                missing_expected_artifacts.join(", ")
+            ),
+            source_event_id: latest_work_run.map(|run| run.id.clone()),
+            command_hint: Some(format!("nagare item run {}", snapshot.item.id)),
+            prompt_hint: Some(format!(
+                "Produce or reference the missing expected artifacts: {}.",
+                missing_expected_artifacts.join(", ")
+            )),
+            warnings: Vec::new(),
+            locale: locale.to_string(),
+            created_at: timestamp(),
+        });
+    }
+
+    if latest_work_run.is_some() && !has_diff && !snapshot.item.expected_artifacts.is_empty() {
+        plans.push(RecoveryPlan {
+            id: ledger.next_id("recovery"),
+            work_item_id: snapshot.item.id.clone(),
+            status: RecoveryPlanStatus::Draft,
+            action: RecoveryAction::RerunSameAgent,
+            target_agent_profile_id: latest_work_agent,
+            failure_class: "no_diff".to_string(),
+            reason: "no_diff_artifact".to_string(),
+            summary: "No diff artifact was collected after the latest work run.".to_string(),
+            source_event_id: latest_work_run.map(|run| run.id.clone()),
+            command_hint: Some(format!("nagare item run {}", snapshot.item.id)),
+            prompt_hint: Some(
+                "Create concrete workspace changes or explain why no diff is expected.".to_string(),
+            ),
+            warnings: Vec::new(),
+            locale: locale.to_string(),
+            created_at: timestamp(),
+        });
+    }
+
+    Ok(plans)
+}
+
+fn missing_expected_artifacts(snapshot: &WorkItemSnapshot) -> Vec<String> {
+    if snapshot.item.expected_artifacts.is_empty() {
+        return Vec::new();
+    }
+    let reported = snapshot
+        .agent_outputs
+        .iter()
+        .rev()
+        .find(|output| output.purpose == AgentRunPurpose::Work)
+        .and_then(|output| output.fields.get("artifacts"))
+        .cloned()
+        .unwrap_or_default();
+    snapshot
+        .item
+        .expected_artifacts
+        .iter()
+        .filter(|expected| {
+            !reported
+                .iter()
+                .any(|artifact| artifact.contains(expected.as_str()))
+        })
+        .cloned()
+        .collect()
 }
 
 fn latest_unparsed_output(snapshot: &WorkItemSnapshot) -> Option<&AgentOutputRecord> {
@@ -405,4 +545,8 @@ fn latest_agent_output_event(snapshot: &WorkItemSnapshot) -> Option<String> {
 
 fn default_recovery_plan_status() -> RecoveryPlanStatus {
     RecoveryPlanStatus::Draft
+}
+
+fn default_recovery_failure_class() -> String {
+    "general".to_string()
 }

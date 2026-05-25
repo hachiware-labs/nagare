@@ -14,6 +14,7 @@ pub struct WorkItemSnapshot {
     pub human_feedback: Vec<HumanFeedback>,
     pub dispatch_plans: Vec<DispatchPlan>,
     pub recovery_plans: Vec<RecoveryPlan>,
+    pub workflow_decisions: Vec<WorkflowDecision>,
     pub resolved_skill_contexts: Vec<ResolvedSkillContext>,
     pub resolved_run_packets: Vec<ResolvedRunPacket>,
     pub agent_outputs: Vec<AgentOutputRecord>,
@@ -101,6 +102,12 @@ impl WorkItemSnapshot {
                 .recovery_plans
                 .iter()
                 .filter(|plan| &plan.work_item_id == item_id)
+                .cloned()
+                .collect(),
+            workflow_decisions: ledger
+                .workflow_decisions
+                .iter()
+                .filter(|decision| &decision.work_item_id == item_id)
                 .cloned()
                 .collect(),
             resolved_skill_contexts: ledger
@@ -450,6 +457,17 @@ fn timeline_events(snapshot: &WorkItemSnapshot) -> Vec<WorkItemTimelineEvent> {
             actor: plan.target_agent_profile_id.clone(),
             artifact_id: None,
             created_at: plan.created_at.clone(),
+        });
+    }
+    for decision in &snapshot.workflow_decisions {
+        events.push(WorkItemTimelineEvent {
+            id: decision.id.clone(),
+            event_type: "workflow_decision".to_string(),
+            title: decision.reason.clone(),
+            status: decision.action.to_string(),
+            actor: decision.target_agent_profile_id.clone(),
+            artifact_id: None,
+            created_at: decision.created_at.clone(),
         });
     }
     events.sort_by(|left, right| {

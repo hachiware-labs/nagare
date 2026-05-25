@@ -150,6 +150,7 @@ fn apply_output_contract_update(
         AgentOutputContractPurpose::Work => &mut contracts.work,
         AgentOutputContractPurpose::Review => &mut contracts.review,
         AgentOutputContractPurpose::Dispatch => &mut contracts.dispatch,
+        AgentOutputContractPurpose::Supervision => &mut contracts.supervision,
     };
     if let Some(contract) = update.contract {
         let contract = contract.trim();
@@ -178,20 +179,6 @@ fn apply_output_contract_update(
     Ok(())
 }
 
-fn latest_agent_question(ledger: &Ledger, work_item_id: &str) -> Option<(String, String)> {
-    ledger
-        .agent_outputs
-        .iter()
-        .rev()
-        .find(|output| output.work_item_id == work_item_id && !output.questions.is_empty())
-        .and_then(|output| {
-            output
-                .questions
-                .first()
-                .map(|question| (output.id.clone(), question.clone()))
-        })
-}
-
 pub fn get_nagare_agent_settings(
     root: impl Into<PathBuf>,
 ) -> Result<NagareAgentSettings, NagareError> {
@@ -217,6 +204,10 @@ pub fn set_nagare_agent_settings(
     if let Some(agent) = input.dispatch_agent {
         validate_existing_agent_profile(&layout, agent)?;
         settings.dispatch_agent = agent.to_string();
+    }
+    if let Some(agent) = input.supervisor_agent {
+        validate_existing_agent_profile(&layout, agent)?;
+        settings.supervisor_agent = agent.to_string();
     }
 
     write_nagare_agent_settings(&layout, &settings)?;
@@ -348,92 +339,6 @@ fn ensure_fresh_capability_probe(
     Ok(probe)
 }
 
-pub fn create_work_item(
-    root: impl Into<PathBuf>,
-    title: impl Into<String>,
-    description: impl Into<String>,
-) -> Result<CreateItemResult, NagareError> {
-    let layout = ensure_project(root)?;
-    let locale = load_project_config(&layout)?.locale.language;
-    let mut ledger = load_ledger(&layout)?;
-    let now = timestamp();
-    let item = WorkItem {
-        id: ledger.next_id("work"),
-        title: title.into(),
-        description: description.into(),
-        locale,
-        status: WorkItemStatus::Ready,
-        created_at: now.clone(),
-        updated_at: now,
-    };
-    ledger.work_items.push(item.clone());
-    save_ledger(&layout, &ledger)?;
-    Ok(CreateItemResult { item })
-}
-
-pub fn list_work_items(root: impl Into<PathBuf>) -> Result<Vec<WorkItem>, NagareError> {
-    let layout = ensure_project(root)?;
-    Ok(load_ledger(&layout)?.work_items)
-}
-
-pub fn get_work_item_snapshot(
-    root: impl Into<PathBuf>,
-    work_item_id: &str,
-) -> Result<WorkItemSnapshot, NagareError> {
-    let layout = ensure_project(root)?;
-    let ledger = load_ledger(&layout)?;
-    let item = ledger.work_item(work_item_id)?.clone();
-    Ok(WorkItemSnapshot::from_ledger(item, &ledger))
-}
-
-pub fn answer_work_item(
-    root: impl Into<PathBuf>,
-    work_item_id: &str,
-    input: AnswerWorkItemInput<'_>,
-) -> Result<AnswerWorkItemResult, NagareError> {
-    let layout = ensure_project(root)?;
-    let locale = load_project_config(&layout)?.locale.language;
-    let mut ledger = load_ledger(&layout)?;
-    let answer = input.answer.trim();
-    if answer.is_empty() {
-        return Err(NagareError::InvalidState(
-            "answer cannot be empty".to_string(),
-        ));
-    }
-    let latest_question = latest_agent_question(&ledger, work_item_id);
-    let question = input
-        .question
-        .map(str::trim)
-        .filter(|question| !question.is_empty())
-        .map(ToOwned::to_owned)
-        .or_else(|| {
-            latest_question
-                .as_ref()
-                .map(|(_, question)| question.clone())
-        })
-        .unwrap_or_else(|| "(unspecified question)".to_string());
-    let source_agent_output_id = latest_question.map(|(id, _)| id);
-    let feedback = HumanFeedback {
-        id: ledger.next_id("feedback"),
-        work_item_id: work_item_id.to_string(),
-        source_agent_output_id,
-        question,
-        answer: answer.to_string(),
-        locale,
-        created_at: timestamp(),
-    };
-    ledger.human_feedback.push(feedback.clone());
-    let item = ledger.work_item_mut(work_item_id)?;
-    item.status = WorkItemStatus::Ready;
-    item.updated_at = timestamp();
-    let item_status = item.status;
-    save_ledger(&layout, &ledger)?;
-    Ok(AnswerWorkItemResult {
-        feedback,
-        item_status,
-    })
-}
-
 pub fn run_work_item(
     root: impl Into<PathBuf>,
     work_item_id: &str,
@@ -463,6 +368,7 @@ pub fn run_work_item_with_input(
     let locale = load_project_config(&layout)?.locale.language;
     let mut ledger = load_ledger(&layout)?;
     let item = ledger.work_item(work_item_id)?.clone();
+    let effective_path = input.path.or(item.work_folder.as_deref());
 
     if input.purpose == AgentRunPurpose::Work {
         let item = ledger.work_item_mut(work_item_id)?;
@@ -498,10 +404,12 @@ pub fn run_work_item_with_input(
         .for_purpose(input.purpose)
         .clone();
     let rule_resolution =
-        resolve_rule_for_path_from_layout(&layout, input.path, Some(input.agent_profile_id))?;
+        resolve_rule_for_path_from_layout(&layout, effective_path, Some(input.agent_profile_id))?;
     let dispatch_target_resolution = if input.purpose == AgentRunPurpose::DispatchPreview {
         Some(resolve_rule_for_path_from_layout(
-            &layout, input.path, None,
+            &layout,
+            effective_path,
+            None,
         )?)
     } else {
         None
@@ -515,12 +423,14 @@ pub fn run_work_item_with_input(
         &capabilities_in_force,
     )?;
     let instruction_sources = capability_probe.instruction_sources.clone();
+    let default_goal = work_item_goal_prompt(&item);
     let goal = input
         .prompt
         .filter(|prompt| !prompt.trim().is_empty())
-        .unwrap_or(&item.title)
+        .unwrap_or(default_goal.as_str())
         .to_string();
     let human_feedback_context = human_feedback_prompt_context(&ledger, work_item_id);
+    let handoff_context = handoff_prompt_context(&ledger, work_item_id);
     let resolved_skill_context = ResolvedSkillContext {
         id: skill_context_id.clone(),
         work_item_id: work_item_id.to_string(),
@@ -550,6 +460,7 @@ pub fn run_work_item_with_input(
         working_dir: path_uri(&working_dir),
         goal: goal.clone(),
         path: rule_resolution.path.clone(),
+        work_folder: item.work_folder.clone(),
         dispatch_plan_id: input.dispatch_plan_id.map(ToOwned::to_owned),
         permission_policy_id: rule_resolution.permission_policy_id.clone(),
         workspace_policy_id: rule_resolution.workspace_policy_id.clone(),
@@ -566,6 +477,11 @@ pub fn run_work_item_with_input(
                 (!human_feedback_context.is_empty())
                     .then(|| "human_feedback_context_applied".to_string()),
             )
+            .chain((!handoff_context.is_empty()).then(|| "handoff_context_applied".to_string()))
+            .chain(
+                (!item.acceptance_criteria.is_empty())
+                    .then(|| "acceptance_criteria_context_applied".to_string()),
+            )
             .collect(),
         artifact_uri: path_uri(&layout.artifacts_dir.join(format!("{run_packet_id}.json"))),
         content_hash: format!("local:{}", run_packet_id),
@@ -577,7 +493,10 @@ pub fn run_work_item_with_input(
         .filter(|prompt| !prompt.trim().is_empty())
         .unwrap_or(goal.as_str());
     let prompt = prompt_with_output_contract(
-        &prompt_with_human_feedback(prompt, &human_feedback_context),
+        &prompt_with_handoff_context(
+            &prompt_with_human_feedback(prompt, &human_feedback_context),
+            &handoff_context,
+        ),
         input.purpose,
         &output_contract,
     );
@@ -657,7 +576,7 @@ pub fn run_work_item_with_input(
     });
     let review_result = review_result_id
         .zip(agent_output.as_ref())
-        .map(|(id, output)| review_result_from_agent_output(id, output));
+        .map(|(id, output)| review_result_from_agent_output(id, output, &item.acceptance_criteria));
     let item_status = if input.purpose == AgentRunPurpose::Work {
         if agent_output_requires_input(agent_output.as_ref()) {
             WorkItemStatus::NeedsInput
@@ -879,38 +798,6 @@ pub fn verify_work_item(
     })
 }
 
-pub fn create_handoff(
-    root: impl Into<PathBuf>,
-    work_item_id: &str,
-    from_agent_profile: &str,
-    to_agent_profile: &str,
-    reason: &str,
-    summary: &str,
-) -> Result<HandoffResult, NagareError> {
-    let layout = ensure_project(root)?;
-    let locale = load_project_config(&layout)?.locale.language;
-    let mut ledger = load_ledger(&layout)?;
-    let _ = ledger.work_item(work_item_id)?;
-    let handoff = HandoffPacket {
-        id: ledger.next_id("handoff"),
-        work_item_id: work_item_id.to_string(),
-        from_agent_profile: from_agent_profile.to_string(),
-        to_agent_profile: to_agent_profile.to_string(),
-        reason: reason.to_string(),
-        summary: summary.to_string(),
-        locale,
-        created_at: timestamp(),
-    };
-    ledger.handoffs.push(handoff.clone());
-    {
-        let item = ledger.work_item_mut(work_item_id)?;
-        item.status = WorkItemStatus::NeedsHandoff;
-        item.updated_at = timestamp();
-    }
-    save_ledger(&layout, &ledger)?;
-    Ok(HandoffResult { handoff })
-}
-
 pub fn approve_work_item(
     root: impl Into<PathBuf>,
     work_item_id: &str,
@@ -933,6 +820,11 @@ pub fn approve_work_item(
     if !has_passing_verification {
         return Err(NagareError::InvalidState(format!(
             "work item `{work_item_id}` needs a passing verification before approval"
+        )));
+    }
+    if !acceptance_criteria_are_satisfied(&ledger, item) {
+        return Err(NagareError::InvalidState(format!(
+            "work item `{work_item_id}` needs a passing review for all acceptance criteria before approval"
         )));
     }
 
@@ -959,4 +851,20 @@ pub fn approve_work_item(
         decision,
         item_status: WorkItemStatus::Done,
     })
+}
+
+fn acceptance_criteria_are_satisfied(ledger: &Ledger, item: &WorkItem) -> bool {
+    if item.acceptance_criteria.is_empty() {
+        return true;
+    }
+    ledger
+        .review_results
+        .iter()
+        .rev()
+        .find(|review| review.work_item_id == item.id)
+        .is_some_and(|review| {
+            review.verdict == ReviewVerdict::Pass
+                && review.criteria_results.len() == item.acceptance_criteria.len()
+                && criteria_results_pass(review)
+        })
 }

@@ -91,6 +91,7 @@ timezone = "Asia/Tokyo"
 work_agent = "codex-cli"
 review_agent = "codex-app-server"
 dispatch_agent = "codex-cli"
+supervisor_agent = "codex-cli"
 
 [runtimes.codex-local]
 kind = "process"

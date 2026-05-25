@@ -360,15 +360,18 @@ fn nagare_agent_settings_can_select_default_work_agent() {
             work_agent: Some("codex-work"),
             review_agent: None,
             dispatch_agent: Some("codex-work"),
+            supervisor_agent: Some("codex-work"),
         },
     )
     .expect("settings should update");
     assert_eq!(settings.work_agent, "codex-work");
     assert_eq!(settings.review_agent, "codex-app-server");
     assert_eq!(settings.dispatch_agent, "codex-work");
+    assert_eq!(settings.supervisor_agent, "codex-work");
 
     let loaded = get_nagare_agent_settings(&root).expect("settings should load");
     assert_eq!(loaded.work_agent, "codex-work");
+    assert_eq!(loaded.supervisor_agent, "codex-work");
     fs::remove_dir_all(root).ok();
 }
 

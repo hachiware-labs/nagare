@@ -21,6 +21,7 @@ pub(crate) fn parse_agent_output_record(input: AgentOutputRecordInput<'_>) -> Ag
         AgentRunPurpose::Work => "nagare result",
         AgentRunPurpose::Review => "nagare review",
         AgentRunPurpose::DispatchPreview => "nagare dispatch",
+        AgentRunPurpose::WorkflowSupervision => "nagare workflow decision",
     };
     let section = extract_markdown_section(input.stdout, section_name);
     let fields = section
@@ -102,6 +103,13 @@ pub(crate) fn prompt_with_human_feedback(prompt: &str, context: &str) -> String 
     format!("{prompt}\n\n## Nagare Human Feedback\n{context}")
 }
 
+pub(crate) fn prompt_with_handoff_context(prompt: &str, context: &str) -> String {
+    if context.trim().is_empty() {
+        return prompt.to_string();
+    }
+    format!("{prompt}\n\n## Nagare Handoff Context\n{context}")
+}
+
 pub(crate) fn human_feedback_prompt_context(ledger: &Ledger, work_item_id: &str) -> String {
     ledger
         .human_feedback
@@ -115,6 +123,40 @@ pub(crate) fn human_feedback_prompt_context(ledger: &Ledger, work_item_id: &str)
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+pub(crate) fn handoff_prompt_context(ledger: &Ledger, work_item_id: &str) -> String {
+    ledger
+        .handoffs
+        .iter()
+        .rev()
+        .find(|handoff| handoff.work_item_id == work_item_id)
+        .map(|handoff| {
+            [
+                format!("handoff_id: {}", handoff.id),
+                format!("from_agent: {}", handoff.from_agent_profile),
+                format!("to_agent: {}", handoff.to_agent_profile),
+                format!("current_state: {}", handoff.current_state),
+                format!("reason: {}", handoff.reason),
+                format!("next_request: {}", handoff.next_request),
+                format!("open_questions: {}", handoff.open_questions.join(", ")),
+                format!("artifact_ids: {}", handoff.artifact_ids.join(", ")),
+                format!(
+                    "diff_artifact_ids: {}",
+                    handoff.diff_artifact_ids.join(", ")
+                ),
+                format!(
+                    "failed_verification_ids: {}",
+                    handoff.failed_verification_ids.join(", ")
+                ),
+                format!(
+                    "review_result_ids: {}",
+                    handoff.review_result_ids.join(", ")
+                ),
+            ]
+            .join("\n")
+        })
+        .unwrap_or_default()
 }
 
 fn extract_markdown_section(output: &str, section_name: &str) -> Option<String> {
@@ -197,6 +239,11 @@ fn output_contract_instruction(purpose: AgentRunPurpose, contract: &AgentOutputC
         ),
         AgentRunPurpose::Work => format!(
             "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\nFinish with a Markdown section named `## Nagare Result` containing: status, summary, artifacts, evidence, questions, verification, next_action.",
+            contract_id = contract.contract,
+            pack = contract.instruction_pack,
+        ),
+        AgentRunPurpose::WorkflowSupervision => format!(
+            "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\nFinish with a Markdown section named `## Nagare Workflow Decision` containing: action, reason, target_agent_profile_id, requires_human, confidence, command_hint.",
             contract_id = contract.contract,
             pack = contract.instruction_pack,
         ),

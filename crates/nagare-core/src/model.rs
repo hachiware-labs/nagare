@@ -33,6 +33,8 @@ pub struct Ledger {
     #[serde(default)]
     pub recovery_plans: Vec<RecoveryPlan>,
     #[serde(default)]
+    pub workflow_decisions: Vec<WorkflowDecision>,
+    #[serde(default)]
     pub capability_probes: Vec<CapabilityProbe>,
     #[serde(default)]
     pub resolved_skill_contexts: Vec<ResolvedSkillContext>,
@@ -57,6 +59,7 @@ impl Default for Ledger {
             human_feedback: Vec::new(),
             dispatch_plans: Vec::new(),
             recovery_plans: Vec::new(),
+            workflow_decisions: Vec::new(),
             capability_probes: Vec::new(),
             resolved_skill_contexts: Vec::new(),
             resolved_run_packets: Vec::new(),
@@ -92,6 +95,14 @@ pub struct WorkItem {
     pub id: String,
     pub title: String,
     pub description: String,
+    #[serde(default)]
+    pub acceptance_criteria: Vec<String>,
+    #[serde(default)]
+    pub expected_artifacts: Vec<String>,
+    pub verification_hint: Option<String>,
+    pub work_folder: Option<String>,
+    #[serde(default)]
+    pub constraints: Vec<String>,
     #[serde(default = "default_locale_language")]
     pub locale: String,
     pub status: WorkItemStatus,
@@ -170,6 +181,7 @@ pub enum AgentRunPurpose {
     Work,
     DispatchPreview,
     Review,
+    WorkflowSupervision,
 }
 
 impl fmt::Display for AgentRunPurpose {
@@ -178,6 +190,7 @@ impl fmt::Display for AgentRunPurpose {
             Self::Work => f.write_str("work"),
             Self::DispatchPreview => f.write_str("dispatch_preview"),
             Self::Review => f.write_str("review"),
+            Self::WorkflowSupervision => f.write_str("workflow_supervision"),
         }
     }
 }
@@ -245,6 +258,20 @@ pub struct HandoffPacket {
     pub to_agent_profile: String,
     pub reason: String,
     pub summary: String,
+    #[serde(default)]
+    pub current_state: String,
+    #[serde(default)]
+    pub open_questions: Vec<String>,
+    #[serde(default)]
+    pub artifact_ids: Vec<String>,
+    #[serde(default)]
+    pub diff_artifact_ids: Vec<String>,
+    #[serde(default)]
+    pub failed_verification_ids: Vec<String>,
+    #[serde(default)]
+    pub review_result_ids: Vec<String>,
+    #[serde(default)]
+    pub next_request: String,
     #[serde(default = "default_locale_language")]
     pub locale: String,
     pub created_at: String,
@@ -414,6 +441,8 @@ pub struct ResolvedRunPacket {
     pub goal: String,
     pub path: Option<String>,
     #[serde(default)]
+    pub work_folder: Option<String>,
+    #[serde(default)]
     pub dispatch_plan_id: Option<String>,
     pub permission_policy_id: Option<String>,
     pub workspace_policy_id: Option<String>,
@@ -466,6 +495,8 @@ pub struct AgentOutputContracts {
     pub review: AgentOutputContract,
     #[serde(default = "default_dispatch_output_contract")]
     pub dispatch: AgentOutputContract,
+    #[serde(default = "default_supervision_output_contract")]
+    pub supervision: AgentOutputContract,
 }
 
 impl AgentOutputContracts {
@@ -474,6 +505,7 @@ impl AgentOutputContracts {
             AgentRunPurpose::Review => &self.review,
             AgentRunPurpose::DispatchPreview => &self.dispatch,
             AgentRunPurpose::Work => &self.work,
+            AgentRunPurpose::WorkflowSupervision => &self.supervision,
         }
     }
 }
@@ -484,6 +516,7 @@ impl Default for AgentOutputContracts {
             work: default_work_output_contract(),
             review: default_review_output_contract(),
             dispatch: default_dispatch_output_contract(),
+            supervision: default_supervision_output_contract(),
         }
     }
 }
@@ -550,6 +583,15 @@ pub fn default_dispatch_output_contract() -> AgentOutputContract {
     }
 }
 
+pub fn default_supervision_output_contract() -> AgentOutputContract {
+    AgentOutputContract {
+        contract: "nagare.workflow-decision.v1".to_string(),
+        instruction_pack: "nagare-workflow-supervisor.v1".to_string(),
+        required: true,
+        injection: AgentOutputInjection::PromptSuffix,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum AgentProfileSource {
     #[default]
@@ -599,6 +641,7 @@ pub enum AgentOutputContractPurpose {
     Work,
     Review,
     Dispatch,
+    Supervision,
 }
 
 impl AgentOutputContractPurpose {
@@ -607,8 +650,9 @@ impl AgentOutputContractPurpose {
             "work" => Ok(Self::Work),
             "review" => Ok(Self::Review),
             "dispatch" => Ok(Self::Dispatch),
+            "supervision" | "workflow_supervision" => Ok(Self::Supervision),
             other => Err(NagareError::InvalidState(format!(
-                "unknown output contract purpose `{other}`; expected work, review, or dispatch"
+                "unknown output contract purpose `{other}`; expected work, review, dispatch, or supervision"
             ))),
         }
     }
@@ -637,6 +681,8 @@ pub struct NagareAgentSettings {
     pub review_agent: String,
     #[serde(default = "default_dispatch_agent_id")]
     pub dispatch_agent: String,
+    #[serde(default = "default_supervisor_agent_id")]
+    pub supervisor_agent: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -668,6 +714,7 @@ impl Default for NagareAgentSettings {
             work_agent: default_work_agent_id(),
             review_agent: default_review_agent_id(),
             dispatch_agent: default_dispatch_agent_id(),
+            supervisor_agent: default_supervisor_agent_id(),
         }
     }
 }
@@ -677,6 +724,7 @@ pub struct SetNagareAgentSettingsInput<'a> {
     pub work_agent: Option<&'a str>,
     pub review_agent: Option<&'a str>,
     pub dispatch_agent: Option<&'a str>,
+    pub supervisor_agent: Option<&'a str>,
 }
 
 #[derive(Debug, Clone)]
@@ -899,6 +947,17 @@ impl From<toml::ser::Error> for NagareError {
 #[derive(Debug, Clone)]
 pub struct CreateItemResult {
     pub item: WorkItem,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct CreateWorkItemInput {
+    pub title: String,
+    pub description: String,
+    pub acceptance_criteria: Vec<String>,
+    pub expected_artifacts: Vec<String>,
+    pub verification_hint: Option<String>,
+    pub work_folder: Option<String>,
+    pub constraints: Vec<String>,
 }
 
 #[derive(Debug, Clone)]

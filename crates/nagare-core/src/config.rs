@@ -451,6 +451,10 @@ pub(crate) fn default_dispatch_agent_id() -> String {
     "codex-cli".to_string()
 }
 
+pub(crate) fn default_supervisor_agent_id() -> String {
+    "codex-cli".to_string()
+}
+
 pub(crate) fn default_agent_run_purpose() -> AgentRunPurpose {
     AgentRunPurpose::Work
 }

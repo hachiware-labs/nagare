@@ -44,6 +44,12 @@ pub(crate) fn agent_run_claim(
         (true, AgentRunPurpose::Review, AgentRunStatus::Failed) => {
             format!("Review Agent `{agent_profile_id}` の評価が失敗した")
         }
+        (true, AgentRunPurpose::WorkflowSupervision, AgentRunStatus::Succeeded) => {
+            format!("Supervisor Agent `{agent_profile_id}` の判断が成功した")
+        }
+        (true, AgentRunPurpose::WorkflowSupervision, AgentRunStatus::Failed) => {
+            format!("Supervisor Agent `{agent_profile_id}` の判断が失敗した")
+        }
         (false, AgentRunPurpose::Work, AgentRunStatus::Succeeded) => {
             format!("Agent run succeeded with profile `{agent_profile_id}`")
         }
@@ -61,6 +67,12 @@ pub(crate) fn agent_run_claim(
         }
         (false, AgentRunPurpose::Review, AgentRunStatus::Failed) => {
             format!("Review failed with profile `{agent_profile_id}`")
+        }
+        (false, AgentRunPurpose::WorkflowSupervision, AgentRunStatus::Succeeded) => {
+            format!("Workflow supervision succeeded with profile `{agent_profile_id}`")
+        }
+        (false, AgentRunPurpose::WorkflowSupervision, AgentRunStatus::Failed) => {
+            format!("Workflow supervision failed with profile `{agent_profile_id}`")
         }
     }
 }

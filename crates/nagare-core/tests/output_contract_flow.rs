@@ -223,6 +223,7 @@ fn missing_required_nagare_result_records_unparsed_warning() {
         RecoveryAction::RerunWithContractReminder
     );
     assert_eq!(recovery.plan.reason, "output_contract_missing");
+    assert_eq!(recovery.plan.failure_class, "contract_violation");
     let accepted = accept_recovery_plan(&root, &item.id, Some(&recovery.plan.id))
         .expect("recovery should accept");
     assert_eq!(accepted.plan.status, RecoveryPlanStatus::Accepted);
@@ -606,7 +607,7 @@ fn multi_agent_question_handoff_review_and_approval_workflow_completes() {
             .contains(&"human_feedback_context_applied".to_string())
     );
 
-    create_handoff(
+    let handoff = create_handoff(
         &root,
         &item.id,
         "research-agent",
@@ -615,6 +616,9 @@ fn multi_agent_question_handoff_review_and_approval_workflow_completes() {
         "Use docs/source-a.md and produce a verifiable implementation summary.",
     )
     .expect("handoff should be created");
+    assert_eq!(handoff.handoff.current_state, "needs_handoff");
+    assert!(!handoff.handoff.artifact_ids.is_empty());
+    assert!(handoff.handoff.next_request.contains("docs/source-a.md"));
 
     fs::write(
         root.join("dispatch_repair.json"),
@@ -772,6 +776,9 @@ fn multi_agent_question_handoff_review_and_approval_workflow_completes() {
             && packet
                 .constraints
                 .contains(&"human_feedback_context_applied".to_string())
+            && packet
+                .constraints
+                .contains(&"handoff_context_applied".to_string())
     }));
     assert!(snapshot.timeline.iter().any(|event| {
         event.event_type == "decision"
@@ -898,6 +905,7 @@ fn completion_state_points_to_recovery_after_failed_verification() {
     let first = create_recovery_plan(&root, &item.id).expect("first recovery should create");
     assert_eq!(first.plan.action, RecoveryAction::RerunSameAgent);
     assert_eq!(first.plan.reason, "verification_failed");
+    assert_eq!(first.plan.failure_class, "verification_failure");
     let second = create_recovery_plan(&root, &item.id).expect("second recovery should create");
     assert_eq!(second.plan.status, RecoveryPlanStatus::Draft);
     let accepted =

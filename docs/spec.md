@@ -32,6 +32,11 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | 2.1.1 | Work Item を作成できる。 | Project が初期化済み | `nagare item create --title <title>` を実行する | `work_0001` 形式の ID を持つ Work Item が ledger に保存される | 実装済み |
 | 2.1.2 | Work Item 作成時に description を保存できる。 | Project が初期化済み | `--description <text>` を付けて作成する | Work Item snapshot に description が残る | 実装済み |
 | 2.1.3 | Work Item 作成時の初期 status は `ready` とする。 | Project が初期化済み | Work Item を作成する | status が `ready` になる | 実装済み |
+| 2.1.4 | Work Item に acceptance criteria を保存できる。 | Project が初期化済み | `nagare item create --acceptance <csv>` を実行する | Work Item snapshot と Run Packet goal に criteria が反映される | 実装済み |
+| 2.1.5 | Work Item に expected artifacts を保存できる。 | Project が初期化済み | `nagare item create --artifact <csv>` を実行する | Recovery と Review が期待成果物不足を判断できる | 実装済み |
+| 2.1.6 | Work Item に verification hint を保存できる。 | Project が初期化済み | `nagare item create --verification <command_or_hint>` を実行する | `item advance --until-blocked` が検証 command として利用できる | 実装済み |
+| 2.1.7 | Work Item に work folder を保存できる。 | Project が初期化済み | `nagare item create --work-folder <relative_path>` を実行する | Run Packet の path / work_folder に反映される | 実装済み |
+| 2.1.8 | Work Item に constraints を保存できる。 | Project が初期化済み | `nagare item create --constraint <csv>` を実行する | Agent prompt の制約文脈に反映される | 実装済み |
 | 2.2.1 | Work Item 一覧を表示できる。 | Work Item が存在する | `nagare item list` を実行する | ID、status、title が確認できる | 実装済み |
 | 2.2.2 | Work Item 詳細を表示できる。 | Work Item が存在する | `nagare item show <work_id>` を実行する | Work Item、runs、artifacts、evidence、verification、handoffs、decisions が確認できる | 実装済み |
 | 2.2.3 | 存在しない Work Item は拒否する。 | 指定 ID が ledger に存在しない | Work Item 対象 command を実行する | エラーになり、ledger は変更されない | 実装済み |
@@ -55,6 +60,7 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | 4.1.1 | Nagare 本体が使う既定 Agent Profile を設定できる。 | Agent Profile が存在する | `nagare agent use --work-agent ... --review-agent ... --dispatch-agent ...` を実行する | `.nagare/project.toml` の `[nagare_agents]` が更新される | 実装済み |
 | 4.1.2 | 既定 Agent Profile を確認できる。 | Project が初期化済み | `nagare agent defaults` を実行する | work_agent、review_agent、dispatch_agent が表示される | 実装済み |
 | 4.1.3 | `item run` で agent と採用済み DispatchPlan が省略された場合は `work_agent` を使う。 | `work_agent` が設定済み | `nagare item run <work_id>` を実行する | Agent Run の agent_profile_id が `work_agent` になる | 実装済み |
+| 4.1.4 | Nagare のワークフロー判断に使う supervisor_agent を設定できる。 | Agent Profile が存在する | `nagare agent use --supervisor-agent <id>` を実行する | `.nagare/project.toml` の `[nagare_agents].supervisor_agent` が更新される | 実装済み |
 | 4.2.1 | dispatch_agent は Work Item の実行前確認に使う。 | dispatch_agent が設定済み | `nagare item preview <work_id>` を実行する | dispatch_agent の AgentRun が `dispatch_preview` として記録される | 実装済み |
 | 4.2.2 | dispatch は Work Item の実作業を進めない。 | Work Item が存在する | Preview を実行する | AgentRun と Evidence は残るが、Work Item status は実行結果で進まない | 実装済み |
 | 4.2.3 | review_agent は実行後の評価に使う。 | review_agent が設定済み | `nagare item review <work_id>` を実行する | review_agent の AgentRun が `review` として記録される | 実装済み |
@@ -112,6 +118,8 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | 7.1.16 | Agentからの質問と人の回答は同じTimeline上で追える。 | AgentOutputRecord.questions と HumanFeedback が存在する | Snapshot を取得する | `question` と `human_feedback` event が関連 id と summary を持って表示される | 実装済み |
 | 7.1.17 | Work Item Snapshot は完遂に向けた次アクションを算出する。 | Work Item の ledger record が存在する | `nagare item show <work_id>` を実行する | `completion.state`、`blocking_reason`、`next_action`、`next_command_hint` が表示される | 実装済み |
 | 7.1.18 | Review出力はReviewResultとして保存し、状態遷移に接続する。 | review purpose のAgentRunが終了する | `## Nagare Review` をparseする | `ReviewResult` が保存され、pass は `ready_for_verification`、request_changes は `changes_requested`、blocked/questions は `needs_input` になる | 実装済み |
+| 7.1.19 | Review は acceptance criteria ごとの評価を保存する。 | Work Item に acceptance criteria が存在する | `## Nagare Review` の `criteria` をparseする | `ReviewResult.criteria_results` に criterion / status / note が保存される | 実装済み |
+| 7.1.20 | Acceptance criteria 未充足の Review pass は承認可能状態へ進めない。 | Criteria が未評価または failed である | review または approval を実行する | Work Item は `changes_requested` になり、approval は拒否される | 実装済み |
 | 7.2.1 | `stdio.codex-app-server` は Agent Profile として登録・確認できる。 | Codex app-server runtime が設定済み | agent add/list/show/doctor/probe を実行する | profile と probe 結果が扱える | 実装済み |
 | 7.2.2 | `stdio.codex-app-server` の実実行は stdio JSON-RPC adapter で扱う。 | Run Packet が存在する | app-server adapter で run を開始する | `initialize`、`thread/start`、`turn/start`、`turn/completed` の transcript が AgentRun artifact に保存される | 実装済み |
 | 7.3.1 | Codex MCP Server、Claude Code、HTTP adapter、SDK adapter は初期 Agent adapter に含めない。 | Adapter を登録または選定する | 初期 adapter scope を確認する | 対応予定は `process.codex-cli` と `stdio.codex-app-server` のみになる | 実装済み |
@@ -148,6 +156,7 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | 10.2.1 | Handoff から別 Agent Profile で再実行できる。 | HandoffPacket が存在する | `item run --agent <to_agent>` を実行する | 新しい AgentRun が同じ Work Item に追加される | 実装済み |
 | 10.2.2 | Handoff 後に dispatch_agent で再確認できる。 | HandoffPacket が存在する | `nagare handoff dispatch <work_id>` を実行する | `dispatch_preview` 目的の AgentRun、Artifact、Evidence が保存される | 実装済み |
 | 10.2.3 | 将来の Handoff は current state、artifact、evidence、open questions、requested output、verification needed を含む。 | Work Item に実行履歴がある | Handoff を作成する | 次 Agent が判断できる構造化 packet が残る | 計画 |
+| 10.2.4 | Handoff Packet は現在状態、未解決質問、artifact、diff、review、failed verification、next request を保存する。 | Work Item に履歴がある | `nagare handoff create` を実行する | 後続 Agent Run の prompt / Run Packet constraints に handoff context が反映される | 実装済み |
 
 ## 11. Human Decision
 
@@ -197,3 +206,15 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | 14.1.2 | RecoveryPlan は lifecycle を持つ。 | draft RecoveryPlan が存在する | `nagare item recover accept <work_id>` を実行する | 選択 plan が accepted になり、同じ Work Item の他 draft は superseded になる | 実装済み |
 | 14.1.3 | OutputContract欠落は定型出力再生成のRecoveryPlanになる。 | 最新 AgentOutputRecord が `unparsed` である | `nagare item recover <work_id>` を実行する | `rerun_with_contract_reminder` action と prompt_hint が保存される | 実装済み |
 | 14.1.4 | 採用済みRecoveryPlanをAgent再実行に適用できる。 | accepted RecoveryPlan がある | `nagare item recover apply <work_id>` を実行する | target Agent Profile で再実行され、結果が通常の AgentRun / AgentOutputRecord として保存される | 実装済み |
+| 14.1.5 | RecoveryPlan は failure class を保存する。 | RecoveryPlan を作成する | 停止理由を分類する | `contract_violation`、`review_changes`、`verification_failure`、`missing_artifact`、`no_diff` などが保存される | 実装済み |
+| 14.1.6 | RecoveryPlan は追加候補を作成できる。 | 期待成果物不足や diff 不足が検出される | `nagare item recover <work_id>` を実行する | primary plan に加えて補助 draft plan が保存される | 実装済み |
+
+## 15. Workflow Advance
+
+| ID | 仕様 | Given | When | Done | 状態 |
+| --- | --- | --- | --- | --- | --- |
+| 15.1.1 | WorkflowDecision を台帳に保存する。 | Work Item が存在する | `create_workflow_decision` または `item advance` を実行する | action、reason、requires_human、target_agent、confidence が保存され、Timeline に出る | 実装済み |
+| 15.1.2 | Work Item を1ステップ進められる。 | Work Item が存在する | `nagare item advance <work_id>` を実行する | 現在状態に応じて dispatch、accept、run、review、verify、recover のうち1つだけ実行する | 実装済み |
+| 15.1.3 | Work Item を停止点まで進められる。 | Work Item が存在する | `nagare item advance <work_id> --until-blocked true` を実行する | max steps 以内で次アクションを繰り返し、人間入力、handoff、recovery、approval、done で停止する | 実装済み |
+| 15.1.4 | 複雑な復旧ワークフローを回帰テストで固定する。 | review changes または verification failure が発生する | advance、recover、rerun、review、verify を実行する | recovery 後に approval gate へ戻れることをテストで確認する | 実装済み |
+| 15.1.5 | supervisor_agent は WorkflowDecision を作成できる。 | supervisor_agent が設定済み | `nagare item advance <work_id> --supervisor true` を実行する | `workflow_supervision` AgentRun と `source=supervisor_agent` の WorkflowDecision が保存される | 実装済み |
