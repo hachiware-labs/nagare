@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="960" viewBox="0 0 960 960">
+  <rect width="960" height="960" fill="#f8fafc"/>
+  <style>
+    .title{font:700 24px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h2{font:700 17px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h3{font:700 14px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .body{font:500 13px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .small{font:500 11px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .tiny{font:600 10px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .mono{font:500 12px Consolas,Menlo,monospace;fill:#020617}
+    .nav{font:650 13px Inter,Segoe UI,Arial,sans-serif;fill:#334155}
+    .nav-on{font:700 13px Inter,Segoe UI,Arial,sans-serif;fill:#4338ca}
+  </style>
+  
+    <rect x="36" y="36" width="888" height="888" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="64" y="82" class="title">Agent Edit Modal</text>
+    <text x="64" y="106" class="small">Edit declaration fields used for routing</text>
+    
+    <rect x="150" y="150" width="660" height="590" rx="12" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="190" y="196" class="title">Edit Agent Profile</text>
+    <text x="190" y="250" class="tiny">display_name</text> <rect x="190" y="266" width="580" height="38" rx="6" fill="#f8fafc" stroke="#e2e8f0"/> <text x="208" y="292" class="body">Research Agent</text>
+    <text x="190" y="336" class="tiny">role</text> <rect x="190" y="352" width="260" height="38" rx="6" fill="#f8fafc" stroke="#e2e8f0"/> <text x="208" y="378" class="body">researcher</text>
+    <text x="480" y="336" class="tiny">working_dir</text> <rect x="480" y="352" width="290" height="38" rx="6" fill="#f8fafc" stroke="#e2e8f0"/> <text x="498" y="378" class="body">.</text>
+    <text x="190" y="422" class="tiny">description</text> <rect x="190" y="438" width="580" height="80" rx="6" fill="#f8fafc" stroke="#e2e8f0"/> <text x="208" y="470" class="small">Collects sources and synthesizes findings.</text>
+    <text x="190" y="550" class="tiny">specialties</text> <rect x="190" y="566" width="74" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="199" y="582" class="tiny" style="fill:#4338ca">research</text> <rect x="290" y="566" width="81" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="299" y="582" class="tiny" style="fill:#4338ca">synthesis</text>
+    <rect x="548" y="668" width="92" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="562" y="690" class="body" style="fill:#020617">Cancel</text>
+    <rect x="654" y="668" width="88" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
+  <text x="668" y="690" class="body" style="fill:#ffffff">Save</text>
+  
+  
+</svg>

@@ -1,8 +1,16 @@
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::*;
+
+static TEST_ROOT_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+fn test_root(label: &str) -> PathBuf {
+    let count = TEST_ROOT_COUNTER.fetch_add(1, Ordering::Relaxed);
+    env::temp_dir().join(format!("nagare-{label}-{}-{count}", std::process::id()))
+}
 
 #[test]
 fn layout_uses_nagare_directory() {
@@ -34,7 +42,7 @@ fn default_config_declares_initial_adapters() {
 
 #[test]
 fn first_scenario_reaches_done() {
-    let root = env::temp_dir().join(format!("nagare-test-{}", timestamp()));
+    let root = test_root("first-scenario");
     let result = run_first_scenario(&root).expect("scenario should pass");
     assert_eq!(result.final_status, WorkItemStatus::Done);
     let snapshot =
@@ -48,7 +56,7 @@ fn first_scenario_reaches_done() {
 
 #[test]
 fn agent_profile_can_be_registered_and_used_in_scenario() {
-    let root = env::temp_dir().join(format!("nagare-agent-test-{}", timestamp()));
+    let root = test_root("agent");
     let result = run_registered_agent_scenario(&root).expect("registered scenario should pass");
     assert_eq!(result.final_status, WorkItemStatus::Done);
 
@@ -71,7 +79,7 @@ fn agent_profile_can_be_registered_and_used_in_scenario() {
 
 #[test]
 fn unknown_agent_profile_is_rejected() {
-    let root = env::temp_dir().join(format!("nagare-unknown-agent-test-{}", timestamp()));
+    let root = test_root("unknown-agent");
     init_project(&root).expect("project should init");
     let item = create_work_item(&root, "Unknown profile", "")
         .expect("item should create")
@@ -93,7 +101,7 @@ fn unknown_agent_profile_is_rejected() {
 
 #[test]
 fn agent_probe_records_capability_snapshot() {
-    let root = env::temp_dir().join(format!("nagare-probe-test-{}", timestamp()));
+    let root = test_root("probe");
     init_project(&root).expect("project should init");
     let result = agent_probe(&root, "codex-cli").expect("probe should be recorded");
     assert_eq!(result.probe.agent_profile_id, "codex-cli");
@@ -114,7 +122,7 @@ fn agent_probe_records_capability_snapshot() {
 
 #[test]
 fn run_auto_probes_missing_and_stale_capability_snapshot() {
-    let root = env::temp_dir().join(format!("nagare-auto-probe-test-{}", timestamp()));
+    let root = test_root("auto-probe");
     init_project(&root).expect("project should init");
     let item = create_work_item(&root, "Auto probe", "")
         .expect("item should create")
@@ -169,7 +177,7 @@ fn run_auto_probes_missing_and_stale_capability_snapshot() {
 
 #[test]
 fn agent_profile_working_dir_is_used_for_runs() {
-    let root = env::temp_dir().join(format!("nagare-working-dir-test-{}", timestamp()));
+    let root = test_root("working-dir");
     init_project(&root).expect("project should init");
     let subdir = root.join("packages").join("app");
     fs::create_dir_all(&subdir).expect("subdir should be created");
@@ -200,12 +208,17 @@ fn agent_profile_working_dir_is_used_for_runs() {
         .expect("run should use profile cwd");
     assert_eq!(result.run.status, AgentRunStatus::Succeeded);
     assert!(result.run.command.contains("packages"));
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot should load");
+    assert_eq!(
+        snapshot.resolved_run_packets[0].output_contract.contract,
+        "nagare.result.v1"
+    );
     fs::remove_dir_all(root).ok();
 }
 
 #[test]
 fn agent_profile_routing_hints_are_persisted() {
-    let root = env::temp_dir().join(format!("nagare-agent-hints-test-{}", timestamp()));
+    let root = test_root("agent-hints");
     init_project(&root).expect("project should init");
     add_agent_profile(
         &root,
@@ -233,7 +246,7 @@ fn agent_profile_routing_hints_are_persisted() {
 
 #[test]
 fn agent_profile_can_be_updated_as_project_local_override() {
-    let root = env::temp_dir().join(format!("nagare-agent-update-test-{}", timestamp()));
+    let root = test_root("agent-update");
     init_project(&root).expect("project should init");
     add_agent_profile(
         &root,
@@ -259,6 +272,7 @@ fn agent_profile_can_be_updated_as_project_local_override() {
             working_dir: Some("."),
             description: Some("Research and writing profile."),
             specialties: Some(vec!["research".to_string(), "writing".to_string()]),
+            output_contract: None,
         },
     )
     .expect("profile should update");
@@ -274,8 +288,56 @@ fn agent_profile_can_be_updated_as_project_local_override() {
 }
 
 #[test]
+fn agent_profile_output_contracts_can_be_updated() {
+    let root = test_root("output-contract");
+    init_project(&root).expect("project should init");
+    add_agent_profile(
+        &root,
+        AddAgentProfileInput {
+            id: "review-agent",
+            display_name: "Review Agent",
+            runtime: "codex-local",
+            adapter: "process.codex-cli",
+            role: "reviewer",
+            working_dir: ".",
+            description: "",
+            specialties: Vec::new(),
+        },
+    )
+    .expect("profile should be added");
+
+    update_agent_profile(
+        &root,
+        "review-agent",
+        UpdateAgentProfileInput {
+            output_contract: Some(AgentOutputContractUpdate {
+                purpose: Some(AgentOutputContractPurpose::Review),
+                contract: Some("nagare.review.custom.v1"),
+                instruction_pack: Some("nagare-review-custom.v1"),
+                required: Some(false),
+                injection: Some(AgentOutputInjection::PromptSuffix),
+            }),
+            ..UpdateAgentProfileInput::default()
+        },
+    )
+    .expect("profile should update");
+
+    let profile = get_agent_profile(&root, "review-agent").expect("profile should load");
+    assert_eq!(
+        profile.output_contracts.review.contract,
+        "nagare.review.custom.v1"
+    );
+    assert_eq!(
+        profile.output_contracts.review.instruction_pack,
+        "nagare-review-custom.v1"
+    );
+    assert!(!profile.output_contracts.review.required);
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
 fn nagare_agent_settings_can_select_default_work_agent() {
-    let root = env::temp_dir().join(format!("nagare-agent-settings-test-{}", timestamp()));
+    let root = test_root("agent-settings");
     init_project(&root).expect("project should init");
     add_agent_profile(
         &root,
@@ -312,7 +374,7 @@ fn nagare_agent_settings_can_select_default_work_agent() {
 
 #[test]
 fn dispatch_preview_and_review_runs_do_not_advance_item_status() {
-    let root = env::temp_dir().join(format!("nagare-purpose-test-{}", timestamp()));
+    let root = test_root("purpose");
     init_project(&root).expect("project should init");
     let item = create_work_item(&root, "Route and review", "")
         .expect("item should create")
@@ -365,7 +427,7 @@ fn dispatch_preview_and_review_runs_do_not_advance_item_status() {
 
 #[test]
 fn handoff_dispatch_uses_same_plan_lifecycle() {
-    let root = env::temp_dir().join(format!("nagare-handoff-dispatch-test-{}", timestamp()));
+    let root = test_root("handoff-dispatch");
     init_project(&root).expect("project should init");
     add_agent_profile(
         &root,
@@ -441,7 +503,7 @@ fn handoff_dispatch_uses_same_plan_lifecycle() {
 
 #[test]
 fn accepted_dispatch_plan_selects_target_for_work_run() {
-    let root = env::temp_dir().join(format!("nagare-dispatch-accept-test-{}", timestamp()));
+    let root = test_root("dispatch-accept");
     init_project(&root).expect("project should init");
     add_agent_profile(
         &root,
@@ -539,7 +601,7 @@ default_agent = "research-agent"
 
 #[test]
 fn dispatch_agent_json_can_choose_between_writing_and_research_agents() {
-    let root = env::temp_dir().join(format!("nagare-dispatch-json-test-{}", timestamp()));
+    let root = test_root("dispatch-json");
     init_project(&root).expect("project should init");
     add_agent_profile(
         &root,
@@ -644,7 +706,7 @@ default_agent = "writing-agent"
 
 #[test]
 fn dispatch_contract_fallback_records_selection_warnings() {
-    let root = env::temp_dir().join(format!("nagare-dispatch-contract-test-{}", timestamp()));
+    let root = test_root("dispatch-contract");
     init_project(&root).expect("project should init");
     let item = create_work_item(&root, "Invalid dispatch output", "")
         .expect("item should create")
@@ -704,7 +766,7 @@ fn dispatch_plan_suggestion_parses_agent_json() {
 
 #[test]
 fn project_rule_resolution_selects_most_specific_rule() {
-    let root = env::temp_dir().join(format!("nagare-rule-test-{}", timestamp()));
+    let root = test_root("rule");
     init_project(&root).expect("project should init");
     add_agent_profile(
         &root,
@@ -758,17 +820,14 @@ verification = ["cargo test --workspace"]
 
     let default_resolution =
         resolve_rule_for_path(&root, Some("README.md"), None).expect("rule should resolve");
-    assert_eq!(
-        default_resolution.matched_rule_id.as_deref(),
-        Some("default")
-    );
+    assert_eq!(default_resolution.matched_rule_id.as_deref(), None);
     assert_eq!(default_resolution.agent_profile_id, "codex-cli");
     fs::remove_dir_all(root).ok();
 }
 
 #[test]
 fn run_with_path_records_resolved_skill_context_and_run_packet() {
-    let root = env::temp_dir().join(format!("nagare-run-packet-test-{}", timestamp()));
+    let root = test_root("run-packet");
     init_project(&root).expect("project should init");
     let item = create_work_item(&root, "Resolve packet", "")
         .expect("item should create")
@@ -798,19 +857,16 @@ fn run_with_path_records_resolved_skill_context_and_run_packet() {
     let context = &ledger.resolved_skill_contexts[0];
     let packet = &ledger.resolved_run_packets[0];
     assert_eq!(context.agent_profile_id, "codex-cli");
-    assert_eq!(context.project_rule_ids, vec!["default".to_string()]);
-    assert_eq!(
-        context.applied_skill_set_ids,
-        vec!["repo-default".to_string()]
-    );
+    assert!(context.project_rule_ids.is_empty());
+    assert!(context.applied_skill_set_ids.is_empty());
     assert_eq!(packet.resolved_skill_context_id, context.id);
     assert_eq!(packet.agent_profile_id, "codex-cli");
     assert_eq!(packet.adapter_id, "process.codex-cli");
     assert_eq!(packet.purpose, AgentRunPurpose::DispatchPreview);
     assert_eq!(packet.goal, "Resolve packet");
-    assert!(packet.working_dir.contains("nagare-run-packet-test"));
+    assert!(packet.working_dir.contains("nagare-run-packet"));
     assert_eq!(packet.path.as_deref(), Some("README.md"));
-    assert_eq!(packet.project_rule_ids, vec!["default".to_string()]);
+    assert!(packet.project_rule_ids.is_empty());
     let plan = &ledger.dispatch_plans[0];
     assert_eq!(plan.resolved_run_packet_id, packet.id);
     assert_eq!(plan.dispatch_agent_profile_id, "codex-cli");
@@ -833,7 +889,7 @@ fn run_with_path_records_resolved_skill_context_and_run_packet() {
 
 #[test]
 fn run_records_skipped_skill_sets_when_required_capabilities_are_missing() {
-    let root = env::temp_dir().join(format!("nagare-skill-skip-test-{}", timestamp()));
+    let root = test_root("skill-skip");
     init_project(&root).expect("project should init");
     let layout = ProjectLayout::new(&root);
     let mut config = fs::read_to_string(&layout.config_path).expect("config should read");
@@ -893,7 +949,7 @@ skill_sets = ["network-only"]
 
 #[test]
 fn locale_is_recorded_and_used_for_generated_evidence() {
-    let root = env::temp_dir().join(format!("nagare-locale-test-{}", timestamp()));
+    let root = test_root("locale");
     init_project(&root).expect("project should init");
     set_locale_settings(
         &root,

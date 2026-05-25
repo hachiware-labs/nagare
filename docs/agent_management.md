@@ -6,10 +6,10 @@ JSON shapes.
 
 Nagare must manage agent usage before it manages individual adapters. Agent
 tools can be invoked as local processes, stdio app servers, hosted jobs, or CI
-workers. Projects and folders can also
-require different skills, permissions, and verification rules.
+workers. Projects and folders can also require different working directories,
+permissions, and verification expectations.
 
-The management model separates seven concerns:
+The management model separates five concerns:
 
 ```text
 Runtime
@@ -19,21 +19,15 @@ Adapter
   How does Nagare talk to that runtime?
 
 Agent Profile
-  Which runtime + adapter + role + limits should be used for a class of work?
-
-Skill Set
-  What instructions, schemas, playbooks, rubrics, and helper scripts does
-  Nagare want to attach to the run packet?
+  Which runtime + adapter + role + working_dir + limits should be used for a
+  class of work?
 
 Capability Probe
   What does the agent tool actually support in this project right now?
 
 Resolved Skill Context
-  Which declared skills and discovered capabilities were actually used for a
-  Work Item preview or Agent Run?
-
-Project Rule
-  Where does a profile, skill set, policy, or verifier apply?
+  Which discovered capabilities and instruction sources were actually used for
+  a Work Item preview or Agent Run?
 ```
 
 ## Configuration Layers
@@ -46,12 +40,10 @@ Nagare resolves configuration from broad to narrow scope:
    ~/.config/nagare/config.toml
 3. Project config
    .nagare/project.toml
-4. Folder rule config
-   .nagare/rules/*.toml
-5. Work Item overrides
+4. Work Item overrides
 ```
 
-Narrower layers can add or override agent profiles, skill sets, policies, and
+Narrower layers can add or override agent profiles, policies, and
 verification defaults. They should not mutate global runtime discovery results.
 
 ## Storage Split
@@ -61,7 +53,7 @@ Nagare stores configuration and runtime evidence separately.
 ```text
 Config files:
   Declared intent.
-  Runtimes, agent profiles, declared skill sets, project rules, policies.
+  Runtimes, agent profiles, policies.
 
 Ledger:
   Historical facts.
@@ -76,19 +68,16 @@ Initial local paths:
 
 ```text
 .nagare/project.toml
-  project-level runtime, agent profile, skill, project rule, and policy declarations
+  project-level runtime, agent profile, locale, Nagare defaults, and policy declarations
 
 .nagare/agents/*.toml
   project-local agent profile declarations created by `nagare agent add`
-
-.nagare/rules/*.toml
-  optional path-specific project rules
 
 .nagare/state/ledger.json
   MVP JSON ledger for work items, runs, evidence, probe snapshots, and resolved run packets
 
 .nagare/artifacts/
-  run packets, probe outputs, run logs, copied skill bundles
+  run packets, probe outputs, run logs
 ```
 
 SQLite can replace `ledger.json` later, but the object boundaries should stay
@@ -160,6 +149,8 @@ It also declares `working_dir`, the project-relative directory where the agent
 process starts. This is separate from the directory where the profile TOML file
 is stored. `description` and `specialties` are compact routing hints that the
 Nagare dispatch agent can use when selecting from a small candidate list.
+`output_contracts` declare the Nagare-managed final-output contracts to inject
+for work, review, and dispatch runs.
 
 ```toml
 [agent_profiles.codex-impl]
@@ -173,10 +164,27 @@ description = "Implementation-focused Codex CLI profile"
 specialties = ["implementation", "verification"]
 workspace_policy = "worktree-per-item"
 permission_policy = "medium-code-task"
-declared_skill_sets = ["nagare-core", "repo-default"]
 max_parallel_runs = 2
 timeout_minutes = 60
 probe_before_run = true
+
+[agent_profiles.codex-impl.output_contracts.work]
+contract = "nagare.result.v1"
+instruction_pack = "nagare-result-writer.v1"
+required = true
+injection = "prompt_suffix"
+
+[agent_profiles.codex-impl.output_contracts.review]
+contract = "nagare.review.v1"
+instruction_pack = "nagare-review-writer.v1"
+required = true
+injection = "prompt_suffix"
+
+[agent_profiles.codex-impl.output_contracts.dispatch]
+contract = "nagare.dispatch.v1"
+instruction_pack = "nagare-dispatch-writer.v1"
+required = true
+injection = "prompt_suffix"
 
 [agent_profiles.codex-app-review]
 id = "codex-app-review"
@@ -189,7 +197,6 @@ description = "Review-focused Codex app-server profile"
 specialties = ["review", "planning"]
 workspace_policy = "read-only-worktree"
 permission_policy = "review-only"
-declared_skill_sets = ["nagare-core", "code-review"]
 ```
 
 The user should choose `agent profile` IDs, not raw commands. Raw commands are a
@@ -200,6 +207,11 @@ actually supports a skill or capability. That is discovered through probes.
 Dispatch uses the declarations as a compact shortlist only; large instruction
 source bodies such as AGENTS.md or SOUL.md are not expanded into the dispatch
 prompt.
+
+Output contracts are declarations controlled by Nagare. They are not evidence
+that an agent truly complied. Nagare always stores raw output as an artifact;
+contract parsing failures should become warnings or review inputs, not automatic
+Run failures.
 
 ## Nagare Agent Defaults
 
@@ -219,42 +231,6 @@ dispatch_agent = "codex-impl"
   proposals before execution.
 
 These are references to Agent Profile IDs. They do not create new profiles.
-
-## Declared Skill Sets
-
-A declared skill set is a named bundle of instructions and machine-readable
-helpers Nagare wants to provide. It may or may not be usable by every agent
-tool.
-
-```toml
-[skill_sets.frontend-react]
-id = "frontend-react"
-paths = [
-  "skills/nagare-core",
-  "skills/frontend-react",
-]
-schemas = [
-  "skills/nagare-core/schemas/run_packet.schema.json",
-]
-rubrics = [
-  "skills/frontend-react/rubrics/ui_review.yaml",
-]
-required_capabilities = ["repo_read", "file_edit"]
-optional_capabilities = ["browser_screenshot"]
-```
-
-Skill sets can include:
-
-- `SKILL.md`
-- run packet schemas
-- playbooks
-- rubrics
-- scripts
-- examples
-- verifier defaults
-
-Declared skill sets are copied or referenced in the Run Packet only after
-resolution confirms the selected agent profile can use them.
 
 ## Capability Probes
 
@@ -302,11 +278,10 @@ Probe results are ledger facts:
     "AGENTS.md",
     ".codex/config.toml"
   ],
-  "supported_skill_modes": [
+  "supported_instruction_modes": [
     "prompt_injection",
     "file_reference"
   ],
-  "unsupported_declared_skill_sets": [],
   "warnings": [],
   "probed_at": "2026-05-24T15:00:00+09:00"
 }
@@ -316,26 +291,21 @@ The probe cache must be invalidated when:
 
 - runtime version changes
 - agent profile declaration changes
-- declared skill set changes
 - project instruction files change
-- project rule changes for the target path
+- working_dir changes
 
 ## Resolved Skill Context
 
 Resolved skill context is produced when a Work Item is previewed or run. It is
-the exact skill and capability context given to an Agent Run.
+the exact capability and instruction-source context given to an Agent Run.
 
 ```json
 {
   "id": "skillctx_0001",
   "work_item_id": "work_0001",
   "agent_profile_id": "codex-impl",
-  "project_rule_ids": ["frontend"],
-  "declared_skill_set_ids": ["nagare-core", "frontend-react"],
-  "applied_skill_set_ids": ["nagare-core", "frontend-react"],
-  "skipped_skill_set_ids": [],
   "discovered_capability_ids": ["repo_read", "file_edit", "shell_command"],
-  "instruction_sources": ["AGENTS.md", "skills/frontend-react/SKILL.md"],
+  "instruction_sources": ["AGENTS.md"],
   "artifact_uri": "file://.nagare/artifacts/work_0001/skill_context.json",
   "content_hash": "sha256:...",
   "resolved_at": "2026-05-24T15:01:00+09:00"
@@ -343,51 +313,12 @@ the exact skill and capability context given to an Agent Run.
 ```
 
 The resolved context belongs in run provenance. Reviewers need to know which
-skills were requested, which were actually applied, and which were skipped.
-
-## Project Rules
-
-Project rules choose agent profiles, skills, permissions, and verification based
-on project path or file globs.
-
-```toml
-[[project_rules]]
-id = "frontend"
-match = ["apps/web/**", "packages/ui/**"]
-default_agent = "codex-app-review"
-review_agent = "codex-app-review"
-skill_sets = ["frontend-react"]
-permission_policy = "frontend-code-task"
-verification = ["npm test -- --scope web", "npm run lint -- --scope web"]
-
-[[project_rules]]
-id = "rust-core"
-match = ["crates/**"]
-default_agent = "codex-impl"
-review_agent = "codex-app-review"
-skill_sets = ["rust-core"]
-permission_policy = "medium-code-task"
-verification = ["cargo test --workspace"]
-```
-
-Resolution order:
-
-```text
-work item explicit overrides
-  > most specific matching project rule
-  > project defaults
-  > user defaults
-  > built-in defaults
-```
-
-When multiple project rules match, Nagare should choose the most specific path prefix.
-If two rules are equally specific and conflict, Nagare should mark the Work Item
-`needs_human` instead of guessing.
+Agent Profile, working_dir, capabilities, and instruction sources shaped the run.
 
 ## Policy Model
 
-Policies are separate from skills. Skills tell agents how to work. Policies
-define what execution is allowed to do.
+Policies are separate from Agent Profile attributes. Agent Profile and Probe
+describe what the agent can do; policies define what execution is allowed to do.
 
 ```toml
 [[permission_policies]]
@@ -410,13 +341,13 @@ Before a Work Item is run, Nagare should resolve:
 
 ```text
 Work Item
-  + matched project rule
   + agent profile
+  + request work_folder
+  + agent working_dir
   + runtime
   + adapter
   + workspace policy
   + permission policy
-  + declared skill sets
   + latest valid capability probe
   + resolved skill context
   + verification defaults
@@ -426,13 +357,13 @@ Work Item
 The Run Packet should record hashes or versions of all resolved inputs:
 
 - agent profile id/version
+- request work_folder
+- agent working_dir
 - runtime id/version
 - adapter id/version
-- declared skill set ids/versions
 - capability probe id/hash
 - resolved skill context id/hash
 - permission policy id/version
-- project rule id/version
 
 This is necessary for evidence-first review: a reviewer must know not just what
 the agent did, but what instructions, policies, and project scope shaped the
@@ -450,7 +381,6 @@ nagare agent defaults
 nagare agent use --work-agent codex-impl --review-agent codex-app-review --dispatch-agent codex-impl
 nagare agent doctor codex-impl
 nagare agent probe codex-impl
-nagare rule check crates/nagare-core/src/lib.rs
 nagare item preview work_0001
 nagare item review work_0001
 nagare handoff dispatch work_0001
@@ -465,25 +395,18 @@ nagare runtime add process --id codex-local --command codex
 
 nagare adapter list
 
-nagare skill list
-nagare skill add --id frontend-react --path skills/frontend-react
-nagare skill show frontend-react
-
-nagare rule list
-nagare rule add --id frontend --match "apps/web/**" --skill frontend-react --agent codex-app-review
-nagare rule check apps/web/src/App.tsx
-
-nagare item preview work_0001 --path apps/web/src/App.tsx
-nagare item run work_0001 --path apps/web/src/App.tsx
+nagare item preview work_0001 --work-folder apps/web
+nagare item run work_0001 --work-folder apps/web
 ```
 
 The `item preview` command is the pre-run confirmation step. It runs the
-configured `dispatch_agent`, resolves Project Rule / Skill Set / policy /
-verification context when a path is provided, records Resolved Skill Context and
-Resolved Run Packet, and stores an Agent Run with purpose `dispatch_preview`
-without advancing the Work Item status. A successful preview also stores a
-DispatchPlan that links the dispatch AgentRun, target Agent Profile,
-ResolvedRunPacket, and raw output Artifact.
+configured `dispatch_agent`, resolves a compact work scope from the requested
+`work_folder`, registered Agent Profile attributes, Profile `working_dir`,
+fresh Capability Probe, policy, and verification context, records Resolved Skill
+Context and Resolved Run Packet, and stores an Agent Run with purpose
+`dispatch_preview` without advancing the Work Item status. A successful preview
+also stores a DispatchPlan that links the dispatch AgentRun, target Agent
+Profile, ResolvedRunPacket, and raw output Artifact.
 
 The `item review` command runs the configured `review_agent` and records an
 Agent Run with purpose `review` without advancing the Work Item status.
@@ -497,7 +420,7 @@ remains a smoke-test fallback and should not be treated as an Agent adapter.
 ## MVP Implication
 
 Current implementation connects the project-local Agent Profile registry,
-probe snapshots, path-based rule resolution, Resolved Skill Context, Resolved
-Run Packet, DispatchPlan, and adapter execution. The next slice should deepen
-Skill Set compatibility checks and policy enforcement before broadening agent
-support.
+probe snapshots, Agent Profile attribute-based scope resolution, Resolved Skill
+Context, Resolved Run Packet, DispatchPlan, and adapter execution. The next
+slice should deepen policy enforcement and work-scope debugging before
+broadening agent support.

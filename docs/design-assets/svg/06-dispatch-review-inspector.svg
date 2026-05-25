@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="960" viewBox="0 0 960 960">
+  <rect width="960" height="960" fill="#f8fafc"/>
+  <style>
+    .title{font:700 24px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h2{font:700 17px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h3{font:700 14px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .body{font:500 13px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .small{font:500 11px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .tiny{font:600 10px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .mono{font:500 12px Consolas,Menlo,monospace;fill:#020617}
+    .nav{font:650 13px Inter,Segoe UI,Arial,sans-serif;fill:#334155}
+    .nav-on{font:700 13px Inter,Segoe UI,Arial,sans-serif;fill:#4338ca}
+  </style>
+  
+    <rect x="36" y="36" width="888" height="888" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="64" y="82" class="title">依頼先の確認</text>
+    <text x="64" y="106" class="small">実行前に、選ばれたAgentと理由を確認する</text>
+    
+    <rect x="64" y="142" width="48" height="24" rx="12" fill="#fffbeb" stroke="#fffbeb"/>
+  <text x="73" y="158" class="tiny" style="fill:#b45309">下書き</text> <rect x="132" y="142" width="137" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="141" y="158" class="tiny" style="fill:#4338ca">候補 research-agent</text>
+    <text x="64" y="204" class="h2">依頼の読み取り</text>
+    <text x="64" y="234" class="body">先に調査が必要です。research-agentへの依頼が適しています。</text>
+    <text x="64" y="294" class="h2">候補Agent</text>
+    <rect x="64" y="320" width="832" height="54" rx="0" fill="#ffffff" stroke="#e2e8f0"/><text x="78" y="341" class="body">research-agent</text><text x="78" y="359" class="small">research, synthesis</text><text x="321.33333333333337" y="341" class="small">評価</text><text x="321.33333333333337" y="359" class="small">最適</text><text x="564.6666666666667" y="341" class="small">adapter</text><text x="564.6666666666667" y="359" class="small">process.codex-cli</text><rect x="822" y="335" width="60" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="831" y="351" class="tiny" style="fill:#047857">target</text>
+    <rect x="64" y="390" width="832" height="54" rx="0" fill="#ffffff" stroke="#e2e8f0"/><text x="78" y="411" class="body">writing-agent</text><text x="78" y="429" class="small">writing, editing</text><text x="346" y="411" class="small">評価</text><text x="346" y="429" class="small">二次候補</text><text x="614" y="411" class="small">adapter</text><text x="614" y="429" class="small">process.codex-cli</text>
+    <text x="64" y="496" class="h2">不足・リスク・警告</text>
+    <rect x="64" y="520" width="116" height="24" rx="12" fill="#fffbeb" stroke="#fffbeb"/>
+  <text x="73" y="536" class="tiny" style="fill:#b45309">source quality</text>
+    <rect x="190" y="520" width="109" height="24" rx="12" fill="#fffbeb" stroke="#fffbeb"/>
+  <text x="199" y="536" class="tiny" style="fill:#b45309">source list不足</text>
+    <rect x="340" y="520" width="48" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="349" y="536" class="tiny" style="fill:#047857">警告なし</text>
+    <text x="64" y="606" class="h2">Agent出力</text>
+    <rect x="64" y="630" width="832" height="154" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="84" y="662" class="mono">{ target_agent_profile_id: &quot;research-agent&quot;,</text>
+    <text x="84" y="692" class="mono">  summary: &quot;Research is required...&quot; }</text>
+    <rect x="64" y="836" width="136" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
+  <text x="78" y="858" class="body" style="fill:#ffffff">この内容で依頼</text>
+    <rect x="214" y="836" width="100" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="228" y="858" class="body" style="fill:#020617">選び直す</text>
+    <rect x="328" y="836" width="118" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="342" y="858" class="body" style="fill:#020617">Agentを指定</text>
+  
+  
+</svg>

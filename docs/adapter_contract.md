@@ -6,8 +6,8 @@ permission system, or plugin ecosystem.
 
 This contract sits under the broader [architecture](architecture.md) and
 [Agent Management Model](agent_management.md).
-The management model chooses runtime, agent profile, skill set, policy, and
-project rule before the adapter receives a run packet.
+The management model chooses runtime, agent profile, work scope, and policy
+before the adapter receives a run packet.
 
 ## Design Position
 
@@ -83,6 +83,13 @@ Current `stdio.codex-app-server` execution uses JSON-RPC over stdio:
 
 The MVP stores the app-server transcript as the run log artifact. Later slices
 can normalize individual notifications into first-class Run Events.
+
+Current `process.codex-cli` execution uses `codex exec --cd <working_dir>
+<prompt>`. On Windows, Nagare launches the installed `codex.js` through `node`
+when it detects the npm shim, because the generated `codex.cmd` wrapper can
+mis-handle prompts that include OutputContract Markdown and angle-bracket
+placeholders. This keeps prompt delivery argument-safe while preserving the
+same Codex CLI contract.
 
 ## Normalized Run Event Types
 

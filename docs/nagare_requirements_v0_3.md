@@ -700,22 +700,23 @@ run_packet:
 
 ---
 
-### 5.9 Execution Attempt
+### 5.9 Work Item Execution Flow
 
-同じWork Itemに対する1回の実行試行。
+同じWork Itemに対する実行履歴のまとまり。Nagareの実行単位はAgent Runであり、
+再実行やHandoffも同じWork ItemのTimelineに追加される。
 
 ```yaml
-execution_attempt:
-  id: exec_001
+work_item_execution_flow:
   work_item_id: work_123
   task_contract_id: contract_123
   plan_id: plan_001
-  state: running
-  execution_mode: single_agent_with_skills
-  started_at: "2026-05-24T10:00:00+09:00"
-  ended_at: null
+  current_state: running
+  execution_mode: agent_profiles_with_output_contracts
   workspace_id: ws_001
   current_summary: "失敗テストの再現に成功。mock初期化順序を調査中。"
+  timeline:
+    - type: run
+      id: run_001
 ```
 
 ---
@@ -728,7 +729,6 @@ execution_attempt:
 agent_run:
   id: run_001
   work_item_id: work_123
-  execution_attempt_id: exec_001
   run_request_id: req_001
   agent_profile_id: codex_cli_impl
   provider: codex
@@ -777,7 +777,6 @@ tool_call:
 artifact:
   id: art_001
   work_item_id: work_123
-  execution_attempt_id: exec_001
   agent_run_id: run_001
   type: diff # diff | pr | test_log | screenshot | video | report | document | diagram
   uri: "file:///artifacts/work_123/pr_812.diff"
@@ -821,7 +820,7 @@ Acceptance CriteriaやPlan stepを満たしたか。
 verification_result:
   id: ver_001
   work_item_id: work_123
-  execution_attempt_id: exec_001
+  agent_run_id: run_001
   criterion: "npm test exit_code_0"
   method: command
   command: "npm test"
@@ -944,8 +943,8 @@ handoff_packet:
   reason: "テスト失敗の原因分析が必要"
   current_state: failed_verification
   summary: "auth mock setupを修正したが、3件のテストがまだ失敗している"
-  prior_attempts:
-    - exec_001
+  prior_runs:
+    - run_001
   artifacts:
     - art_diff_001
     - art_testlog_001
@@ -1167,7 +1166,7 @@ agent_running
 
 - Work ItemまたはSubtaskを指定Agent Profileで実行できる。
 - Agent Profileが明示されない場合は `work_agent` を既定実行先として使える。
-- 実行前に `item preview` でAgent Profile、Project Rule、Skill Set、Policy、Verification、Run Packetを確認できる。
+- 実行前に `item preview` でAgent Profile、work scope、Policy、Verification、Run Packetを確認できる。
 - Run Request recordを作成する。
 - Run Packetを生成し、Agentへ渡す。
 - run modeとして `spawn_per_item`, `persistent_server`, `cloud_task`, `pull_worker` を扱える設計にする。
@@ -1567,7 +1566,7 @@ Protocol Violation
 - Work Item
 - Task Contract
 - Plan
-- Execution Attempt
+- Agent Run / Work Item Timeline
 - Agent Run
 - Artifact
 - Evidence

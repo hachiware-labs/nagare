@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960">
+  <rect width="1440" height="960" fill="#f8fafc"/>
+  <style>
+    .title{font:700 24px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h2{font:700 17px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h3{font:700 14px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .body{font:500 13px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .small{font:500 11px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .tiny{font:600 10px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .mono{font:500 12px Consolas,Menlo,monospace;fill:#020617}
+    .nav{font:650 13px Inter,Segoe UI,Arial,sans-serif;fill:#334155}
+    .nav-on{font:700 13px Inter,Segoe UI,Arial,sans-serif;fill:#4338ca}
+  </style>
+  
+    <rect x="0" y="0" width="200" height="960" rx="0" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="28" y="42" class="title">Nagare</text>
+    <text x="30" y="64" class="tiny" style="fill:#4338ca">HACHIWARE LABS</text>
+    <text x="30" y="82" class="small">Agent work control</text>
+    <rect x="18" y="96" width="164" height="32" rx="7" fill="#eef2ff" stroke="#eef2ff"/>
+      <text x="34" y="118" class="nav-on">Work Items</text>
+      <text x="34" y="156" class="nav">Agents</text>
+      <text x="34" y="194" class="nav">Settings</text>
+    <line x1="200" y1="0" x2="200" y2="960" stroke="#e2e8f0"/>
+    
+    <text x="232" y="48" class="title">Work Items</text>
+    <rect x="1110" y="30" width="102" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="1119" y="46" class="tiny" style="fill:#4338ca">locale ja-JP</text>
+    <rect x="1226" y="30" width="172" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="1235" y="46" class="tiny" style="fill:#475569">dispatch: dispatch-app</text>
+    <rect x="232" y="82" width="894" height="188" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="252" y="118" class="h2">仕事を依頼</text><text x="252" y="138" class="small">対象と依頼文だけ入れて、依頼先を確認する</text>
+    <rect x="252" y="138" width="690" height="58" rx="7" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="272" y="172" class="body">docsの変更点を確認して、READMEに反映して</text>
+    <rect x="252" y="214" width="74" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="261" y="230" class="tiny" style="fill:#4338ca">対象 docs/</text>
+    <rect x="348" y="214" width="60" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="357" y="230" class="tiny" style="fill:#475569">目的: 更新</text>
+    <rect x="448" y="214" width="81" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="457" y="230" class="tiny" style="fill:#047857">Agentおまかせ</text>
+    <rect x="952" y="142" width="134" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
+  <text x="966" y="164" class="body" style="fill:#ffffff">依頼先を確認</text>
+    <rect x="952" y="184" width="110" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="966" y="206" class="body" style="fill:#020617">下書き保存</text>
+    <rect x="1150" y="82" width="246" height="702" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="1170" y="118" class="h2">選択中のタスク</text><text x="1170" y="138" class="small">次の操作を確認</text>
+    <text x="1170" y="174" class="h3">work_0042</text>
+    <text x="1170" y="198" class="small">調査ソース一覧を作成</text>
+    <rect x="1170" y="226" width="48" height="24" rx="12" fill="#fffbeb" stroke="#fffbeb"/>
+  <text x="1179" y="242" class="tiny" style="fill:#b45309">要確認</text>
+    <rect x="1248" y="226" width="48" height="24" rx="12" fill="#fffbeb" stroke="#fffbeb"/>
+  <text x="1257" y="242" class="tiny" style="fill:#b45309">検証待ち</text>
+    <text x="1170" y="288" class="h3">担当</text>
+    <text x="1170" y="314" class="body">research-agent</text>
+    <text x="1170" y="366" class="h3">次の操作</text>
+    <text x="1170" y="392" class="small">Evidenceを検証してから承認する</text>
+    <rect x="1170" y="430" width="112" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
+  <text x="1184" y="452" class="body" style="fill:#ffffff">検証を実行</text>
+    <rect x="1170" y="478" width="100" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="1184" y="500" class="body" style="fill:#020617">詳細を見る</text>
+    <rect x="1170" y="526" width="104" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="1184" y="548" class="body" style="fill:#020617">分析を開く</text>
+    <line x1="1170" y1="596" x2="1374" y2="596" stroke="#e2e8f0"/>
+    <text x="1170" y="636" class="h3">分析・デバッグ</text>
+    <text x="1170" y="662" class="small">Agent / Dispatch / Run は</text>
+    <text x="1170" y="682" class="small">詳細フィルタで絞り込む</text>
+    <rect x="232" y="302" width="894" height="482" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="252" y="338" class="h2">作業キュー</text><text x="252" y="358" class="small">依頼、担当Agent、次の操作をまとめて見る</text>
+    <rect x="990" y="326" width="116" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="1004" y="348" class="body" style="fill:#020617">詳細フィルタ</text>
+    <text x="252" y="374" class="h3">すぐ確認</text>
+    <rect x="252" y="390" width="53" height="24" rx="12" fill="#fffbeb" stroke="#fffbeb"/>
+  <text x="261" y="406" class="tiny" style="fill:#b45309">要確認 6</text>
+    <rect x="340" y="390" width="48" height="24" rx="12" fill="#fef2f2" stroke="#fef2f2"/>
+  <text x="349" y="406" class="tiny" style="fill:#b91c1c">失敗 3</text>
+    <rect x="410" y="390" width="60" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="419" y="406" class="tiny" style="fill:#047857">承認待ち 4</text>
+    <rect x="510" y="390" width="53" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="519" y="406" class="tiny" style="fill:#4338ca">実行中 2</text>
+    <rect x="252" y="424" width="854" height="40" rx="7" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="272" y="449" class="small">依頼文・Agent・証跡で検索</text>
+    <text x="266" y="492" class="tiny">作業</text>
+    <text x="420" y="492" class="tiny">状態</text>
+    <text x="572" y="492" class="tiny">担当</text>
+    <text x="724" y="492" class="tiny">次の操作</text>
+    <text x="1048" y="492" class="tiny">警告</text>
+    <rect x="252" y="504" width="854" height="54" rx="0" fill="#ffffff" stroke="#e2e8f0"/><text x="266" y="525" class="body">work_0048</text><text x="266" y="543" class="small">READMEの英語版を更新</text><text x="457" y="525" class="small">実行中</text><text x="457" y="543" class="small">2分前</text><text x="648" y="525" class="small">writing-agent</text><text x="648" y="543" class="small">target accepted</text><text x="839" y="525" class="small">次: 完了待ち</text><text x="839" y="543" class="small">artifact pending</text><rect x="1044" y="519" width="48" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="1053" y="535" class="tiny" style="fill:#475569">0</text><rect x="252" y="566" width="854" height="54" rx="0" fill="#ffffff" stroke="#e2e8f0"/><text x="266" y="587" class="body">work_0042</text><text x="266" y="605" class="small">調査ソース一覧を作成</text><text x="457" y="587" class="small">要確認</text><text x="457" y="605" class="small">12分前</text><text x="648" y="587" class="small">research-agent</text><text x="648" y="605" class="small">run succeeded</text><text x="839" y="587" class="small">次: 検証</text><text x="839" y="605" class="small">evidenceあり</text><rect x="1044" y="581" width="48" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="1053" y="597" class="tiny" style="fill:#475569">0</text><rect x="252" y="628" width="854" height="54" rx="0" fill="#ffffff" stroke="#e2e8f0"/><text x="266" y="649" class="body">work_0041</text><text x="266" y="667" class="small">dispatch fallbackを修正</text><text x="457" y="649" class="small">失敗</text><text x="457" y="667" class="small">28分前</text><text x="648" y="649" class="small">writing-agent</text><text x="648" y="667" class="small">run failed</text><text x="839" y="649" class="small">次: handoff検討</text><text x="839" y="667" class="small">stderrあり</text><rect x="1044" y="643" width="48" height="24" rx="12" fill="#fef2f2" stroke="#fef2f2"/>
+  <text x="1053" y="659" class="tiny" style="fill:#b91c1c">1</text><rect x="252" y="690" width="854" height="54" rx="0" fill="#ffffff" stroke="#e2e8f0"/><text x="266" y="711" class="body">work_0038</text><text x="266" y="729" class="small">tutorial copyを下書き</text><text x="457" y="711" class="small">下書き</text><text x="457" y="729" class="small">2時間前</text><text x="648" y="711" class="small">未確定</text><text x="648" y="729" class="small">dispatch draft</text><text x="839" y="711" class="small">次: 依頼先確認</text><text x="839" y="729" class="small">candidate 3</text><rect x="1044" y="705" width="48" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="1053" y="721" class="tiny" style="fill:#475569">0</text>
+  
+  
+</svg>

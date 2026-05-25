@@ -48,7 +48,7 @@ nagare agent probe codex-impl-smoke
 nagare item create --title "Repair failing agent run" --description "Demonstrate cross-agent evidence and handoff."
 nagare item preview work_0001 --command "echo dispatch preview && exit /B 0"
 nagare item dispatch accept work_0001
-nagare item run work_0001 --command "echo codex attempt failed && exit /B 1"
+nagare item run work_0001 --command "echo codex run failed && exit /B 1"
 nagare handoff create work_0001 --from-agent codex-impl-smoke --to-agent codex-app-smoke --reason "Codex agent profile produced a failing run" --summary "Retry with Codex App Server agent profile using the captured run log as evidence."
 nagare item run work_0001 --agent codex-app-smoke --command "echo codex app server retry fixed the task && exit /B 0"
 nagare verify work_0001 --command "echo verification passed && exit /B 0"
@@ -78,7 +78,6 @@ nagare agent show codex-cli
 nagare agent defaults
 nagare agent doctor codex-cli
 nagare agent probe codex-cli
-nagare rule check README.md
 nagare item preview work_0001
 nagare item dispatch accept work_0001
 nagare item review work_0001

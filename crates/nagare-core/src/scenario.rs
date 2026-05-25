@@ -15,7 +15,7 @@ pub fn run_first_scenario(root: impl Into<PathBuf>) -> Result<ScenarioResult, Na
         &root,
         &item.id,
         "codex-cli",
-        scenario_command("codex attempt failed", false).as_str(),
+        scenario_command("codex run failed", false).as_str(),
     )?
     .run;
     let handoff = create_handoff(
@@ -101,7 +101,7 @@ pub fn run_registered_agent_scenario(
         &root,
         &item.id,
         "codex-impl-smoke",
-        scenario_command("registered codex attempt failed", false).as_str(),
+        scenario_command("registered codex run failed", false).as_str(),
     )?
     .run;
     let handoff = create_handoff(

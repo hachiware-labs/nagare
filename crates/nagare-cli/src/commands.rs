@@ -2,14 +2,15 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 use nagare_core::{
-    AddAgentProfileInput, AgentProfile, AgentRunPurpose, RuleResolution, RunWorkItemInput,
-    SelectRunAgentInput, SetLocaleInput, SetNagareAgentSettingsInput, UpdateAgentProfileInput,
-    VERSION, accept_dispatch_plan, add_agent_profile, agent_doctor, agent_probe, approve_work_item,
-    create_handoff, create_work_item, doctor, get_agent_profile, get_locale_settings,
-    get_nagare_agent_settings, get_work_item_snapshot, init_project, list_agent_profiles,
-    list_work_items, resolve_rule_for_path, run_first_scenario, run_registered_agent_scenario,
-    run_work_item_with_input, select_agent_for_work_item_run, set_locale_settings,
-    set_nagare_agent_settings, update_agent_profile, verify_work_item,
+    AddAgentProfileInput, AgentOutputContractPurpose, AgentOutputContractUpdate,
+    AgentOutputInjection, AgentProfile, AgentRunPurpose, AnswerWorkItemInput, RuleResolution,
+    RunWorkItemInput, SelectRunAgentInput, SetLocaleInput, SetNagareAgentSettingsInput,
+    UpdateAgentProfileInput, VERSION, accept_dispatch_plan, add_agent_profile, agent_doctor,
+    agent_probe, answer_work_item, approve_work_item, create_handoff, create_work_item, doctor,
+    get_agent_profile, get_locale_settings, get_nagare_agent_settings, get_work_item_snapshot,
+    init_project, list_agent_profiles, list_work_items, resolve_rule_for_path, run_first_scenario,
+    run_registered_agent_scenario, run_work_item_with_input, select_agent_for_work_item_run,
+    set_locale_settings, set_nagare_agent_settings, update_agent_profile, verify_work_item,
 };
 
 use crate::args::ParsedArgs;
@@ -30,7 +31,6 @@ pub(crate) fn run(args: Vec<String>) -> Result<(), String> {
         Some("init") => init_command(&args[1..]),
         Some("doctor") => doctor_command(&args[1..]),
         Some("agent") => agent_command(&args[1..]),
-        Some("rule") => rule_command(&args[1..]),
         Some("locale") => locale_command(&args[1..]),
         Some("item") => item_command(&args[1..]),
         Some("verify") => verify_command(&args[1..]),
@@ -136,13 +136,16 @@ fn agent_update_command(args: &[String]) -> Result<(), String> {
         || parsed.optional("--role").is_some()
         || parsed.optional("--working-dir").is_some()
         || parsed.optional("--description").is_some()
-        || parsed.optional("--specialties").is_some();
+        || parsed.optional("--specialties").is_some()
+        || parsed.optional("--output-purpose").is_some()
+        || parsed.optional("--output-contract").is_some()
+        || parsed.optional("--instruction-pack").is_some()
+        || parsed.optional("--output-required").is_some()
+        || parsed.optional("--output-injection").is_some();
     if !has_update {
-        return Err(
-            "agent update requires --display-name, --role, --working-dir, --description, or --specialties"
-                .to_string(),
-        );
+        return Err("agent update requires a profile field or output contract option".to_string());
     }
+    let output_contract = parse_output_contract_update(&parsed)?;
     let result = update_agent_profile(
         parsed.root()?,
         agent_profile_id,
@@ -154,6 +157,7 @@ fn agent_update_command(args: &[String]) -> Result<(), String> {
             specialties: parsed
                 .optional("--specialties")
                 .map(|value| parse_comma_list(Some(value))),
+            output_contract,
         },
     )
     .map_err(|e| e.to_string())?;
@@ -196,8 +200,77 @@ fn agent_show_command(args: &[String]) -> Result<(), String> {
     println!("working_dir: {}", profile.working_dir);
     println!("description: {}", empty_label(&profile.description));
     println!("specialties: {}", comma_list(&profile.specialties));
+    println!(
+        "output_contract.work: {} / {} / required={} / injection={}",
+        profile.output_contracts.work.contract,
+        profile.output_contracts.work.instruction_pack,
+        profile.output_contracts.work.required,
+        profile.output_contracts.work.injection
+    );
+    println!(
+        "output_contract.review: {} / {} / required={} / injection={}",
+        profile.output_contracts.review.contract,
+        profile.output_contracts.review.instruction_pack,
+        profile.output_contracts.review.required,
+        profile.output_contracts.review.injection
+    );
+    println!(
+        "output_contract.dispatch: {} / {} / required={} / injection={}",
+        profile.output_contracts.dispatch.contract,
+        profile.output_contracts.dispatch.instruction_pack,
+        profile.output_contracts.dispatch.required,
+        profile.output_contracts.dispatch.injection
+    );
     println!("source: {}", profile.source);
     Ok(())
+}
+
+fn parse_output_contract_update<'a>(
+    parsed: &'a ParsedArgs,
+) -> Result<Option<AgentOutputContractUpdate<'a>>, String> {
+    let has_output_update = parsed.optional("--output-purpose").is_some()
+        || parsed.optional("--output-contract").is_some()
+        || parsed.optional("--instruction-pack").is_some()
+        || parsed.optional("--output-required").is_some()
+        || parsed.optional("--output-injection").is_some();
+    if !has_output_update {
+        return Ok(None);
+    }
+    let purpose = parsed
+        .required("--output-purpose")
+        .and_then(|value| AgentOutputContractPurpose::parse(value).map_err(|e| e.to_string()))?;
+    let required = parsed
+        .optional("--output-required")
+        .map(parse_bool)
+        .transpose()?;
+    let injection = parsed
+        .optional("--output-injection")
+        .map(parse_output_injection)
+        .transpose()?;
+    Ok(Some(AgentOutputContractUpdate {
+        purpose: Some(purpose),
+        contract: parsed.optional("--output-contract"),
+        instruction_pack: parsed.optional("--instruction-pack"),
+        required,
+        injection,
+    }))
+}
+
+fn parse_bool(value: &str) -> Result<bool, String> {
+    match value.trim() {
+        "true" | "yes" | "1" => Ok(true),
+        "false" | "no" | "0" => Ok(false),
+        other => Err(format!("expected boolean true or false, got `{other}`")),
+    }
+}
+
+fn parse_output_injection(value: &str) -> Result<AgentOutputInjection, String> {
+    match value.trim() {
+        "prompt_suffix" => Ok(AgentOutputInjection::PromptSuffix),
+        other => Err(format!(
+            "unknown output injection `{other}`; expected prompt_suffix"
+        )),
+    }
 }
 
 fn parse_comma_list(value: Option<&str>) -> Vec<String> {
@@ -285,26 +358,6 @@ fn agent_probe_command(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-fn rule_command(args: &[String]) -> Result<(), String> {
-    match args.first().map(String::as_str) {
-        Some("check") => rule_check_command(&args[1..]),
-        Some(command) => Err(format!("unknown rule command `{command}`")),
-        None => Err("rule command required: check".to_string()),
-    }
-}
-
-fn rule_check_command(args: &[String]) -> Result<(), String> {
-    let parsed = ParsedArgs::parse(args)?;
-    let path = parsed
-        .positionals
-        .first()
-        .ok_or_else(|| "rule check requires a path".to_string())?;
-    let resolution = resolve_rule_for_path(parsed.root()?, Some(path), parsed.optional("--agent"))
-        .map_err(|e| e.to_string())?;
-    print_rule_resolution(&resolution);
-    Ok(())
-}
-
 fn locale_command(args: &[String]) -> Result<(), String> {
     match args.first().map(String::as_str) {
         Some("show") => locale_show_command(&args[1..]),
@@ -343,9 +396,11 @@ fn item_command(args: &[String]) -> Result<(), String> {
         Some("dispatch") => item_dispatch_command(&args[1..]),
         Some("run") => item_run_command(&args[1..]),
         Some("review") => item_review_command(&args[1..]),
+        Some("answer") => item_answer_command(&args[1..]),
         Some(command) => Err(format!("unknown item command `{command}`")),
         None => Err(
-            "item command required: create, list, show, preview, dispatch, run, review".to_string(),
+            "item command required: create, list, show, preview, dispatch, run, review, answer"
+                .to_string(),
         ),
     }
 }
@@ -384,6 +439,28 @@ fn item_show_command(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+fn item_answer_command(args: &[String]) -> Result<(), String> {
+    let parsed = ParsedArgs::parse(args)?;
+    let work_item_id = parsed
+        .positionals
+        .first()
+        .ok_or_else(|| "item answer requires a work item id".to_string())?;
+    let result = answer_work_item(
+        parsed.root()?,
+        work_item_id,
+        AnswerWorkItemInput {
+            question: parsed.optional("--question"),
+            answer: parsed.required("--answer")?,
+        },
+    )
+    .map_err(|e| e.to_string())?;
+    println!(
+        "feedback {} recorded item_status={}",
+        result.feedback.id, result.item_status
+    );
+    Ok(())
+}
+
 fn item_run_command(args: &[String]) -> Result<(), String> {
     let parsed = ParsedArgs::parse(args)?;
     let root = parsed.root()?;
@@ -402,9 +479,6 @@ fn item_run_command(args: &[String]) -> Result<(), String> {
         },
     )
     .map_err(|e| e.to_string())?;
-    if let Some(resolution) = &agent_selection.rule_resolution {
-        print_rule_resolution(resolution);
-    }
     if let Some(dispatch_plan_id) = &agent_selection.dispatch_plan_id {
         println!(
             "selected_agent: {} source={} dispatch_plan={}",
@@ -506,10 +580,7 @@ fn run_item_with_nagare_agent(
     let resolution = if purpose == AgentRunPurpose::DispatchPreview {
         match path {
             Some(path) => {
-                let resolution =
-                    resolve_rule_for_path(&root, Some(path), None).map_err(|e| e.to_string())?;
-                print_rule_resolution(&resolution);
-                Some(resolution)
+                Some(resolve_rule_for_path(&root, Some(path), None).map_err(|e| e.to_string())?)
             }
             None => None,
         }

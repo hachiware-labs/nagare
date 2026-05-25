@@ -1,6 +1,6 @@
 use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::path::{Path, PathBuf};
+use std::process::{Child, ChildStdin, ChildStdout, Command, Output, Stdio};
 
 use serde_json::{Value, json};
 
@@ -14,15 +14,7 @@ impl AgentAdapter for ProcessCodexCliAdapter {
             return run_dev_command(command, request.working_dir);
         }
 
-        let output = run_tool(
-            "codex",
-            &[
-                "exec",
-                "--cd",
-                &request.working_dir.display().to_string(),
-                request.prompt,
-            ],
-        )?;
+        let output = run_codex_cli_exec(request.working_dir, request.prompt)?;
         Ok(AdapterRunOutput {
             command: format!("codex exec --cd {} <prompt>", request.working_dir.display()),
             stdout: String::from_utf8_lossy(&output.stdout).to_string(),
@@ -30,6 +22,38 @@ impl AgentAdapter for ProcessCodexCliAdapter {
             exit_code: output.status.code(),
         })
     }
+}
+
+fn run_codex_cli_exec(working_dir: &Path, prompt: &str) -> Result<Output, NagareError> {
+    let cd = working_dir.display().to_string();
+    let args = ["exec", "--cd", cd.as_str(), prompt];
+    if cfg!(windows) {
+        if let Some(script) = find_windows_codex_js() {
+            return Ok(Command::new("node").arg(script).args(args).output()?);
+        }
+    }
+    Ok(run_tool("codex", &args)?)
+}
+
+fn find_windows_codex_js() -> Option<PathBuf> {
+    let output = Command::new("where").arg("codex").output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| {
+            let path = PathBuf::from(line.trim());
+            let dir = path.parent()?;
+            let script = dir
+                .join("node_modules")
+                .join("@openai")
+                .join("codex")
+                .join("bin")
+                .join("codex.js");
+            script.exists().then_some(script)
+        })
+        .next()
 }
 
 pub(crate) struct StdioCodexAppServerAdapter;

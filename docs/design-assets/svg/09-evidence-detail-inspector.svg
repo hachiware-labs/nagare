@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="960" viewBox="0 0 960 960">
+  <rect width="960" height="960" fill="#f8fafc"/>
+  <style>
+    .title{font:700 24px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h2{font:700 17px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h3{font:700 14px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .body{font:500 13px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .small{font:500 11px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .tiny{font:600 10px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .mono{font:500 12px Consolas,Menlo,monospace;fill:#020617}
+    .nav{font:650 13px Inter,Segoe UI,Arial,sans-serif;fill:#334155}
+    .nav-on{font:700 13px Inter,Segoe UI,Arial,sans-serif;fill:#4338ca}
+  </style>
+  
+    <rect x="36" y="36" width="888" height="888" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="64" y="82" class="title">Evidence Detail Inspector</text>
+    <text x="64" y="106" class="small">Check basis before approval</text>
+    
+    <rect x="64" y="142" width="74" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="73" y="158" class="tiny" style="fill:#4338ca">evidence</text> <rect x="152" y="142" width="200" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="161" y="158" class="tiny" style="fill:#475569">produced by research-agent</text>
+    <text x="64" y="210" class="h2">Claim</text>
+    <text x="64" y="242" class="body">Agent Profile `research-agent` execution succeeded.</text>
+    <text x="64" y="314" class="h2">Basis</text>
+    <text x="64" y="346" class="body">Command exited with code 0 and produced run artifact art_0010.</text>
+    <text x="64" y="430" class="h2">Approval readiness</text>
+    <rect x="64" y="454" width="158" height="24" rx="12" fill="#fffbeb" stroke="#fffbeb"/>
+  <text x="73" y="470" class="tiny" style="fill:#b45309">verification missing</text>
+    <rect x="210" y="454" width="123" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="219" y="470" class="tiny" style="fill:#047857">artifact linked</text>
+    <rect x="64" y="760" width="102" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="78" y="782" class="body" style="fill:#020617">Open run</text>
+    <rect x="180" y="760" width="124" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="194" y="782" class="body" style="fill:#020617">Open artifact</text>
+    <rect x="320" y="760" width="142" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
+  <text x="334" y="782" class="body" style="fill:#ffffff">Run verification</text>
+  
+  
+</svg>

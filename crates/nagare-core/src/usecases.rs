@@ -65,6 +65,7 @@ pub fn add_agent_profile(
         working_dir: normalize_working_dir(input.working_dir)?,
         description: input.description.trim().to_string(),
         specialties: normalize_specialties(input.specialties),
+        output_contracts: AgentOutputContracts::default(),
         source: AgentProfileSource::ProjectAgentDirectory,
     };
     existing.insert(profile.id.clone(), profile.clone());
@@ -105,6 +106,9 @@ pub fn update_agent_profile(
     if let Some(specialties) = input.specialties {
         profile.specialties = normalize_specialties(specialties);
     }
+    if let Some(update) = input.output_contract {
+        apply_output_contract_update(&mut profile.output_contracts, update)?;
+    }
     profile.source = AgentProfileSource::ProjectAgentDirectory;
     let path = write_agent_profile_file(&layout, &profile)?;
     Ok(UpdateAgentProfileResult { profile, path })
@@ -126,12 +130,66 @@ fn write_agent_profile_file(
             working_dir: profile.working_dir.clone(),
             description: profile.description.clone(),
             specialties: profile.specialties.clone(),
+            output_contracts: profile.output_contracts.clone(),
         }),
         agent_profiles: BTreeMap::new(),
     };
     let raw = toml::to_string_pretty(&document)?;
     fs::write(&path, raw)?;
     Ok(path)
+}
+
+fn apply_output_contract_update(
+    contracts: &mut AgentOutputContracts,
+    update: AgentOutputContractUpdate<'_>,
+) -> Result<(), NagareError> {
+    let purpose = update.purpose.ok_or_else(|| {
+        NagareError::InvalidState("output contract purpose is required".to_string())
+    })?;
+    let target = match purpose {
+        AgentOutputContractPurpose::Work => &mut contracts.work,
+        AgentOutputContractPurpose::Review => &mut contracts.review,
+        AgentOutputContractPurpose::Dispatch => &mut contracts.dispatch,
+    };
+    if let Some(contract) = update.contract {
+        let contract = contract.trim();
+        if contract.is_empty() {
+            return Err(NagareError::InvalidState(
+                "output contract cannot be empty".to_string(),
+            ));
+        }
+        target.contract = contract.to_string();
+    }
+    if let Some(instruction_pack) = update.instruction_pack {
+        let instruction_pack = instruction_pack.trim();
+        if instruction_pack.is_empty() {
+            return Err(NagareError::InvalidState(
+                "output instruction pack cannot be empty".to_string(),
+            ));
+        }
+        target.instruction_pack = instruction_pack.to_string();
+    }
+    if let Some(required) = update.required {
+        target.required = required;
+    }
+    if let Some(injection) = update.injection {
+        target.injection = injection;
+    }
+    Ok(())
+}
+
+fn latest_agent_question(ledger: &Ledger, work_item_id: &str) -> Option<(String, String)> {
+    ledger
+        .agent_outputs
+        .iter()
+        .rev()
+        .find(|output| output.work_item_id == work_item_id && !output.questions.is_empty())
+        .and_then(|output| {
+            output
+                .questions
+                .first()
+                .map(|question| (output.id.clone(), question.clone()))
+        })
 }
 
 pub fn get_nagare_agent_settings(
@@ -328,6 +386,54 @@ pub fn get_work_item_snapshot(
     Ok(WorkItemSnapshot::from_ledger(item, &ledger))
 }
 
+pub fn answer_work_item(
+    root: impl Into<PathBuf>,
+    work_item_id: &str,
+    input: AnswerWorkItemInput<'_>,
+) -> Result<AnswerWorkItemResult, NagareError> {
+    let layout = ensure_project(root)?;
+    let locale = load_project_config(&layout)?.locale.language;
+    let mut ledger = load_ledger(&layout)?;
+    let answer = input.answer.trim();
+    if answer.is_empty() {
+        return Err(NagareError::InvalidState(
+            "answer cannot be empty".to_string(),
+        ));
+    }
+    let latest_question = latest_agent_question(&ledger, work_item_id);
+    let question = input
+        .question
+        .map(str::trim)
+        .filter(|question| !question.is_empty())
+        .map(ToOwned::to_owned)
+        .or_else(|| {
+            latest_question
+                .as_ref()
+                .map(|(_, question)| question.clone())
+        })
+        .unwrap_or_else(|| "(unspecified question)".to_string());
+    let source_agent_output_id = latest_question.map(|(id, _)| id);
+    let feedback = HumanFeedback {
+        id: ledger.next_id("feedback"),
+        work_item_id: work_item_id.to_string(),
+        source_agent_output_id,
+        question,
+        answer: answer.to_string(),
+        locale,
+        created_at: timestamp(),
+    };
+    ledger.human_feedback.push(feedback.clone());
+    let item = ledger.work_item_mut(work_item_id)?;
+    item.status = WorkItemStatus::Ready;
+    item.updated_at = timestamp();
+    let item_status = item.status;
+    save_ledger(&layout, &ledger)?;
+    Ok(AnswerWorkItemResult {
+        feedback,
+        item_status,
+    })
+}
+
 pub fn run_work_item(
     root: impl Into<PathBuf>,
     work_item_id: &str,
@@ -374,9 +480,18 @@ pub fn run_work_item_with_input(
     } else {
         None
     };
+    let agent_output_id = if input.purpose == AgentRunPurpose::DispatchPreview {
+        None
+    } else {
+        Some(ledger.next_id("out"))
+    };
     let agent_profile = get_agent_profile_from_layout(&layout, input.agent_profile_id)?;
     let adapter_id = normalize_adapter_id(&agent_profile.adapter)?;
     let working_dir = resolve_profile_working_dir(&layout, &agent_profile)?;
+    let output_contract = agent_profile
+        .output_contracts
+        .for_purpose(input.purpose)
+        .clone();
     let rule_resolution =
         resolve_rule_for_path_from_layout(&layout, input.path, Some(input.agent_profile_id))?;
     let dispatch_target_resolution = if input.purpose == AgentRunPurpose::DispatchPreview {
@@ -400,6 +515,7 @@ pub fn run_work_item_with_input(
         .filter(|prompt| !prompt.trim().is_empty())
         .unwrap_or(&item.title)
         .to_string();
+    let human_feedback_context = human_feedback_prompt_context(&ledger, work_item_id);
     let resolved_skill_context = ResolvedSkillContext {
         id: skill_context_id.clone(),
         work_item_id: work_item_id.to_string(),
@@ -433,6 +549,7 @@ pub fn run_work_item_with_input(
         permission_policy_id: rule_resolution.permission_policy_id.clone(),
         workspace_policy_id: rule_resolution.workspace_policy_id.clone(),
         resolved_skill_context_id: skill_context_id.clone(),
+        output_contract: output_contract.clone(),
         project_rule_ids: rule_resolution.matched_rule_id.iter().cloned().collect(),
         verification: rule_resolution.verification.clone(),
         constraints: rule_resolution
@@ -440,6 +557,10 @@ pub fn run_work_item_with_input(
             .iter()
             .chain(skill_set_resolution.warnings.iter())
             .cloned()
+            .chain(
+                (!human_feedback_context.is_empty())
+                    .then(|| "human_feedback_context_applied".to_string()),
+            )
             .collect(),
         artifact_uri: path_uri(&layout.artifacts_dir.join(format!("{run_packet_id}.json"))),
         content_hash: format!("local:{}", run_packet_id),
@@ -450,10 +571,15 @@ pub fn run_work_item_with_input(
         .prompt
         .filter(|prompt| !prompt.trim().is_empty())
         .unwrap_or(goal.as_str());
+    let prompt = prompt_with_output_contract(
+        &prompt_with_human_feedback(prompt, &human_feedback_context),
+        input.purpose,
+        &output_contract,
+    );
     let request = AdapterRunRequest {
         working_dir: &working_dir,
         run_packet: &resolved_run_packet,
-        prompt,
+        prompt: &prompt,
         dev_command: input.dev_command,
     };
     let started_at = timestamp();
@@ -489,7 +615,7 @@ pub fn run_work_item_with_input(
         created_at: ended_at.clone(),
     };
     let run = AgentRun {
-        id: run_id,
+        id: run_id.clone(),
         work_item_id: work_item_id.to_string(),
         agent_profile_id: input.agent_profile_id.to_string(),
         adapter: adapter_id.to_string(),
@@ -502,12 +628,34 @@ pub fn run_work_item_with_input(
         artifact_id: artifact_id.clone(),
         locale: locale.clone(),
     };
+    let agent_output = agent_output_id.map(|id| {
+        parse_agent_output_record(AgentOutputRecordInput {
+            id,
+            work_item_id,
+            agent_run_id: &run_id,
+            agent_profile_id: input.agent_profile_id,
+            purpose: input.purpose,
+            contract: &output_contract,
+            stdout: &output.stdout,
+            artifact_id: Some(&artifact_id),
+            locale: &locale,
+            created_at: &ended_at,
+        })
+    });
     let item_status = if input.purpose == AgentRunPurpose::Work {
-        if status == AgentRunStatus::Succeeded {
+        if agent_output_requires_input(agent_output.as_ref()) {
+            WorkItemStatus::NeedsInput
+        } else if agent_output_requests_handoff(agent_output.as_ref()) {
+            WorkItemStatus::NeedsHandoff
+        } else if status == AgentRunStatus::Succeeded {
             WorkItemStatus::ReadyForReview
         } else {
             WorkItemStatus::FailedVerification
         }
+    } else if input.purpose == AgentRunPurpose::Review
+        && agent_output_requires_input(agent_output.as_ref())
+    {
+        WorkItemStatus::NeedsInput
     } else {
         item.status
     };
@@ -588,6 +736,9 @@ pub fn run_work_item_with_input(
     ledger.runs.push(run.clone());
     ledger.artifacts.push(artifact);
     ledger.evidence.push(evidence);
+    if let Some(record) = agent_output {
+        ledger.agent_outputs.push(record);
+    }
     let dispatch_plan_id = dispatch_plan.as_ref().map(|plan| plan.id.clone());
     if let Some(plan) = dispatch_plan {
         for existing in &mut ledger.dispatch_plans {
@@ -614,7 +765,10 @@ pub fn run_work_item_with_input(
         &format!("{}.json", resolved_run_packet.id),
         &resolved_run_packet,
     )?;
-    if input.purpose == AgentRunPurpose::Work {
+    if matches!(
+        input.purpose,
+        AgentRunPurpose::Work | AgentRunPurpose::Review
+    ) {
         let item = ledger.work_item_mut(work_item_id)?;
         item.status = item_status;
         item.updated_at = timestamp();

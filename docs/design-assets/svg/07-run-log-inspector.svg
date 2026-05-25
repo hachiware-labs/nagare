@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="960" viewBox="0 0 960 960">
+  <rect width="960" height="960" fill="#f8fafc"/>
+  <style>
+    .title{font:700 24px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h2{font:700 17px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h3{font:700 14px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .body{font:500 13px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .small{font:500 11px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .tiny{font:600 10px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .mono{font:500 12px Consolas,Menlo,monospace;fill:#020617}
+    .nav{font:650 13px Inter,Segoe UI,Arial,sans-serif;fill:#334155}
+    .nav-on{font:700 13px Inter,Segoe UI,Arial,sans-serif;fill:#4338ca}
+  </style>
+  
+    <rect x="36" y="36" width="888" height="888" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="64" y="82" class="title">Run Log Inspector</text>
+    <text x="64" y="106" class="small">AgentRun details, transcript, and recovery actions</text>
+    
+    <rect x="64" y="142" width="81" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="73" y="158" class="tiny" style="fill:#047857">succeeded</text> <rect x="150" y="142" width="102" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="159" y="158" class="tiny" style="fill:#4338ca">purpose work</text> <rect x="260" y="142" width="60" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="269" y="158" class="tiny" style="fill:#047857">exit 0</text>
+    <text x="64" y="204" class="h2">Run metadata</text>
+    <text x="64" y="236" class="body">agent: research-agent / adapter: process.codex-cli / duration: 44s</text>
+    <text x="64" y="304" class="h2">stdout / stderr</text>
+    <rect x="64" y="328" width="832" height="230" rx="6" fill="#111827" stroke="#111827"/>
+    <text x="84" y="364" class="mono" style="fill:#e5e7eb">$ codex exec --cd .</text>
+    <text x="84" y="398" class="mono" style="fill:#e5e7eb">Collected source list and wrote evidence artifact.</text>
+    <text x="84" y="432" class="mono" style="fill:#9ca3af">stderr: &lt;empty&gt;</text>
+    <text x="64" y="620" class="h2">Linked records</text>
+    <text x="64" y="652" class="small">ResolvedRunPacket: runpkt_0009 / Evidence: ev_0011 / Artifact: art_0010</text>
+    <rect x="64" y="810" width="86" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="78" y="832" class="body" style="fill:#020617">Retry</text>
+    <rect x="164" y="810" width="142" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
+  <text x="178" y="832" class="body" style="fill:#ffffff">Create handoff</text>
+    <rect x="322" y="810" width="124" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="336" y="832" class="body" style="fill:#020617">Open artifact</text>
+  
+  
+</svg>

@@ -5,7 +5,7 @@
 - [ ] [SEED-adapter-kernel] MVP 1 として Agent Profile、Run Packet、Run Event、Artifact、Evidence、Verification Result、Permission Policy、Workspace Policy の正規モデルを `nagare-core` に整理する。完了条件: `cargo test --workspace` と CLI smoke test が PASS する
 
 # future
-- MVP 1: Agent Management Kernel。Runtime、Adapter、Agent Profile、Skill Set、Project Rule、Permission Policy、Run Packet Preview を実装する
+- MVP 1: Agent Management Kernel。Runtime、Adapter、Agent Profile、Capability Probe、Scope Resolution、Permission Policy、Run Packet Preview を実装する
 - MVP 2: Agent Adapter Kernel。Agent Profile、Run Packet、Run Event、Artifact、Evidence、Verification Result、Workspace Policy の正規モデルを adapter 実行に接続する
 - MVP 3: First-Class Codex Adapters。`process.codex-cli`、`stdio.codex-app-server` を実装する
 - MVP 4: Workspace + Supervision。git worktree、branch/base ref、heartbeat、timeout、cancel、retry、log capture、diff artifact、cleanup policy を実装する
@@ -31,14 +31,19 @@
 - [x] [SEED-locale-records] Project locale を設定できるようにし、Work Item / Run / Evidence / Verification / Decision / Probe の記録へ locale を保存するようにした
 - [x] [SEED-numbered-spec] 機能仕様の正本 `docs/spec.md` を追加し、機能ごとの三階層連番で現在実装済み / 進行中 / 計画の仕様を整理した
 - [x] [SEED-nagare-agent-usage] `item preview` / `handoff dispatch` は `dispatch_agent`、`item review` は `review_agent` を既定で使用し、AgentRun purpose として記録するようにした
-- [x] [SEED-rule-resolution] path から Project Rule、Agent Profile、Skill Set、Policy、Verification を解決する `nagare rule check <path>` と `item preview --path` / `item run --path` の最小形を実装した
+- [x] [SEED-scope-resolution] `work_folder` と Agent Profile の `working_dir` / 属性 / Capability Probe / Policy / Verification を解決する `item preview --work-folder` / `item run --work-folder` の最小形へ設計を更新した
 - [x] [SEED-resolved-run-records] `item preview` / `item run` で ResolvedSkillContext と ResolvedRunPacket を ledger と artifact に保存するようにした
 - [x] [SEED-architecture-split] 機能追加前に `nagare-core/src/lib.rs` と `nagare-cli/src/main.rs` を責務別 module へ分割した。全 Rust 実装ファイルを1000行未満にし、`cargo test --workspace` と CLI help smoke を通した
 - [x] [SEED-run-packet-adapter-input] 旧 `RunPacket` を廃止し、`ResolvedRunPacket` に purpose / working_dir / goal を持たせて Adapter 実行入力とログ記録の中心にした
 - [x] [SEED-codex-adapters] `process.codex-cli` / `stdio.codex-app-server` を adapter trait 経由で実行するようにした。`stdio.codex-app-server` は JSON-RPC over stdio で thread/turn transcript を保存する
 - [x] [SEED-dispatch-plan-records] dispatch preview / handoff dispatch の結果を DispatchPlan として ledger に保存し、AgentRun、ResolvedRunPacket、raw output Artifact と紐づけた
-- [x] [SEED-skill-set-resolution] Skill Set required capability を Agent capability と照合し、applied / skipped と skip 理由を ResolvedSkillContext / Run Packet constraints に記録するようにした
+- [x] [SEED-probe-context-resolution] Capability Probe と Agent Profile 属性から ResolvedSkillContext / Run Packet constraints を組み立てる方針へ設計を更新した
 - [x] [SEED-auto-probe-refresh] Run / Preview 前に CapabilityProbe の未取得・stale・runtime / adapter / version 不一致を検出し、自動更新するようにした
 - [x] [SEED-dispatch-agent-routing] Agent Profile に description / specialties を追加し、dispatch_agent が最大 5 件の compact candidate から target_agent_profile_id を JSON で選べるようにした
 - [x] [SEED-dispatch-plan-lifecycle] DispatchPlan に draft / accepted / superseded を追加し、`item dispatch accept` と accepted plan による `item run` の agent 選定を実装した
 - [x] [SEED-agent-update-contract] `agent update`、dispatch output contract の fallback 記録、ResolvedRunPacket.dispatch_plan_id、固定 Context Budget、handoff dispatch lifecycle test を実装した
+- [x] [SEED-agent-output-contracts] Agent Profile に purpose別 OutputContract / Instruction Pack を追加し、Run Packetへ固定し、prompt suffix 注入とCLI更新を実装した
+- [x] [SEED-output-contract-parser] Agent Run の最終出力から Nagare Result / Review をparseし、AgentOutputRecord、questions、next_action、needs_input をledgerに正規化した
+- [x] [SEED-human-feedback-flow] `needs_input` のWork Itemに対して人が回答し、その回答を後続のAgent prompt / Run Packetへ接続する最小形を実装した
+- [x] [SEED-timeline-event-model] Work Item Snapshot に request、dispatch、run、artifact、evidence、question、human_feedback、verification、handoff、decision を正規化した Timeline event を追加し、`item show` で確認できるようにした
+- [x] [SEED-real-codex-output-contract-smoke] 実 `process.codex-cli` adapter で `codex exec` を呼び、Nagare Result を `AgentOutputRecord` としてparseし、Verification / Decision を通して `done` まで到達する smoke を確認した

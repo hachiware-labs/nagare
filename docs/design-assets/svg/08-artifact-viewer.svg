@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="960" viewBox="0 0 960 960">
+  <rect width="960" height="960" fill="#f8fafc"/>
+  <style>
+    .title{font:700 24px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h2{font:700 17px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h3{font:700 14px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .body{font:500 13px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .small{font:500 11px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .tiny{font:600 10px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .mono{font:500 12px Consolas,Menlo,monospace;fill:#020617}
+    .nav{font:650 13px Inter,Segoe UI,Arial,sans-serif;fill:#334155}
+    .nav-on{font:700 13px Inter,Segoe UI,Arial,sans-serif;fill:#4338ca}
+  </style>
+  
+    <rect x="36" y="36" width="888" height="888" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="64" y="82" class="title">Artifact Viewer</text>
+    <text x="64" y="106" class="small">Formatted JSON and log artifacts</text>
+    
+    <rect x="64" y="142" width="137" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="73" y="158" class="tiny" style="fill:#4338ca">ResolvedRunPacket</text> <rect x="210" y="142" width="48" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="219" y="158" class="tiny" style="fill:#475569">JSON</text>
+    <rect x="64" y="190" width="380" height="610" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="84" y="226" class="h2">Artifact index</text>
+    <text x="84" y="276" class="body">run_0009.log</text>
+    <text x="84" y="314" class="body">runpkt_0009.json</text>
+    <text x="84" y="352" class="body">skillctx_0008.json</text>
+    <rect x="472" y="190" width="424" height="610" rx="6" fill="#0f172a" stroke="#0f172a"/>
+    <text x="494" y="230" class="mono" style="fill:#dbeafe">{</text>
+    <text x="494" y="264" class="mono" style="fill:#dbeafe">  &quot;agent_profile_id&quot;: &quot;research-agent&quot;,</text>
+    <text x="494" y="298" class="mono" style="fill:#dbeafe">  &quot;dispatch_plan_id&quot;: &quot;dispatch_0007&quot;,</text>
+    <text x="494" y="332" class="mono" style="fill:#dbeafe">  &quot;purpose&quot;: &quot;work&quot;</text>
+    <text x="494" y="366" class="mono" style="fill:#dbeafe">}</text>
+  
+  
+</svg>

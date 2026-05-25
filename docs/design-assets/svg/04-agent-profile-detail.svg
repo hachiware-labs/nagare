@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960">
+  <rect width="1440" height="960" fill="#f8fafc"/>
+  <style>
+    .title{font:700 24px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h2{font:700 17px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h3{font:700 14px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .body{font:500 13px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .small{font:500 11px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .tiny{font:600 10px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .mono{font:500 12px Consolas,Menlo,monospace;fill:#020617}
+    .nav{font:650 13px Inter,Segoe UI,Arial,sans-serif;fill:#334155}
+    .nav-on{font:700 13px Inter,Segoe UI,Arial,sans-serif;fill:#4338ca}
+  </style>
+  
+    <rect x="0" y="0" width="200" height="960" rx="0" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="28" y="42" class="title">Nagare</text>
+    <text x="30" y="64" class="tiny" style="fill:#4338ca">HACHIWARE LABS</text>
+    <text x="30" y="82" class="small">Agent work control</text>
+    
+      <text x="34" y="118" class="nav">Work Items</text><rect x="18" y="134" width="164" height="32" rx="7" fill="#eef2ff" stroke="#eef2ff"/>
+      <text x="34" y="156" class="nav-on">Agents</text>
+      <text x="34" y="194" class="nav">Settings</text>
+    <line x1="200" y1="0" x2="200" y2="960" stroke="#e2e8f0"/>
+    
+    <text x="232" y="48" class="title">research-agent</text>
+    <rect x="430" y="27" width="88" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="439" y="43" class="tiny" style="fill:#4338ca">researcher</text>
+    <rect x="1250" y="26" width="86" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
+  <text x="1264" y="48" class="body" style="fill:#ffffff">Update</text>
+    <rect x="232" y="92" width="340" height="620" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="252" y="128" class="h2">Profile Declaration</text><text x="252" y="148" class="small">User-maintained routing hints</text>
+    <text x="252" y="178" class="tiny">display_name</text>
+    <text x="252" y="204" class="h3">Research Agent</text>
+    <text x="252" y="250" class="tiny">description</text>
+    <text x="252" y="276" class="small">Collects sources and synthesizes findings.</text>
+    <text x="252" y="326" class="tiny">specialties</text>
+    <rect x="252" y="342" width="74" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="261" y="358" class="tiny" style="fill:#4338ca">research</text>
+    <rect x="344" y="342" width="81" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="353" y="358" class="tiny" style="fill:#4338ca">synthesis</text>
+    <rect x="602" y="92" width="366" height="300" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="622" y="128" class="h2">Capability Probe</text><text x="622" y="148" class="small">Observed, not declared</text>
+    <rect x="622" y="166" width="53" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="631" y="182" class="tiny" style="fill:#047857">fresh</text>
+    <text x="622" y="210" class="small">repo_read / file_edit / shell_command</text>
+    <text x="622" y="254" class="small">instruction_sources: AGENTS.md</text>
+    <rect x="602" y="414" width="366" height="298" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="622" y="450" class="h2">Dispatch Usage</text><text x="622" y="470" class="small">Recent target selections</text>
+    <text x="622" y="500" class="small">dispatch_0007 accepted -&gt; work_0042</text>
+    <text x="622" y="532" class="small">dispatch_0011 draft -&gt; work_0048</text>
+    <rect x="998" y="92" width="398" height="620" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="1018" y="128" class="h2">Recent Runs</text><text x="1018" y="148" class="small">Debug activity</text>
+    <rect x="1018" y="166" width="358" height="54" rx="0" fill="#ffffff" stroke="#e2e8f0"/><text x="1032" y="187" class="body">run_0009</text><text x="1032" y="205" class="small">work</text><text x="1142" y="187" class="small">succeeded</text><text x="1142" y="205" class="small">exit 0</text><text x="1252" y="187" class="small">12m</text><text x="1252" y="205" class="small">ago</text>
+    <rect x="1018" y="236" width="358" height="54" rx="0" fill="#ffffff" stroke="#e2e8f0"/><text x="1032" y="257" class="body">run_0004</text><text x="1032" y="275" class="small">dispatch_preview</text><text x="1142" y="257" class="small">succeeded</text><text x="1142" y="275" class="small">exit 0</text><text x="1252" y="257" class="small">1h</text><text x="1252" y="275" class="small">ago</text>
+  
+  
+</svg>

@@ -22,6 +22,18 @@ pub(crate) fn print_snapshot(snapshot: &WorkItemSnapshot) {
         println!("description: {}", snapshot.item.description);
     }
     println!("locale: {}", snapshot.item.locale);
+    println!("timeline:");
+    for event in &snapshot.timeline {
+        println!(
+            "  {}\t{}\t{}\t{}\tactor={}\tartifact={}",
+            event.id,
+            event.event_type,
+            event.status,
+            event.title,
+            event.actor.as_deref().unwrap_or("-"),
+            event.artifact_id.as_deref().unwrap_or("-")
+        );
+    }
     println!("runs:");
     for run in &snapshot.runs {
         println!(
@@ -40,7 +52,7 @@ pub(crate) fn print_snapshot(snapshot: &WorkItemSnapshot) {
     println!("resolved_skill_contexts:");
     for context in &snapshot.resolved_skill_contexts {
         println!(
-            "  {}\tagent={}\trules={}\tskills={}",
+            "  {}\tagent={}\tcontext_refs={}\tskills={}",
             context.id,
             context.agent_profile_id,
             comma_list(&context.project_rule_ids),
@@ -50,11 +62,23 @@ pub(crate) fn print_snapshot(snapshot: &WorkItemSnapshot) {
     println!("resolved_run_packets:");
     for packet in &snapshot.resolved_run_packets {
         println!(
-            "  {}\tagent={}\trules={}\tverification={}",
+            "  {}\tagent={}\tcontext_refs={}\tverification={}",
             packet.id,
             packet.agent_profile_id,
             comma_list(&packet.project_rule_ids),
             comma_list(&packet.verification)
+        );
+    }
+    println!("agent_outputs:");
+    for output in &snapshot.agent_outputs {
+        println!(
+            "  {}\t{}\t{}\tnext_action={}\tquestions={}\twarnings={}",
+            output.id,
+            output.purpose,
+            output.parse_status,
+            output.next_action.as_deref().unwrap_or("-"),
+            comma_list(&output.questions),
+            comma_list(&output.warnings)
         );
     }
     println!("handoffs:");
@@ -67,6 +91,13 @@ pub(crate) fn print_snapshot(snapshot: &WorkItemSnapshot) {
     println!("decisions:");
     for decision in &snapshot.decisions {
         println!("  {}\t{}", decision.id, decision.decision_type);
+    }
+    println!("human_feedback:");
+    for feedback in &snapshot.human_feedback {
+        println!(
+            "  {}\tquestion={}\tanswer={}",
+            feedback.id, feedback.question, feedback.answer
+        );
     }
     println!("dispatch_plans:");
     for plan in &snapshot.dispatch_plans {
@@ -85,13 +116,16 @@ pub(crate) fn print_snapshot(snapshot: &WorkItemSnapshot) {
 
 pub(crate) fn print_agent_profile_row(profile: &AgentProfile) {
     println!(
-        "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+        "{}\t{}\t{}\t{}\t{}\t{}\twork_contract={}\treview_contract={}\tdispatch_contract={}\t{}",
         profile.id,
         profile.adapter,
         profile.runtime,
         profile.role,
         profile.working_dir,
         comma_list(&profile.specialties),
+        profile.output_contracts.work.contract,
+        profile.output_contracts.review.contract,
+        profile.output_contracts.dispatch.contract,
         profile.source
     );
 }
@@ -100,32 +134,6 @@ pub(crate) fn print_agent_defaults(settings: &NagareAgentSettings) {
     println!("work_agent: {}", settings.work_agent);
     println!("review_agent: {}", settings.review_agent);
     println!("dispatch_agent: {}", settings.dispatch_agent);
-}
-
-pub(crate) fn print_rule_resolution(resolution: &RuleResolution) {
-    println!("path: {}", resolution.path.as_deref().unwrap_or("-"));
-    println!(
-        "matched_rule: {}",
-        resolution.matched_rule_id.as_deref().unwrap_or("-")
-    );
-    println!("agent_profile: {}", resolution.agent_profile_id);
-    println!(
-        "review_agent_profile: {}",
-        resolution.review_agent_profile_id
-    );
-    println!("skill_sets: {}", comma_list(&resolution.skill_set_ids));
-    println!(
-        "permission_policy: {}",
-        resolution.permission_policy_id.as_deref().unwrap_or("-")
-    );
-    println!(
-        "workspace_policy: {}",
-        resolution.workspace_policy_id.as_deref().unwrap_or("-")
-    );
-    println!("verification: {}", comma_list(&resolution.verification));
-    for warning in &resolution.warnings {
-        println!("warning: {warning}");
-    }
 }
 
 pub(crate) fn dispatch_prompt(
@@ -143,8 +151,8 @@ pub(crate) fn dispatch_prompt(
     };
     let (
         path,
-        matched_rule,
-        rule_target_agent,
+        matched_context,
+        resolved_target_agent,
         review_agent,
         skill_sets,
         permission_policy,
@@ -174,7 +182,7 @@ pub(crate) fn dispatch_prompt(
             "-".to_string(),
         ));
     format!(
-        "Prepare a dispatch preview for path `{path}`.\nMatched rule: {matched_rule}\nRule target agent profile: {rule_target_agent}\nReview agent profile: {review_agent}\nSkill sets: {skill_sets}\nPermission policy: {permission_policy}\nWorkspace policy: {workspace_policy}\nVerification: {verification}\n\nCandidate agent profiles are intentionally compact. Select only from this list:\n{candidate_lines}\n\nReturn one JSON object only. Required keys: target_agent_profile_id, summary. Optional keys: risks, missing_information. target_agent_profile_id must exactly match one candidate id. Keep summary concise and do not include full instruction-source contents.",
+        "Prepare a dispatch preview for path `{path}`.\nMatched context: {matched_context}\nResolved target agent profile: {resolved_target_agent}\nReview agent profile: {review_agent}\nSkill sets: {skill_sets}\nPermission policy: {permission_policy}\nWorkspace policy: {workspace_policy}\nVerification: {verification}\n\nCandidate agent profiles are intentionally compact. Select only from this list:\n{candidate_lines}\n\nReturn one JSON object only. Required keys: target_agent_profile_id, summary. Optional keys: risks, missing_information. target_agent_profile_id must exactly match one candidate id. Keep summary concise and do not include full instruction-source contents.",
     )
 }
 
@@ -243,17 +251,17 @@ Usage:
   nagare locale show [--root <path>]
   nagare locale use [--language <locale>] [--timezone <timezone>] [--root <path>]
   nagare agent add --id <agent_profile_id> --runtime <runtime_id> --adapter <adapter_id> [--display-name <text>] [--role <role>] [--working-dir <relative_path>] [--description <text>] [--specialties <csv>] [--root <path>]
-  nagare agent update <agent_profile_id> [--display-name <text>] [--role <role>] [--working-dir <relative_path>] [--description <text>] [--specialties <csv>] [--root <path>]
+  nagare agent update <agent_profile_id> [--display-name <text>] [--role <role>] [--working-dir <relative_path>] [--description <text>] [--specialties <csv>] [--output-purpose work|review|dispatch] [--output-contract <id>] [--instruction-pack <id>] [--output-required true|false] [--output-injection prompt_suffix] [--root <path>]
   nagare agent list [--root <path>]
   nagare agent show <agent_profile_id> [--root <path>]
   nagare agent defaults [--root <path>]
   nagare agent use [--work-agent <agent_profile_id>] [--review-agent <agent_profile_id>] [--dispatch-agent <agent_profile_id>] [--root <path>]
   nagare agent doctor <agent_profile_id> [--root <path>]
   nagare agent probe <agent_profile_id> [--root <path>]
-  nagare rule check <path> [--agent <agent_profile_id>] [--root <path>]
   nagare item create --title <title> [--description <text>] [--root <path>]
   nagare item list [--root <path>]
   nagare item show <work_id> [--root <path>]
+  nagare item answer <work_id> --answer <text> [--question <text>] [--root <path>]
   nagare item preview <work_id> [--path <path>] [--agent <agent_profile_id>] [--prompt <text> | --command <command>] [--root <path>]
   nagare item dispatch accept <work_id> [--dispatch-plan <dispatch_plan_id>] [--root <path>]
   nagare item run <work_id> [--path <path>] [--agent <agent_profile_id>] [--dispatch-plan <dispatch_plan_id>] [--prompt <text> | --command <command>] [--root <path>]

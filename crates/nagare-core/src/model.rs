@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fmt;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -24,6 +25,8 @@ pub struct Ledger {
     #[serde(default)]
     pub decisions: Vec<HumanDecision>,
     #[serde(default)]
+    pub human_feedback: Vec<HumanFeedback>,
+    #[serde(default)]
     pub dispatch_plans: Vec<DispatchPlan>,
     #[serde(default)]
     pub capability_probes: Vec<CapabilityProbe>,
@@ -31,6 +34,8 @@ pub struct Ledger {
     pub resolved_skill_contexts: Vec<ResolvedSkillContext>,
     #[serde(default)]
     pub resolved_run_packets: Vec<ResolvedRunPacket>,
+    #[serde(default)]
+    pub agent_outputs: Vec<AgentOutputRecord>,
 }
 
 impl Default for Ledger {
@@ -44,10 +49,12 @@ impl Default for Ledger {
             verification_results: Vec::new(),
             handoffs: Vec::new(),
             decisions: Vec::new(),
+            human_feedback: Vec::new(),
             dispatch_plans: Vec::new(),
             capability_probes: Vec::new(),
             resolved_skill_contexts: Vec::new(),
             resolved_run_packets: Vec::new(),
+            agent_outputs: Vec::new(),
         }
     }
 }
@@ -91,6 +98,7 @@ pub struct WorkItem {
 pub enum WorkItemStatus {
     Ready,
     AgentRunning,
+    NeedsInput,
     FailedVerification,
     NeedsHandoff,
     ReadyForReview,
@@ -102,6 +110,7 @@ impl fmt::Display for WorkItemStatus {
         let value = match self {
             Self::Ready => "ready",
             Self::AgentRunning => "agent_running",
+            Self::NeedsInput => "needs_input",
             Self::FailedVerification => "failed_verification",
             Self::NeedsHandoff => "needs_handoff",
             Self::ReadyForReview => "ready_for_review",
@@ -243,6 +252,57 @@ pub struct HumanDecision {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HumanFeedback {
+    pub id: String,
+    pub work_item_id: String,
+    pub source_agent_output_id: Option<String>,
+    pub question: String,
+    pub answer: String,
+    #[serde(default = "default_locale_language")]
+    pub locale: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentOutputRecord {
+    pub id: String,
+    pub work_item_id: String,
+    pub agent_run_id: String,
+    pub agent_profile_id: String,
+    pub purpose: AgentRunPurpose,
+    pub contract: String,
+    pub instruction_pack: String,
+    pub parse_status: AgentOutputParseStatus,
+    #[serde(default)]
+    pub fields: BTreeMap<String, Vec<String>>,
+    #[serde(default)]
+    pub questions: Vec<String>,
+    pub next_action: Option<String>,
+    #[serde(default)]
+    pub warnings: Vec<String>,
+    pub artifact_id: Option<String>,
+    #[serde(default = "default_locale_language")]
+    pub locale: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentOutputParseStatus {
+    Parsed,
+    Unparsed,
+}
+
+impl fmt::Display for AgentOutputParseStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Parsed => f.write_str("parsed"),
+            Self::Unparsed => f.write_str("unparsed"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DispatchPlan {
     pub id: String,
     pub work_item_id: String,
@@ -349,6 +409,8 @@ pub struct ResolvedRunPacket {
     pub workspace_policy_id: Option<String>,
     pub resolved_skill_context_id: String,
     #[serde(default)]
+    pub output_contract: AgentOutputContract,
+    #[serde(default)]
     pub project_rule_ids: Vec<String>,
     #[serde(default)]
     pub verification: Vec<String>,
@@ -380,8 +442,102 @@ pub struct AgentProfile {
     pub description: String,
     #[serde(default)]
     pub specialties: Vec<String>,
+    #[serde(default)]
+    pub output_contracts: AgentOutputContracts,
     #[serde(skip)]
     pub source: AgentProfileSource,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentOutputContracts {
+    #[serde(default = "default_work_output_contract")]
+    pub work: AgentOutputContract,
+    #[serde(default = "default_review_output_contract")]
+    pub review: AgentOutputContract,
+    #[serde(default = "default_dispatch_output_contract")]
+    pub dispatch: AgentOutputContract,
+}
+
+impl AgentOutputContracts {
+    pub fn for_purpose(&self, purpose: AgentRunPurpose) -> &AgentOutputContract {
+        match purpose {
+            AgentRunPurpose::Review => &self.review,
+            AgentRunPurpose::DispatchPreview => &self.dispatch,
+            AgentRunPurpose::Work => &self.work,
+        }
+    }
+}
+
+impl Default for AgentOutputContracts {
+    fn default() -> Self {
+        Self {
+            work: default_work_output_contract(),
+            review: default_review_output_contract(),
+            dispatch: default_dispatch_output_contract(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentOutputContract {
+    pub contract: String,
+    pub instruction_pack: String,
+    #[serde(default = "default_output_contract_required")]
+    pub required: bool,
+    #[serde(default)]
+    pub injection: AgentOutputInjection,
+}
+
+impl Default for AgentOutputContract {
+    fn default() -> Self {
+        default_work_output_contract()
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentOutputInjection {
+    #[default]
+    PromptSuffix,
+}
+
+impl fmt::Display for AgentOutputInjection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::PromptSuffix => f.write_str("prompt_suffix"),
+        }
+    }
+}
+
+pub fn default_output_contract_required() -> bool {
+    true
+}
+
+pub fn default_work_output_contract() -> AgentOutputContract {
+    AgentOutputContract {
+        contract: "nagare.result.v1".to_string(),
+        instruction_pack: "nagare-result-writer.v1".to_string(),
+        required: true,
+        injection: AgentOutputInjection::PromptSuffix,
+    }
+}
+
+pub fn default_review_output_contract() -> AgentOutputContract {
+    AgentOutputContract {
+        contract: "nagare.review.v1".to_string(),
+        instruction_pack: "nagare-review-writer.v1".to_string(),
+        required: true,
+        injection: AgentOutputInjection::PromptSuffix,
+    }
+}
+
+pub fn default_dispatch_output_contract() -> AgentOutputContract {
+    AgentOutputContract {
+        contract: "nagare.dispatch.v1".to_string(),
+        instruction_pack: "nagare-dispatch-writer.v1".to_string(),
+        required: true,
+        injection: AgentOutputInjection::PromptSuffix,
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -425,6 +581,36 @@ pub struct UpdateAgentProfileInput<'a> {
     pub working_dir: Option<&'a str>,
     pub description: Option<&'a str>,
     pub specialties: Option<Vec<String>>,
+    pub output_contract: Option<AgentOutputContractUpdate<'a>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum AgentOutputContractPurpose {
+    Work,
+    Review,
+    Dispatch,
+}
+
+impl AgentOutputContractPurpose {
+    pub fn parse(value: &str) -> Result<Self, NagareError> {
+        match value.trim() {
+            "work" => Ok(Self::Work),
+            "review" => Ok(Self::Review),
+            "dispatch" => Ok(Self::Dispatch),
+            other => Err(NagareError::InvalidState(format!(
+                "unknown output contract purpose `{other}`; expected work, review, or dispatch"
+            ))),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct AgentOutputContractUpdate<'a> {
+    pub purpose: Option<AgentOutputContractPurpose>,
+    pub contract: Option<&'a str>,
+    pub instruction_pack: Option<&'a str>,
+    pub required: Option<bool>,
+    pub injection: Option<AgentOutputInjection>,
 }
 
 #[derive(Debug, Clone)]
@@ -583,6 +769,18 @@ pub struct RunWorkItemInput<'a> {
     pub prompt: Option<&'a str>,
     pub dev_command: Option<&'a str>,
     pub purpose: AgentRunPurpose,
+}
+
+#[derive(Debug, Clone)]
+pub struct AnswerWorkItemInput<'a> {
+    pub question: Option<&'a str>,
+    pub answer: &'a str,
+}
+
+#[derive(Debug, Clone)]
+pub struct AnswerWorkItemResult {
+    pub feedback: HumanFeedback,
+    pub item_status: WorkItemStatus,
 }
 
 #[derive(Debug, Clone)]

@@ -227,7 +227,7 @@ pub(crate) fn parse_dispatch_plan_suggestion(output: &str) -> Option<DispatchPla
     Some(suggestion)
 }
 
-fn dispatch_text_output(output: &str) -> String {
+pub(crate) fn dispatch_text_output(output: &str) -> String {
     let deltas = output
         .lines()
         .filter_map(|line| line.trim().strip_prefix("agent.delta: "))

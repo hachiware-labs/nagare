@@ -128,11 +128,6 @@ adapter = "stdio-codex-app-server"
 role = "implementer"
 working_dir = "."
 
-[skill_sets.repo-default]
-paths = ["AGENTS.md"]
-required_capabilities = ["repo_read"]
-optional_capabilities = []
-
 [permission_policies.medium-code-task]
 allowed_actions = ["repo_read", "worktree_write", "test_run"]
 disallowed_actions = ["main_push", "production_access", "secrets_read"]
@@ -142,16 +137,6 @@ approval_required = ["network_access", "dependency_install"]
 kind = "project_root"
 isolate_per_work_item = false
 cleanup = "keep"
-
-[[project_rules]]
-id = "default"
-match = ["**"]
-default_agent = "codex-cli"
-review_agent = "codex-app-server"
-skill_sets = ["repo-default"]
-permission_policy = "medium-code-task"
-workspace_policy = "project-root"
-verification = []
 "#
 }
 

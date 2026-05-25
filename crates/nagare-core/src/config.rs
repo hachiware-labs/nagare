@@ -56,6 +56,8 @@ pub(crate) struct AgentProfileFileEntry {
     pub(crate) description: String,
     #[serde(default)]
     pub(crate) specialties: Vec<String>,
+    #[serde(default)]
+    pub(crate) output_contracts: AgentOutputContracts,
 }
 
 pub(crate) fn load_agent_profiles(
@@ -130,6 +132,7 @@ impl AgentProfileFileEntry {
             working_dir: normalize_working_dir(&self.working_dir)?,
             description: self.description,
             specialties: normalize_specialties(self.specialties),
+            output_contracts: self.output_contracts,
             source,
         })
     }

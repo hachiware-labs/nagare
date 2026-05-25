@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="960" viewBox="0 0 960 960">
+  <rect width="960" height="960" fill="#f8fafc"/>
+  <style>
+    .title{font:700 24px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h2{font:700 17px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h3{font:700 14px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .body{font:500 13px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .small{font:500 11px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .tiny{font:600 10px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .mono{font:500 12px Consolas,Menlo,monospace;fill:#020617}
+    .nav{font:650 13px Inter,Segoe UI,Arial,sans-serif;fill:#334155}
+    .nav-on{font:700 13px Inter,Segoe UI,Arial,sans-serif;fill:#4338ca}
+  </style>
+  
+    <rect x="36" y="36" width="888" height="888" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="64" y="82" class="title">Verification Inspector</text>
+    <text x="64" y="106" class="small">Gate before human approval</text>
+    
+    <rect x="64" y="142" width="60" height="24" rx="12" fill="#fef2f2" stroke="#fef2f2"/>
+  <text x="73" y="158" class="tiny" style="fill:#b91c1c">failed</text> <rect x="136" y="142" width="67" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="145" y="158" class="tiny" style="fill:#475569">command</text>
+    <text x="64" y="210" class="h2">Command</text>
+    <rect x="64" y="234" width="832" height="48" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="84" y="264" class="mono">cargo test --workspace</text>
+    <text x="64" y="336" class="h2">Log excerpt</text>
+    <rect x="64" y="360" width="832" height="238" rx="6" fill="#111827" stroke="#111827"/>
+    <text x="84" y="398" class="mono" style="fill:#fecaca">test dispatch_contract ... FAILED</text>
+    <text x="84" y="432" class="mono" style="fill:#fecaca">missing required target_agent_profile_id</text>
+    <rect x="64" y="760" width="132" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
+  <text x="78" y="782" class="body" style="fill:#ffffff">Re-run verify</text>
+    <rect x="212" y="760" width="142" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="226" y="782" class="body" style="fill:#020617">Create handoff</text>
+    <rect x="370" y="760" width="124" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="384" y="782" class="body" style="fill:#020617">Open artifact</text>
+  
+  
+</svg>
