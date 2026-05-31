@@ -85,35 +85,12 @@ pub(crate) fn command_exit_basis(locale: &str, exit_code: Option<i32>) -> String
     }
 }
 
-pub(crate) fn verification_claim(locale: &str, result: VerificationStatus) -> String {
-    if is_ja(locale) {
-        match result {
-            VerificationStatus::Passed => "検証に成功した".to_string(),
-            VerificationStatus::Failed => "検証に失敗した".to_string(),
-        }
-    } else {
-        format!("Verification {result}")
-    }
-}
-
-pub(crate) fn verification_basis(locale: &str, command: &str, exit_code: Option<i32>) -> String {
-    if is_ja(locale) {
-        format!("command `{command}` の exit code は {exit_code:?}")
-    } else {
-        format!("command `{command}` exit code {exit_code:?}")
-    }
-}
-
 pub(crate) fn default_approval_rationale(locale: &str) -> &'static str {
     localized_text(
         locale,
-        "Human approved after required verification",
-        "必要な検証を確認したため、人間が承認した",
+        "Human approved the completed item",
+        "完了した Item を人間が承認した",
     )
-}
-
-pub(crate) fn run_shell(command: &str) -> io::Result<CommandRunOutput> {
-    run_shell_in(command, None)
 }
 
 pub(crate) fn run_shell_in(command: &str, cwd: Option<&Path>) -> io::Result<CommandRunOutput> {
@@ -135,23 +112,6 @@ pub(crate) fn run_shell_in(command: &str, cwd: Option<&Path>) -> io::Result<Comm
         stderr: String::from_utf8_lossy(&output.stderr).to_string(),
         exit_code: output.status.code(),
     })
-}
-
-pub(crate) fn write_command_log(
-    path: &Path,
-    command: &str,
-    output: &CommandRunOutput,
-) -> io::Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(
-        path,
-        format!(
-            "command: {command}\nexit_code: {:?}\n\n[stdout]\n{}\n[stderr]\n{}\n",
-            output.exit_code, output.stdout, output.stderr
-        ),
-    )
 }
 
 pub(crate) fn write_adapter_log(
@@ -180,13 +140,13 @@ pub(crate) fn write_adapter_log(
     )
 }
 
-pub(crate) fn write_json_artifact<T: Serialize>(
+pub(crate) fn write_json_execution_record<T: Serialize>(
     layout: &ProjectLayout,
     filename: &str,
     value: &T,
 ) -> Result<(), NagareError> {
-    fs::create_dir_all(&layout.artifacts_dir)?;
-    let path = layout.artifacts_dir.join(filename);
+    fs::create_dir_all(&layout.logs_dir)?;
+    let path = layout.logs_dir.join(filename);
     let raw = serde_json::to_string_pretty(value)?;
     fs::write(path, format!("{raw}\n"))?;
     Ok(())
@@ -374,5 +334,17 @@ pub(crate) fn scenario_command(message: &str, success: bool) -> String {
         format!("echo {message}; exit 0")
     } else {
         format!("echo {message}; exit 1")
+    }
+}
+
+pub(crate) fn scenario_review_command(summary: &str) -> String {
+    if cfg!(windows) {
+        format!(
+            "echo ## Nagare Review && echo verdict: pass && echo summary: && echo - {summary} && echo completed: && echo - reviewed scenario result && echo findings: && echo - none && echo questions: && echo next_notes: && echo - ready for approval && echo next_action: approve && exit /B 0"
+        )
+    } else {
+        format!(
+            "printf '## Nagare Review\nverdict: pass\nsummary:\n- {summary}\ncompleted:\n- reviewed scenario result\nfindings:\n- none\nquestions:\nnext_notes:\n- ready for approval\nnext_action: approve\n'; exit 0"
+        )
     }
 }

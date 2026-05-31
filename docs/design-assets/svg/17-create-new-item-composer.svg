@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960">
+  <rect width="1440" height="960" fill="#f8fafc"/>
+  <style>
+    .title{font:700 24px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h2{font:700 17px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h3{font:700 14px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .body{font:500 13px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .small{font:500 11px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .tiny{font:600 10px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .mono{font:500 12px Consolas,Menlo,monospace;fill:#020617}
+    .nav{font:650 13px Inter,Segoe UI,Arial,sans-serif;fill:#334155}
+    .nav-on{font:700 13px Inter,Segoe UI,Arial,sans-serif;fill:#4338ca}
+  </style>
+  
+    <rect x="0" y="0" width="200" height="960" rx="0" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="28" y="42" class="title">Nagare</text>
+    <text x="30" y="64" class="tiny" style="fill:#4338ca">HACHIWARE LABS</text>
+    <text x="30" y="82" class="small">Agent work control</text>
+    <rect x="18" y="96" width="164" height="32" rx="7" fill="#eef2ff" stroke="#eef2ff"/>
+      <text x="34" y="118" class="nav-on">Work Items</text>
+      <text x="34" y="156" class="nav">Agents</text>
+      <text x="34" y="194" class="nav">Settings</text>
+    <line x1="200" y1="0" x2="200" y2="960" stroke="#e2e8f0"/>
+    
+    <text x="232" y="48" class="title">新しい依頼を作成</text>
+    <rect x="1138" y="30" width="48" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="1147" y="46" class="tiny" style="fill:#475569">下書き</text>
+
+    <rect x="232" y="86" width="712" height="698" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="260" y="126" class="h2">依頼内容</text><text x="260" y="146" class="small">作成前に必要な情報だけを入力する</text>
+    <text x="260" y="176" class="tiny">Title</text>
+    <rect x="260" y="192" width="632" height="42" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="280" y="219" class="body">README のセットアップ手順を更新</text>
+    <text x="260" y="272" class="tiny">Request</text>
+    <rect x="260" y="288" width="632" height="112" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="280" y="322" class="body">docs/setup.md の変更を README に反映して</text>
+    <text x="280" y="350" class="small">既存の説明と重複しないように整理する</text>
+    <text x="260" y="448" class="tiny">Acceptance criteria</text>
+    <rect x="260" y="464" width="632" height="92" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="282" y="496" class="small">1. README に新しい手順が反映されている</text>
+    <text x="282" y="526" class="small">2. 既存説明と重複していない</text>
+    <text x="260" y="606" class="tiny">Expected artifacts / Verification</text>
+    <rect x="260" y="624" width="95" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="269" y="640" class="tiny" style="fill:#4338ca">README diff</text>
+    <rect x="382" y="624" width="74" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="391" y="640" class="tiny" style="fill:#047857">npm test</text>
+    <rect x="488" y="624" width="109" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="497" y="640" class="tiny" style="fill:#475569">work folder .</text>
+    <rect x="260" y="704" width="146" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
+  <text x="274" y="726" class="body" style="fill:#ffffff">Create New Item</text>
+    <rect x="424" y="704" width="104" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="438" y="726" class="body" style="fill:#020617">Save draft</text>
+
+    <rect x="978" y="86" width="418" height="698" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="1006" y="126" class="h2">作成前チェック</text><text x="1006" y="146" class="small">不足を直してから依頼を作成する</text>
+    <text x="1006" y="188" class="h3">必須項目</text>
+    <rect x="1006" y="212" width="74" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="1015" y="228" class="tiny" style="fill:#047857">title ok</text>
+    <rect x="1088" y="212" width="88" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="1097" y="228" class="tiny" style="fill:#047857">request ok</text>
+    <rect x="1190" y="212" width="88" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="1199" y="228" class="tiny" style="fill:#047857">criteria 2</text>
+    <text x="1006" y="286" class="h3">実行設定</text>
+    <text x="1006" y="320" class="small">Agent: 自動選定</text>
+    <text x="1006" y="348" class="small">Work folder: .</text>
+    <text x="1006" y="376" class="small">Verification: npm test</text>
+    <line x1="1006" y1="430" x2="1358" y2="430" stroke="#e2e8f0"/>
+    <text x="1006" y="486" class="h3">作成後の動作</text>
+    <rect x="1006" y="510" width="81" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="1015" y="526" class="tiny" style="fill:#4338ca">Detailへ移動</text>
+    <rect x="1116" y="510" width="48" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="1125" y="526" class="tiny" style="fill:#047857">自動進行</text>
+    <text x="1006" y="568" class="small">作成直後の状態は Detail の</text>
+    <text x="1006" y="596" class="small">現在地と処理履歴で確認する。</text>
+  
+  
+</svg>

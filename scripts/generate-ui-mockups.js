@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 const outDir = path.join(__dirname, "..", "docs", "design-assets", "svg");
+const pngOutDir = path.join(__dirname, "..", "docs", "design-assets", "png");
 fs.mkdirSync(outDir, { recursive: true });
 for (const file of fs.readdirSync(outDir)) {
   if (file.endsWith(".svg")) fs.unlinkSync(path.join(outDir, file));
@@ -605,6 +606,290 @@ function defaultsModal() {
   `);
 }
 
+function flowStep(x, y, n, title, meta, kind = "gray", active = false, w = 418, actor = "") {
+  const stroke = active ? C.blue : C.line;
+  const fill = active ? C.blueSoft : C.surface;
+  const tone = {
+    blue: [C.blueSoft, C.blue],
+    green: [C.greenSoft, C.green],
+    amber: [C.amberSoft, C.amber],
+    red: [C.redSoft, C.red],
+    gray: [C.graySoft, C.gray],
+  }[kind] || [C.graySoft, C.gray];
+  const stateLabel = {
+    blue: "処理中",
+    green: "完了",
+    amber: "確認待ち",
+    red: "要回復",
+    gray: "待機",
+  }[kind] || "待機";
+  return `
+    ${rect(x, y, w, 86, fill, stroke, 7)}
+    ${circle(x + 30, y + 43, 16, tone[0], tone[1])}
+    ${txt(x + 22, y + 47, String(n).padStart(2, "0"), "tiny", tone[1])}
+    ${txt(x + 58, y + 30, title, "h3")}
+    ${pill(x + 58, y + 40, stateLabel, kind)}
+    ${actor ? pill(x + 132, y + 40, actor, "gray") : ""}
+    ${txt(x + 58, y + 72, meta, "small")}
+  `;
+}
+
+function stateCard(x, y, title, state, actor, next, kind = "blue") {
+  return `
+    ${rect(x, y, 250, 128, C.surface, C.line, 8)}
+    ${txt(x + 18, y + 30, title, "h3")}
+    ${pill(x + 18, y + 46, state, kind)}
+    ${txt(x + 18, y + 88, `Actor: ${actor}`, "small")}
+    ${txt(x + 18, y + 110, `Next: ${next}`, "small")}
+  `;
+}
+
+function createItemComposerPattern() {
+  const body = `
+    ${txt(232, 48, "新しい依頼を作成", "title")}
+    ${pill(1138, 30, "下書き", "gray")}
+
+    ${rect(232, 86, 712, 698, C.surface, C.line, 8)}
+    ${sectionTitle(260, 126, "依頼内容", "作成前に必要な情報だけを入力する")}
+    ${txt(260, 176, "Title", "tiny")}
+    ${rect(260, 192, 632, 42, C.surface2, C.line, 6)}
+    ${txt(280, 219, "README のセットアップ手順を更新", "body")}
+    ${txt(260, 272, "Request", "tiny")}
+    ${rect(260, 288, 632, 112, C.surface2, C.line, 6)}
+    ${txt(280, 322, "docs/setup.md の変更を README に反映して", "body")}
+    ${txt(280, 350, "既存の説明と重複しないように整理する", "small")}
+    ${txt(260, 448, "Acceptance criteria", "tiny")}
+    ${rect(260, 464, 632, 92, C.surface2, C.line, 6)}
+    ${txt(282, 496, "1. README に新しい手順が反映されている", "small")}
+    ${txt(282, 526, "2. 既存説明と重複していない", "small")}
+    ${txt(260, 606, "Expected artifacts / Verification", "tiny")}
+    ${pill(260, 624, "README diff", "blue")}
+    ${pill(382, 624, "npm test", "green")}
+    ${pill(488, 624, "work folder .", "gray")}
+    ${button(260, 704, "Create New Item", true, 146)}
+    ${button(424, 704, "Save draft", false, 104)}
+
+    ${rect(978, 86, 418, 698, C.surface, C.line, 8)}
+    ${sectionTitle(1006, 126, "作成前チェック", "不足を直してから依頼を作成する")}
+    ${txt(1006, 188, "必須項目", "h3")}
+    ${pill(1006, 212, "title ok", "green")}
+    ${pill(1088, 212, "request ok", "green")}
+    ${pill(1190, 212, "criteria 2", "green")}
+    ${txt(1006, 286, "実行設定", "h3")}
+    ${txt(1006, 320, "Agent: 自動選定", "small")}
+    ${txt(1006, 348, "Work folder: .", "small")}
+    ${txt(1006, 376, "Verification: npm test", "small")}
+    ${line(1006, 430, 1358, 430)}
+    ${txt(1006, 486, "作成後の動作", "h3")}
+    ${pill(1006, 510, "Detailへ移動", "blue")}
+    ${pill(1116, 510, "自動進行", "green")}
+    ${txt(1006, 568, "作成直後の状態は Detail の", "small")}
+    ${txt(1006, 596, "現在地と処理履歴で確認する。", "small")}
+  `;
+  return appChrome("Work Items", body);
+}
+
+function itemCreatedDispatchingPattern() {
+  const body = `
+    ${txt(232, 48, "README のセットアップ手順を更新", "title")}
+    ${pill(704, 30, "処理中", "blue")}
+    ${pill(790, 30, "dispatch-agent", "gray")}
+    ${pill(928, 30, "経過 00:03", "blue")}
+
+    ${rect(232, 86, 1164, 130, C.surface, C.line, 8)}
+    ${txt(260, 124, "現在地", "h2")}
+    ${txt(260, 156, "Current: dispatch-agent が担当 Agent を選定中", "body")}
+    ${txt(260, 184, "Latest Step: dispatch / processing / 12:03:08", "small")}
+    ${txt(694, 156, "Next: target agent が決まると work run へ進む", "body")}
+    ${txt(694, 184, "User action: 自動進行中。操作は不要", "small")}
+
+    ${rect(232, 244, 724, 540, C.surface, C.line, 8)}
+    ${sectionTitle(260, 284, "処理履歴", "作成直後から履歴として現在地を見せる")}
+    ${flowStep(286, 330, 1, "依頼を作成", "12:03:04 / title, request, criteria recorded", "green", false, 440, "User")}
+    ${flowStep(286, 436, 2, "Dispatch run", "12:03:08 / target agent を選定中", "blue", true, 440, "dispatch-agent")}
+    ${flowStep(286, 542, 3, "Work run", "target agent 決定待ち", "gray", false, 440, "work-agent")}
+    ${flowStep(286, 648, 4, "Review / Verify", "work output 待ち", "gray", false, 440, "system")}
+
+    ${rect(984, 244, 412, 540, C.surface, C.line, 8)}
+    ${sectionTitle(1012, 284, "選択中の履歴", "ユーザーが見るべき粒度にまとめる")}
+    ${pill(1012, 324, "処理中", "blue")}
+    ${pill(1090, 324, "dispatch-agent", "gray")}
+    ${txt(1012, 382, "担当 Agent を選定中", "h2")}
+    ${txt(1012, 418, "依頼文、受入条件、Agent Profile をもとに", "small")}
+    ${txt(1012, 440, "候補を評価している。", "small")}
+    ${txt(1012, 510, "Facts", "h3")}
+    ${pill(1012, 536, "criteria 2", "green")}
+    ${pill(1106, 536, "expected README diff", "blue")}
+    ${pill(1012, 572, "work folder .", "gray")}
+  `;
+  return appChrome("Work Items", body);
+}
+
+function itemProcessingPattern() {
+  const body = `
+    ${txt(232, 48, "README のセットアップ手順を更新", "title")}
+    ${pill(694, 30, "処理中", "blue")}
+    ${pill(780, 30, "writing-agent", "gray")}
+    ${pill(908, 30, "経過 00:42", "blue")}
+    ${button(1258, 26, "Open Run Log", true, 128)}
+
+    ${rect(232, 86, 1164, 116, C.surface, C.line, 8)}
+    ${txt(260, 124, "現在地", "h2")}
+    ${txt(260, 154, "Current: writing-agent が README diff を作成中", "body")}
+    ${txt(260, 178, "Why: dispatch-agent が confidence 0.86 で選定", "small")}
+    ${txt(668, 154, "Latest Step: work / processing", "body")}
+    ${txt(668, 178, "Next: AgentOutput と artifact を待つ", "small")}
+
+    ${rect(232, 226, 724, 558, C.surface, C.line, 8)}
+    ${sectionTitle(260, 266, "処理履歴", "Agent Flow を Work Item の history として読む")}
+    ${flowStep(286, 304, 1, "依頼を作成", "12:03:04 / request and criteria recorded", "green", false, 440, "User")}
+    ${flowStep(286, 400, 2, "Agent 選定", "12:03:16 / writing-agent selected", "green", false, 440, "dispatch-agent")}
+    ${flowStep(286, 496, 3, "作業実行", "12:04:02 / README diff を作成中", "blue", true, 440, "writing-agent")}
+    ${flowStep(286, 592, 4, "Review", "work output 待ち", "gray", false, 440, "review-agent")}
+    ${flowStep(286, 688, 5, "Verification", "review pass 待ち", "gray", false, 440, "runner")}
+
+    ${rect(984, 226, 412, 558, C.surface, C.line, 8)}
+    ${sectionTitle(1012, 266, "選択中の履歴", "History の選択中 event を詳細化")}
+    ${pill(1012, 306, "処理中", "blue")}
+    ${pill(1090, 306, "writing-agent", "gray")}
+    ${pill(1216, 306, "started 12:04", "gray")}
+    ${txt(1012, 366, "Step 03: 作業実行", "h2")}
+    ${txt(1012, 402, "README diff を作成中。stdout / artifact は", "small")}
+    ${txt(1012, 424, "run 完了後にこの Inspector に表示する。", "small")}
+    ${txt(1012, 492, "Facts", "h3")}
+    ${pill(1012, 516, "dispatch_plan accepted", "green")}
+    ${pill(1012, 552, "expected README diff", "blue")}
+    ${pill(1012, 588, "verification npm test", "gray")}
+    ${button(1012, 704, "Open run log", false, 120)}
+  `;
+  return appChrome("Work Items", body);
+}
+
+function approvalReadyPattern() {
+  const body = `
+    ${txt(232, 48, "README のセットアップ手順を更新", "title")}
+    ${pill(694, 30, "承認待ち", "amber")}
+    ${pill(790, 30, "verification passed", "green")}
+
+    ${rect(232, 86, 512, 698, C.surface, C.line, 8)}
+    ${sectionTitle(260, 126, "承認判断", "結果と根拠を同じ場所で確認する")}
+    ${txt(260, 178, "README にセットアップ手順を反映しました。", "body")}
+    ${txt(260, 208, "docs/setup.md の新しい手順を追加し、", "small")}
+    ${txt(260, 230, "重複していた説明は統合しています。", "small")}
+    ${txt(260, 292, "承認チェック", "h2")}
+    ${pill(260, 320, "diff linked", "blue")}
+    ${pill(368, 320, "review passed", "green")}
+    ${pill(494, 320, "npm test passed", "green")}
+    ${txt(260, 386, "判断材料", "h2")}
+    ${txt(260, 420, "Change: README setup section updated", "small")}
+    ${txt(260, 448, "Review: 2 / 2 criteria passed", "small")}
+    ${txt(260, 476, "Verify: npm test exit 0", "small")}
+    ${button(260, 546, "Open artifact", false, 118)}
+    ${button(396, 546, "Open verify log", false, 136)}
+    ${button(260, 636, "Approve Result", true, 132)}
+    ${button(410, 636, "Request changes", false, 132)}
+
+    ${rect(772, 86, 624, 698, C.surface, C.line, 8)}
+    ${sectionTitle(800, 126, "処理履歴", "完了直前の状態を 6 step で確認する")}
+    ${flowStep(826, 174, 1, "依頼を作成", "12:03 / request and criteria recorded", "green", false, 420, "User")}
+    ${flowStep(826, 268, 2, "Agent 選定", "12:03 / target writing-agent", "green", false, 420, "dispatch-agent")}
+    ${flowStep(826, 362, 3, "作業完了", "12:05 / artifact README diff created", "green", false, 420, "writing-agent")}
+    ${flowStep(826, 456, 4, "Review passed", "12:06 / 2 of 2 criteria passed", "green", false, 420, "review-agent")}
+    ${flowStep(826, 550, 5, "Verification passed", "12:07 / npm test exit 0", "green", false, 420, "runner")}
+    ${flowStep(826, 644, 6, "承認ゲート", "12:08 / user approval waiting", "amber", true, 420, "Workflow")}
+  `;
+  return appChrome("Work Items", body);
+}
+
+function doneSummaryPattern() {
+  const body = `
+    ${txt(232, 48, "README のセットアップ手順を更新", "title")}
+    ${pill(694, 30, "完了", "green")}
+    ${pill(764, 30, "approved 12:11", "green")}
+    ${button(1248, 26, "Create Similar Item", false, 148)}
+
+    ${rect(232, 86, 520, 698, C.surface, C.line, 8)}
+    ${sectionTitle(260, 126, "Final Answer", "完了後は結果を最初に読める")}
+    ${txt(260, 178, "README のセットアップ手順更新は完了しました。", "body")}
+    ${txt(260, 208, "変更内容、review、verification log は", "small")}
+    ${txt(260, 230, "この Work Item に保存されています。", "small")}
+    ${txt(260, 306, "Completion facts", "h2")}
+    ${pill(260, 334, "HumanDecisionApproved", "green")}
+    ${pill(260, 370, "WorkItemDone", "green")}
+    ${pill(260, 406, "artifact README diff", "blue")}
+    ${pill(260, 442, "verification npm test", "green")}
+    ${txt(260, 504, "Approval", "h2")}
+    ${txt(260, 536, "Approved by User at 12:11", "small")}
+    ${txt(260, 564, "Comment: 内容と検証結果を確認済み", "small")}
+    ${button(260, 642, "Open artifact", false, 118)}
+    ${button(396, 642, "Open verification", false, 146)}
+
+    ${rect(780, 86, 616, 698, C.surface, C.line, 8)}
+    ${sectionTitle(808, 126, "処理履歴", "依頼から完了までを低レベル Event に分解しすぎない")}
+    ${flowStep(834, 174, 1, "依頼を作成", "12:03 / title, request, criteria recorded", "green", false, 420, "User")}
+    ${flowStep(834, 268, 2, "Agent 選定", "12:03 / writing-agent selected", "green", false, 420, "dispatch-agent")}
+    ${flowStep(834, 362, 3, "作業完了", "12:05 / README diff and evidence recorded", "green", false, 420, "writing-agent")}
+    ${flowStep(834, 456, 4, "Review passed", "12:06 / all acceptance criteria passed", "green", false, 420, "review-agent")}
+    ${flowStep(834, 550, 5, "Verification passed", "12:07 / npm test exit 0", "green", false, 420, "runner")}
+    ${flowStep(834, 644, 6, "承認して完了", "12:11 / User approved final answer", "green", false, 420, "User")}
+  `;
+  return appChrome("Work Items", body);
+}
+
+function stateDisplayPatternSheet() {
+  const body = `
+    ${txt(232, 48, "状態表示パターン", "title")}
+    ${txt(232, 74, "Board、Detail、History で同じ状態語彙を使う", "small")}
+
+    ${rect(232, 108, 1164, 182, C.surface, C.line, 8)}
+    ${sectionTitle(260, 148, "一覧行パターン", "一覧では State / Actor / Latest Event / Next を横並びにする")}
+    ${tableRow(260, 184, 1078, [["README 更新", "Work Item"], ["処理中", "state"], ["writing-agent", "actor"], ["WorkAgentRunStarted", "latest"], ["Open Run Log", "next"]], [["running", "blue"]])}
+    ${tableRow(260, 238, 1078, [["release note 整理", "Work Item"], ["承認待ち", "state"], ["User", "actor"], ["VerificationPassed", "latest"], ["Approve Result", "next"]], [["approval", "amber"]])}
+
+    ${rect(232, 320, 364, 464, C.surface, C.line, 8)}
+    ${sectionTitle(260, 360, "詳細サマリーパターン", "詳細上部は5行に固定する")}
+    ${txt(260, 416, "Current: 承認待ち", "body")}
+    ${txt(260, 450, "Why: review and verification passed", "small")}
+    ${txt(260, 484, "Actor: User", "small")}
+    ${txt(260, 518, "Latest Result: npm test passed", "small")}
+    ${txt(260, 552, "Next: Approve Result", "small")}
+    ${button(260, 642, "Approve Result", true, 132)}
+
+    ${rect(626, 320, 364, 464, C.surface, C.line, 8)}
+    ${sectionTitle(654, 360, "状態バッジ語彙", "色は意味にだけ使う")}
+    ${pill(654, 416, "処理中", "blue")}
+    ${txt(784, 432, "処理中、選択中、次へ進める", "small")}
+    ${pill(654, 466, "入力待ち", "amber")}
+    ${txt(784, 482, "ユーザー入力、確認、承認待ち", "small")}
+    ${pill(654, 516, "要回復", "red")}
+    ${txt(784, 532, "失敗、検証失敗、回復必要", "small")}
+    ${pill(654, 566, "完了", "green")}
+    ${txt(784, 582, "成功、検証通過、完了", "small")}
+    ${pill(654, 616, "下書き", "gray")}
+    ${txt(784, 632, "下書き、待機、補助情報", "small")}
+
+    ${rect(1020, 320, 376, 464, C.surface, C.line, 8)}
+    ${sectionTitle(1048, 360, "HistoryStep パターン", "kind / state / actor / facts / links を固定する")}
+    ${flowStep(1048, 414, 1, "Agent 選定", "kind dispatch / links dispatch_0001", "green", false, 300, "dispatch")}
+    ${flowStep(1048, 514, 2, "作業実行", "kind work / facts artifact 2", "blue", true, 300, "work")}
+    ${flowStep(1048, 614, 3, "Verification", "kind verification / review待ち", "gray", false, 300, "runner")}
+
+    ${rect(232, 812, 1164, 104, C.surface, C.line, 8)}
+    ${sectionTitle(260, 852, "状態遷移", "通常経路と人間待ちを分ける")}
+    ${pill(260, 874, "下書き", "gray")}
+    ${txt(332, 890, "->", "small")}
+    ${pill(360, 874, "処理中", "blue")}
+    ${txt(436, 890, "->", "small")}
+    ${pill(464, 874, "承認待ち", "amber")}
+    ${txt(556, 890, "->", "small")}
+    ${pill(584, 874, "完了", "green")}
+    ${txt(710, 890, "例外:", "small")}
+    ${pill(756, 874, "入力待ち", "amber")}
+    ${pill(850, 874, "要回復", "red")}
+  `;
+  return appChrome("Work Items", body);
+}
+
 const mocks = [
   ["01-work-item-board", workItemBoard()],
   ["02-work-item-detail", workItemDetail()],
@@ -622,10 +907,38 @@ const mocks = [
   ["14-defaults-modal", defaultsModal()],
   ["15-workflow-decision-inspector", workflowDecisionInspector()],
   ["16-recovery-inspector", recoveryInspector()],
+  ["17-create-new-item-composer", createItemComposerPattern()],
+  ["18-item-created-dispatching", itemCreatedDispatchingPattern()],
+  ["19-item-processing-running", itemProcessingPattern()],
+  ["20-item-approval-ready", approvalReadyPattern()],
+  ["21-item-done-summary", doneSummaryPattern()],
+  ["22-state-display-patterns", stateDisplayPatternSheet()],
 ];
 
 for (const [name, svg] of mocks) {
   fs.writeFileSync(path.join(outDir, `${name}.svg`), svg);
 }
 
+async function renderPngs() {
+  fs.mkdirSync(pngOutDir, { recursive: true });
+  for (const file of fs.readdirSync(pngOutDir)) {
+    if (file.endsWith(".png")) fs.unlinkSync(path.join(pngOutDir, file));
+  }
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  const page = await browser.newPage({ viewport: { width: 1440, height: 960 }, deviceScaleFactor: 1 });
+  for (const [name] of mocks) {
+    await page.goto(`file://${path.join(outDir, `${name}.svg`).replace(/\\/g, "/")}`);
+    await page.screenshot({ path: path.join(pngOutDir, `${name}.png`) });
+  }
+  await browser.close();
+  console.log(`Generated ${mocks.length} PNG mockups in ${pngOutDir}`);
+}
+
 console.log(`Generated ${mocks.length} SVG mockups in ${outDir}`);
+if (process.env.NAGARE_RENDER_PNG === "1") {
+  renderPngs().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

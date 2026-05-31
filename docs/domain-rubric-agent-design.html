@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="ja" data-scope="project">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nagare Domain / Rubric / Agent Design</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fb;
+      --paper: #ffffff;
+      --ink: #17202a;
+      --muted: #5d6977;
+      --line: #d8e0ea;
+      --domain: #eef7f3;
+      --group: #eaf4ff;
+      --agent: #eef3fb;
+      --rubric: #fff7df;
+      --work: #f4effa;
+      --decision: #f1f5f9;
+      --strong: #1f4f7a;
+      --shadow: 0 12px 34px rgba(23, 32, 42, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", "Meiryo", sans-serif;
+      line-height: 1.65;
+    }
+
+    main {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 32px 0 56px;
+    }
+
+    header {
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 34px 0 14px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 18px 0 8px;
+      font-size: 17px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0 0 12px;
+    }
+
+    a {
+      color: var(--strong);
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    code {
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: #eef2f6;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.94em;
+    }
+
+    pre {
+      margin: 10px 0 0;
+      padding: 14px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8fafc;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    th, td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f1f5f9;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .panel {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 20px;
+      margin: 16px 0;
+    }
+
+    .callout {
+      background: #edf4fb;
+      border: 1px solid #c7d8ea;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 12px 0 0;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .domain { background: var(--domain); }
+    .group { background: var(--group); }
+    .agent { background: var(--agent); }
+    .rubric { background: var(--rubric); }
+    .work { background: var(--work); }
+    .decision { background: var(--decision); }
+
+    .diagram {
+      width: 100%;
+      min-height: 320px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      overflow-x: auto;
+      margin: 12px 0 20px;
+    }
+
+    .diagram svg {
+      display: block;
+      width: 100%;
+      min-width: 920px;
+      height: auto;
+    }
+
+    .box {
+      fill: #fff;
+      stroke: #b8c4d1;
+      stroke-width: 1.2;
+      rx: 8;
+    }
+
+    .box-domain { fill: var(--domain); }
+    .box-group { fill: var(--group); }
+    .box-agent { fill: var(--agent); }
+    .box-rubric { fill: var(--rubric); }
+    .box-work { fill: var(--work); }
+    .box-decision { fill: var(--decision); }
+
+    .label {
+      fill: var(--ink);
+      font: 700 15px "Segoe UI", "Meiryo", sans-serif;
+    }
+
+    .sub {
+      fill: var(--muted);
+      font: 12px "Segoe UI", "Meiryo", sans-serif;
+    }
+
+    .arrow {
+      stroke: #5d6977;
+      stroke-width: 1.8;
+      fill: none;
+      marker-end: url(#arrow);
+    }
+
+    .dash {
+      stroke-dasharray: 5 5;
+    }
+
+    .columns {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fff;
+    }
+
+    .card h3 {
+      margin-top: 0;
+    }
+
+    .card ul {
+      margin: 8px 0 0;
+      padding-left: 20px;
+    }
+
+    .sequence {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 12px 0;
+    }
+
+    .step {
+      min-height: 82px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 12px;
+    }
+
+    .step b {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    @media (max-width: 780px) {
+      main {
+        width: min(100% - 24px, 1180px);
+        padding-top: 22px;
+      }
+
+      .columns {
+        grid-template-columns: 1fr;
+      }
+
+      .sequence {
+        grid-template-columns: 1fr;
+      }
+
+      table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Nagare Domain / Rubric / Agent Design</h1>
+    <p class="meta">Last updated: 2026-05-31 / Scope: Nagare project design / Related: <a href="workflow-state-design.html">Workflow State Design</a>, <a href="spec.md">spec.md</a>, <a href="design.md">design.md</a></p>
+    <p>この文書は Domain Group、Domain Profile、Rubric、Agent Profile、Workflow Policy の関係を定義する。状態遷移そのものではなく、dispatch と review が何を判断材料にするかを扱う。</p>
+    <div class="legend" aria-label="図の凡例">
+      <span class="chip work">Work Item</span>
+      <span class="chip group">Domain Group</span>
+      <span class="chip domain">Domain Profile</span>
+      <span class="chip rubric">Rubric</span>
+      <span class="chip agent">Agent Profile</span>
+      <span class="chip decision">Workflow / Dispatch</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>1. 基本方針</h2>
+    <div class="callout">
+      <p><strong>Domain Group はターゲット設計に含める。</strong> 現行実装はDomain中心でも、設計上は最初から <code>Domain Group -> Domain</code> の2階層を正とする。後からGroupを足す前提にすると、Work Item、dispatch context、Rubric改善履歴の置き場所が揺れるため、データモデルとSettings UIはGroup込みで設計する。</p>
+      <p><strong>Domain は成果物や判断領域を表す。</strong> Agent の種類ではない。たとえば <code>frontend-ui</code>、<code>rust-cli</code>、<code>docs</code> のように、作成物と評価基準がまとまる単位として扱う。</p>
+      <p><strong>Domain Group は大きな業務領域を表す。</strong> たとえば <code>software-development</code> の下に <code>frontend-ui</code>、<code>backend-api</code>、<code>database-migration</code>、<code>developer-docs</code> を置く。Group は共通知識、共通dispatch_hints、共通workflow defaultを持ち、Domain は生成物ごとのRubricで具体化する。</p>
+      <p><strong>Rubric は Domain に属する。</strong> Planner / Worker / Reviewer のどの Agent も、同じ Domain Rubric を目的に応じて使う。Rubric を Agent 個別に閉じ込めないことで、作成基準と評価基準のズレを減らす。</p>
+      <p><strong>Agent は実行能力と役割を表す。</strong> Agent Profile は <code>role</code>、<code>specialties</code>、<code>description</code>、<code>working_dir</code> を持ち、dispatch が Work Item と Domain を見て実行Agentを選ぶ。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. 階層と解決順序</h2>
+    <div class="panel">
+      <p>Domain Group は分類と共通知識の層、Domain は生成物別の具体基準の層として扱う。Work Item は作成時に Domain Group / Domain / workflow policy を解決し、その結果を ledger に固定する。</p>
+      <div class="sequence" aria-label="Domain policy resolution order">
+        <div class="step work">
+          <b>1. Work Item明示値</b>
+          <span>作成時に指定された <code>domain_id</code>、<code>workflow_mode</code>、<code>approval_policy</code> を最優先する。</span>
+        </div>
+        <div class="step domain">
+          <b>2. Domain override</b>
+          <span>成果物固有のRubric、dispatch_hints、workflow override を適用する。</span>
+        </div>
+        <div class="step group">
+          <b>3. Domain Group default</b>
+          <span>共通知識、共通Rubric、共通workflow default を補完する。</span>
+        </div>
+        <div class="step decision">
+          <b>4. Project default</b>
+          <span>Domain未指定や未設定項目の最後の既定値として <code>[workflow]</code> を使う。</span>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>項目</th>
+            <th>解決順序</th>
+            <th>保存先</th>
+            <th>意図</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>進行方針</td>
+            <td>Item明示値 -> Domain override -> Domain Group default -> Project default</td>
+            <td><code>WorkItem.workflow_mode</code></td>
+            <td>作成後にDomain設定が変わっても、実行中Itemの挙動を変えない。</td>
+          </tr>
+          <tr>
+            <td>最終承認方針</td>
+            <td>Item明示値 -> Domain override -> Domain Group default -> Project default</td>
+            <td><code>WorkItem.approval_policy</code></td>
+            <td>低リスクDomainは自動完了、高リスクDomainは人間承認待ちにできる。</td>
+          </tr>
+          <tr>
+            <td>Rubric</td>
+            <td>Domain Rubric + Domain Group common Rubric + Work Item acceptance criteria</td>
+            <td>Review prompt / <code>ReviewResult</code></td>
+            <td>共通基準と成果物固有基準を同時にReviewへ渡す。</td>
+          </tr>
+          <tr>
+            <td>Agent選択</td>
+            <td>Work Item context + Domain / Group hints + Agent Profile候補</td>
+            <td><code>DispatchPlan</code></td>
+            <td>Settingsの固定defaultではなく、dispatchが目的別に選ぶ。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. 概念関係図</h2>
+    <div class="diagram" role="img" aria-label="Work Item、Domain Group、Domain Profile、Rubric、Agent Profile、Dispatch の関係図">
+      <svg viewBox="0 0 1120 500">
+        <defs>
+          <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,6 L9,3 z" fill="#5d6977"></path>
+          </marker>
+        </defs>
+
+        <rect class="box box-work" x="40" y="72" width="220" height="110"></rect>
+        <text class="label" x="62" y="102">Work Item</text>
+        <text class="sub" x="62" y="128">title / description</text>
+        <text class="sub" x="62" y="148">acceptance criteria</text>
+        <text class="sub" x="62" y="168">domain_id / workflow policy</text>
+
+        <rect class="box box-group" x="360" y="30" width="250" height="115"></rect>
+        <text class="label" x="382" y="60">Domain Group</text>
+        <text class="sub" x="382" y="86">software-development</text>
+        <text class="sub" x="382" y="106">shared knowledge</text>
+        <text class="sub" x="382" y="126">common hints / workflow</text>
+
+        <rect class="box box-domain" x="360" y="205" width="250" height="150"></rect>
+        <text class="label" x="382" y="235">Domain Profile</text>
+        <text class="sub" x="382" y="261">description</text>
+        <text class="sub" x="382" y="281">artifact_types</text>
+        <text class="sub" x="382" y="301">dispatch_hints</text>
+        <text class="sub" x="382" y="321">workflow override</text>
+        <text class="sub" x="382" y="341">rubric[]</text>
+
+        <rect class="box box-rubric" x="700" y="205" width="260" height="150"></rect>
+        <text class="label" x="722" y="235">Rubric</text>
+        <text class="sub" x="722" y="261">成果物の品質基準</text>
+        <text class="sub" x="722" y="281">評価時の観点</text>
+        <text class="sub" x="722" y="301">review criteria の材料</text>
+        <text class="sub" x="722" y="321">将来のprompt改善対象</text>
+
+        <rect class="box box-agent" x="360" y="400" width="250" height="80"></rect>
+        <text class="label" x="382" y="430">Agent Profile</text>
+        <text class="sub" x="382" y="456">role / specialties / workdir</text>
+
+        <rect class="box box-decision" x="700" y="400" width="260" height="80"></rect>
+        <text class="label" x="722" y="430">Dispatch / Workflow</text>
+        <text class="sub" x="722" y="456">Group + Domain + Agent候補</text>
+
+        <path class="arrow" d="M260 120 C305 88 320 88 360 88"></path>
+        <path class="arrow" d="M485 145 C485 175 485 185 485 205"></path>
+        <path class="arrow" d="M610 280 C650 280 660 280 700 280"></path>
+        <path class="arrow" d="M485 355 C485 380 485 385 485 400"></path>
+        <path class="arrow" d="M610 440 C650 440 660 440 700 440"></path>
+        <path class="arrow" d="M260 160 C380 300 560 385 700 425"></path>
+        <path class="arrow dash" d="M830 355 C830 378 830 385 830 400"></path>
+
+        <text class="sub" x="278" y="92">group_id / domain_id</text>
+        <text class="sub" x="500" y="178">継承・分類</text>
+        <text class="sub" x="627" y="265">基準を提供</text>
+        <text class="sub" x="500" y="382">候補選択の文脈</text>
+        <text class="sub" x="628" y="425">候補</text>
+        <text class="sub" x="842" y="382">review判断材料</text>
+      </svg>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. データ責務</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>データ</th>
+          <th>保存場所</th>
+          <th>主なフィールド</th>
+          <th>責務</th>
+          <th>責務ではないもの</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>DomainGroup</code></td>
+          <td><code>.nagare/domain-groups/&lt;id&gt;.toml</code> または将来の <code>domain_groups</code> 設定</td>
+          <td><code>description</code>, <code>shared_knowledge</code>, <code>common_rubric</code>, <code>dispatch_hints</code>, <code>workflow_defaults</code></td>
+          <td>大きな業務領域を束ね、配下Domainに共通する知識、用語、前提、標準workflowを提供する。</td>
+          <td>具体的な成果物ごとの評価基準。これはDomain ProfileのRubricで定義する。</td>
+        </tr>
+        <tr>
+          <td><code>DomainProfile</code></td>
+          <td><code>.nagare/domains/&lt;id&gt;.toml</code></td>
+          <td><code>group_id</code>, <code>description</code>, <code>artifact_types</code>, <code>rubric</code>, <code>dispatch_hints</code>, <code>workflow</code></td>
+          <td>作成物領域、品質基準、dispatchのヒント、Domain単位のworkflow overrideを定義する。Groupの共通知識を継承し、成果物固有の基準で具体化する。</td>
+          <td>特定Agentの固定割り当て。Agent runtime や adapter の設定。</td>
+        </tr>
+        <tr>
+          <td><code>Rubric</code></td>
+          <td><code>DomainProfile.rubric[]</code></td>
+          <td>1行1基準の品質・評価観点</td>
+          <td>Plan、Work、Reviewで共有する判断基準。Review criteria と findings の材料になる。</td>
+          <td>実行ログ、証跡、個別レビュー結果。これらは <code>ExecutionRecord</code> / <code>ReviewResult</code> に残す。</td>
+        </tr>
+        <tr>
+          <td><code>AgentProfile</code></td>
+          <td><code>.nagare/agents/&lt;id&gt;.toml</code> または <code>project.toml</code></td>
+          <td><code>role</code>, <code>specialties</code>, <code>description</code>, <code>working_dir</code>, <code>runtime</code>, <code>adapter</code></td>
+          <td>実行できる役割、得意領域、作業ディレクトリ、外部runtime接続を定義する。</td>
+          <td>Domain Rubricそのもの。Work / Review の固定default UI。</td>
+        </tr>
+        <tr>
+          <td><code>WorkflowSettings</code></td>
+          <td><code>.nagare/project.toml</code> の <code>[workflow]</code></td>
+          <td><code>default_progress_mode</code>, <code>approval_policy</code></td>
+          <td>Project全体の既定進行方針と最終承認方針を定義する。</td>
+          <td>Domain固有の例外。例外はDomain overrideに置く。</td>
+        </tr>
+        <tr>
+          <td><code>WorkItem</code></td>
+          <td><code>.nagare/state/ledger.json</code></td>
+          <td><code>domain_group_id</code>, <code>domain_id</code>, <code>workflow_mode</code>, <code>approval_policy</code>, <code>acceptance_criteria</code></td>
+          <td>作成時点で解決されたDomain Group、Domain、workflow方針を固定し、後続の再現性を保つ。</td>
+          <td>Domain Profileの完全コピー。Rubricの履歴改善データ。</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>5. Domain Group の粒度</h2>
+    <div class="panel">
+      <p>Domain Group は、知識体系や前提が大きく共有される単位で切る。ソフトウェア開発のように生成物が多い領域では、Groupを <code>software-development</code> とし、その下に成果物別Domainを置く。</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Domain Group</th>
+            <th>Domain例</th>
+            <th>共有する知識</th>
+            <th>Domain側で分ける知識</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>software-development</code></td>
+            <td><code>frontend-ui</code>, <code>backend-api</code>, <code>database-migration</code>, <code>developer-docs</code>, <code>test-automation</code></td>
+            <td>変更管理、互換性、レビュー観点、CI、セキュリティ、既存設計の尊重。</td>
+            <td>UIの視認性、API契約、DB移行安全性、ドキュメント読者、テスト信頼性。</td>
+          </tr>
+          <tr>
+            <td><code>business-operations</code></td>
+            <td><code>sales-report</code>, <code>support-analysis</code>, <code>finance-summary</code></td>
+            <td>データ出所、数値整合性、意思決定に必要な要約。</td>
+            <td>レポート形式、分析粒度、監査性、用語定義。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>6. 実行時の使われ方</h2>
+    <div class="diagram" role="img" aria-label="Work Item 作成から Review までの Domain と Rubric の利用フロー">
+      <svg viewBox="0 0 1120 360">
+        <defs>
+          <marker id="arrow2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,6 L9,3 z" fill="#5d6977"></path>
+          </marker>
+        </defs>
+
+        <rect class="box box-work" x="40" y="70" width="170" height="86"></rect>
+        <text class="label" x="62" y="100">Create Item</text>
+        <text class="sub" x="62" y="126">domain選択</text>
+        <text class="sub" x="62" y="146">方針を解決</text>
+
+        <rect class="box box-domain" x="270" y="55" width="190" height="116"></rect>
+        <text class="label" x="292" y="86">Resolve Policy</text>
+        <text class="sub" x="292" y="112">Domain override</text>
+        <text class="sub" x="292" y="132">Group / Project default</text>
+        <text class="sub" x="292" y="152">Itemへ固定保存</text>
+
+        <rect class="box box-decision" x="520" y="55" width="190" height="116"></rect>
+        <text class="label" x="542" y="86">Dispatch</text>
+        <text class="sub" x="542" y="112">Domain hints</text>
+        <text class="sub" x="542" y="132">Agent候補</text>
+        <text class="sub" x="542" y="152">目的別に選択</text>
+
+        <rect class="box box-agent" x="770" y="55" width="190" height="116"></rect>
+        <text class="label" x="792" y="86">Agent Run</text>
+        <text class="sub" x="792" y="112">Planner / Worker</text>
+        <text class="sub" x="792" y="132">Rubricを参照</text>
+        <text class="sub" x="792" y="152">outputを記録</text>
+
+        <rect class="box box-rubric" x="520" y="230" width="190" height="86"></rect>
+        <text class="label" x="542" y="260">Review</text>
+        <text class="sub" x="542" y="286">Rubric + acceptance</text>
+        <text class="sub" x="542" y="306">pass / request_changes</text>
+
+        <rect class="box box-decision" x="770" y="230" width="190" height="86"></rect>
+        <text class="label" x="792" y="260">Approval Policy</text>
+        <text class="sub" x="792" y="286">manual: approve待ち</text>
+        <text class="sub" x="792" y="306">auto: doneへ進む</text>
+
+        <path class="arrow" marker-end="url(#arrow2)" d="M210 113 L270 113"></path>
+        <path class="arrow" marker-end="url(#arrow2)" d="M460 113 L520 113"></path>
+        <path class="arrow" marker-end="url(#arrow2)" d="M710 113 L770 113"></path>
+        <path class="arrow" marker-end="url(#arrow2)" d="M865 171 C865 215 730 224 710 260"></path>
+        <path class="arrow" marker-end="url(#arrow2)" d="M710 273 L770 273"></path>
+        <path class="arrow dash" marker-end="url(#arrow2)" d="M615 171 L615 230"></path>
+      </svg>
+    </div>
+
+    <div class="columns">
+      <div class="card">
+        <h3>作成時</h3>
+        <ul>
+          <li>ユーザーがDomain Group / Domainを選ぶ、または未指定にする。</li>
+          <li>未指定時はProject workflow defaultを使う。</li>
+          <li>Domain指定時はDomain override、Group default、Project defaultの順に解決する。</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Dispatch時</h3>
+        <ul>
+          <li>Agent Profileのroleとspecialtiesを候補評価に使う。</li>
+          <li>Domain Groupの共通知識とDomainのdispatch_hints / rubricを文脈として渡す。</li>
+          <li>Work / Review の固定default UIには戻さない。</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Review時</h3>
+        <ul>
+          <li>Reviewはacceptance criteria、Domain Groupの共通基準、Domain Rubricで評価する。</li>
+          <li>CI、テスト、artifact確認もReview内の証跡として扱う。</li>
+          <li>pass後はapproval policyで完了方法が分岐する。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>7. 設定データ例</h2>
+    <div class="columns">
+      <div class="card">
+        <h3>Domain Group</h3>
+        <p>大きな業務領域の共通知識を置く。下位Domainに共通する前提だけを保持する。</p>
+        <pre>[domain_group]
+id = "software-development"
+display_name = "Software Development"
+description = "Code, UI, API, docs, tests."
+shared_knowledge = [
+  "Prefer small reviewable changes.",
+  "Preserve existing public contracts."
+]
+common_rubric = [
+  "Change is traceable to requirements.",
+  "Relevant tests or review evidence exist."
+]
+dispatch_hints = [
+  "Select agents by role and working_dir."
+]
+
+[domain_group.workflow]
+default_progress_mode = "finish_first"
+approval_policy = "manual_final_approval"</pre>
+      </div>
+      <div class="card">
+        <h3>Domain</h3>
+        <p>生成物別の具体的なRubricを置く。Groupの共通知識を継承して具体化する。</p>
+        <pre>[domain_profile]
+id = "frontend-ui"
+group_id = "software-development"
+display_name = "Frontend UI"
+artifact_types = ["html", "css", "screenshot"]
+rubric = [
+  "Primary workflow is visible.",
+  "Text does not overlap.",
+  "Controls are reachable on mobile."
+]
+dispatch_hints = [
+  "Prefer UI-capable worker/reviewer."
+]
+
+[domain_profile.workflow]
+approval_policy = "manual_final_approval"</pre>
+      </div>
+      <div class="card">
+        <h3>Work Item</h3>
+        <p>作成時に解決済み値を保存する。後からGroupやDomainが更新されても暗黙には変えない。</p>
+        <pre>{
+  "id": "work_0001",
+  "domain_group_id": "software-development",
+  "domain_id": "frontend-ui",
+  "workflow_mode": "finish_first",
+  "approval_policy": "manual_final_approval",
+  "acceptance_criteria": [
+    "SettingsでDomainが選べる"
+  ]
+}</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>8. Settings UI 方針</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>画面</th>
+          <th>扱うもの</th>
+          <th>主操作</th>
+          <th>表示しないもの</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Workflow</td>
+          <td>Project default</td>
+          <td><code>default_progress_mode</code> と <code>approval_policy</code> を保存する。</td>
+          <td>Work / Review agent の固定default。</td>
+        </tr>
+        <tr>
+          <td>Domains</td>
+          <td>大きな業務領域と生成物別の知識</td>
+          <td>1つのタブ内に Domain Groups と Domains の2リストを表示する。各リストの直上に新規作成ボタンを置き、各行から編集・削除する。</td>
+          <td>Agent runtimeやadapterの設定。Domain Group と Domain を別タブに分けた長い管理導線。</td>
+        </tr>
+        <tr>
+          <td>Agents</td>
+          <td>実行能力と役割</td>
+          <td>role、specialties、description、working_dir、adapter、担当Domain Group / Domainを編集する。Project-local Agent は削除できる。</td>
+          <td>Domain Rubricそのもの。</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout">
+      <p><strong>追加ストーリー。</strong> ユーザーは Settings で Domain Group を1つ作成し、その配下に複数の Domain を作る。Domain は Group を選ぶだけで共通知識と workflow default を継承できる。Agent を追加するときは、担当できる Domain Group と Domain を選び、dispatch はその scope を候補評価に使う。</p>
+      <p><strong>最小操作。</strong> Group 作成、Domain 作成、Agent 作成はそれぞれ1フォームで完結する。Work Item 作成では Domain を選べば Group はDomainの所属から解決され、Groupだけを選ぶ作業も許可する。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>8A. UI評価</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>観点</th>
+          <th>評価</th>
+          <th>理由</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>状態の可視性</td>
+          <td>Pass</td>
+          <td>Settings は Workflow、Domains、Agents の順に表示し、Domainsタブ内の2リストでDomain GroupとDomainの件数、所属、workflow、source、編集・削除操作を確認できる。</td>
+        </tr>
+        <tr>
+          <td>現実の作業語彙</td>
+          <td>Pass</td>
+          <td>大分類は Domain Group、成果物別基準は Domain、実行主体は Agent として分け、RubricをAgent名に埋め込まない。</td>
+        </tr>
+        <tr>
+          <td>エラー予防</td>
+          <td>Pass</td>
+          <td>Domain と矛盾する Domain Group 指定は Work Item 作成時に拒否する。存在しない Group / Domain をAgent scopeに指定することも拒否する。</td>
+        </tr>
+        <tr>
+          <td>効率</td>
+          <td>Pass</td>
+          <td>OK系はフォーム送信1回で保存し、Agent削除も対象確認後に1操作で完了する。既定Agentの固定Default変更UIは置かない。</td>
+        </tr>
+        <tr>
+          <td>最小性</td>
+          <td>Pass</td>
+          <td>Domain Groupに共通基準、Domainに成果物別基準、Agentに実行能力を置くため、設定項目の重複が少ない。</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>9. Prompt / Rubric 改善の将来設計</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>対象</th>
+          <th>改善に使う記録</th>
+          <th>改善先</th>
+          <th>注意点</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Domain Group</td>
+          <td>複数Domainに共通する失敗傾向、用語の揺れ、共通前提、横断的なReview指摘</td>
+          <td><code>.nagare/domain-groups/&lt;id&gt;.toml</code> の <code>shared_knowledge</code> / <code>common_rubric</code></td>
+          <td>Groupに置くのは横断知識だけにする。成果物固有の細かい基準はDomainへ下ろす。</td>
+        </tr>
+        <tr>
+          <td>Domain Rubric</td>
+          <td><code>ReviewResult.criteria_results</code>, <code>findings</code>, <code>requested_changes</code>, approval / reject rationale</td>
+          <td><code>.nagare/domains/&lt;id&gt;.toml</code> の <code>rubric</code></td>
+          <td>個別失敗をそのまま追加せず、繰り返し使える評価基準に抽象化する。</td>
+        </tr>
+        <tr>
+          <td>Agent Profile</td>
+          <td>AgentRunの成功/失敗、出力契約違反、質問発生、RecoveryPlan</td>
+          <td><code>description</code>, <code>specialties</code>, output contract</td>
+          <td>Domain固有の品質基準はAgentではなくDomainへ置く。</td>
+        </tr>
+        <tr>
+          <td>Dispatch hints</td>
+          <td>DispatchPlanの選択、fallback、selection_warnings、実行後のReview結果</td>
+          <td><code>DomainProfile.dispatch_hints</code></td>
+          <td>特定Agent名への固定ではなく、候補選択の条件として残す。</td>
+        </tr>
+        <tr>
+          <td>Workflow policy</td>
+          <td>承認待ちの頻度、reject理由、自動完了で問題が出たDomain / Domain Group</td>
+          <td>Project <code>[workflow]</code>、Domain Group workflow default、Domain workflow override</td>
+          <td>GroupとDomainでリスクが違うため、Project defaultだけで全てを決めない。</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>10. 実装ステータス</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>対象</th>
+          <th>状態</th>
+          <th>現時点の扱い</th>
+          <th>次に実装する場合の焦点</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Project Workflow</td>
+          <td>実装済み</td>
+          <td><code>.nagare/project.toml</code> の <code>[workflow]</code> と Settings UI で扱う。</td>
+          <td>Domain Group default、Domain override、Work Item明示指定の解決順序で統合済み。</td>
+        </tr>
+        <tr>
+          <td>Domain Profile</td>
+          <td>実装済み</td>
+          <td><code>.nagare/domains/&lt;id&gt;.toml</code>、Settings UI、Item作成時のDomain選択で扱う。<code>group_id</code> を保存できる。</td>
+          <td>Rubric改善履歴の管理。</td>
+        </tr>
+        <tr>
+          <td>Domain Group</td>
+          <td>実装済み</td>
+          <td><code>.nagare/domain-groups/&lt;id&gt;.toml</code>、Settings UI、dispatch prompt、Agent scope、WorkItem作成時のGroup固定保存で扱う。</td>
+          <td>Group改善履歴の管理。</td>
+        </tr>
+        <tr>
+          <td>Agent Selection</td>
+          <td>実装済み</td>
+          <td>Agent Profile、Domain Group、Domain Profileがdispatch材料になる。</td>
+          <td>実行記録からAgent Profile / Rubricの改善候補を作る。</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>11. 設計上の禁止事項</h2>
+    <div class="panel">
+      <ul>
+        <li>RubricをAgentごとの隠れたプロンプトに閉じ込めない。Domainに置き、作成と評価で共有する。</li>
+        <li>Domain Groupに成果物固有の細かいRubricを置きすぎない。Groupは共通知識、Domainは生成物別の具体基準に分ける。</li>
+        <li>Work / Review / Planner の固定default選択をSettingsの主機能に戻さない。Agent選択はdispatchがAgent ProfileとDomainを見て判断する。</li>
+        <li>実行ログ、raw output、CIログ、diffをArtifactと呼ばない。証跡は <code>ExecutionRecord</code>、ユーザー指示の作成物は <code>Artifact</code> として分ける。</li>
+        <li>Domain Group / Domain overrideを既存Work Itemへ暗黙適用しない。Work Itemは作成時点の解決済み方針を持つ。</li>
+      </ul>
+    </div>
+  </section>
+</main>
+</body>
+</html>

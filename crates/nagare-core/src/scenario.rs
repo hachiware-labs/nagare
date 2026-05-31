@@ -8,21 +8,21 @@ pub fn run_first_scenario(root: impl Into<PathBuf>) -> Result<ScenarioResult, Na
     let item = create_work_item(
         &root,
         "Repair failing agent run",
-        "Demonstrate Codex CLI failure, Codex App Server handoff, verification, and approval.",
+        "Demonstrate Codex CLI failure, Codex App Server handoff, review, and approval.",
     )?
     .item;
     let codex_run = run_work_item(
         &root,
         &item.id,
-        "codex-cli",
+        "worker",
         scenario_command("codex run failed", false).as_str(),
     )?
     .run;
     let handoff = create_handoff(
         &root,
         &item.id,
-        "codex-cli",
-        "codex-app-server",
+        "worker",
+        "reviewer",
         "Codex agent profile produced a failing run",
         "Retry with Codex App Server agent profile using the captured run log as evidence.",
     )?
@@ -30,20 +30,31 @@ pub fn run_first_scenario(root: impl Into<PathBuf>) -> Result<ScenarioResult, Na
     let codex_app_run = run_work_item(
         &root,
         &item.id,
-        "codex-app-server",
+        "reviewer",
         scenario_command("codex app server retry fixed the task", true).as_str(),
     )?
     .run;
-    let verification = verify_work_item(
+    run_work_item_with_input(
         &root,
         &item.id,
-        scenario_command("verification passed", true).as_str(),
-    )?
-    .verification;
+        RunWorkItemInput {
+            agent_profile_id: "reviewer",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(scenario_review_command("review passed").as_str()),
+            purpose: AgentRunPurpose::Review,
+        },
+    )?;
+    let review = get_work_item_snapshot(&root, &item.id)?
+        .review_results
+        .last()
+        .cloned()
+        .ok_or_else(|| NagareError::InvalidState("scenario review should record".to_string()))?;
     let decision = approve_work_item(
         &root,
         &item.id,
-        "Required verification passed after cross-agent handoff.",
+        "Required review passed after cross-agent handoff.",
     )?
     .decision;
     let final_status = get_work_item_snapshot(&root, &item.id)?.item.status;
@@ -53,7 +64,7 @@ pub fn run_first_scenario(root: impl Into<PathBuf>) -> Result<ScenarioResult, Na
         codex_run_id: codex_run.id,
         handoff_id: handoff.id,
         codex_app_run_id: codex_app_run.id,
-        verification_id: verification.id,
+        review_id: review.id,
         decision_id: decision.id,
         final_status,
     })
@@ -74,7 +85,9 @@ pub fn run_registered_agent_scenario(
             role: "implementer",
             working_dir: ".",
             description: "Codex CLI profile used for smoke-test work execution.",
-            specialties: vec!["implementation".to_string(), "verification".to_string()],
+            specialties: vec!["implementation".to_string(), "review-checks".to_string()],
+            domain_group_ids: Vec::new(),
+            domain_ids: Vec::new(),
         },
     )?;
     add_agent_profile(
@@ -88,13 +101,15 @@ pub fn run_registered_agent_scenario(
             working_dir: ".",
             description: "Codex app-server profile used for smoke-test review and planning.",
             specialties: vec!["review".to_string(), "planning".to_string()],
+            domain_group_ids: Vec::new(),
+            domain_ids: Vec::new(),
         },
     )?;
 
     let item = create_work_item(
         &root,
         "Repair failing registered agent run",
-        "Demonstrate registered Agent Profiles, handoff, verification, and approval.",
+        "Demonstrate registered Agent Profiles, handoff, review, and approval.",
     )?
     .item;
     let codex_run = run_work_item(
@@ -120,16 +135,29 @@ pub fn run_registered_agent_scenario(
         scenario_command("registered codex app server retry fixed the task", true).as_str(),
     )?
     .run;
-    let verification = verify_work_item(
+    run_work_item_with_input(
         &root,
         &item.id,
-        scenario_command("registered verification passed", true).as_str(),
-    )?
-    .verification;
+        RunWorkItemInput {
+            agent_profile_id: "codex-app-smoke",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(scenario_review_command("registered review passed").as_str()),
+            purpose: AgentRunPurpose::Review,
+        },
+    )?;
+    let review = get_work_item_snapshot(&root, &item.id)?
+        .review_results
+        .last()
+        .cloned()
+        .ok_or_else(|| {
+            NagareError::InvalidState("registered scenario review should record".to_string())
+        })?;
     let decision = approve_work_item(
         &root,
         &item.id,
-        "Required verification passed after registered agent handoff.",
+        "Required review passed after registered agent handoff.",
     )?
     .decision;
     let final_status = get_work_item_snapshot(&root, &item.id)?.item.status;
@@ -139,7 +167,7 @@ pub fn run_registered_agent_scenario(
         codex_run_id: codex_run.id,
         handoff_id: handoff.id,
         codex_app_run_id: codex_app_run.id,
-        verification_id: verification.id,
+        review_id: review.id,
         decision_id: decision.id,
         final_status,
     })

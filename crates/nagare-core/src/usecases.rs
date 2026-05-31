@@ -32,6 +32,247 @@ pub fn get_agent_profile(
     get_agent_profile_from_layout(&layout, agent_profile_id)
 }
 
+pub fn list_domain_profiles(root: impl Into<PathBuf>) -> Result<Vec<DomainProfile>, NagareError> {
+    let layout = ensure_project(root)?;
+    Ok(load_domain_profiles(&layout)?.into_values().collect())
+}
+
+pub fn list_domain_groups(root: impl Into<PathBuf>) -> Result<Vec<DomainGroup>, NagareError> {
+    let layout = ensure_project(root)?;
+    Ok(load_domain_groups(&layout)?.into_values().collect())
+}
+
+pub fn get_domain_profile(
+    root: impl Into<PathBuf>,
+    domain_profile_id: &str,
+) -> Result<DomainProfile, NagareError> {
+    let layout = ensure_project(root)?;
+    load_domain_profiles(&layout)?
+        .remove(domain_profile_id)
+        .ok_or_else(|| NagareError::NotFound(format!("domain profile `{domain_profile_id}`")))
+}
+
+pub fn get_domain_group(
+    root: impl Into<PathBuf>,
+    domain_group_id: &str,
+) -> Result<DomainGroup, NagareError> {
+    let layout = ensure_project(root)?;
+    load_domain_groups(&layout)?
+        .remove(domain_group_id)
+        .ok_or_else(|| NagareError::NotFound(format!("domain group `{domain_group_id}`")))
+}
+
+pub fn get_workflow_settings(root: impl Into<PathBuf>) -> Result<WorkflowSettings, NagareError> {
+    let layout = ensure_project(root)?;
+    Ok(load_project_config(&layout)?.workflow)
+}
+
+pub fn set_workflow_settings(
+    root: impl Into<PathBuf>,
+    settings: WorkflowSettings,
+) -> Result<WorkflowSettings, NagareError> {
+    let layout = ensure_project(root)?;
+    save_workflow_settings(&layout, settings)?;
+    Ok(settings)
+}
+
+pub fn add_domain_profile(
+    root: impl Into<PathBuf>,
+    input: AddDomainProfileInput<'_>,
+) -> Result<AddDomainProfileResult, NagareError> {
+    let layout = ensure_project(root)?;
+    validate_domain_profile_id(input.id)?;
+    let existing = load_domain_profiles(&layout)?;
+    if existing.contains_key(input.id) {
+        return Err(NagareError::InvalidState(format!(
+            "domain profile `{}` already exists",
+            input.id
+        )));
+    }
+    let group_id = input
+        .group_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+    if let Some(group_id) = group_id.as_deref() {
+        validate_existing_domain_group(&layout, group_id)?;
+    }
+    let domain = DomainProfile {
+        id: input.id.to_string(),
+        group_id,
+        display_name: if input.display_name.trim().is_empty() {
+            input.id.to_string()
+        } else {
+            input.display_name.trim().to_string()
+        },
+        description: input.description.trim().to_string(),
+        artifact_types: normalize_specialties(input.artifact_types),
+        rubric: normalize_specialties(input.rubric),
+        dispatch_hints: normalize_specialties(input.dispatch_hints),
+        workflow: input.workflow,
+        source: DomainProfileSource::ProjectDomainDirectory,
+    };
+    let path = write_domain_profile_file(&layout, &domain)?;
+    Ok(AddDomainProfileResult { domain, path })
+}
+
+pub fn update_domain_profile(
+    root: impl Into<PathBuf>,
+    domain_profile_id: &str,
+    input: UpdateDomainProfileInput<'_>,
+) -> Result<UpdateDomainProfileResult, NagareError> {
+    let layout = ensure_project(root)?;
+    validate_domain_profile_id(domain_profile_id)?;
+    let mut domain = get_domain_profile(&layout.root, domain_profile_id)?;
+    if let Some(group_id) = input.group_id {
+        let group_id = group_id.map(str::trim).filter(|value| !value.is_empty());
+        if let Some(group_id) = group_id {
+            validate_existing_domain_group(&layout, group_id)?;
+        }
+        domain.group_id = group_id.map(ToOwned::to_owned);
+    }
+    if let Some(display_name) = input.display_name {
+        domain.display_name = if display_name.trim().is_empty() {
+            domain.id.clone()
+        } else {
+            display_name.trim().to_string()
+        };
+    }
+    if let Some(description) = input.description {
+        domain.description = description.trim().to_string();
+    }
+    if let Some(artifact_types) = input.artifact_types {
+        domain.artifact_types = normalize_specialties(artifact_types);
+    }
+    if let Some(rubric) = input.rubric {
+        domain.rubric = normalize_specialties(rubric);
+    }
+    if let Some(dispatch_hints) = input.dispatch_hints {
+        domain.dispatch_hints = normalize_specialties(dispatch_hints);
+    }
+    if let Some(workflow) = input.workflow {
+        domain.workflow = workflow;
+    }
+    domain.source = DomainProfileSource::ProjectDomainDirectory;
+    let path = write_domain_profile_file(&layout, &domain)?;
+    Ok(UpdateDomainProfileResult { domain, path })
+}
+
+pub fn delete_domain_profile(
+    root: impl Into<PathBuf>,
+    domain_profile_id: &str,
+) -> Result<DomainProfile, NagareError> {
+    let layout = ensure_project(root)?;
+    validate_domain_profile_id(domain_profile_id)?;
+    let domain = get_domain_profile(&layout.root, domain_profile_id)?;
+    if domain.source != DomainProfileSource::ProjectDomainDirectory {
+        return Err(NagareError::InvalidState(format!(
+            "domain profile `{domain_profile_id}` is not project-local and cannot be deleted"
+        )));
+    }
+    let path = layout.domains_dir.join(format!("{domain_profile_id}.toml"));
+    if path.exists() {
+        fs::remove_file(&path)?;
+    }
+    Ok(domain)
+}
+
+pub fn add_domain_group(
+    root: impl Into<PathBuf>,
+    input: AddDomainGroupInput<'_>,
+) -> Result<AddDomainGroupResult, NagareError> {
+    let layout = ensure_project(root)?;
+    validate_domain_group_id(input.id)?;
+    let existing = load_domain_groups(&layout)?;
+    if existing.contains_key(input.id) {
+        return Err(NagareError::InvalidState(format!(
+            "domain group `{}` already exists",
+            input.id
+        )));
+    }
+    let group = DomainGroup {
+        id: input.id.to_string(),
+        display_name: if input.display_name.trim().is_empty() {
+            input.id.to_string()
+        } else {
+            input.display_name.trim().to_string()
+        },
+        description: input.description.trim().to_string(),
+        shared_knowledge: normalize_specialties(input.shared_knowledge),
+        common_rubric: normalize_specialties(input.common_rubric),
+        dispatch_hints: normalize_specialties(input.dispatch_hints),
+        workflow: input.workflow,
+        source: DomainGroupSource::ProjectDomainGroupDirectory,
+    };
+    let path = write_domain_group_file(&layout, &group)?;
+    Ok(AddDomainGroupResult { group, path })
+}
+
+pub fn update_domain_group(
+    root: impl Into<PathBuf>,
+    domain_group_id: &str,
+    input: UpdateDomainGroupInput<'_>,
+) -> Result<UpdateDomainGroupResult, NagareError> {
+    let layout = ensure_project(root)?;
+    validate_domain_group_id(domain_group_id)?;
+    let mut group = get_domain_group(&layout.root, domain_group_id)?;
+    if let Some(display_name) = input.display_name {
+        group.display_name = if display_name.trim().is_empty() {
+            group.id.clone()
+        } else {
+            display_name.trim().to_string()
+        };
+    }
+    if let Some(description) = input.description {
+        group.description = description.trim().to_string();
+    }
+    if let Some(shared_knowledge) = input.shared_knowledge {
+        group.shared_knowledge = normalize_specialties(shared_knowledge);
+    }
+    if let Some(common_rubric) = input.common_rubric {
+        group.common_rubric = normalize_specialties(common_rubric);
+    }
+    if let Some(dispatch_hints) = input.dispatch_hints {
+        group.dispatch_hints = normalize_specialties(dispatch_hints);
+    }
+    if let Some(workflow) = input.workflow {
+        group.workflow = workflow;
+    }
+    group.source = DomainGroupSource::ProjectDomainGroupDirectory;
+    let path = write_domain_group_file(&layout, &group)?;
+    Ok(UpdateDomainGroupResult { group, path })
+}
+
+pub fn delete_domain_group(
+    root: impl Into<PathBuf>,
+    domain_group_id: &str,
+) -> Result<DomainGroup, NagareError> {
+    let layout = ensure_project(root)?;
+    validate_domain_group_id(domain_group_id)?;
+    let group = get_domain_group(&layout.root, domain_group_id)?;
+    if group.source != DomainGroupSource::ProjectDomainGroupDirectory {
+        return Err(NagareError::InvalidState(format!(
+            "domain group `{domain_group_id}` is not project-local and cannot be deleted"
+        )));
+    }
+    let domains = load_domain_profiles(&layout)?;
+    if domains
+        .values()
+        .any(|domain| domain.group_id.as_deref() == Some(domain_group_id))
+    {
+        return Err(NagareError::InvalidState(format!(
+            "domain group `{domain_group_id}` still has domains"
+        )));
+    }
+    let path = layout
+        .domain_groups_dir
+        .join(format!("{domain_group_id}.toml"));
+    if path.exists() {
+        fs::remove_file(&path)?;
+    }
+    Ok(group)
+}
+
 pub fn add_agent_profile(
     root: impl Into<PathBuf>,
     input: AddAgentProfileInput<'_>,
@@ -48,6 +289,10 @@ pub fn add_agent_profile(
     }
 
     let adapter = normalize_adapter_id(input.adapter)?;
+    let domain_group_ids = normalize_domain_group_ids(input.domain_group_ids)?;
+    let domain_ids = normalize_domain_profile_ids(input.domain_ids)?;
+    validate_existing_domain_group_ids(&layout, &domain_group_ids)?;
+    validate_existing_domain_profile_ids(&layout, &domain_ids)?;
     let profile = AgentProfile {
         id: input.id.to_string(),
         display_name: if input.display_name.trim().is_empty() {
@@ -65,6 +310,8 @@ pub fn add_agent_profile(
         working_dir: normalize_working_dir(input.working_dir)?,
         description: input.description.trim().to_string(),
         specialties: normalize_specialties(input.specialties),
+        domain_group_ids,
+        domain_ids,
         output_contracts: AgentOutputContracts::default(),
         source: AgentProfileSource::ProjectAgentDirectory,
     };
@@ -90,6 +337,12 @@ pub fn update_agent_profile(
             display_name.trim().to_string()
         };
     }
+    if let Some(runtime) = input.runtime {
+        profile.runtime = runtime.trim().to_string();
+    }
+    if let Some(adapter) = input.adapter {
+        profile.adapter = normalize_adapter_id(adapter)?.to_string();
+    }
     if let Some(role) = input.role {
         profile.role = if role.trim().is_empty() {
             "implementer".to_string()
@@ -106,12 +359,39 @@ pub fn update_agent_profile(
     if let Some(specialties) = input.specialties {
         profile.specialties = normalize_specialties(specialties);
     }
+    if let Some(domain_group_ids) = input.domain_group_ids {
+        profile.domain_group_ids = normalize_domain_group_ids(domain_group_ids)?;
+        validate_existing_domain_group_ids(&layout, &profile.domain_group_ids)?;
+    }
+    if let Some(domain_ids) = input.domain_ids {
+        profile.domain_ids = normalize_domain_profile_ids(domain_ids)?;
+        validate_existing_domain_profile_ids(&layout, &profile.domain_ids)?;
+    }
     if let Some(update) = input.output_contract {
         apply_output_contract_update(&mut profile.output_contracts, update)?;
     }
     profile.source = AgentProfileSource::ProjectAgentDirectory;
     let path = write_agent_profile_file(&layout, &profile)?;
     Ok(UpdateAgentProfileResult { profile, path })
+}
+
+pub fn delete_agent_profile(
+    root: impl Into<PathBuf>,
+    agent_profile_id: &str,
+) -> Result<AgentProfile, NagareError> {
+    let layout = ensure_project(root)?;
+    validate_agent_profile_id(agent_profile_id)?;
+    let profile = get_agent_profile_from_layout(&layout, agent_profile_id)?;
+    if profile.source != AgentProfileSource::ProjectAgentDirectory {
+        return Err(NagareError::InvalidState(format!(
+            "agent profile `{agent_profile_id}` is not project-local and cannot be deleted"
+        )));
+    }
+    let path = layout.agents_dir.join(format!("{agent_profile_id}.toml"));
+    if path.exists() {
+        fs::remove_file(&path)?;
+    }
+    Ok(profile)
 }
 
 fn write_agent_profile_file(
@@ -130,6 +410,8 @@ fn write_agent_profile_file(
             working_dir: profile.working_dir.clone(),
             description: profile.description.clone(),
             specialties: profile.specialties.clone(),
+            domain_group_ids: profile.domain_group_ids.clone(),
+            domain_ids: profile.domain_ids.clone(),
             output_contracts: profile.output_contracts.clone(),
         }),
         agent_profiles: BTreeMap::new(),
@@ -137,6 +419,117 @@ fn write_agent_profile_file(
     let raw = toml::to_string_pretty(&document)?;
     fs::write(&path, raw)?;
     Ok(path)
+}
+
+fn write_domain_profile_file(
+    layout: &ProjectLayout,
+    domain: &DomainProfile,
+) -> Result<PathBuf, NagareError> {
+    fs::create_dir_all(&layout.domains_dir)?;
+    let path = layout.domains_dir.join(format!("{}.toml", domain.id));
+    let document = DomainProfileFile {
+        domain_profile: Some(DomainProfileFileEntry {
+            id: Some(domain.id.clone()),
+            group_id: domain.group_id.clone(),
+            display_name: domain.display_name.clone(),
+            description: domain.description.clone(),
+            artifact_types: domain.artifact_types.clone(),
+            rubric: domain.rubric.clone(),
+            dispatch_hints: domain.dispatch_hints.clone(),
+            workflow: domain.workflow,
+        }),
+        domain_profiles: BTreeMap::new(),
+    };
+    let raw = toml::to_string_pretty(&document)?;
+    fs::write(&path, raw)?;
+    Ok(path)
+}
+
+fn write_domain_group_file(
+    layout: &ProjectLayout,
+    group: &DomainGroup,
+) -> Result<PathBuf, NagareError> {
+    fs::create_dir_all(&layout.domain_groups_dir)?;
+    let path = layout.domain_groups_dir.join(format!("{}.toml", group.id));
+    let document = DomainGroupFile {
+        domain_group: Some(DomainGroupFileEntry {
+            id: Some(group.id.clone()),
+            display_name: group.display_name.clone(),
+            description: group.description.clone(),
+            shared_knowledge: group.shared_knowledge.clone(),
+            common_rubric: group.common_rubric.clone(),
+            dispatch_hints: group.dispatch_hints.clone(),
+            workflow: group.workflow,
+        }),
+        domain_groups: BTreeMap::new(),
+    };
+    let raw = toml::to_string_pretty(&document)?;
+    fs::write(&path, raw)?;
+    Ok(path)
+}
+
+fn prompt_with_agent_instructions(prompt: &str, instructions: &str) -> String {
+    let instructions = instructions.trim();
+    if instructions.is_empty() {
+        return prompt.to_string();
+    }
+    format!("{prompt}\n\n## Nagare Agent Instructions\n{instructions}")
+}
+
+fn prompt_with_domain_context(prompt: &str, context: &str) -> String {
+    let context = context.trim();
+    if context.is_empty() {
+        return prompt.to_string();
+    }
+    format!("{prompt}\n\n## Nagare Domain Context\n{context}")
+}
+
+fn domain_prompt_context(layout: &ProjectLayout, item: &WorkItem) -> Result<String, NagareError> {
+    let domain_groups = load_domain_groups(layout)?;
+    let domains = load_domain_profiles(layout)?;
+    let domain = item
+        .domain_id
+        .as_deref()
+        .and_then(|domain_id| domains.get(domain_id));
+    let domain_group_id = item
+        .domain_group_id
+        .as_deref()
+        .or_else(|| domain.and_then(|domain| domain.group_id.as_deref()));
+    let domain_group = domain_group_id.and_then(|group_id| domain_groups.get(group_id));
+    if domain.is_none() && domain_group.is_none() {
+        return Ok(String::new());
+    }
+    let mut lines = Vec::new();
+    if let Some(group) = domain_group {
+        lines.push(format!(
+            "Domain group: {} ({})",
+            group.display_name, group.id
+        ));
+        if !group.description.trim().is_empty() {
+            lines.push(format!("Group description: {}", group.description));
+        }
+        append_context_list(&mut lines, "Shared knowledge", &group.shared_knowledge);
+        append_context_list(&mut lines, "Common rubric", &group.common_rubric);
+        append_context_list(&mut lines, "Group dispatch hints", &group.dispatch_hints);
+    }
+    if let Some(domain) = domain {
+        lines.push(format!("Domain: {} ({})", domain.display_name, domain.id));
+        if !domain.description.trim().is_empty() {
+            lines.push(format!("Domain description: {}", domain.description));
+        }
+        append_context_list(&mut lines, "Artifact types", &domain.artifact_types);
+        append_context_list(&mut lines, "Domain rubric", &domain.rubric);
+        append_context_list(&mut lines, "Domain dispatch hints", &domain.dispatch_hints);
+    }
+    Ok(lines.join("\n"))
+}
+
+fn append_context_list(lines: &mut Vec<String>, label: &str, values: &[String]) {
+    if values.is_empty() {
+        return;
+    }
+    lines.push(format!("{label}:"));
+    lines.extend(values.iter().map(|value| format!("- {value}")));
 }
 
 fn apply_output_contract_update(
@@ -365,7 +758,9 @@ pub fn run_work_item_with_input(
     input: RunWorkItemInput<'_>,
 ) -> Result<RunWorkItemResult, NagareError> {
     let layout = ensure_project(root)?;
-    let locale = load_project_config(&layout)?.locale.language;
+    let project_config = load_project_config(&layout)?;
+    let locale = project_config.locale.language.clone();
+    let agent_settings = project_config.nagare_agents;
     let mut ledger = load_ledger(&layout)?;
     let item = ledger.work_item(work_item_id)?.clone();
     let effective_path = input.path.or(item.work_folder.as_deref());
@@ -377,7 +772,7 @@ pub fn run_work_item_with_input(
     }
 
     let run_id = ledger.next_id("run");
-    let artifact_id = ledger.next_id("art");
+    let execution_record_id = ledger.next_id("exec");
     let evidence_id = ledger.next_id("ev");
     let run_packet_id = ledger.next_id("runpkt");
     let skill_context_id = ledger.next_id("skillctx");
@@ -431,6 +826,7 @@ pub fn run_work_item_with_input(
         .to_string();
     let human_feedback_context = human_feedback_prompt_context(&ledger, work_item_id);
     let handoff_context = handoff_prompt_context(&ledger, work_item_id);
+    let domain_context = domain_prompt_context(&layout, &item)?;
     let resolved_skill_context = ResolvedSkillContext {
         id: skill_context_id.clone(),
         work_item_id: work_item_id.to_string(),
@@ -442,11 +838,7 @@ pub fn run_work_item_with_input(
         skipped_skill_set_ids: skill_set_resolution.skipped_skill_set_ids.clone(),
         capabilities_in_force,
         instruction_sources,
-        artifact_uri: path_uri(
-            &layout
-                .artifacts_dir
-                .join(format!("{skill_context_id}.json")),
-        ),
+        execution_record_uri: path_uri(&layout.logs_dir.join(format!("{skill_context_id}.json"))),
         content_hash: format!("local:{}", skill_context_id),
         locale: locale.clone(),
         resolved_at: timestamp(),
@@ -467,7 +859,6 @@ pub fn run_work_item_with_input(
         resolved_skill_context_id: skill_context_id.clone(),
         output_contract: output_contract.clone(),
         project_rule_ids: rule_resolution.matched_rule_id.iter().cloned().collect(),
-        verification: rule_resolution.verification.clone(),
         constraints: rule_resolution
             .warnings
             .iter()
@@ -478,12 +869,13 @@ pub fn run_work_item_with_input(
                     .then(|| "human_feedback_context_applied".to_string()),
             )
             .chain((!handoff_context.is_empty()).then(|| "handoff_context_applied".to_string()))
+            .chain((!domain_context.is_empty()).then(|| "domain_context_applied".to_string()))
             .chain(
                 (!item.acceptance_criteria.is_empty())
                     .then(|| "acceptance_criteria_context_applied".to_string()),
             )
             .collect(),
-        artifact_uri: path_uri(&layout.artifacts_dir.join(format!("{run_packet_id}.json"))),
+        execution_record_uri: path_uri(&layout.logs_dir.join(format!("{run_packet_id}.json"))),
         content_hash: format!("local:{}", run_packet_id),
         locale: locale.clone(),
         created_at: timestamp(),
@@ -493,9 +885,15 @@ pub fn run_work_item_with_input(
         .filter(|prompt| !prompt.trim().is_empty())
         .unwrap_or(goal.as_str());
     let prompt = prompt_with_output_contract(
-        &prompt_with_handoff_context(
-            &prompt_with_human_feedback(prompt, &human_feedback_context),
-            &handoff_context,
+        &prompt_with_agent_instructions(
+            &prompt_with_domain_context(
+                &prompt_with_handoff_context(
+                    &prompt_with_human_feedback(prompt, &human_feedback_context),
+                    &handoff_context,
+                ),
+                &domain_context,
+            ),
+            &agent_profile.description,
         ),
         input.purpose,
         &output_contract,
@@ -518,11 +916,11 @@ pub fn run_work_item_with_input(
     let log_path = layout.logs_dir.join(format!("{run_id}.log"));
     write_adapter_log(&log_path, &resolved_run_packet, &output)?;
 
-    let artifact = Artifact {
-        id: artifact_id.clone(),
+    let execution_record = ExecutionRecord {
+        id: execution_record_id.clone(),
         work_item_id: work_item_id.to_string(),
         agent_run_id: Some(run_id.clone()),
-        artifact_type: "run_log".to_string(),
+        record_type: "run_log".to_string(),
         uri: path_uri(&log_path),
         title: format!("{} {} log", input.agent_profile_id, input.purpose),
         locale: locale.clone(),
@@ -533,12 +931,13 @@ pub fn run_work_item_with_input(
         work_item_id: work_item_id.to_string(),
         claim: agent_run_claim(&locale, input.purpose, status, input.agent_profile_id),
         basis: command_exit_basis(&locale, output.exit_code),
-        artifact_id: Some(artifact_id.clone()),
+        artifact_id: None,
+        execution_record_id: Some(execution_record_id.clone()),
         produced_by: input.agent_profile_id.to_string(),
         locale: locale.clone(),
         created_at: ended_at.clone(),
     };
-    let collected_artifacts = collect_git_run_artifacts(
+    let collected_execution_records = collect_git_execution_records(
         &layout,
         &mut ledger,
         work_item_id,
@@ -546,6 +945,8 @@ pub fn run_work_item_with_input(
         &locale,
         &ended_at,
     )?;
+    let collected_artifacts =
+        collect_expected_artifacts(&layout, &mut ledger, &item, &run_id, &locale, &ended_at);
     let run = AgentRun {
         id: run_id.clone(),
         work_item_id: work_item_id.to_string(),
@@ -557,7 +958,7 @@ pub fn run_work_item_with_input(
         exit_code: output.exit_code,
         started_at,
         ended_at: ended_at.clone(),
-        artifact_id: artifact_id.clone(),
+        execution_record_id: execution_record_id.clone(),
         locale: locale.clone(),
     };
     let agent_output = agent_output_id.map(|id| {
@@ -569,7 +970,7 @@ pub fn run_work_item_with_input(
             purpose: input.purpose,
             contract: &output_contract,
             stdout: &output.stdout,
-            artifact_id: Some(&artifact_id),
+            execution_record_id: &execution_record_id,
             locale: &locale,
             created_at: &ended_at,
         })
@@ -585,7 +986,7 @@ pub fn run_work_item_with_input(
         } else if status == AgentRunStatus::Succeeded {
             WorkItemStatus::ReadyForReview
         } else {
-            WorkItemStatus::FailedVerification
+            WorkItemStatus::ChangesRequested
         }
     } else if input.purpose == AgentRunPurpose::Review {
         review_result
@@ -598,6 +999,13 @@ pub fn run_work_item_with_input(
     let dispatch_suggestion = parse_dispatch_plan_suggestion(&output.stdout);
     let valid_dispatch_targets = if dispatch_plan_id.is_some() {
         load_agent_profiles(&layout)?
+            .into_iter()
+            .filter(|(id, _)| {
+                id != input.agent_profile_id
+                    && id != &agent_settings.dispatch_agent
+                    && id != &agent_settings.supervisor_agent
+            })
+            .collect()
     } else {
         BTreeMap::new()
     };
@@ -605,7 +1013,8 @@ pub fn run_work_item_with_input(
         let fallback_target_agent_profile_id = dispatch_target_resolution
             .as_ref()
             .map(|resolution| resolution.agent_profile_id.clone())
-            .unwrap_or_else(|| input.agent_profile_id.to_string());
+            .filter(|target| valid_dispatch_targets.contains_key(target))
+            .unwrap_or_else(|| agent_settings.work_agent.clone());
         let mut selection_warnings = Vec::new();
         let target_agent_profile_id = match dispatch_suggestion
             .as_ref()
@@ -658,7 +1067,7 @@ pub fn run_work_item_with_input(
             dispatch_agent_profile_id: input.agent_profile_id.to_string(),
             target_agent_profile_id,
             resolved_run_packet_id: resolved_run_packet.id.clone(),
-            raw_output_artifact_id: artifact_id.clone(),
+            raw_output_execution_record_id: execution_record_id.clone(),
             path: rule_resolution.path.clone(),
             summary,
             risks,
@@ -670,7 +1079,8 @@ pub fn run_work_item_with_input(
     });
 
     ledger.runs.push(run.clone());
-    ledger.artifacts.push(artifact);
+    ledger.execution_records.push(execution_record);
+    ledger.execution_records.extend(collected_execution_records);
     ledger.artifacts.extend(collected_artifacts);
     ledger.evidence.push(evidence);
     if let Some(record) = agent_output {
@@ -695,12 +1105,12 @@ pub fn run_work_item_with_input(
     ledger
         .resolved_run_packets
         .push(resolved_run_packet.clone());
-    write_json_artifact(
+    write_json_execution_record(
         &layout,
         &format!("{}.json", resolved_skill_context.id),
         &resolved_skill_context,
     )?;
-    write_json_artifact(
+    write_json_execution_record(
         &layout,
         &format!("{}.json", resolved_run_packet.id),
         &resolved_run_packet,
@@ -723,81 +1133,6 @@ pub fn run_work_item_with_input(
     })
 }
 
-pub fn verify_work_item(
-    root: impl Into<PathBuf>,
-    work_item_id: &str,
-    command: &str,
-) -> Result<VerifyResult, NagareError> {
-    let layout = ensure_project(root)?;
-    let locale = load_project_config(&layout)?.locale.language;
-    let mut ledger = load_ledger(&layout)?;
-    let _ = ledger.work_item(work_item_id)?;
-
-    let artifact_id = ledger.next_id("art");
-    let evidence_id = ledger.next_id("ev");
-    let verification_id = ledger.next_id("ver");
-    let output = run_shell(command)?;
-    let verified_at = timestamp();
-    let log_path = layout.logs_dir.join(format!("{verification_id}.log"));
-    write_command_log(&log_path, command, &output)?;
-
-    let result = if output.exit_code == Some(0) {
-        VerificationStatus::Passed
-    } else {
-        VerificationStatus::Failed
-    };
-    let item_status = if result == VerificationStatus::Passed {
-        WorkItemStatus::ReadyForReview
-    } else {
-        WorkItemStatus::FailedVerification
-    };
-    let artifact = Artifact {
-        id: artifact_id.clone(),
-        work_item_id: work_item_id.to_string(),
-        agent_run_id: None,
-        artifact_type: "verification_log".to_string(),
-        uri: path_uri(&log_path),
-        title: localized_text(&locale, "verification log", "検証ログ").to_string(),
-        locale: locale.clone(),
-        created_at: verified_at.clone(),
-    };
-    let evidence = Evidence {
-        id: evidence_id.clone(),
-        work_item_id: work_item_id.to_string(),
-        claim: verification_claim(&locale, result),
-        basis: verification_basis(&locale, command, output.exit_code),
-        artifact_id: Some(artifact_id.clone()),
-        produced_by: "verification".to_string(),
-        locale: locale.clone(),
-        created_at: verified_at.clone(),
-    };
-    let verification = VerificationResult {
-        id: verification_id,
-        work_item_id: work_item_id.to_string(),
-        command: command.to_string(),
-        result,
-        evidence_id,
-        artifact_id,
-        locale,
-        verified_at,
-    };
-
-    ledger.artifacts.push(artifact);
-    ledger.evidence.push(evidence);
-    ledger.verification_results.push(verification.clone());
-    {
-        let item = ledger.work_item_mut(work_item_id)?;
-        item.status = item_status;
-        item.updated_at = timestamp();
-    }
-    save_ledger(&layout, &ledger)?;
-
-    Ok(VerifyResult {
-        verification,
-        item_status,
-    })
-}
-
 pub fn approve_work_item(
     root: impl Into<PathBuf>,
     work_item_id: &str,
@@ -806,25 +1141,28 @@ pub fn approve_work_item(
     let layout = ensure_project(root)?;
     let locale = load_project_config(&layout)?.locale.language;
     let mut ledger = load_ledger(&layout)?;
-    let item = ledger.work_item(work_item_id)?;
+    let item = ledger.work_item(work_item_id)?.clone();
     if item.status != WorkItemStatus::ReadyForReview {
         return Err(NagareError::InvalidState(format!(
             "work item `{work_item_id}` must be ready_for_review before approval; current status is {}",
             item.status
         )));
     }
-    let has_passing_verification = ledger.verification_results.iter().any(|verification| {
-        verification.work_item_id == work_item_id
-            && verification.result == VerificationStatus::Passed
-    });
-    if !has_passing_verification {
-        return Err(NagareError::InvalidState(format!(
-            "work item `{work_item_id}` needs a passing verification before approval"
-        )));
-    }
-    if !acceptance_criteria_are_satisfied(&ledger, item) {
+    let snapshot = WorkItemSnapshot::from_ledger(item.clone(), &ledger);
+    if snapshot
+        .approval_gate
+        .blockers
+        .iter()
+        .any(|blocker| blocker == "criteria_not_satisfied" || blocker == "review_not_passed")
+    {
         return Err(NagareError::InvalidState(format!(
             "work item `{work_item_id}` needs a passing review for all acceptance criteria before approval"
+        )));
+    }
+    if !snapshot.approval_gate.ready {
+        return Err(NagareError::InvalidState(format!(
+            "work item `{work_item_id}` approval gate is blocked: {}",
+            snapshot.approval_gate.blockers.join(",")
         )));
     }
 
@@ -853,18 +1191,57 @@ pub fn approve_work_item(
     })
 }
 
-fn acceptance_criteria_are_satisfied(ledger: &Ledger, item: &WorkItem) -> bool {
-    if item.acceptance_criteria.is_empty() {
-        return true;
+pub fn reject_work_item(
+    root: impl Into<PathBuf>,
+    work_item_id: &str,
+    rationale: &str,
+) -> Result<DecisionResult, NagareError> {
+    let rationale = rationale.trim();
+    if rationale.is_empty() {
+        return Err(NagareError::InvalidState(
+            "reject rationale is required".to_string(),
+        ));
     }
-    ledger
-        .review_results
-        .iter()
-        .rev()
-        .find(|review| review.work_item_id == item.id)
-        .is_some_and(|review| {
-            review.verdict == ReviewVerdict::Pass
-                && review.criteria_results.len() == item.acceptance_criteria.len()
-                && criteria_results_pass(review)
-        })
+
+    let layout = ensure_project(root)?;
+    let locale = load_project_config(&layout)?.locale.language;
+    let mut ledger = load_ledger(&layout)?;
+    let item = ledger.work_item(work_item_id)?.clone();
+    let snapshot = WorkItemSnapshot::from_ledger(item.clone(), &ledger);
+    if !snapshot.approval_gate.ready {
+        return Err(NagareError::InvalidState(format!(
+            "work item `{work_item_id}` can only be rejected at approval gate; current gate is {}",
+            snapshot.approval_gate.state
+        )));
+    }
+
+    let decision = HumanDecision {
+        id: ledger.next_id("dec"),
+        work_item_id: work_item_id.to_string(),
+        decision_type: "reject".to_string(),
+        rationale: rationale.to_string(),
+        locale,
+        created_at: timestamp(),
+    };
+    ledger.decisions.push(decision.clone());
+    for plan in &mut ledger.dispatch_plans {
+        if plan.work_item_id == work_item_id && plan.status != DispatchPlanStatus::Superseded {
+            plan.status = DispatchPlanStatus::Superseded;
+        }
+    }
+    for plan in &mut ledger.recovery_plans {
+        if plan.work_item_id == work_item_id && plan.status != RecoveryPlanStatus::Superseded {
+            plan.status = RecoveryPlanStatus::Superseded;
+        }
+    }
+    {
+        let item = ledger.work_item_mut(work_item_id)?;
+        item.status = WorkItemStatus::Ready;
+        item.updated_at = timestamp();
+    }
+    save_ledger(&layout, &ledger)?;
+    Ok(DecisionResult {
+        decision,
+        item_status: WorkItemStatus::Ready,
+    })
 }

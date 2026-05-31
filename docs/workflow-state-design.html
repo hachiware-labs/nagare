@@ -1,0 +1,1002 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nagare Workflow State Design</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --paper: #ffffff;
+      --ink: #17202a;
+      --muted: #5e6b78;
+      --line: #d7dee8;
+      --strong: #1f4f7a;
+      --agent: #f0f6fb;
+      --human: #f7f1e8;
+      --data: #edf7ef;
+      --warn: #fff4d6;
+      --error: #fde9e7;
+      --ok: #e8f5ee;
+      --shadow: 0 12px 34px rgba(23, 32, 42, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", "Meiryo", sans-serif;
+      line-height: 1.65;
+    }
+
+    main {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 32px 0 56px;
+    }
+
+    header {
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 36px 0 14px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 22px 0 10px;
+      font-size: 17px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0 0 12px;
+    }
+
+    code {
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: #eef2f6;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.94em;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .panel {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 20px;
+      margin: 16px 0;
+    }
+
+    .note {
+      border-left: 4px solid var(--strong);
+      background: #f1f6fb;
+      padding: 12px 14px;
+      border-radius: 6px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 10px;
+      background: #fff;
+    }
+
+    .swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      font-size: 14px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      background: #edf1f5;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .svg-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 12px;
+    }
+
+    svg {
+      display: block;
+      min-width: 980px;
+      max-width: 100%;
+      height: auto;
+      font-family: "Segoe UI", "Meiryo", sans-serif;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .callout {
+      background: var(--warn);
+      border: 1px solid #ead49a;
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+
+    @media (max-width: 820px) {
+      main {
+        width: min(100% - 24px, 1180px);
+        padding-top: 20px;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Nagare Workflow State Design</h1>
+    <p class="meta">作成日: 2026-05-30 / 対象: ユーザー入力から Work Item 完了までの状態遷移、状態説明、Agent 終了時の記録データ</p>
+  </header>
+
+  <section class="panel">
+    <h2>1. 基本方針</h2>
+    <p>Nagare は、ユーザーの依頼を <code>WorkItem</code> として保存し、各 Agent / action の終了後に必ず dispatch / decision 層へ戻して、次に誰が何をするかを決める。</p>
+    <div class="note">
+      <p><strong>ターゲット設計:</strong> Work の後も Review の後も、直接次 Agent に固定せず <code>dispatch</code> に戻す。dispatch が <code>run_work</code>、<code>run_review</code>、<code>approve</code>、<code>ask_human</code>、<code>handoff</code> を決める。</p>
+      <p><strong>Review 指摘時:</strong> Review が指摘点を返した場合は、指摘を <code>next_notes</code> / <code>ReviewResult.requested_changes</code> として保存し、dispatch が原則 <code>work</code> に戻す。必要なら別 Agent に handoff または再 dispatch する。</p>
+      <p><strong>Plan 作成:</strong> 複雑な作業で必要な Plan は、専用 status ではなく <code>work</code> purpose の Planner Agent が作る。Plan 作成後も dispatch に戻り、Review に回すか、実装 Work Agent に進めるかを決める。</p>
+      <p><strong>状態の単純化:</strong> <code>ready_for_review</code> のような「次工程名を含む status」はターゲット設計では不要。次工程は status ではなく <code>WorkflowDecision</code> / <code>DispatchPlan</code> が表す。</p>
+      <p><strong>検査/CI:</strong> 独立した 独立検査工程は置かない。Review Agent がスキル、CI、テスト、成果物確認を必要に応じて実行し、結果を <code>ReviewResult.findings</code> / <code>requested_changes</code> / <code>criteria_results</code> に残す。</p>
+      <p><strong>Approval:</strong> OK は <code>approve</code> の1アクションで <code>done</code> にする。NG は理由付きの <code>HumanDecision(decision_type=reject)</code> を保存し、既存の dispatch / recovery 候補を古い判断として無効化して <code>ready</code> に戻す。次は dispatch が再判断する。</p>
+      <p><strong>状態は次アクションそのものではない。</strong> 次に何をするかは <code>WorkItemStatus</code> だけでなく、<code>WorkItemSnapshot</code>、最新の <code>ReviewResult</code>、<code>RecoveryPlan</code>、<code>DispatchPlan</code>、<code>HandoffPacket</code> から <code>WorkflowDecision</code> が決める。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. ターゲット状態遷移図</h2>
+    <div class="svg-wrap">
+      <svg viewBox="0 0 1180 610" role="img" aria-label="ターゲット状態遷移図">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#5e6b78"></path>
+          </marker>
+          <style>
+            .box { fill: #ffffff; stroke: #cbd5df; stroke-width: 1.4; rx: 8; }
+            .human { fill: #f7f1e8; }
+            .agent { fill: #f0f6fb; }
+            .ok { fill: #e8f5ee; }
+            .warn { fill: #fff4d6; }
+            .err { fill: #fde9e7; }
+            .title { font-size: 15px; font-weight: 700; fill: #17202a; }
+            .sub { font-size: 12px; fill: #5e6b78; }
+            .line { stroke: #5e6b78; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+            .dash { stroke-dasharray: 5 5; }
+            .label { font-size: 12px; fill: #475563; }
+          </style>
+        </defs>
+
+        <rect class="box human" x="40" y="70" width="150" height="70"></rect>
+        <text class="title" x="62" y="100">User Input</text>
+        <text class="sub" x="62" y="122">WorkItem 作成</text>
+
+        <rect class="box" x="245" y="70" width="150" height="70"></rect>
+        <text class="title" x="282" y="100">ready</text>
+        <text class="sub" x="268" y="122">dispatch 待ち</text>
+
+        <rect class="box agent" x="465" y="55" width="180" height="100"></rect>
+        <text class="title" x="525" y="88">dispatch</text>
+        <text class="sub" x="500" y="110">WorkflowDecision</text>
+        <text class="sub" x="500" y="132">次 actor / action を決定</text>
+
+        <rect class="box agent" x="770" y="32" width="155" height="78"></rect>
+        <text class="title" x="812" y="62">work</text>
+        <text class="sub" x="786" y="84">plan / build / answer</text>
+
+        <rect class="box agent" x="770" y="145" width="155" height="78"></rect>
+        <text class="title" x="810" y="175">review</text>
+        <text class="sub" x="795" y="197">ReviewResult</text>
+
+        <rect class="box agent" x="770" y="258" width="155" height="78"></rect>
+        <text class="title" x="790" y="288">review checks</text>
+        <text class="sub" x="790" y="310">CI / tests / artifacts</text>
+
+        <rect class="box warn" x="770" y="371" width="155" height="78"></rect>
+        <text class="title" x="802" y="401">handoff</text>
+        <text class="sub" x="790" y="423">別 Agent へ</text>
+
+        <rect class="box human" x="770" y="500" width="155" height="72"></rect>
+        <text class="title" x="804" y="530">approve</text>
+        <text class="sub" x="792" y="552">HumanDecision</text>
+
+        <rect class="box ok" x="1045" y="500" width="100" height="72"></rect>
+        <text class="title" x="1075" y="530">done</text>
+        <text class="sub" x="1070" y="552">完了</text>
+
+        <path class="line" d="M 190 105 L 245 105"></path>
+        <path class="line" d="M 395 105 L 465 105"></path>
+        <path class="line" d="M 645 94 L 770 71"></path>
+        <path class="line" d="M 645 118 L 770 184"></path>
+        <path class="line" d="M 645 136 L 770 297"></path>
+        <path class="line" d="M 645 147 L 770 410"></path>
+        <path class="line" d="M 645 155 L 770 536"></path>
+        <path class="line" d="M 925 536 L 1045 536"></path>
+
+        <path class="line dash" d="M 847 110 L 847 126 L 555 126 L 555 155"></path>
+        <text class="label" x="878" y="126">work 完了後 dispatch へ戻る</text>
+
+        <path class="line dash" d="M 925 184 L 1000 184 L 1000 126 L 645 126"></path>
+        <text class="label" x="934" y="176">pass / 指摘あり どちらも dispatch へ</text>
+
+        <path class="line dash" d="M 925 297 L 1012 297 L 1012 136 L 645 136"></path>
+        <text class="label" x="934" y="287">checks は ReviewResult に記録</text>
+
+        <rect class="box warn" x="245" y="250" width="160" height="78"></rect>
+        <text class="title" x="287" y="280">needs_input</text>
+        <text class="sub" x="270" y="302">質問がある時だけ</text>
+        <path class="line" d="M 465 137 L 405 250"></path>
+        <path class="line" d="M 325 328 L 325 140"></path>
+        <text class="label" x="338" y="238">回答後 ready</text>
+
+        <rect class="box err" x="245" y="390" width="160" height="78"></rect>
+        <text class="title" x="278" y="420">recovery</text>
+        <text class="sub" x="270" y="442">再 work / handoff</text>
+        <path class="line" d="M 465 155 L 405 390"></path>
+        <path class="line dash" d="M 405 429 L 555 429 L 555 155"></path>
+        <text class="label" x="420" y="420">復旧案適用後 dispatch</text>
+      </svg>
+    </div>
+    <div class="legend">
+      <span class="chip"><span class="swatch" style="background: var(--human)"></span>ユーザー操作</span>
+      <span class="chip"><span class="swatch" style="background: var(--agent)"></span>Agent 実行</span>
+      <span class="chip"><span class="swatch" style="background: var(--ok)"></span>承認可能または完了</span>
+      <span class="chip"><span class="swatch" style="background: var(--warn)"></span>追加入力または引き継ぎ</span>
+      <span class="chip"><span class="swatch" style="background: var(--error)"></span>復旧対象</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>2.5 次アクション決定層</h2>
+    <p>状態遷移図は主要フローを示す。実際の次アクションは状態内で固定されず、<code>WorkflowDecision</code> が snapshot 全体から決定する。</p>
+    <div class="svg-wrap">
+      <svg viewBox="0 0 1060 340" role="img" aria-label="WorkflowDecision が次アクションを決定する図">
+        <defs>
+          <marker id="arrow3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#5e6b78"></path>
+          </marker>
+          <style>
+            .decision-box { fill: #ffffff; stroke: #cbd5df; stroke-width: 1.4; rx: 8; }
+            .decision-main { fill: #f0f6fb; stroke: #9ebbd2; stroke-width: 1.6; rx: 8; }
+            .decision-text { font-size: 14px; font-weight: 700; fill: #17202a; }
+            .decision-sub { font-size: 12px; fill: #5e6b78; }
+            .decision-line { stroke: #5e6b78; stroke-width: 1.4; fill: none; marker-end: url(#arrow3); }
+          </style>
+        </defs>
+
+        <rect class="decision-box" x="40" y="40" width="170" height="72"></rect>
+        <text class="decision-text" x="70" y="72">WorkItemStatus</text>
+        <text class="decision-sub" x="68" y="94">ready / review / failed</text>
+
+        <rect class="decision-box" x="40" y="140" width="170" height="72"></rect>
+        <text class="decision-text" x="70" y="172">Latest Records</text>
+        <text class="decision-sub" x="64" y="194">Review / Handoff / Recovery</text>
+
+        <rect class="decision-box" x="40" y="240" width="170" height="72"></rect>
+        <text class="decision-text" x="70" y="272">Item Options</text>
+        <text class="decision-sub" x="72" y="294">mode / constraints</text>
+
+        <rect class="decision-main" x="340" y="125" width="210" height="90"></rect>
+        <text class="decision-text" x="382" y="162">WorkflowDecision</text>
+        <text class="decision-sub" x="378" y="184">next action を決める</text>
+
+        <rect class="decision-box" x="685" y="24" width="170" height="58"></rect>
+        <text class="decision-text" x="728" y="57">run_agent</text>
+
+        <rect class="decision-box" x="685" y="94" width="170" height="58"></rect>
+        <text class="decision-text" x="732" y="127">run_review</text>
+
+        <rect class="decision-box" x="685" y="164" width="170" height="58"></rect>
+        <text class="decision-text" x="720" y="197">recover</text>
+
+        <rect class="decision-box" x="685" y="234" width="170" height="58"></rect>
+        <text class="decision-text" x="720" y="267">dispatch</text>
+
+        <rect class="decision-box" x="890" y="94" width="135" height="58"></rect>
+        <text class="decision-text" x="924" y="127">handoff</text>
+
+        <rect class="decision-box" x="890" y="184" width="135" height="58"></rect>
+        <text class="decision-text" x="924" y="217">approve</text>
+
+        <path class="decision-line" d="M 210 76 L 340 154"></path>
+        <path class="decision-line" d="M 210 176 L 340 176"></path>
+        <path class="decision-line" d="M 210 276 L 340 198"></path>
+        <path class="decision-line" d="M 550 170 L 685 53"></path>
+        <path class="decision-line" d="M 550 170 L 685 123"></path>
+        <path class="decision-line" d="M 550 170 L 685 193"></path>
+        <path class="decision-line" d="M 550 170 L 685 263"></path>
+        <path class="decision-line" d="M 855 123 L 890 123"></path>
+        <path class="decision-line" d="M 855 193 L 890 213"></path>
+      </svg>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>状況</th>
+          <th>WorkflowDecision</th>
+          <th>理由</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>ready</code> で Work output があり、ReviewResult がまだない</td>
+          <td><code>run_review</code></td>
+          <td>Work Agent の出力を評価する必要がある。</td>
+        </tr>
+        <tr>
+          <td>Review pass</td>
+          <td><code>approve</code></td>
+          <td>通常 Item は Item 完了時にユーザーが最終確認する。</td>
+        </tr>
+        <tr>
+          <td>複雑な Item で Plan が未作成</td>
+          <td><code>run_agent</code> target=planner</td>
+          <td>Plan 作成も Work の一種として扱い、Planner の output を次工程の判断材料にする。</td>
+        </tr>
+        <tr>
+          <td>Plan 作成済みで Plan review が必要</td>
+          <td><code>run_review</code></td>
+          <td>実装に入る前に Plan の妥当性、抜け、リスクを review する。</td>
+        </tr>
+        <tr>
+          <td>Plan が承認/採用済み</td>
+          <td><code>run_agent</code> target=worker</td>
+          <td>Planner の <code>next_notes</code> と Plan output を実装 Agent の入力にする。</td>
+        </tr>
+        <tr>
+          <td>Review で CI / テスト / 成果物確認が必要</td>
+          <td><code>run_review</code></td>
+          <td>Review Agent が必要な検査を実行し、指摘があれば <code>requested_changes</code> として返す。</td>
+        </tr>
+        <tr>
+          <td>Review request_changes / criteria failed / contract violation</td>
+          <td><code>create_recovery_plan</code></td>
+          <td>同じ Agent で再実行するか、別 Agent に渡すか、再 dispatch するかを RecoveryPlan で決める。</td>
+        </tr>
+        <tr>
+          <td>HandoffPacket 作成済み</td>
+          <td><code>dispatch</code> / <code>accept_dispatch</code> / <code>run_agent</code></td>
+          <td>引き継ぎ先を選び直すため dispatch に戻る。</td>
+        </tr>
+        <tr>
+          <td>accepted RecoveryPlan がある</td>
+          <td><code>apply_recovery_plan</code></td>
+          <td>復旧案に従って work または review の AgentRun を再作成する。</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>3. ターゲット WorkItem 状態と意味</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>意味</th>
+          <th>主な次アクション</th>
+          <th>遷移条件</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>ready</code></td>
+          <td>dispatch / decision 待ち。作成直後だけでなく、work、review、recovery 適用後もここへ戻る。</td>
+          <td><code>dispatch</code></td>
+          <td>ユーザー作成直後、Agent / action 終了後、HumanFeedback 後、RecoveryPlan 適用後。</td>
+        </tr>
+        <tr>
+          <td><code>agent_running</code></td>
+          <td>Agent 実行中を表す一時状態。永続 ledger では実行終了後の状態に更新される。</td>
+          <td><code>wait</code></td>
+          <td>UI server などが background 実行中表示に利用する。</td>
+        </tr>
+        <tr>
+          <td><code>awaiting_approval</code></td>
+          <td>Item の回答/成果が完了し、ユーザーの最終確認だけが残っている。</td>
+          <td><code>approve</code> / <code>reject</code></td>
+          <td>Review pass 後。OK は1アクションで完了し、NG は理由付きで差し戻して dispatch に戻す。</td>
+        </tr>
+        <tr>
+          <td><code>needs_input</code></td>
+          <td>Agent がユーザーに具体的な質問を持っている。AI作業フィードバック待ちではない。</td>
+          <td><code>answer_question</code></td>
+          <td><code>AgentOutputRecord.questions</code> が空でない場合。</td>
+        </tr>
+        <tr>
+          <td><code>needs_handoff</code></td>
+          <td>別 Agent への引き継ぎが必要。HandoffPacket の作成または dispatch 待ち。</td>
+          <td><code>create_handoff</code> / <code>dispatch</code> / <code>run_agent</code></td>
+          <td>Work Agent の <code>next_action</code> が handoff 系の場合、または明示的に handoff を作成した場合。</td>
+        </tr>
+        <tr>
+          <td><code>needs_recovery</code></td>
+          <td>Review 指摘、契約違反、CI/test failure などにより復旧判断が必要。</td>
+          <td><code>create_recovery_plan</code> / <code>apply_recovery_plan</code></td>
+          <td>RecoveryPlan により同じ Agent 再実行、Review 再作成、handoff、redispatch を選ぶ。</td>
+        </tr>
+        <tr>
+          <td><code>done</code></td>
+          <td>ユーザーが完了を承認した最終状態。</td>
+          <td><code>done</code></td>
+          <td><code>awaiting_approval</code> で approve された場合。</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <p><strong>現行実装との差分:</strong> 現在の ledger には <code>ready_for_review</code>、<code>changes_requested</code> などがある。ターゲット設計では、次工程名を含む永続 status を減らし、<code>WorkflowDecision</code>、<code>ReviewResult</code>、<code>RecoveryPlan</code> から導出する表示状態に寄せる。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. 状態遷移ルール</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>起点</th>
+          <th>イベント</th>
+          <th>条件</th>
+          <th>遷移先</th>
+          <th>備考</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>ユーザー入力</td>
+          <td>Work Item 作成</td>
+          <td>title / description などを保存</td>
+          <td><code>ready</code></td>
+          <td><code>workflow_mode</code> と <code>approval_policy</code> は明示値、Domain override、Project workflow default の順に解決して保存する。</td>
+        </tr>
+        <tr>
+          <td><code>ready</code></td>
+          <td>dispatch / decision</td>
+          <td>次に必要な actor / action を判断</td>
+          <td><code>agent_running</code> / <code>awaiting_approval</code> / <code>needs_input</code> / <code>needs_handoff</code> / <code>needs_recovery</code></td>
+          <td><code>WorkflowDecision</code> と必要に応じて <code>DispatchPlan</code> を保存する。</td>
+        </tr>
+        <tr>
+          <td><code>agent_running</code></td>
+          <td>Work Agent 終了</td>
+          <td>成功、質問なし、handoff 要求なし</td>
+          <td><code>ready</code></td>
+          <td>Work の結果を <code>AgentOutputRecord</code> に保存し、次を dispatch に判断させる。</td>
+        </tr>
+        <tr>
+          <td><code>agent_running</code></td>
+          <td>Planner Agent 終了</td>
+          <td>Plan output を返した</td>
+          <td><code>ready</code></td>
+          <td>Plan も <code>AgentRunPurpose::Work</code>。<code>AgentOutputRecord.summary</code> に Plan 本文、<code>next_notes</code> に実装 Agent への指示を残す。ファイル作成が指示された場合だけ <code>Artifact</code> に <code>plan.md</code> 等を保存する。</td>
+        </tr>
+        <tr>
+          <td><code>agent_running</code></td>
+          <td>Work Agent 終了</td>
+          <td><code>questions</code> が空でない</td>
+          <td><code>needs_input</code></td>
+          <td><code>next_action=answer_question</code> だけでは入力待ちにしない。</td>
+        </tr>
+        <tr>
+          <td><code>needs_input</code></td>
+          <td>ユーザー回答</td>
+          <td>answer が空でない</td>
+          <td><code>ready</code></td>
+          <td><code>HumanFeedback</code> を保存し、次の Agent 実行 prompt に反映する。</td>
+        </tr>
+        <tr>
+          <td><code>ready</code></td>
+          <td>dispatch / decision</td>
+          <td>Work output があり、ReviewResult がまだない</td>
+          <td><code>agent_running</code></td>
+          <td>Review Agent を実行する。</td>
+        </tr>
+        <tr>
+          <td><code>agent_running</code></td>
+          <td>Review Agent 終了</td>
+          <td>pass、criteria 充足、必要なCI/テスト確認済み</td>
+          <td><code>ready</code></td>
+          <td>ReviewResult を保存し、dispatch が <code>awaiting_approval</code> を選ぶ。</td>
+        </tr>
+        <tr>
+          <td><code>agent_running</code></td>
+          <td>Review Agent 終了</td>
+          <td><code>request_changes</code>、criteria failed、または Review 出力の契約違反</td>
+          <td><code>ready</code></td>
+          <td>ReviewResult / warnings を保存し、dispatch が原則 work 再実行を選ぶ。必要なら <code>needs_recovery</code> で復旧案を作る。</td>
+        </tr>
+        <tr>
+          <td><code>ready</code></td>
+          <td>dispatch / decision</td>
+          <td>Review 指摘があり、同じ Agent で直せる</td>
+          <td><code>agent_running</code></td>
+          <td>Review 指摘を prompt / run packet に入れて Work Agent を再実行する。</td>
+        </tr>
+        <tr>
+          <td><code>ready</code></td>
+          <td>dispatch / decision</td>
+          <td>Agent 選定からやり直すべき</td>
+          <td><code>needs_handoff</code> または <code>ready</code></td>
+          <td>HandoffPacket を作るか、再 dispatch して target agent を選び直す。</td>
+        </tr>
+        <tr>
+          <td><code>needs_handoff</code></td>
+          <td>HandoffPacket 作成後の継続</td>
+          <td>別 Agent に渡す必要がある</td>
+          <td><code>ready</code></td>
+          <td><code>handoff dispatch -> accept_dispatch -> run_agent</code> の順に dispatch に戻る。</td>
+        </tr>
+        <tr>
+          <td><code>agent_running</code></td>
+          <td>Review Agent 終了</td>
+          <td>pass、criteria 充足、CI / テスト / 成果物確認も問題なし</td>
+          <td><code>ready</code></td>
+          <td>ReviewResult を保存し、<code>approval_policy=manual_final_approval</code> なら dispatch が approval を選ぶ。<code>auto_complete_on_review_pass</code> なら WorkflowDecision が done を選び、承認記録を残して完了する。</td>
+        </tr>
+        <tr>
+          <td><code>awaiting_approval</code></td>
+          <td>承認</td>
+          <td><code>approval_gate.ready=true</code></td>
+          <td><code>done</code></td>
+          <td>ユーザーが OK を1アクションで確定する。</td>
+        </tr>
+        <tr>
+          <td><code>awaiting_approval</code></td>
+          <td>差し戻し</td>
+          <td><code>approval_gate.ready=true</code> かつ理由あり</td>
+          <td><code>ready</code></td>
+          <td><code>HumanDecision(decision_type=reject)</code> を保存し、dispatch が次の作業方針を再判断する。</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>5. Agent 終了時に残る記録データ</h2>
+    <div class="callout">
+    <p><strong>Artifact の定義:</strong> Artifact はユーザーが作成を指示したファイル、またはそのファイル作成に必要なファイルだけを指す。実行ログ、raw output、diff、CI/test log は <code>ExecutionRecord</code> として証跡に残す。</p>
+      <p><strong>Output の定義:</strong> <code>AgentOutputRecord.fields.summary</code> が Agent としての生成結果。質問回答タスクでは回答そのものが output になる。</p>
+    </div>
+
+    <h3>5.1 Agent run 共通</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Record</th>
+          <th>保存タイミング</th>
+          <th>主なフィールド</th>
+          <th>用途</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>AgentRun</code></td>
+          <td>Agent プロセス終了時</td>
+          <td><code>purpose</code>, <code>agent_profile_id</code>, <code>command</code>, <code>status</code>, <code>exit_code</code>, <code>execution_record_id</code></td>
+          <td>どの Agent が何を実行したかを追跡する。</td>
+        </tr>
+        <tr>
+          <td><code>ExecutionRecord</code></td>
+          <td>Agent プロセス終了時</td>
+          <td><code>record_type=run_log</code>, <code>uri</code>, <code>title</code></td>
+          <td>stdout/stderr、command、exit code の証跡。</td>
+        </tr>
+        <tr>
+          <td><code>ExecutionRecord</code></td>
+          <td>Git work tree に差分がある場合</td>
+          <td><code>record_type=changed_files</code> / <code>diff_patch</code></td>
+          <td>作業差分の証跡。Artifact には数えない。</td>
+        </tr>
+        <tr>
+          <td><code>Evidence</code></td>
+          <td>Agent run 保存時</td>
+          <td><code>claim</code>, <code>basis</code>, <code>execution_record_id</code>, <code>produced_by</code></td>
+          <td>実行が成功/失敗した根拠を言語化する。</td>
+        </tr>
+        <tr>
+          <td><code>ResolvedSkillContext</code></td>
+          <td>Agent run 保存時</td>
+          <td>agent、context refs、resolved skills</td>
+          <td>Agent 実行前に解決された context を追跡する。</td>
+        </tr>
+        <tr>
+          <td><code>ResolvedRunPacket</code></td>
+          <td>Agent run 保存時</td>
+          <td>goal、constraints、review checks、context refs</td>
+          <td>Agent に渡した実行パケットを証跡化する。</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>5.2 Agent purpose 別</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Agent / purpose</th>
+          <th>追加で保存する record</th>
+          <th>状態への影響</th>
+          <th>備考</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>dispatch_preview</code></td>
+          <td><code>DispatchPlan</code>, raw output の <code>ExecutionRecord</code></td>
+          <td>原則 status は変えない。accepted plan があれば次に work agent を実行できる。</td>
+          <td>target agent、summary、risks、missing_information、selection_warnings を保存する。</td>
+        </tr>
+        <tr>
+          <td><code>work</code></td>
+          <td><code>AgentOutputRecord</code>, 必要に応じて <code>Artifact</code></td>
+          <td>成功なら <code>ready</code> に戻り、dispatch が review / approve / handoff などを決める。質問ありなら <code>needs_input</code>。</td>
+          <td><code>summary</code> がユーザー向け出力、<code>next_notes</code> が次 Agent への判断材料。</td>
+        </tr>
+        <tr>
+          <td><code>review</code></td>
+          <td><code>AgentOutputRecord</code>, <code>ReviewResult</code></td>
+          <td>終了後は <code>ready</code> に戻り、dispatch が approve / work 再実行 / handoff を決める。</td>
+          <td>criteria、CI、テスト、成果物確認の結果は <code>ReviewResult</code> に保存する。</td>
+        </tr>
+        <tr>
+          <td><code>workflow_supervision</code></td>
+          <td><code>WorkflowDecision</code></td>
+          <td>直接状態を変えるのではなく、次の workflow action を決める。</td>
+          <td>deterministic decision の代替として supervisor agent が判断する。</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>5.3 Plan 作成 Agent の扱い</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>項目</th>
+          <th>扱い</th>
+          <th>保存先</th>
+          <th>補足</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Agent 種別</td>
+          <td>Work Agent の一種</td>
+          <td><code>AgentRun.purpose=work</code>, <code>agent_profile_id=planner</code> など</td>
+          <td>status に <code>planning</code> を増やさず、dispatch が planner を選ぶ。</td>
+        </tr>
+        <tr>
+          <td>Plan 本文</td>
+          <td>Agent としての生成結果</td>
+          <td><code>AgentOutputRecord.fields.summary</code> / <code>completed</code></td>
+          <td>Plan を回答として返すだけなら Artifact ではない。</td>
+        </tr>
+        <tr>
+          <td>Plan ファイル</td>
+          <td>ユーザーまたは workflow がファイル作成を要求した場合だけ Artifact</td>
+          <td><code>Artifact</code></td>
+          <td><code>docs/plan.md</code> など。作成指示がない場合は Artifact を作らない。</td>
+        </tr>
+        <tr>
+          <td>次 Agent への指示</td>
+          <td>判断材料</td>
+          <td><code>AgentOutputRecord.fields.next_notes</code></td>
+          <td>実装順、未決事項、リスク、検証観点を次の dispatch / Agent に渡す。</td>
+        </tr>
+        <tr>
+          <td>Plan review</td>
+          <td>通常の Review</td>
+          <td><code>ReviewResult</code></td>
+          <td>複雑な作業では実装前に Plan の妥当性を review できる。</td>
+        </tr>
+        <tr>
+          <td>Plan 後の遷移</td>
+          <td>dispatch に戻る</td>
+          <td><code>WorkflowDecision</code> / <code>DispatchPlan</code></td>
+          <td>次に Plan review、実装 Work、追加質問、handoff のどれに進むかを dispatch が決める。</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>5.4 ドメイン専用 Planner / Worker / Reviewer</h3>
+    <p>Agent Profile は domain と role の組み合わせで分化できる。状態遷移は増やさず、dispatch が候補 Agent Profile の <code>role</code>、<code>specialties</code>、<code>description</code>、<code>working_dir</code> を見て選ぶ。</p>
+    <table>
+      <thead>
+        <tr>
+          <th>例</th>
+          <th>role</th>
+          <th>specialties</th>
+          <th>用途</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>code-planner</code></td>
+          <td><code>planner</code></td>
+          <td><code>code</code>, <code>architecture</code>, <code>risk</code></td>
+          <td>コード変更の手順、影響範囲、検証観点を計画する。</td>
+        </tr>
+        <tr>
+          <td><code>code-worker</code></td>
+          <td><code>worker</code></td>
+          <td><code>rust</code>, <code>tests</code>, <code>refactor</code></td>
+          <td>Plan または Review 指摘に従って実装する。</td>
+        </tr>
+        <tr>
+          <td><code>code-reviewer</code></td>
+          <td><code>reviewer</code></td>
+          <td><code>correctness</code>, <code>regression</code>, <code>testability</code></td>
+          <td>実装や Plan をレビューし、修正点を返す。</td>
+        </tr>
+        <tr>
+          <td><code>docs-planner</code></td>
+          <td><code>planner</code></td>
+          <td><code>documentation</code>, <code>information-architecture</code></td>
+          <td>文書構成、読者、章立てを計画する。</td>
+        </tr>
+        <tr>
+          <td><code>research-worker</code></td>
+          <td><code>worker</code></td>
+          <td><code>research</code>, <code>synthesis</code>, <code>sources</code></td>
+          <td>調査、根拠整理、要約を担当する。</td>
+        </tr>
+        <tr>
+          <td><code>ui-reviewer</code></td>
+          <td><code>reviewer</code></td>
+          <td><code>ui</code>, <code>accessibility</code>, <code>workflow</code></td>
+          <td>画面仕様、導線、表示文言をレビューする。</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="note">
+      <p>実装上は <code>AgentRunPurpose</code> を増やさない。Plan 作成と実装はいずれも <code>work</code>、レビューは <code>review</code> とし、<code>agent_profile_id</code> と <code>role</code> で担当を区別する。</p>
+      <p>dispatch prompt には候補 Agent Profile の <code>role</code> を含める。これにより <code>code-planner</code>、<code>docs-worker</code>、<code>research-reviewer</code> のような domain × role の選択ができる。</p>
+      <p><strong>Domain Profile:</strong> ドメイン固有の判断基準は Agent ではなく <code>Domain Profile</code> に置く。<code>.nagare/domains/&lt;id&gt;.toml</code> が <code>description</code>、<code>artifact_types</code>、<code>rubric</code>、<code>dispatch_hints</code> を持ち、Planner / Worker / Reviewer は同じ Domain Rubric を目的に応じて使う。関係図は <a href="domain-rubric-agent-design.html">Domain / Rubric / Agent Design</a> を参照する。</p>
+      <p><strong>Workflow Policy:</strong> Project は <code>.nagare/project.toml</code> の <code>[workflow]</code> に <code>default_progress_mode</code> と <code>approval_policy</code> を持つ。Domain Profile は <code>workflow.progress_mode</code> と <code>workflow.approval_policy</code> を任意で持ち、新規 Work Item 作成時に Project default を上書きする。</p>
+      <p>Settings では Work / Review / Dispatch / Supervisor の固定 default 割り当てを主機能として出さない。ユーザーは Agent Profile の <code>role</code>、<code>specialties</code>、<code>description</code>、<code>working_dir</code> を整備し、dispatch がそれらを見て都度選ぶ。fallback 設定は内部・高度設定として扱う。</p>
+    </div>
+
+    <h3>5.5 Agent 以外の終了イベント</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>イベント</th>
+          <th>保存する record</th>
+          <th>状態への影響</th>
+          <th>用途</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>ユーザー回答</td>
+          <td><code>HumanFeedback</code></td>
+          <td><code>needs_input</code> から <code>ready</code></td>
+          <td>Agent の質問への回答。AI作業評価とは別。</td>
+        </tr>
+        <tr>
+          <td>Handoff 作成</td>
+          <td><code>HandoffPacket</code></td>
+          <td><code>needs_handoff</code></td>
+          <td>open questions、artifact ids、execution record ids、review ids を含める。</td>
+        </tr>
+        <tr>
+          <td>Recovery 作成/承認/適用</td>
+          <td><code>RecoveryPlan</code>, 適用時は新しい <code>AgentRun</code></td>
+          <td>復旧後は通常の work/review flow へ戻る。</td>
+          <td>failure_class に <code>review_changes</code>, <code>contract_violation</code>, <code>missing_artifact</code> などを保存する。</td>
+        </tr>
+        <tr>
+          <td>承認</td>
+          <td><code>HumanDecision</code></td>
+          <td><code>done</code></td>
+          <td>Item 完了時のユーザー確認。ここで人間が最終判断する。</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>6. 記録データの関係図</h2>
+    <div class="svg-wrap">
+      <svg viewBox="0 0 1160 520" role="img" aria-label="記録データの関係図">
+        <defs>
+          <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#5e6b78"></path>
+          </marker>
+          <style>
+            .data-box { fill: #edf7ef; stroke: #bed8c5; stroke-width: 1.3; rx: 8; }
+            .agent-box { fill: #f0f6fb; stroke: #bed2e4; stroke-width: 1.3; rx: 8; }
+            .human-box { fill: #f7f1e8; stroke: #e1cfae; stroke-width: 1.3; rx: 8; }
+            .record-title { font-size: 14px; font-weight: 700; fill: #17202a; }
+            .record-sub { font-size: 12px; fill: #5e6b78; }
+            .record-line { stroke: #5e6b78; stroke-width: 1.4; fill: none; marker-end: url(#arrow2); }
+          </style>
+        </defs>
+
+        <rect class="data-box" x="40" y="210" width="145" height="78"></rect>
+        <text class="record-title" x="72" y="240">WorkItem</text>
+        <text class="record-sub" x="62" y="262">status / DoD</text>
+
+        <rect class="agent-box" x="250" y="70" width="150" height="80"></rect>
+        <text class="record-title" x="285" y="101">AgentRun</text>
+        <text class="record-sub" x="272" y="123">purpose / status</text>
+
+        <rect class="data-box" x="465" y="70" width="170" height="80"></rect>
+        <text class="record-title" x="505" y="101">ExecutionRecord</text>
+        <text class="record-sub" x="490" y="123">run_log / diff</text>
+
+        <rect class="data-box" x="700" y="70" width="150" height="80"></rect>
+        <text class="record-title" x="748" y="101">Evidence</text>
+        <text class="record-sub" x="724" y="123">claim / basis</text>
+
+        <rect class="data-box" x="250" y="210" width="170" height="78"></rect>
+        <text class="record-title" x="285" y="240">AgentOutputRecord</text>
+        <text class="record-sub" x="280" y="262">summary / questions</text>
+
+        <rect class="data-box" x="485" y="210" width="150" height="78"></rect>
+        <text class="record-title" x="520" y="240">ReviewResult</text>
+        <text class="record-sub" x="512" y="262">verdict / criteria</text>
+
+        <rect class="data-box" x="700" y="210" width="170" height="78"></rect>
+        <text class="record-title" x="740" y="240">Review Checks</text>
+        <text class="record-sub" x="736" y="262">passed / failed</text>
+
+        <rect class="human-box" x="935" y="210" width="150" height="78"></rect>
+        <text class="record-title" x="972" y="240">HumanDecision</text>
+        <text class="record-sub" x="974" y="262">approve</text>
+
+        <rect class="human-box" x="250" y="360" width="155" height="78"></rect>
+        <text class="record-title" x="290" y="390">HumanFeedback</text>
+        <text class="record-sub" x="286" y="412">answer question</text>
+
+        <rect class="data-box" x="485" y="360" width="155" height="78"></rect>
+        <text class="record-title" x="525" y="390">HandoffPacket</text>
+        <text class="record-sub" x="514" y="412">next request</text>
+
+        <rect class="data-box" x="700" y="360" width="155" height="78"></rect>
+        <text class="record-title" x="742" y="390">RecoveryPlan</text>
+        <text class="record-sub" x="736" y="412">failure class</text>
+
+        <rect class="data-box" x="935" y="360" width="165" height="78"></rect>
+        <text class="record-title" x="970" y="390">WorkflowDecision</text>
+        <text class="record-sub" x="972" y="412">next action</text>
+
+        <path class="record-line" d="M 185 249 L 250 249"></path>
+        <path class="record-line" d="M 325 150 L 325 210"></path>
+        <path class="record-line" d="M 400 110 L 465 110"></path>
+        <path class="record-line" d="M 635 110 L 700 110"></path>
+        <path class="record-line" d="M 420 249 L 485 249"></path>
+        <path class="record-line" d="M 635 249 L 700 249"></path>
+        <path class="record-line" d="M 870 249 L 935 249"></path>
+        <path class="record-line" d="M 335 288 L 328 360"></path>
+        <path class="record-line" d="M 420 274 L 485 374"></path>
+        <path class="record-line" d="M 775 288 L 775 360"></path>
+        <path class="record-line" d="M 850 399 L 935 399"></path>
+      </svg>
+    </div>
+  </section>
+
+  <section>
+    <h2>7. 画面表示での読み替え</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>内部状態</th>
+          <th>UI 表示</th>
+          <th>表示理由</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>ready</code> + <code>WorkflowDecision=run_review</code></td>
+          <td>レビュー実行待ち</td>
+          <td>Work Agent は終わったが ReviewResult がまだない。</td>
+        </tr>
+        <tr>
+          <td><code>awaiting_approval</code> または <code>ready</code> + <code>WorkflowDecision=approve</code></td>
+          <td>完了確認待ち / 承認待ち</td>
+          <td>Review pass 済み。OK はワンアクションで完了でき、NG は理由付きで再 dispatch する。</td>
+        </tr>
+        <tr>
+          <td><code>ready</code> + <code>HumanDecision=reject</code></td>
+          <td>差し戻し / 再dispatch待ち</td>
+          <td>理由付き reject が保存され、既存の dispatch / recovery 候補は supersede されている。</td>
+        </tr>
+        <tr>
+          <td><code>ready</code> + Review 指摘あり</td>
+          <td>修正作業待ち</td>
+          <td>dispatch が Review 指摘を次の Work Agent 入力へ渡す。</td>
+        </tr>
+        <tr>
+          <td><code>needs_recovery</code></td>
+          <td>復旧判断待ち</td>
+          <td>同じ Agent 再実行では足りない可能性があり、RecoveryPlan / handoff / redispatch を選ぶ。</td>
+        </tr>
+        <tr>
+          <td><code>needs_input</code></td>
+          <td>回答が必要</td>
+          <td>AgentOutputRecord に具体的な <code>questions</code> がある。</td>
+        </tr>
+        <tr>
+          <td>AI作業フィードバック収集 ON</td>
+          <td>AIへのフィードバック</td>
+          <td>Item 完了確認とは別の任意収集。正しかった/正しくなかったとコメントを保存する想定。</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>

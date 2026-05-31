@@ -13,6 +13,8 @@ pub struct ProjectLayout {
     pub nagare_dir: PathBuf,
     pub config_path: PathBuf,
     pub agents_dir: PathBuf,
+    pub domain_groups_dir: PathBuf,
+    pub domains_dir: PathBuf,
     pub state_dir: PathBuf,
     pub ledger_path: PathBuf,
     pub artifacts_dir: PathBuf,
@@ -27,6 +29,8 @@ impl ProjectLayout {
         Self {
             config_path: nagare_dir.join("project.toml"),
             agents_dir: nagare_dir.join("agents"),
+            domain_groups_dir: nagare_dir.join("domain-groups"),
+            domains_dir: nagare_dir.join("domains"),
             ledger_path: state_dir.join("ledger.json"),
             state_dir,
             artifacts_dir: nagare_dir.join("artifacts"),
@@ -50,6 +54,8 @@ pub fn init_project(root: impl Into<PathBuf>) -> io::Result<InitResult> {
     fs::create_dir_all(&layout.artifacts_dir)?;
     fs::create_dir_all(&layout.logs_dir)?;
     fs::create_dir_all(&layout.agents_dir)?;
+    fs::create_dir_all(&layout.domain_groups_dir)?;
+    fs::create_dir_all(&layout.domains_dir)?;
 
     let created_config = if layout.config_path.exists() {
         false
@@ -87,11 +93,15 @@ sqlite_future_path = ".nagare/state/nagare.db"
 language = "ja-JP"
 timezone = "Asia/Tokyo"
 
+[workflow]
+default_progress_mode = "confirm_first"
+approval_policy = "manual_final_approval"
+
 [nagare_agents]
-work_agent = "codex-cli"
-review_agent = "codex-app-server"
-dispatch_agent = "codex-cli"
-supervisor_agent = "codex-cli"
+work_agent = "worker"
+review_agent = "reviewer"
+dispatch_agent = "dispatcher"
+supervisor_agent = "supervisor"
 
 [runtimes.codex-local]
 kind = "process"
@@ -115,19 +125,37 @@ kind = "stdio.codex-app-server"
 runtime_kind = "stdio"
 known_capabilities = ["repo_read", "file_edit", "shell_command", "thread_state", "approval_flow", "event_stream"]
 
-[agent_profiles.codex-cli]
-display_name = "Codex CLI Implementer"
+[agent_profiles.worker]
+display_name = "Worker"
 runtime = "codex-local"
 adapter = "process-codex-cli"
-role = "implementer"
+role = "worker"
 working_dir = "."
+description = "Implement the assigned work item. Prefer small, verifiable changes and leave concise completed work and next notes in the Nagare result."
 
-[agent_profiles.codex-app-server]
-display_name = "Codex App Server Implementer"
-runtime = "codex-app-local"
-adapter = "stdio-codex-app-server"
-role = "implementer"
+[agent_profiles.reviewer]
+display_name = "Reviewer"
+runtime = "codex-local"
+adapter = "process-codex-cli"
+role = "reviewer"
 working_dir = "."
+description = "Review the current work item against acceptance criteria, artifacts, and test evidence. Report pass/fail per criterion and concrete follow-up notes."
+
+[agent_profiles.dispatcher]
+display_name = "Dispatcher"
+runtime = "codex-local"
+adapter = "process-codex-cli"
+role = "dispatcher"
+working_dir = "."
+description = "Choose the most suitable target agent profile for the next work step. Return only the required dispatch JSON and keep the rationale concise."
+
+[agent_profiles.supervisor]
+display_name = "Supervisor"
+runtime = "codex-local"
+adapter = "process-codex-cli"
+role = "supervisor"
+working_dir = "."
+description = "Decide the next workflow action from the current state. Prefer forward progress, stop when human input is needed, and return the workflow decision contract."
 
 [permission_policies.medium-code-task]
 allowed_actions = ["repo_read", "worktree_write", "test_run"]

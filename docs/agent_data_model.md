@@ -20,8 +20,8 @@ Ledger-owned:
   DispatchPlan
   AgentRun
   Artifact
+  ExecutionRecord
   Evidence
-  VerificationResult
   ReviewResult
   RecoveryPlan
   WorkflowDecision
@@ -86,7 +86,7 @@ adapter = "process-codex-cli"
 role = "implementer"
 working_dir = "."
 description = "Codex CLI implementation profile"
-specialties = ["implementation", "verification"]
+specialties = ["implementation", "review"]
 permission_policy = "medium-code-task"
 workspace_policy = "worktree-per-item"
 probe_before_run = true
@@ -138,7 +138,7 @@ adapter = "process.codex-cli"
 role = "implementer"
 working_dir = "packages/app"
 description = "コード実装と検証を担当する Codex CLI agent"
-specialties = ["implementation", "verification"]
+specialties = ["implementation", "review"]
 
 [agent_profile.output_contracts.work]
 contract = "nagare.result.v1"
@@ -169,9 +169,16 @@ still comes from CapabilityProbe.
 `output_contracts` are Nagare-managed instruction packs for stable final
 outputs. They are configured per Agent Profile and per purpose:
 
-- `work`: final work result, artifacts, evidence, questions, verification, next action.
+- `work`: final user-facing result, deliverable artifacts when requested, evidence, questions, next action.
 - `review`: verdict, findings, referenced artifacts, requested changes, questions, next action.
 - `dispatch`: selected target Agent Profile, summary, risks, missing information.
+
+Nagare distinguishes four record classes:
+
+- `Artifact`: a user-requested deliverable file, or a file required to create that deliverable. If the Work Item does not ask for a file or supporting file, an Agent Run should not create artifacts merely because it produced logs or stdout.
+- `ExecutionRecord`: run/review traces such as adapter logs, stdout/stderr captures, transcripts, changed-file lists, and diff patches. These are evidence records, not deliverables.
+- `AgentOutputRecord`: the agent's generated result parsed from the output contract. For a weather question, the weather answer belongs here; no artifact is created unless the user requested a file.
+- `next_notes`: handoff notes for the next dispatch or agent run. It is not the final answer.
 
 The contract is a Nagare data contract; the instruction pack is the way Nagare
 asks an agent to follow it. MVP supports `prompt_suffix` injection for
@@ -258,7 +265,7 @@ the Run Packet.
     "file_edit",
     "shell_command"
   ],
-  "artifact_uri": "file://.nagare/artifacts/work_0001/skill_context.json",
+  "execution_record_uri": "file://.nagare/logs/skillctx_0001.json",
   "content_hash": "sha256:...",
   "locale": "ja-JP",
   "resolved_at": "2026-05-24T15:01:00+09:00"
@@ -289,12 +296,12 @@ the Run Packet.
     "injection": "prompt_suffix"
   },
   "project_rule_ids": ["nagare-core"],
-  "verification": ["cargo test --workspace"],
+  "review_checks": ["cargo test --workspace"],
   "constraints": [
     "Do not push to main",
     "Do not access production credentials"
   ],
-  "artifact_uri": "file://.nagare/artifacts/work_0001/run_packet.json",
+  "execution_record_uri": "file://.nagare/logs/runpkt_0001.json",
   "content_hash": "sha256:...",
   "locale": "ja-JP",
   "created_at": "2026-05-24T15:01:10+09:00"
@@ -312,7 +319,7 @@ the Run Packet.
   "dispatch_agent_profile_id": "codex-dispatch",
   "target_agent_profile_id": "codex-impl",
   "resolved_run_packet_id": "runpkt_0001",
-  "raw_output_artifact_id": "art_0001",
+  "raw_output_execution_record_id": "exec_0001",
   "path": "crates/nagare-core/src/lib.rs",
   "summary": "Use codex-impl because its working_dir matches the requested folder.",
   "risks": ["core usecase file is approaching the 800-line split threshold"],
@@ -345,6 +352,26 @@ the target is missing, or the target does not match a registered Agent Profile,
 Nagare uses the default fallback target and records the reason in
 `selection_warnings`.
 
+### ExecutionRecord
+
+```json
+{
+  "id": "exec_0001",
+  "work_item_id": "work_0001",
+  "agent_run_id": "run_0001",
+  "record_type": "run_log",
+  "uri": "file://.nagare/logs/run_0001.log",
+  "title": "codex-impl work log",
+  "locale": "ja-JP",
+  "created_at": "2026-05-24T15:03:00+09:00"
+}
+```
+
+`ExecutionRecord` stores reproducibility and audit traces. It may point to a log,
+raw output capture, transcript, changed-file list, diff patch, or review evidence
+log. These files are not shown as deliverable artifacts and do not satisfy
+`expected_artifacts`.
+
 ### AgentOutputRecord
 
 ```json
@@ -365,7 +392,7 @@ Nagare uses the default fallback target and records the reason in
   "questions": ["release note URLを追加してよいですか？"],
   "next_action": "answer_question",
   "warnings": [],
-  "artifact_id": "art_0001",
+  "execution_record_id": "exec_0001",
   "locale": "ja-JP",
   "created_at": "2026-05-24T15:03:00+09:00"
 }
@@ -374,8 +401,8 @@ Nagare uses the default fallback target and records the reason in
 `AgentOutputRecord` is created for `work` and `review` runs. MVP parsing reads
 Markdown sections named `## Nagare Result` and `## Nagare Review`. If a required
 contract block is missing, Nagare records `parse_status: "unparsed"` and
-`output_contract_unparsed` in warnings while keeping the raw run log artifact.
-Questions set the Work Item status to `needs_input`.
+`output_contract_unparsed` in warnings while keeping the raw run execution
+record. Questions set the Work Item status to `needs_input`.
 
 ### ReviewResult
 
@@ -386,9 +413,9 @@ Questions set the Work Item status to `needs_input`.
   "agent_run_id": "run_0002",
   "agent_profile_id": "codex-review",
   "verdict": "request_changes",
-  "summary": ["Verification evidence is incomplete."],
+  "summary": ["Review evidence is incomplete."],
   "findings": ["No test log was referenced."],
-  "requested_changes": ["Add verification evidence before approval."],
+  "requested_changes": ["Add review evidence before approval."],
   "referenced_artifacts": ["art_0003"],
   "criteria_results": [
     {
@@ -399,7 +426,7 @@ Questions set the Work Item status to `needs_input`.
   ],
   "questions": [],
   "next_action": "run_agent",
-  "artifact_id": "art_0004",
+  "execution_record_id": "exec_0002",
   "locale": "ja-JP",
   "created_at": "2026-05-24T15:08:00+09:00"
 }
@@ -407,7 +434,7 @@ Questions set the Work Item status to `needs_input`.
 
 `ReviewResult` is derived from a parsed `## Nagare Review` block. Verdicts are
 `pass`, `request_changes`, `blocked`, and `unknown`. `pass` moves the Work Item
-to `ready_for_verification` only when all Work Item acceptance criteria are
+to `ready_for_review` only when all Work Item acceptance criteria are
 covered as `passed`; otherwise it moves to `changes_requested`.
 `request_changes` moves it to `changes_requested`; questions or `blocked` move
 it to `needs_input`.
@@ -431,35 +458,78 @@ Work Item, the next Agent Run receives it as a `## Nagare Human Feedback`
 prompt section, and the Run Packet records `human_feedback_context_applied` in
 constraints.
 
-### WorkItemTimelineEvent
+### WorkItemHistoryStep
 
 ```json
 {
-  "id": "timeline_run_0001",
-  "work_item_id": "work_0001",
-  "event_type": "run",
-  "summary": "codex-impl succeeded",
-  "status": "succeeded",
-  "agent_profile_id": "codex-impl",
-  "related_id": "run_0001",
-  "artifact_id": "art_0001",
-  "created_at": "2026-05-24T15:06:00+09:00"
+  "id": "step_run_0001",
+  "kind": "work",
+  "title": "作業実行",
+  "state": "succeeded",
+  "actor": "codex-impl",
+  "started_at": "2026-05-24T15:04:00+09:00",
+  "ended_at": "2026-05-24T15:06:00+09:00",
+  "summary": "README diff を作成した。",
+  "facts": [
+    { "label": "Agent", "value": "codex-impl" },
+    { "label": "Artifacts", "value": "2" }
+  ],
+  "links": [
+    { "label": "Run", "record_id": "run_0001", "record_type": "run" },
+    { "label": "Run log", "record_id": "art_0001", "record_type": "artifact" }
+  ],
+  "source_record_ids": ["run_0001", "out_0001"],
+  "next_action": "review"
 }
 ```
 
-`WorkItemTimelineEvent` is a read-model generated from the ledger. It does not
-replace the source records. The MVP event types are `request`, `dispatch`,
-`run`, `artifact`, `evidence`, `agent_output`, `question`, `human_feedback`,
-`review`, `verification`, `handoff`, `recovery`, `workflow_decision`, and
-`decision`. The UI should render this as the single Work Item flow and open the
-selected event in the inspector.
+`WorkItemHistoryStep` is the primary UI read model generated from the ledger.
+It does not replace source records. It groups low-level records into the step
+shape users need to understand the work: `request`, `dispatch`, `work`,
+`review`, `input`, `handoff`, `recovery`, and `approval`.
+
+Every step has the same display contract:
+
+- `kind`: stable workflow category.
+- `state`: normalized state such as `recorded`, `draft`, `accepted`,
+  `succeeded`, `pass`, `passed`, `needs_input`, `failed`, or `approve`.
+- `actor`: user, Agent Profile, Workflow, or Review Agent.
+- `started_at` / `ended_at`: timing when source records expose it. Instant
+  records use the same timestamp for both.
+- `summary`: one user-readable sentence.
+- `facts`: compact key-value facts shown directly on the history card.
+- `links`: source records opened by the inspector.
+- `source_record_ids`: audit trail back to ledger records.
+- `next_action`: the likely continuation after this step.
+
+`WorkItemTimelineEvent` remains as a lower-level compatibility read model. New
+UI surfaces should prefer `WorkItemHistoryStep` for Processing History.
+
+### UiRunningState
+
+```json
+{
+  "kind": "work",
+  "actor": "codex-impl",
+  "label": "codex-impl work",
+  "message": "Work Agent が依頼を処理しています。",
+  "related_action": "run_agent",
+  "started_at_epoch": 1780053600
+}
+```
+
+`UiRunningState` is an ephemeral local UI state file stored under
+`.nagare/state/<work_id>-ui-running.txt` while `nagare ui serve` advances a Work
+Item in the background. It is not a ledger record. It uses the same `kind` /
+`actor` vocabulary as `WorkItemHistoryStep` so running UI cards can be displayed
+without inventing separate status semantics.
 
 ### WorkItemCompletion
 
 ```json
 {
   "state": "blocked",
-  "blocking_reason": "verification_failed: cargo test --workspace",
+  "blocking_reason": "review_failed: cargo test --workspace",
   "next_action": "recover",
   "next_command_hint": "nagare item recover work_0001"
 }
@@ -490,7 +560,7 @@ from ledger records and tells CLI/UI what should happen next.
 ```
 
 RecoveryPlan actions are `rerun_same_agent`, `rerun_with_contract_reminder`,
-`handoff`, `ask_human`, `run_verification`, `request_changes`, and `redispatch`.
+`handoff`, `ask_human`, `request_changes`, and `redispatch`.
 The lifecycle is `draft`, `accepted`, `superseded`.
 
 `status` controls the execution lifecycle:
@@ -502,9 +572,9 @@ The lifecycle is `draft`, `accepted`, `superseded`.
   Item.
 
 `failure_class` is the machine-readable recovery cause. Current values include
-`contract_violation`, `review_changes`, `verification_failure`,
+`contract_violation`, `review_changes`,
 `missing_artifact`, `no_diff`, `missing_input`, `needs_handoff`,
-`verification_pending`, and `continue_workflow`. A single recovery request may
+`continue_workflow`. A single recovery request may
 create multiple draft candidates when secondary risks such as missing artifacts
 or missing diff evidence are detected.
 
@@ -530,7 +600,7 @@ or missing diff evidence are detected.
 
 `WorkflowDecision` is recorded by `item advance` and by explicit decision
 creation. It is the audit record for why Nagare selected dispatch, accept,
-run, review, verification, recovery, human input, handoff, approval, or done as
+run, review, recovery, human input, handoff, approval, or done as
 the next step. When `item advance --supervisor true` is used, Nagare records a
 `workflow_supervision` AgentRun and derives the decision from the supervisor
 agent's `## Nagare Workflow Decision` output contract.
@@ -548,8 +618,8 @@ agent's `## Nagare Workflow Decision` output contract.
   "current_state": "needs_handoff",
   "open_questions": [],
   "artifact_ids": ["art_0001", "art_0002"],
-  "diff_artifact_ids": ["art_0002"],
-  "failed_verification_ids": [],
+  "execution_record_ids": ["exec_0001", "exec_0002"],
+
   "review_result_ids": ["review_0001"],
   "next_request": "Use docs/source-a.md and produce a verifiable implementation summary.",
   "locale": "ja-JP",
@@ -619,5 +689,6 @@ stable, move the ledger-owned entities to SQLite tables with the same names.
 
 Current implementation persists `ResolvedSkillContext` and `ResolvedRunPacket`
 for every `item preview` / `item run`. They are stored both as ledger-owned
-records and as JSON artifacts under `.nagare/artifacts/`. Dispatch preview also
-stores `DispatchPlan` in the ledger and links it to the run log artifact.
+records and as JSON execution records under `.nagare/logs/`. Dispatch preview
+also stores `DispatchPlan` in the ledger and links it to the run log execution
+record.

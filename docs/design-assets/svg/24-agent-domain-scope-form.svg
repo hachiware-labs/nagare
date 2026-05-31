@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960">
+  <rect width="1440" height="960" fill="#f8fafc"/>
+  <rect x="0" y="0" width="210" height="960" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="32" y="56" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="24" font-weight="700">Nagare</text>
+  <rect x="20" y="154" width="170" height="36" rx="7" fill="#eef2ff"/>
+  <text x="40" y="177" fill="#4338ca" font-family="Segoe UI, Meiryo, sans-serif" font-size="14" font-weight="700">Settings</text>
+  <text x="250" y="60" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="28" font-weight="700">Create New Agent</text>
+  <text x="250" y="86" fill="#475569" font-family="Segoe UI, Meiryo, sans-serif" font-size="14">Configure this agent profile</text>
+  <rect x="1210" y="42" width="130" height="36" rx="7" fill="#f1f5f9" stroke="#e2e8f0"/>
+  <text x="1240" y="65" fill="#4338ca" font-family="Segoe UI, Meiryo, sans-serif" font-size="13" font-weight="700">Settings</text>
+
+  <rect x="250" y="120" width="760" height="770" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="282" y="166" fill="#475569" font-family="Segoe UI, Meiryo, sans-serif" font-size="12" font-weight="700">ID</text>
+  <rect x="282" y="178" width="312" height="44" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="300" y="206" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="15">ui-reviewer</text>
+  <text x="626" y="166" fill="#475569" font-family="Segoe UI, Meiryo, sans-serif" font-size="12" font-weight="700">External Agent Type</text>
+  <rect x="626" y="178" width="312" height="44" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="644" y="206" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="15">Codex CLI</text>
+
+  <text x="282" y="256" fill="#475569" font-family="Segoe UI, Meiryo, sans-serif" font-size="12" font-weight="700">Display Name</text>
+  <rect x="282" y="268" width="312" height="44" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="300" y="296" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="15">Frontend UI Reviewer</text>
+  <text x="626" y="256" fill="#475569" font-family="Segoe UI, Meiryo, sans-serif" font-size="12" font-weight="700">Role</text>
+  <rect x="626" y="268" width="312" height="44" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="644" y="296" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="15">reviewer</text>
+
+  <text x="282" y="346" fill="#475569" font-family="Segoe UI, Meiryo, sans-serif" font-size="12" font-weight="700">Workdir</text>
+  <rect x="282" y="358" width="312" height="44" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="300" y="386" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="15">.</text>
+  <text x="626" y="346" fill="#475569" font-family="Segoe UI, Meiryo, sans-serif" font-size="12" font-weight="700">Specialties</text>
+  <rect x="626" y="358" width="312" height="44" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="644" y="386" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="15">ui, accessibility, e2e</text>
+
+  <text x="282" y="438" fill="#475569" font-family="Segoe UI, Meiryo, sans-serif" font-size="12" font-weight="700">Domain Groups</text>
+  <rect x="282" y="450" width="312" height="134" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="294" y="466" width="286" height="34" rx="6" fill="#eef2ff"/>
+  <text x="310" y="488" fill="#4338ca" font-family="Segoe UI, Meiryo, sans-serif" font-size="14" font-weight="700">Software Development</text>
+  <text x="310" y="530" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="14">Content Production</text>
+  <text x="310" y="562" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="14">Operations</text>
+
+  <text x="626" y="438" fill="#475569" font-family="Segoe UI, Meiryo, sans-serif" font-size="12" font-weight="700">Domains</text>
+  <rect x="626" y="450" width="312" height="134" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="638" y="466" width="286" height="34" rx="6" fill="#eef2ff"/>
+  <text x="654" y="488" fill="#4338ca" font-family="Segoe UI, Meiryo, sans-serif" font-size="14" font-weight="700">Frontend UI</text>
+  <text x="654" y="530" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="14">Developer Docs</text>
+  <text x="654" y="562" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="14">Test Automation</text>
+
+  <text x="282" y="620" fill="#475569" font-family="Segoe UI, Meiryo, sans-serif" font-size="12" font-weight="700">Instructions</text>
+  <rect x="282" y="632" width="656" height="146" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="304" y="664" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="15">Review UI work against the selected Domain rubric.</text>
+  <text x="304" y="692" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="15">Run browser checks and report concrete findings.</text>
+  <rect x="282" y="812" width="128" height="40" rx="7" fill="#4338ca"/>
+  <text x="310" y="837" fill="#ffffff" font-family="Segoe UI, Meiryo, sans-serif" font-size="14" font-weight="700">Create Agent</text>
+
+  <rect x="1050" y="120" width="290" height="238" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="1074" y="154" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="17" font-weight="700">Dispatch context</text>
+  <text x="1074" y="188" fill="#475569" font-family="Segoe UI, Meiryo, sans-serif" font-size="13">1. Work Item domain fixes the scope.</text>
+  <text x="1074" y="218" fill="#475569" font-family="Segoe UI, Meiryo, sans-serif" font-size="13">2. Agent scope filters candidates.</text>
+  <text x="1074" y="248" fill="#475569" font-family="Segoe UI, Meiryo, sans-serif" font-size="13">3. Domain rubric guides review.</text>
+  <text x="1074" y="292" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="14" font-weight="700">Result</text>
+  <text x="1074" y="322" fill="#475569" font-family="Segoe UI, Meiryo, sans-serif" font-size="13">Clear, specialized agent profiles</text>
+</svg>

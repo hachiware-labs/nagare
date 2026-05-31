@@ -25,8 +25,7 @@ pub fn create_handoff(
         current_state: snapshot.item.status.to_string(),
         open_questions: open_questions(&snapshot),
         artifact_ids: artifact_ids(&snapshot),
-        diff_artifact_ids: diff_artifact_ids(&snapshot),
-        failed_verification_ids: failed_verification_ids(&snapshot),
+        execution_record_ids: execution_record_ids(&snapshot),
         review_result_ids: review_result_ids(&snapshot),
         next_request: handoff_next_request(work_item_id, &snapshot, summary),
         locale,
@@ -77,21 +76,11 @@ fn artifact_ids(snapshot: &WorkItemSnapshot) -> Vec<String> {
         .collect()
 }
 
-fn diff_artifact_ids(snapshot: &WorkItemSnapshot) -> Vec<String> {
+fn execution_record_ids(snapshot: &WorkItemSnapshot) -> Vec<String> {
     snapshot
-        .artifacts
+        .execution_records
         .iter()
-        .filter(|artifact| artifact.artifact_type == "diff_patch")
-        .map(|artifact| artifact.id.clone())
-        .collect()
-}
-
-fn failed_verification_ids(snapshot: &WorkItemSnapshot) -> Vec<String> {
-    snapshot
-        .verification_results
-        .iter()
-        .filter(|verification| verification.result == VerificationStatus::Failed)
-        .map(|verification| verification.id.clone())
+        .map(|record| record.id.clone())
         .collect()
 }
 

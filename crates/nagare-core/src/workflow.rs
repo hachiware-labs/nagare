@@ -1,131 +1,5 @@
-use std::path::PathBuf;
-
-use serde::{Deserialize, Serialize};
-
 use crate::*;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorkflowDecision {
-    pub id: String,
-    pub work_item_id: String,
-    pub action: WorkflowDecisionAction,
-    pub source: WorkflowDecisionSource,
-    pub reason: String,
-    pub requires_human: bool,
-    pub target_agent_profile_id: Option<String>,
-    pub agent_run_id: Option<String>,
-    pub confidence: f32,
-    pub command_hint: Option<String>,
-    #[serde(default)]
-    pub warnings: Vec<String>,
-    #[serde(default = "default_locale_language")]
-    pub locale: String,
-    pub created_at: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum WorkflowDecisionAction {
-    Dispatch,
-    AcceptDispatch,
-    RunAgent,
-    RunReview,
-    RunVerification,
-    CreateRecoveryPlan,
-    ApplyRecoveryPlan,
-    AskHuman,
-    CreateHandoff,
-    Approve,
-    Wait,
-    Done,
-    Stop,
-}
-
-impl std::fmt::Display for WorkflowDecisionAction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let value = match self {
-            Self::Dispatch => "dispatch",
-            Self::AcceptDispatch => "accept_dispatch",
-            Self::RunAgent => "run_agent",
-            Self::RunReview => "run_review",
-            Self::RunVerification => "run_verification",
-            Self::CreateRecoveryPlan => "create_recovery_plan",
-            Self::ApplyRecoveryPlan => "apply_recovery_plan",
-            Self::AskHuman => "ask_human",
-            Self::CreateHandoff => "create_handoff",
-            Self::Approve => "approve",
-            Self::Wait => "wait",
-            Self::Done => "done",
-            Self::Stop => "stop",
-        };
-        f.write_str(value)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum WorkflowDecisionSource {
-    Deterministic,
-    SupervisorAgent,
-}
-
-impl std::fmt::Display for WorkflowDecisionSource {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Deterministic => f.write_str("deterministic"),
-            Self::SupervisorAgent => f.write_str("supervisor_agent"),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct CreateWorkflowDecisionResult {
-    pub decision: WorkflowDecision,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct AdvanceWorkItemInput<'a> {
-    pub path: Option<&'a str>,
-    pub prompt: Option<&'a str>,
-    pub dev_command: Option<&'a str>,
-    pub dispatch_dev_command: Option<&'a str>,
-    pub review_dev_command: Option<&'a str>,
-    pub verification_command: Option<&'a str>,
-    pub use_supervisor: bool,
-    pub supervisor_dev_command: Option<&'a str>,
-}
-
-#[derive(Debug, Clone)]
-pub struct AdvanceWorkItemResult {
-    pub decision: WorkflowDecision,
-    pub advanced: bool,
-    pub item_status: WorkItemStatus,
-    pub message: String,
-    pub run_id: Option<String>,
-    pub dispatch_plan_id: Option<String>,
-    pub recovery_plan_id: Option<String>,
-    pub verification_id: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct AdvanceUntilBlockedInput<'a> {
-    pub step: AdvanceWorkItemInput<'a>,
-    pub max_steps: usize,
-}
-
-#[derive(Debug, Clone)]
-pub struct AdvanceUntilBlockedResult {
-    pub steps: Vec<AdvanceWorkItemResult>,
-    pub final_status: WorkItemStatus,
-    pub stopped_reason: String,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct SupervisorWorkflowDecisionInput<'a> {
-    pub path: Option<&'a str>,
-    pub prompt: Option<&'a str>,
-    pub dev_command: Option<&'a str>,
-}
+use std::path::PathBuf;
 
 pub fn create_workflow_decision(
     root: impl Into<PathBuf>,
@@ -165,6 +39,7 @@ pub fn advance_work_item_once(
     };
     let snapshot = get_work_item_snapshot(&root, work_item_id)?;
     let item_status = snapshot.item.status;
+    let auto_recover = effective_auto_recover(&snapshot, &input);
 
     match decision.action {
         WorkflowDecisionAction::Dispatch => {
@@ -193,7 +68,6 @@ pub fn advance_work_item_once(
                 run_id: Some(run.run.id),
                 dispatch_plan_id: run.dispatch_plan_id,
                 recovery_plan_id: None,
-                verification_id: None,
             })
         }
         WorkflowDecisionAction::AcceptDispatch => {
@@ -206,7 +80,6 @@ pub fn advance_work_item_once(
                 run_id: None,
                 dispatch_plan_id: Some(accepted.plan.id),
                 recovery_plan_id: None,
-                verification_id: None,
             })
         }
         WorkflowDecisionAction::RunAgent => {
@@ -239,7 +112,6 @@ pub fn advance_work_item_once(
                 run_id: Some(run.run.id),
                 dispatch_plan_id: run.dispatch_plan_id.or(selection.dispatch_plan_id),
                 recovery_plan_id: None,
-                verification_id: None,
             })
         }
         WorkflowDecisionAction::RunReview => {
@@ -264,30 +136,6 @@ pub fn advance_work_item_once(
                 run_id: Some(run.run.id),
                 dispatch_plan_id: None,
                 recovery_plan_id: None,
-                verification_id: None,
-            })
-        }
-        WorkflowDecisionAction::RunVerification => {
-            let command = input
-                .verification_command
-                .or(snapshot.item.verification_hint.as_deref());
-            let Some(command) = command else {
-                return Ok(blocked_advance(
-                    decision,
-                    item_status,
-                    "verification command required",
-                ));
-            };
-            let verification = verify_work_item(&root, work_item_id, command)?;
-            Ok(AdvanceWorkItemResult {
-                decision,
-                advanced: true,
-                item_status: verification.item_status,
-                message: "verification completed".to_string(),
-                run_id: None,
-                dispatch_plan_id: None,
-                recovery_plan_id: None,
-                verification_id: Some(verification.verification.id),
             })
         }
         WorkflowDecisionAction::CreateRecoveryPlan => {
@@ -300,7 +148,80 @@ pub fn advance_work_item_once(
                 run_id: None,
                 dispatch_plan_id: None,
                 recovery_plan_id: Some(recovery.plan.id),
-                verification_id: None,
+            })
+        }
+        WorkflowDecisionAction::AcceptRecoveryPlan => {
+            let draft_plan = latest_unapplied_draft_recovery(&snapshot);
+            if !auto_recover {
+                return Ok(AdvanceWorkItemResult {
+                    decision,
+                    advanced: false,
+                    item_status,
+                    message: "recovery plan acceptance required".to_string(),
+                    run_id: None,
+                    dispatch_plan_id: None,
+                    recovery_plan_id: draft_plan.map(|plan| plan.id.clone()),
+                });
+            }
+            if draft_plan
+                .map(|plan| !recovery_plan_can_auto_apply(plan))
+                .unwrap_or(false)
+            {
+                return Ok(AdvanceWorkItemResult {
+                    decision,
+                    advanced: false,
+                    item_status,
+                    message: "recovery plan requires external action".to_string(),
+                    run_id: None,
+                    dispatch_plan_id: None,
+                    recovery_plan_id: draft_plan.map(|plan| plan.id.clone()),
+                });
+            }
+            let accepted = accept_recovery_plan(&root, work_item_id, None)?;
+            Ok(AdvanceWorkItemResult {
+                decision,
+                advanced: true,
+                item_status,
+                message: format!("recovery plan {} accepted", accepted.plan.id),
+                run_id: None,
+                dispatch_plan_id: None,
+                recovery_plan_id: Some(accepted.plan.id),
+            })
+        }
+        WorkflowDecisionAction::ApplyRecoveryPlan => {
+            let recovery = apply_recovery_plan(
+                &root,
+                work_item_id,
+                ApplyRecoveryPlanInput {
+                    recovery_plan_id: None,
+                    prompt: input.prompt,
+                    dev_command: input.dev_command,
+                },
+            )?;
+            Ok(AdvanceWorkItemResult {
+                decision,
+                advanced: true,
+                item_status: recovery.run.item_status,
+                message: format!("recovery plan {} applied", recovery.plan.id),
+                run_id: Some(recovery.run.run.id),
+                dispatch_plan_id: recovery.run.dispatch_plan_id,
+                recovery_plan_id: Some(recovery.plan.id),
+            })
+        }
+        WorkflowDecisionAction::Done if item_status == WorkItemStatus::ReadyForReview => {
+            let approved = approve_work_item(
+                &root,
+                work_item_id,
+                "review passed and approval_policy=auto_complete_on_review_pass",
+            )?;
+            Ok(AdvanceWorkItemResult {
+                decision,
+                advanced: true,
+                item_status: approved.item_status,
+                message: "work item auto-completed after passing review".to_string(),
+                run_id: None,
+                dispatch_plan_id: None,
+                recovery_plan_id: None,
             })
         }
         WorkflowDecisionAction::AskHuman
@@ -308,8 +229,7 @@ pub fn advance_work_item_once(
         | WorkflowDecisionAction::Approve
         | WorkflowDecisionAction::Wait
         | WorkflowDecisionAction::Done
-        | WorkflowDecisionAction::Stop
-        | WorkflowDecisionAction::ApplyRecoveryPlan => Ok(blocked_advance(
+        | WorkflowDecisionAction::Stop => Ok(blocked_advance(
             decision,
             item_status,
             "workflow requires external action",
@@ -334,12 +254,13 @@ pub fn advance_work_item_until_blocked(
                 result.decision.action,
                 WorkflowDecisionAction::AskHuman
                     | WorkflowDecisionAction::CreateHandoff
-                    | WorkflowDecisionAction::CreateRecoveryPlan
                     | WorkflowDecisionAction::Approve
                     | WorkflowDecisionAction::Wait
                     | WorkflowDecisionAction::Done
                     | WorkflowDecisionAction::Stop
-            );
+            )
+            || (result.decision.action == WorkflowDecisionAction::CreateRecoveryPlan
+                && !advance_auto_recover_enabled(&root, work_item_id, &input.step)?);
         stopped_reason = if stop {
             result.message.clone()
         } else {
@@ -485,8 +406,8 @@ fn parse_workflow_decision_action(value: &str) -> Option<WorkflowDecisionAction>
         "accept_dispatch" => Some(WorkflowDecisionAction::AcceptDispatch),
         "run_agent" => Some(WorkflowDecisionAction::RunAgent),
         "run_review" => Some(WorkflowDecisionAction::RunReview),
-        "run_verification" => Some(WorkflowDecisionAction::RunVerification),
         "create_recovery_plan" => Some(WorkflowDecisionAction::CreateRecoveryPlan),
+        "accept_recovery_plan" => Some(WorkflowDecisionAction::AcceptRecoveryPlan),
         "apply_recovery_plan" => Some(WorkflowDecisionAction::ApplyRecoveryPlan),
         "ask_human" => Some(WorkflowDecisionAction::AskHuman),
         "create_handoff" => Some(WorkflowDecisionAction::CreateHandoff),
@@ -511,8 +432,29 @@ fn blocked_advance(
         run_id: None,
         dispatch_plan_id: None,
         recovery_plan_id: None,
-        verification_id: None,
     }
+}
+
+fn effective_auto_recover(snapshot: &WorkItemSnapshot, input: &AdvanceWorkItemInput<'_>) -> bool {
+    input.auto_recover
+        || input.workflow_mode.unwrap_or(snapshot.item.workflow_mode) == WorkflowMode::FinishFirst
+}
+
+fn advance_auto_recover_enabled(
+    root: &std::path::Path,
+    work_item_id: &str,
+    input: &AdvanceWorkItemInput<'_>,
+) -> Result<bool, NagareError> {
+    if input.auto_recover {
+        return Ok(true);
+    }
+    if let Some(mode) = input.workflow_mode {
+        return Ok(mode == WorkflowMode::FinishFirst);
+    }
+    Ok(get_work_item_snapshot(root, work_item_id)?
+        .item
+        .workflow_mode
+        == WorkflowMode::FinishFirst)
 }
 
 pub(crate) fn workflow_decision_for_snapshot(
@@ -525,126 +467,147 @@ pub(crate) fn workflow_decision_for_snapshot(
 ) -> WorkflowDecision {
     let accepted_dispatch = latest_dispatch_plan(snapshot, DispatchPlanStatus::Accepted);
     let draft_dispatch = latest_dispatch_plan(snapshot, DispatchPlanStatus::Draft);
-    let passing_verification = snapshot
-        .verification_results
-        .iter()
-        .any(|verification| verification.result == VerificationStatus::Passed);
-    let latest_review_pass = snapshot
-        .review_results
-        .iter()
-        .rev()
-        .any(|review| review.verdict == ReviewVerdict::Pass);
+    let latest_work_sequence = latest_work_run_sequence(snapshot);
+    let latest_review_pass = snapshot.review_results.iter().rev().any(|review| {
+        review.verdict == ReviewVerdict::Pass && id_sequence(&review.id) > latest_work_sequence
+    });
+    let accepted_recovery = latest_unapplied_accepted_recovery(snapshot);
+    let draft_recovery = latest_unapplied_draft_recovery(snapshot);
 
     let (action, reason, requires_human, target_agent_profile_id, command_hint) =
-        match snapshot.item.status {
-            WorkItemStatus::Done => (
-                WorkflowDecisionAction::Done,
-                "work_item_done".to_string(),
+        if let Some(plan) = accepted_recovery {
+            (
+                WorkflowDecisionAction::ApplyRecoveryPlan,
+                format!("accepted_recovery_plan: {}", plan.failure_class),
                 false,
-                None,
-                None,
-            ),
-            WorkItemStatus::AgentRunning => (
-                WorkflowDecisionAction::Wait,
-                "agent_running".to_string(),
-                false,
-                None,
-                None,
-            ),
-            WorkItemStatus::NeedsInput => (
-                WorkflowDecisionAction::AskHuman,
-                snapshot
-                    .completion
-                    .blocking_reason
-                    .clone()
-                    .unwrap_or_else(|| "needs_input".to_string()),
+                plan.target_agent_profile_id.clone(),
+                Some(format!("nagare item recover apply {}", snapshot.item.id)),
+            )
+        } else if let Some(plan) = draft_recovery {
+            (
+                WorkflowDecisionAction::AcceptRecoveryPlan,
+                format!("draft_recovery_plan: {}", plan.failure_class),
                 true,
-                None,
-                snapshot.completion.next_command_hint.clone(),
-            ),
-            WorkItemStatus::NeedsHandoff if snapshot.handoffs.is_empty() => (
-                WorkflowDecisionAction::CreateHandoff,
-                "needs_handoff".to_string(),
-                true,
-                None,
-                snapshot.completion.next_command_hint.clone(),
-            ),
-            WorkItemStatus::NeedsHandoff => (
-                WorkflowDecisionAction::Dispatch,
-                "handoff_created".to_string(),
-                false,
-                Some(settings.dispatch_agent.clone()),
-                Some(format!("nagare handoff dispatch {}", snapshot.item.id)),
-            ),
-            WorkItemStatus::FailedVerification => (
-                WorkflowDecisionAction::CreateRecoveryPlan,
-                "failed_verification".to_string(),
-                false,
-                None,
-                Some(format!("nagare item recover {}", snapshot.item.id)),
-            ),
-            WorkItemStatus::ChangesRequested => (
-                WorkflowDecisionAction::CreateRecoveryPlan,
-                "changes_requested".to_string(),
-                false,
-                None,
-                Some(format!("nagare item recover {}", snapshot.item.id)),
-            ),
-            WorkItemStatus::ReadyForVerification => (
-                WorkflowDecisionAction::RunVerification,
-                "ready_for_verification".to_string(),
-                snapshot.item.verification_hint.is_none(),
-                None,
-                Some(format!(
-                    "nagare verify {} --command <command>",
-                    snapshot.item.id
-                )),
-            ),
-            WorkItemStatus::ReadyForReview if passing_verification => (
-                WorkflowDecisionAction::Approve,
-                "verification_passed".to_string(),
-                true,
-                None,
-                Some(format!("nagare decision approve {}", snapshot.item.id)),
-            ),
-            WorkItemStatus::ReadyForReview if latest_review_pass => (
-                WorkflowDecisionAction::RunVerification,
-                "review_passed".to_string(),
-                snapshot.item.verification_hint.is_none(),
-                None,
-                Some(format!(
-                    "nagare verify {} --command <command>",
-                    snapshot.item.id
-                )),
-            ),
-            WorkItemStatus::ReadyForReview => (
-                WorkflowDecisionAction::RunReview,
-                "ready_for_review".to_string(),
-                false,
-                Some(settings.review_agent.clone()),
-                Some(format!("nagare item review {}", snapshot.item.id)),
-            ),
-            WorkItemStatus::Ready if accepted_dispatch.is_some() => (
-                WorkflowDecisionAction::RunAgent,
-                "accepted_dispatch_plan".to_string(),
-                false,
-                accepted_dispatch.map(|plan| plan.target_agent_profile_id.clone()),
-                Some(format!("nagare item run {}", snapshot.item.id)),
-            ),
-            WorkItemStatus::Ready if draft_dispatch.is_some() => (
-                WorkflowDecisionAction::AcceptDispatch,
-                "draft_dispatch_plan".to_string(),
-                false,
-                draft_dispatch.map(|plan| plan.target_agent_profile_id.clone()),
-                Some(format!("nagare item dispatch accept {}", snapshot.item.id)),
-            ),
-            WorkItemStatus::Ready => (
-                WorkflowDecisionAction::Dispatch,
-                "ready_without_dispatch".to_string(),
-                false,
-                Some(settings.dispatch_agent.clone()),
-                Some(format!("nagare item preview {}", snapshot.item.id)),
-            ),
+                plan.target_agent_profile_id.clone(),
+                Some(format!("nagare item recover accept {}", snapshot.item.id)),
+            )
+        } else {
+            match snapshot.item.status {
+                WorkItemStatus::Done => (
+                    WorkflowDecisionAction::Done,
+                    "work_item_done".to_string(),
+                    false,
+                    None,
+                    None,
+                ),
+                WorkItemStatus::AgentRunning => (
+                    WorkflowDecisionAction::Wait,
+                    "agent_running".to_string(),
+                    false,
+                    None,
+                    None,
+                ),
+                WorkItemStatus::NeedsInput => (
+                    WorkflowDecisionAction::AskHuman,
+                    snapshot
+                        .completion
+                        .blocking_reason
+                        .clone()
+                        .unwrap_or_else(|| "needs_input".to_string()),
+                    true,
+                    None,
+                    snapshot.completion.next_command_hint.clone(),
+                ),
+                WorkItemStatus::NeedsHandoff if snapshot.handoffs.is_empty() => (
+                    WorkflowDecisionAction::CreateHandoff,
+                    "needs_handoff".to_string(),
+                    true,
+                    None,
+                    snapshot.completion.next_command_hint.clone(),
+                ),
+                WorkItemStatus::NeedsHandoff if accepted_dispatch.is_some() => (
+                    WorkflowDecisionAction::RunAgent,
+                    "accepted_handoff_dispatch_plan".to_string(),
+                    false,
+                    accepted_dispatch.map(|plan| plan.target_agent_profile_id.clone()),
+                    Some(format!("nagare item run {}", snapshot.item.id)),
+                ),
+                WorkItemStatus::NeedsHandoff if draft_dispatch.is_some() => (
+                    WorkflowDecisionAction::AcceptDispatch,
+                    "draft_handoff_dispatch_plan".to_string(),
+                    false,
+                    draft_dispatch.map(|plan| plan.target_agent_profile_id.clone()),
+                    Some(format!("nagare item dispatch accept {}", snapshot.item.id)),
+                ),
+                WorkItemStatus::NeedsHandoff => (
+                    WorkflowDecisionAction::Dispatch,
+                    "handoff_created".to_string(),
+                    false,
+                    Some(settings.dispatch_agent.clone()),
+                    Some(format!("nagare handoff dispatch {}", snapshot.item.id)),
+                ),
+                WorkItemStatus::ChangesRequested => (
+                    WorkflowDecisionAction::CreateRecoveryPlan,
+                    "changes_requested".to_string(),
+                    false,
+                    None,
+                    Some(format!("nagare item recover {}", snapshot.item.id)),
+                ),
+                WorkItemStatus::ReadyForReview if latest_review_pass => {
+                    if snapshot.item.approval_policy == ApprovalPolicy::AutoCompleteOnReviewPass {
+                        (
+                            WorkflowDecisionAction::Done,
+                            "review_passed_auto_complete".to_string(),
+                            false,
+                            None,
+                            Some(format!("nagare item advance {}", snapshot.item.id)),
+                        )
+                    } else {
+                        (
+                            WorkflowDecisionAction::Approve,
+                            "review_passed".to_string(),
+                            true,
+                            None,
+                            Some(format!("nagare decision approve {}", snapshot.item.id)),
+                        )
+                    }
+                }
+                WorkItemStatus::ReadyForReview => (
+                    WorkflowDecisionAction::RunReview,
+                    "ready_for_review".to_string(),
+                    false,
+                    Some(settings.review_agent.clone()),
+                    Some(format!("nagare item review {}", snapshot.item.id)),
+                ),
+                WorkItemStatus::Ready if accepted_dispatch.is_some() => (
+                    WorkflowDecisionAction::RunAgent,
+                    "accepted_dispatch_plan".to_string(),
+                    false,
+                    accepted_dispatch.map(|plan| plan.target_agent_profile_id.clone()),
+                    Some(format!("nagare item run {}", snapshot.item.id)),
+                ),
+                WorkItemStatus::Ready if draft_dispatch.is_some() => (
+                    WorkflowDecisionAction::AcceptDispatch,
+                    "draft_dispatch_plan".to_string(),
+                    false,
+                    draft_dispatch.map(|plan| plan.target_agent_profile_id.clone()),
+                    Some(format!("nagare item dispatch accept {}", snapshot.item.id)),
+                ),
+                WorkItemStatus::Ready if has_answer_after_latest_question(snapshot) => (
+                    WorkflowDecisionAction::RunAgent,
+                    "human_feedback_answered".to_string(),
+                    false,
+                    Some(settings.work_agent.clone()),
+                    Some(format!("nagare item run {}", snapshot.item.id)),
+                ),
+                WorkItemStatus::Ready => (
+                    WorkflowDecisionAction::Dispatch,
+                    "ready_without_dispatch".to_string(),
+                    false,
+                    Some(settings.dispatch_agent.clone()),
+                    Some(format!("nagare item preview {}", snapshot.item.id)),
+                ),
+            }
         };
 
     WorkflowDecision {
@@ -662,6 +625,63 @@ pub(crate) fn workflow_decision_for_snapshot(
         locale,
         created_at: timestamp(),
     }
+}
+
+fn latest_unapplied_accepted_recovery(snapshot: &WorkItemSnapshot) -> Option<&RecoveryPlan> {
+    snapshot.recovery_plans.iter().rev().find(|plan| {
+        plan.status == RecoveryPlanStatus::Accepted
+            && !snapshot.runs.iter().any(|run| {
+                run.purpose == AgentRunPurpose::Work && id_sequence(&run.id) > id_sequence(&plan.id)
+            })
+    })
+}
+
+fn latest_unapplied_draft_recovery(snapshot: &WorkItemSnapshot) -> Option<&RecoveryPlan> {
+    snapshot.recovery_plans.iter().rev().find(|plan| {
+        plan.status == RecoveryPlanStatus::Draft
+            && !snapshot.runs.iter().any(|run| {
+                run.purpose == AgentRunPurpose::Work && id_sequence(&run.id) > id_sequence(&plan.id)
+            })
+    })
+}
+
+fn recovery_plan_can_auto_apply(plan: &RecoveryPlan) -> bool {
+    matches!(
+        plan.action,
+        RecoveryAction::RerunSameAgent | RecoveryAction::RerunWithContractReminder
+    )
+}
+
+fn latest_work_run_sequence(snapshot: &WorkItemSnapshot) -> u64 {
+    snapshot
+        .runs
+        .iter()
+        .rev()
+        .find(|run| run.purpose == AgentRunPurpose::Work)
+        .map(|run| id_sequence(&run.id))
+        .unwrap_or(0)
+}
+
+fn has_answer_after_latest_question(snapshot: &WorkItemSnapshot) -> bool {
+    let Some(output) = snapshot
+        .agent_outputs
+        .iter()
+        .rev()
+        .find(|output| !output.questions.is_empty())
+    else {
+        return false;
+    };
+    snapshot.human_feedback.iter().rev().any(|feedback| {
+        feedback.source_agent_output_id.as_deref() == Some(output.id.as_str())
+            && id_sequence(&feedback.id) > id_sequence(&output.id)
+    })
+}
+
+fn id_sequence(id: &str) -> u64 {
+    id.rsplit('_')
+        .next()
+        .and_then(|suffix| suffix.parse::<u64>().ok())
+        .unwrap_or(0)
 }
 
 fn latest_dispatch_plan(

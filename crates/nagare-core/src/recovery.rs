@@ -52,7 +52,6 @@ pub enum RecoveryAction {
     RerunWithContractReminder,
     Handoff,
     AskHuman,
-    RunVerification,
     RequestChanges,
     Redispatch,
 }
@@ -64,7 +63,6 @@ impl std::fmt::Display for RecoveryAction {
             Self::RerunWithContractReminder => "rerun_with_contract_reminder",
             Self::Handoff => "handoff",
             Self::AskHuman => "ask_human",
-            Self::RunVerification => "run_verification",
             Self::RequestChanges => "request_changes",
             Self::Redispatch => "redispatch",
         };
@@ -183,6 +181,7 @@ pub fn apply_recovery_plan(
             plan.id
         ))
     })?;
+    let purpose = recovery_rerun_purpose(&ledger, &plan);
     let run = run_work_item_with_input(
         root,
         work_item_id,
@@ -192,10 +191,24 @@ pub fn apply_recovery_plan(
             path: None,
             prompt: input.prompt.or(plan.prompt_hint.as_deref()),
             dev_command: input.dev_command,
-            purpose: AgentRunPurpose::Work,
+            purpose,
         },
     )?;
     Ok(ApplyRecoveryPlanResult { plan, run })
+}
+
+fn recovery_rerun_purpose(ledger: &Ledger, plan: &RecoveryPlan) -> AgentRunPurpose {
+    plan.source_event_id
+        .as_deref()
+        .and_then(|source_event_id| {
+            ledger
+                .agent_outputs
+                .iter()
+                .find(|output| output.id == source_event_id)
+        })
+        .map(|output| output.purpose)
+        .filter(|purpose| matches!(purpose, AgentRunPurpose::Work | AgentRunPurpose::Review))
+        .unwrap_or(AgentRunPurpose::Work)
 }
 
 fn recovery_plan_for_apply<'a>(
@@ -261,16 +274,12 @@ fn recovery_plan_for_snapshot(
                 .map(|config| config.nagare_agents.work_agent)
         });
     let unparsed = latest_unparsed_output(snapshot);
-    let failed_verification = snapshot
-        .verification_results
-        .iter()
-        .rev()
-        .find(|verification| verification.result == VerificationStatus::Failed);
     let latest_review_change = snapshot
         .review_results
         .iter()
         .rev()
         .find(|review| review.verdict == ReviewVerdict::RequestChanges);
+    let notes_missing_output = latest_output_missing_notes(snapshot);
 
     let (
         action,
@@ -335,25 +344,6 @@ fn recovery_plan_for_snapshot(
             None,
             "needs_handoff".to_string(),
         )
-    } else if snapshot.item.status == WorkItemStatus::FailedVerification {
-        let verification = failed_verification.ok_or_else(|| {
-            NagareError::InvalidState(
-                "failed_verification item has no failed verification".to_string(),
-            )
-        })?;
-        (
-            RecoveryAction::RerunSameAgent,
-            latest_work_agent.clone(),
-            "verification_failed".to_string(),
-            format!(
-                "Fix the failure from `{}` and run verification again.",
-                verification.command
-            ),
-            Some(verification.id.clone()),
-            Some(format!("nagare item run {}", snapshot.item.id)),
-            None,
-            "verification_failure".to_string(),
-        )
     } else if let Some(review) = latest_review_change {
         (
             RecoveryAction::RerunSameAgent,
@@ -369,19 +359,27 @@ fn recovery_plan_for_snapshot(
             None,
             "review_changes".to_string(),
         )
-    } else if snapshot.item.status == WorkItemStatus::ReadyForVerification {
+    } else if let Some(output) = notes_missing_output {
+        let missing = missing_output_notes(output);
         (
-            RecoveryAction::RunVerification,
-            None,
-            "ready_for_verification".to_string(),
-            "Run the required verification before approval.".to_string(),
-            snapshot
-                .review_results
-                .last()
-                .map(|review| review.id.clone()),
-            snapshot.completion.next_command_hint.clone(),
-            None,
-            "verification_pending".to_string(),
+            RecoveryAction::RerunWithContractReminder,
+            Some(output.agent_profile_id.clone()),
+            "output_notes_missing".to_string(),
+            format!(
+                "Ask `{}` to restate `{}` with missing notes: {}.",
+                output.agent_profile_id,
+                output.contract,
+                missing.join(", ")
+            ),
+            Some(output.id.clone()),
+            Some(format!("nagare item recover apply {}", snapshot.item.id)),
+            Some(format!(
+                "Restate the previous run output for Work Item `{}` using `{}` and include: {}. Return only the final contract block.",
+                snapshot.item.id,
+                output.contract,
+                missing.join(", ")
+            )),
+            "output_notes_missing".to_string(),
         )
     } else {
         (
@@ -523,6 +521,39 @@ fn latest_unparsed_output(snapshot: &WorkItemSnapshot) -> Option<&AgentOutputRec
         .iter()
         .rev()
         .find(|output| output.parse_status == AgentOutputParseStatus::Unparsed)
+}
+
+fn latest_output_missing_notes(snapshot: &WorkItemSnapshot) -> Option<&AgentOutputRecord> {
+    snapshot
+        .agent_outputs
+        .iter()
+        .rev()
+        .find(|output| {
+            matches!(
+                output.purpose,
+                AgentRunPurpose::Work | AgentRunPurpose::Review
+            )
+        })
+        .filter(|output| !missing_output_notes(output).is_empty())
+}
+
+fn missing_output_notes(output: &AgentOutputRecord) -> Vec<&'static str> {
+    let mut missing = Vec::new();
+    if output
+        .warnings
+        .iter()
+        .any(|warning| warning == "missing_completed")
+    {
+        missing.push("completed");
+    }
+    if output
+        .warnings
+        .iter()
+        .any(|warning| warning == "missing_next_notes")
+    {
+        missing.push("next_notes");
+    }
+    missing
 }
 
 fn latest_question_event(snapshot: &WorkItemSnapshot) -> Option<String> {

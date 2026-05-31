@@ -761,7 +761,7 @@ tool_call:
   name: "npm test"
   input_summary: "auth関連テストを実行"
   input_hash: "sha256:..."
-  output_artifact_id: art_testlog_001
+  output_execution_record_id: exec_testlog_001
   status: failed
   started_at: "..."
   ended_at: "..."
@@ -771,16 +771,16 @@ tool_call:
 
 ### 5.12 Artifact
 
-物としての成果物。
+物としての成果物。ユーザーが依頼したファイル、またはそのファイルを作るために必要な材料を指す。
 
 ```yaml
 artifact:
   id: art_001
   work_item_id: work_123
   agent_run_id: run_001
-  type: diff # diff | pr | test_log | screenshot | video | report | document | diagram
-  uri: "file:///artifacts/work_123/pr_812.diff"
-  title: "PR #812 diff"
+  type: document # document | diagram | report | dataset | screenshot
+  uri: "file:///artifacts/work_123/report.md"
+  title: "調査レポート"
   provenance:
     agent_run_id: run_001
     tool_call_id: tool_021
@@ -802,7 +802,7 @@ evidence:
     type: command_result
     command: "npm test"
     exit_code: 1
-    artifact_id: art_testlog_001
+    execution_record_id: exec_testlog_001
   produced_by:
     type: ci
     id: gha_042

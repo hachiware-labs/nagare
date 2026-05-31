@@ -20,7 +20,7 @@ Nagare owns:
 - Run Event
 - Artifact
 - Evidence
-- Verification Result
+- Review Result
 - Handoff Packet
 - Human Decision
 
@@ -54,7 +54,7 @@ Supported agent adapters:
 
 Not agent adapters:
 
-- shell commands used by `nagare verify --command`
+- CI/test/tool commands recorded by Review results
 - local smoke-test commands
 - SDK wrappers in other languages
 
@@ -81,7 +81,7 @@ Current `stdio.codex-app-server` execution uses JSON-RPC over stdio:
 3. `turn/start`
 4. collect notifications until `turn/completed`
 
-The MVP stores the app-server transcript as the run log artifact. Later slices
+The MVP stores the app-server transcript as the run log execution record. Later slices
 can normalize individual notifications into first-class Run Events.
 
 Current `process.codex-cli` execution uses `codex exec --cd <working_dir>
@@ -102,7 +102,7 @@ run.tool_call.started
 run.tool_call.completed
 run.artifact.produced
 run.evidence.produced
-run.verification.produced
+run.review_check.produced
 run.needs_input
 run.completed
 run.failed
@@ -130,7 +130,7 @@ run_packet:
     - diff
     - test_log
     - summary
-  verification:
+  review_checks:
     - type: command
       command: "npm test"
       expected: "exit_code_0"

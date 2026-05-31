@@ -1,5 +1,7 @@
 # Nagare / 流
 
+![Nagare ロゴ](logo.png)
+
 [English README](README.md) | [仕様書](docs/spec.md) | [設計書](docs/architecture.md) | [Tutorial](docs/tutorial.md) | [チュートリアル](docs/tutorial_ja.md)
 
 Nagare は、コーディング Agent のための adapter-first な Execution Ledger です。

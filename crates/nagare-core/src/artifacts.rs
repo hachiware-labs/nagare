@@ -1,16 +1,17 @@
 use std::fs;
+use std::path::Path;
 use std::process::Command;
 
 use crate::*;
 
-pub(crate) fn collect_git_run_artifacts(
+pub(crate) fn collect_git_execution_records(
     layout: &ProjectLayout,
     ledger: &mut Ledger,
     work_item_id: &str,
     run_id: &str,
     locale: &str,
     created_at: &str,
-) -> Result<Vec<Artifact>, NagareError> {
+) -> Result<Vec<ExecutionRecord>, NagareError> {
     if !is_git_work_tree(layout) {
         return Ok(Vec::new());
     }
@@ -19,17 +20,15 @@ pub(crate) fn collect_git_run_artifacts(
         return Ok(Vec::new());
     }
 
-    let mut artifacts = Vec::new();
-    let changed_files_id = ledger.next_id("art");
-    let changed_files_path = layout
-        .artifacts_dir
-        .join(format!("{run_id}_changed_files.txt"));
+    let mut records = Vec::new();
+    let changed_files_id = ledger.next_id("exec");
+    let changed_files_path = layout.logs_dir.join(format!("{run_id}_changed_files.txt"));
     fs::write(&changed_files_path, changed_files.join("\n"))?;
-    artifacts.push(Artifact {
+    records.push(ExecutionRecord {
         id: changed_files_id,
         work_item_id: work_item_id.to_string(),
         agent_run_id: Some(run_id.to_string()),
-        artifact_type: "changed_files".to_string(),
+        record_type: "changed_files".to_string(),
         uri: path_uri(&changed_files_path),
         title: format!("{run_id} changed files"),
         locale: locale.to_string(),
@@ -38,21 +37,61 @@ pub(crate) fn collect_git_run_artifacts(
 
     let diff = git_diff(layout)?;
     if !diff.trim().is_empty() {
-        let diff_id = ledger.next_id("art");
-        let diff_path = layout.artifacts_dir.join(format!("{run_id}_diff.patch"));
+        let diff_id = ledger.next_id("exec");
+        let diff_path = layout.logs_dir.join(format!("{run_id}_diff.patch"));
         fs::write(&diff_path, diff)?;
-        artifacts.push(Artifact {
+        records.push(ExecutionRecord {
             id: diff_id,
             work_item_id: work_item_id.to_string(),
             agent_run_id: Some(run_id.to_string()),
-            artifact_type: "diff_patch".to_string(),
+            record_type: "diff_patch".to_string(),
             uri: path_uri(&diff_path),
             title: format!("{run_id} git diff"),
             locale: locale.to_string(),
             created_at: created_at.to_string(),
         });
     }
-    Ok(artifacts)
+    Ok(records)
+}
+
+pub(crate) fn collect_expected_artifacts(
+    layout: &ProjectLayout,
+    ledger: &mut Ledger,
+    item: &WorkItem,
+    run_id: &str,
+    locale: &str,
+    created_at: &str,
+) -> Vec<Artifact> {
+    item.expected_artifacts
+        .iter()
+        .filter_map(|expected| {
+            expected_artifact_path(&layout.root, expected).map(|path| (expected, path))
+        })
+        .filter(|(_, path)| path.exists())
+        .map(|(expected, path)| Artifact {
+            id: ledger.next_id("art"),
+            work_item_id: item.id.clone(),
+            agent_run_id: Some(run_id.to_string()),
+            artifact_type: "deliverable_file".to_string(),
+            uri: path_uri(&path),
+            title: expected.trim().to_string(),
+            locale: locale.to_string(),
+            created_at: created_at.to_string(),
+        })
+        .collect()
+}
+
+fn expected_artifact_path(root: &Path, expected: &str) -> Option<std::path::PathBuf> {
+    let expected = expected.trim();
+    if expected.is_empty() {
+        return None;
+    }
+    let path = Path::new(expected);
+    Some(if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        root.join(path)
+    })
 }
 
 fn is_git_work_tree(layout: &ProjectLayout) -> bool {

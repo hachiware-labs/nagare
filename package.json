@@ -8,10 +8,14 @@
     "build": "cargo build --workspace",
     "build:release": "cargo build --release -p nagare-cli",
     "test": "cargo test --workspace",
+    "test:e2e": "playwright test",
     "nagare": "node scripts/nagare-dev.js",
     "doctor": "node scripts/nagare-dev.js doctor",
     "init": "node scripts/nagare-dev.js init",
     "dev:scenario:first": "node scripts/nagare-dev.js dev scenario first",
     "pack:npm": "npm pack --workspace @hachiware-labs/nagare"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0"
   }
 }

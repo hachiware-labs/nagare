@@ -10,7 +10,7 @@ pub(crate) struct AgentOutputRecordInput<'a> {
     pub(crate) purpose: AgentRunPurpose,
     pub(crate) contract: &'a AgentOutputContract,
     pub(crate) stdout: &'a str,
-    pub(crate) artifact_id: Option<&'a str>,
+    pub(crate) execution_record_id: &'a str,
     pub(crate) locale: &'a str,
     pub(crate) created_at: &'a str,
 }
@@ -35,11 +35,38 @@ pub(crate) fn parse_agent_output_record(input: AgentOutputRecordInput<'_>) -> Ag
         .get("questions")
         .or_else(|| fields.get("question"))
         .cloned()
-        .unwrap_or_default();
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|value| !is_empty_contract_value(value))
+        .collect::<Vec<_>>();
     let next_action = fields
         .get("next_action")
         .and_then(|values| values.first())
         .map(|value| normalize_next_action(value));
+    if let Some(action) = next_action.as_deref() {
+        if !valid_next_action(action) {
+            warnings.push(format!("invalid_next_action:{action}"));
+        }
+        if matches!(action, "answer_question" | "needs_input") && questions.is_empty() {
+            warnings.push("next_action_without_question".to_string());
+        }
+    }
+    if section.is_some()
+        && matches!(
+            input.purpose,
+            AgentRunPurpose::Work | AgentRunPurpose::Review
+        )
+    {
+        if has_nested_contract_keys(&fields) {
+            warnings.push("nested_contract_fields".to_string());
+        }
+        if !has_contract_field(&fields, "completed") {
+            warnings.push("missing_completed".to_string());
+        }
+        if !has_contract_field(&fields, "next_notes") {
+            warnings.push("missing_next_notes".to_string());
+        }
+    }
     AgentOutputRecord {
         id: input.id,
         work_item_id: input.work_item_id.to_string(),
@@ -57,20 +84,14 @@ pub(crate) fn parse_agent_output_record(input: AgentOutputRecordInput<'_>) -> Ag
         questions,
         next_action,
         warnings,
-        artifact_id: input.artifact_id.map(ToOwned::to_owned),
+        execution_record_id: input.execution_record_id.to_string(),
         locale: input.locale.to_string(),
         created_at: input.created_at.to_string(),
     }
 }
 
 pub(crate) fn agent_output_requires_input(record: Option<&AgentOutputRecord>) -> bool {
-    record.is_some_and(|record| {
-        !record.questions.is_empty()
-            || record
-                .next_action
-                .as_deref()
-                .is_some_and(|action| action == "answer_question" || action == "needs_input")
-    })
+    record.is_some_and(|record| !record.questions.is_empty())
 }
 
 pub(crate) fn agent_output_requests_handoff(record: Option<&AgentOutputRecord>) -> bool {
@@ -142,12 +163,8 @@ pub(crate) fn handoff_prompt_context(ledger: &Ledger, work_item_id: &str) -> Str
                 format!("open_questions: {}", handoff.open_questions.join(", ")),
                 format!("artifact_ids: {}", handoff.artifact_ids.join(", ")),
                 format!(
-                    "diff_artifact_ids: {}",
-                    handoff.diff_artifact_ids.join(", ")
-                ),
-                format!(
-                    "failed_verification_ids: {}",
-                    handoff.failed_verification_ids.join(", ")
+                    "execution_record_ids: {}",
+                    handoff.execution_record_ids.join(", ")
                 ),
                 format!(
                     "review_result_ids: {}",
@@ -177,7 +194,10 @@ fn extract_markdown_section(output: &str, section_name: &str) -> Option<String> 
             lines.push(line);
         }
     }
-    capture.then(|| lines.join("\n"))
+    if capture {
+        return Some(lines.join("\n"));
+    }
+    fallback_contract_section(&output, section_name)
 }
 
 fn parse_contract_fields(section: &str) -> BTreeMap<String, Vec<String>> {
@@ -189,6 +209,15 @@ fn parse_contract_fields(section: &str) -> BTreeMap<String, Vec<String>> {
             continue;
         }
         if let Some(item) = trimmed.strip_prefix("- ") {
+            if let Some((key, value)) = parse_contract_key_value(item) {
+                current_key = Some(key.clone());
+                fields.entry(key.clone()).or_insert_with(Vec::new);
+                let value = value.trim();
+                if !value.is_empty() {
+                    fields.entry(key).or_default().push(value.to_string());
+                }
+                continue;
+            }
             let key = current_key.clone().unwrap_or_else(|| "summary".to_string());
             fields
                 .entry(key)
@@ -196,8 +225,7 @@ fn parse_contract_fields(section: &str) -> BTreeMap<String, Vec<String>> {
                 .push(item.trim().to_string());
             continue;
         }
-        if let Some((key, value)) = trimmed.split_once(':') {
-            let key = normalize_contract_key(key);
+        if let Some((key, value)) = parse_contract_key_value(trimmed) {
             current_key = Some(key.clone());
             fields.entry(key.clone()).or_insert_with(Vec::new);
             let value = value.trim();
@@ -212,12 +240,125 @@ fn parse_contract_fields(section: &str) -> BTreeMap<String, Vec<String>> {
     fields
 }
 
+fn fallback_contract_section(output: &str, section_name: &str) -> Option<String> {
+    let required_keys = match section_name {
+        "nagare result" => &["status", "summary", "next_action"][..],
+        "nagare review" => &["verdict", "summary", "next_action"][..],
+        "nagare workflow decision" => &["action", "reason"][..],
+        _ => return None,
+    };
+    let has_required_keys = required_keys.iter().all(|key| {
+        output.lines().any(|line| {
+            line.trim()
+                .trim_start_matches("- ")
+                .split_once(':')
+                .is_some_and(|(candidate, _)| normalize_contract_key(candidate) == *key)
+        })
+    });
+    has_required_keys.then(|| output.to_string())
+}
+
+fn parse_contract_key_value(line: &str) -> Option<(String, &str)> {
+    let (key, value) = line.trim().split_once(':')?;
+    let key = normalize_contract_key(key);
+    known_contract_key(&key).then_some((key, value))
+}
+
 fn normalize_contract_key(key: &str) -> String {
     key.trim().to_ascii_lowercase().replace([' ', '-'], "_")
 }
 
+fn known_contract_key(key: &str) -> bool {
+    matches!(
+        key,
+        "status"
+            | "summary"
+            | "completed"
+            | "artifacts"
+            | "evidence"
+            | "questions"
+            | "question"
+            | "next_notes"
+            | "next_action"
+            | "verdict"
+            | "findings"
+            | "requested_changes"
+            | "referenced_artifacts"
+            | "criteria"
+            | "criteria_results"
+            | "action"
+            | "reason"
+            | "target_agent_profile_id"
+            | "requires_human"
+            | "confidence"
+            | "command_hint"
+    )
+}
+
+fn has_contract_field(fields: &BTreeMap<String, Vec<String>>, key: &str) -> bool {
+    fields
+        .get(key)
+        .is_some_and(|values| values.iter().any(|value| !value.trim().is_empty()))
+}
+
+fn is_empty_contract_value(value: &str) -> bool {
+    let normalized = value
+        .trim()
+        .trim_matches(|ch: char| ch == '-' || ch == ' ' || ch == '　')
+        .to_ascii_lowercase();
+    matches!(
+        normalized.as_str(),
+        "" | "none" | "no" | "n/a" | "na" | "nil" | "null" | "なし" | "無し" | "ありません"
+    )
+}
+
+fn has_nested_contract_keys(fields: &BTreeMap<String, Vec<String>>) -> bool {
+    let known_keys = [
+        "status:",
+        "summary:",
+        "completed:",
+        "artifacts:",
+        "evidence:",
+        "questions:",
+        "next_notes:",
+        "next_action:",
+        "verdict:",
+        "findings:",
+        "requested_changes:",
+        "referenced_artifacts:",
+    ];
+    fields.iter().any(|(key, values)| {
+        values.iter().any(|value| {
+            value.lines().any(|line| {
+                let normalized = line.trim().to_ascii_lowercase();
+                known_keys.iter().any(|known_key| {
+                    normalized.starts_with(known_key) && key != known_key.trim_end_matches(':')
+                })
+            })
+        })
+    })
+}
+
 fn normalize_next_action(value: &str) -> String {
     value.trim().to_ascii_lowercase().replace([' ', '-'], "_")
+}
+
+fn valid_next_action(value: &str) -> bool {
+    matches!(
+        value,
+        "review"
+            | "run_agent"
+            | "answer_question"
+            | "needs_input"
+            | "create_handoff"
+            | "handoff"
+            | "recover"
+            | "approve"
+            | "done"
+            | "none"
+            | "wait"
+            | "stop"
+    )
 }
 
 fn output_contract_instruction(purpose: AgentRunPurpose, contract: &AgentOutputContract) -> String {
@@ -228,24 +369,91 @@ fn output_contract_instruction(purpose: AgentRunPurpose, contract: &AgentOutputC
     };
     match purpose {
         AgentRunPurpose::DispatchPreview => format!(
-            "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\nReturn one JSON object only with keys: target_agent_profile_id, summary, risks, missing_information. target_agent_profile_id must exactly match a registered candidate agent profile id.",
+            "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\nReturn one JSON object only with keys: target_agent_profile_id, summary, risks, missing_information. target_agent_profile_id must exactly match a registered candidate agent profile id. Do not add Markdown around the JSON.",
             contract_id = contract.contract,
             pack = contract.instruction_pack,
         ),
         AgentRunPurpose::Review => format!(
-            "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\nFinish with a Markdown section named `## Nagare Review` containing: verdict, summary, findings, referenced_artifacts, requested_changes, questions, next_action.",
+            "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\nFinish with this exact Markdown contract shape. Put each contract key at the start of its own line. Do not nest contract keys under summary, do not put contract keys inside bullet text, and do not wrap the block in a code fence.\n\n## Nagare Review\nverdict: pass|request_changes|blocked\nsummary:\n- concise review summary\ncompleted:\n- what you reviewed, including CI/tests/checks when applicable\ncriteria:\n- <criterion>: passed|failed|unknown - note\nfindings:\n- finding or none\nreferenced_artifacts:\n- requested deliverable artifact id/path or none\nrequested_changes:\n- requested change or none\nquestions:\n- question or none\nnext_notes:\n- handoff hint for the next dispatch or agent\nnext_action: approve|run_agent|answer_question|stop",
             contract_id = contract.contract,
             pack = contract.instruction_pack,
         ),
         AgentRunPurpose::Work => format!(
-            "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\nFinish with a Markdown section named `## Nagare Result` containing: status, summary, artifacts, evidence, questions, verification, next_action.",
+            "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\nFinish with this exact Markdown contract shape. Put each contract key at the start of its own line. Do not nest contract keys under summary, do not put contract keys inside bullet text, and do not wrap the block in a code fence.\n\n## Nagare Result\nstatus: succeeded|blocked|failed\nsummary:\n- final user-facing result or concise answer\ncompleted:\n- completed work item\nartifacts:\n- requested deliverable artifact path/id or none\nevidence:\n- evidence or none\nquestions:\n- question or none\nnext_notes:\n- handoff hint for the next dispatch or agent\nnext_action: review|answer_question|handoff|stop",
             contract_id = contract.contract,
             pack = contract.instruction_pack,
         ),
         AgentRunPurpose::WorkflowSupervision => format!(
-            "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\nFinish with a Markdown section named `## Nagare Workflow Decision` containing: action, reason, target_agent_profile_id, requires_human, confidence, command_hint.",
+            "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\nFinish with this exact Markdown contract shape. Put each contract key at the start of its own line. Do not wrap the block in a code fence.\n\n## Nagare Workflow Decision\naction: dispatch|run_agent|run_review|recover|approve|stop\nreason: concise reason\ntarget_agent_profile_id: agent id or none\nrequires_human: true|false\nconfidence: 0.0-1.0\ncommand_hint: nagare command or none",
             contract_id = contract.contract,
             pack = contract.instruction_pack,
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bullet_nested_contract_keys_are_recovered() {
+        let contract = default_work_output_contract();
+        let output = parse_agent_output_record(AgentOutputRecordInput {
+            id: "out_test".to_string(),
+            work_item_id: "work_test",
+            agent_run_id: "run_test",
+            agent_profile_id: "worker",
+            purpose: AgentRunPurpose::Work,
+            contract: &contract,
+            stdout: "## Nagare Result\nsummary:\n- status: succeeded\n- summary: answered the question\n- completed:\n- identified the expensive coffee categories\n- next_notes:\n- reviewer should check the source distinction\n- next_action: review\n",
+            execution_record_id: "exec_test",
+            locale: "en-US",
+            created_at: "1",
+        });
+
+        assert_eq!(output.parse_status, AgentOutputParseStatus::Parsed);
+        assert_eq!(
+            output.fields.get("completed"),
+            Some(&vec![
+                "identified the expensive coffee categories".to_string()
+            ])
+        );
+        assert_eq!(
+            output.fields.get("next_notes"),
+            Some(&vec![
+                "reviewer should check the source distinction".to_string()
+            ])
+        );
+        assert!(!output.warnings.contains(&"missing_completed".to_string()));
+        assert!(!output.warnings.contains(&"missing_next_notes".to_string()));
+    }
+
+    #[test]
+    fn review_contract_without_heading_can_be_recovered() {
+        let contract = default_review_output_contract();
+        let output = parse_agent_output_record(AgentOutputRecordInput {
+            id: "out_test".to_string(),
+            work_item_id: "work_test",
+            agent_run_id: "run_test",
+            agent_profile_id: "reviewer",
+            purpose: AgentRunPurpose::Review,
+            contract: &contract,
+            stdout: "verdict: pass\nsummary:\n- answer is acceptable\ncompleted:\n- reviewed the answer\nfindings:\n- none\nquestions:\n- none\nnext_notes:\n- ready for approval\nnext_action: approve\n",
+            execution_record_id: "exec_test",
+            locale: "en-US",
+            created_at: "1",
+        });
+
+        assert_eq!(output.parse_status, AgentOutputParseStatus::Parsed);
+        assert_eq!(
+            output.fields.get("verdict"),
+            Some(&vec!["pass".to_string()])
+        );
+        assert_eq!(output.next_action.as_deref(), Some("approve"));
+        assert!(
+            !output
+                .warnings
+                .contains(&"output_contract_unparsed".to_string())
+        );
     }
 }

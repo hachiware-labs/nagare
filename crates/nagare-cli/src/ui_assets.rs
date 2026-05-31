@@ -1,0 +1,320 @@
+pub(crate) fn serve_stylesheet() -> &'static str {
+    r#":root{color-scheme:light;--bg:#f8fafc;--surface:#fff;--surface2:#f1f5f9;--text:#020617;--muted:#475569;--line:#e2e8f0;--blue:#4338ca;--green:#047857;--amber:#b45309;--red:#b91c1c}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,"Yu Gothic UI",Meiryo,Arial,sans-serif}.app{display:grid;grid-template-columns:200px minmax(0,1fr);min-height:100vh}.sidebar{background:var(--surface);border-right:1px solid var(--line);padding:24px 18px}.brand{display:block;margin:0 0 24px}.brand-logo{display:block;width:132px;height:auto}.brand-text{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}nav a{display:block;padding:9px 14px;border-radius:7px;color:var(--muted);text-decoration:none;font-weight:700}nav a.active{background:#eef2ff;color:var(--blue)}.content{min-width:0;padding:26px 32px}.breadcrumbs{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px;font-weight:800;margin:0 0 12px}.breadcrumbs a{padding:0;border-radius:0}.breadcrumbs span{color:var(--muted)}.topbar{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;margin-bottom:22px}.actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}h1{font-size:24px;margin:0 0 4px}h2{font-size:17px;margin:0 0 12px}h3{font-size:15px;margin:0 0 10px}.muted{color:var(--muted);font-size:12px}.panel,.composer{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:20px;margin-bottom:18px}.settings-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 18px;border-bottom:1px solid var(--line)}.settings-tab{appearance:none;border:0;border-bottom:3px solid transparent;border-radius:7px 7px 0 0;background:transparent;color:var(--muted);padding:10px 14px;font-size:12px;font-weight:800;cursor:pointer}.settings-tab.active{background:#eef2ff;border-bottom-color:var(--blue);color:var(--blue)}.settings-panel[hidden]{display:none}.primary-action{border-color:#94a3b8;box-shadow:0 1px 2px rgba(15,23,42,.06)}.queue-layout{display:block}.queue-panel{min-width:0;overflow-x:auto}.quick-composer textarea{resize:vertical}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.advanced-form{border:1px solid var(--line);border-radius:7px;padding:10px;background:#fbfdff}.advanced-form[open]{display:grid;gap:12px}.status-strip{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}.queue-chip{display:inline-flex;align-items:center;gap:8px;min-height:30px;border:1px solid var(--line);border-radius:7px;background:#fff;padding:6px 10px;color:var(--muted);font-size:12px;font-weight:800;cursor:pointer}.queue-chip b{color:var(--text)}.queue-chip.active{outline:2px solid #a5b4fc;color:var(--blue)}.queue-chip.attention{border-color:#fde68a;background:#fffbeb}.queue-chip.failed{border-color:#fecaca;background:#fff7f7}.queue-chip.approval{border-color:#bfdbfe;background:#eff6ff}.queue-chip.running{border-color:#a5b4fc;background:#eef2ff}.panel-head,.event-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.event-head{justify-content:flex-start;align-items:flex-start;margin-bottom:8px}.badge{display:inline-flex;align-items:center;min-height:24px;border-radius:12px;padding:4px 9px;font-size:11px;font-weight:800;white-space:nowrap}.blue{background:#eef2ff;color:var(--blue)}.green{background:#ecfdf5;color:var(--green)}.amber{background:#fffbeb;color:var(--amber)}.red{background:#fef2f2;color:var(--red)}.gray{background:#f1f5f9;color:var(--muted)}.button-link{display:inline-flex;align-items:center;min-height:32px;border-radius:7px;background:var(--blue);color:#fff;padding:7px 12px;font-size:12px;font-weight:800}.button-link.secondary{background:var(--surface2);border:1px solid var(--line);color:var(--blue)}form{display:grid;gap:12px;margin-top:12px}.delete-work-form,.delete-domain-form,.delete-domain-group-form{display:block;margin:0}.row-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.row-actions .button-link,.row-actions button{min-height:30px}label{display:grid;gap:6px;color:var(--muted);font-size:12px;font-weight:800}input,textarea,select{width:100%;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:var(--text);padding:9px;font:inherit}input[type=radio]{width:18px;height:18px;accent-color:var(--blue);cursor:pointer}button:not(.queue-chip):not(.settings-tab){border:0;border-radius:7px;background:var(--blue);color:#fff;padding:10px 12px;font-weight:800;cursor:pointer}button:not(.queue-chip):not(.settings-tab).danger,button.danger{background:var(--surface);border:1px solid #fecaca;color:var(--red);padding:7px 10px}table{width:100%;border-collapse:collapse}th{text-align:left;color:var(--muted);font-size:11px;padding:10px;border-bottom:1px solid var(--line)}td{padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:top}tr.state-running{background:#f8faff}tr.state-needs-input,tr.state-needs-approval{background:#fffdf5}tr.state-failed{background:#fff7f7}a{color:var(--blue);font-weight:800;text-decoration:none}code{display:inline-block;max-width:100%;overflow-wrap:anywhere;background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:5px 7px;font-family:Consolas,Menlo,monospace;font-size:12px}.grid{display:grid;gap:12px}.grid.four{grid-template-columns:repeat(4,minmax(0,1fr))}.grid div{background:var(--surface2);border:1px solid var(--line);border-radius:7px;padding:12px;min-width:0}.grid b{display:block}.grid span{display:block;margin-top:6px;overflow-wrap:anywhere}.detail-layout{display:block;max-width:980px}.summary{position:static}.action-stack{min-width:0}.answer-preview{display:grid;gap:6px;min-width:220px}.answer-body{white-space:pre-wrap;font-size:15px;margin:0 0 14px}.answer-panel .detail-section{margin-top:10px}dl{display:grid;grid-template-columns:140px 1fr;gap:8px 12px;margin:0}dt{color:var(--muted);font-size:12px;font-weight:800}dd{margin:0;min-width:0;overflow-wrap:anywhere}.history-list{display:grid;gap:12px}.history-event{border:1px solid var(--line);border-radius:7px;padding:14px;background:var(--surface)}.history-event.running{border-color:#a5b4fc;background:#eef2ff}.history-event p{margin:0 0 10px}.history-step{display:inline-flex;align-items:center;min-height:24px;border-radius:12px;background:#f8fafc;border:1px solid var(--line);color:var(--muted);padding:4px 9px;font-size:11px;font-weight:800;white-space:nowrap}.history-title{display:grid;gap:2px;min-width:0;flex:1}.history-title b{font-size:15px;overflow-wrap:anywhere}.history-time{margin-left:auto;white-space:nowrap}.event-summary{color:var(--text);font-weight:700}.history-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0 12px}.history-facts div{background:#f8fafc;border:1px solid var(--line);border-radius:7px;padding:9px;min-width:0}.history-facts span{display:block;color:var(--muted);font-size:11px;font-weight:800;margin-bottom:4px}.history-facts b{display:block;font-size:13px;font-weight:700;overflow-wrap:anywhere}.history-details{border-top:1px solid var(--line);padding-top:10px}.history-details[open]{display:grid;gap:12px}summary{cursor:pointer;color:var(--blue);font-weight:800}.detail-section{border:1px solid var(--line);border-radius:7px;background:#fbfdff;padding:12px}.detail-section+ .detail-section{margin-top:10px}.detail-section h3{font-size:13px;color:var(--text);margin-bottom:10px}@media(max-width:1100px){.grid.four,.form-grid{grid-template-columns:1fr 1fr}.history-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.queue-layout{display:block}}@media(max-width:760px){.app{grid-template-columns:1fr}.sidebar{display:none}.content{padding:18px}.topbar{display:block}.actions{justify-content:flex-start;margin-top:12px}.settings-tabs{overflow-x:auto;flex-wrap:nowrap}.settings-tab{white-space:nowrap}.grid.four,.form-grid{grid-template-columns:1fr}dl{grid-template-columns:96px 1fr}table{display:block;overflow-x:auto;white-space:nowrap}.event-head{display:grid;grid-template-columns:auto 1fr}.event-head .badge{justify-self:start}.history-time{margin-left:0}.history-facts{grid-template-columns:1fr}}"#
+}
+
+pub(crate) fn serve_script() -> &'static str {
+    r#"const form=document.getElementById('create-work-form');
+const statusEl=document.getElementById('form-status');
+if(form){
+  form.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    statusEl.textContent='Adding item...';
+    const response=await fetch('/api/items',{method:'POST',body:new URLSearchParams(new FormData(form))});
+    if(!response.ok){statusEl.textContent=await response.text();return;}
+    const item=await response.json();
+    statusEl.textContent='Item added. Background execution started.';
+    window.location.href=item.id ? `/items/${encodeURIComponent(item.id)}` : '/';
+  });
+}
+const detailStateKey=`nagare:open-history:${window.location.pathname}`;
+function openHistoryKeys(){
+  try{return new Set(JSON.parse(sessionStorage.getItem(detailStateKey)||'[]'));}catch(_){return new Set();}
+}
+function saveOpenHistoryKeys(){
+  const keys=[...document.querySelectorAll('.history-details[open]')].map((detail)=>detail.dataset.historyKey).filter(Boolean);
+  sessionStorage.setItem(detailStateKey,JSON.stringify(keys));
+}
+const openKeys=openHistoryKeys();
+document.querySelectorAll('.history-details').forEach((detail)=>{
+  if(openKeys.has(detail.dataset.historyKey)){detail.open=true;}
+  detail.addEventListener('toggle',saveOpenHistoryKeys);
+});
+const autoNextActions=new Set(['dispatch','accept_dispatch','run_agent','review','recover','apply_recovery']);
+if((document.body.dataset.nextAction && autoNextActions.has(document.body.dataset.nextAction)) || document.body.dataset.running){
+  setTimeout(()=>{
+    if(document.querySelector('.history-details[open]')){return;}
+    window.location.reload();
+  },1000);
+}
+const queueFilters=[...document.querySelectorAll('[data-filter-state]')];
+if(queueFilters.length){
+  queueFilters.forEach((filterButton)=>{
+    filterButton.addEventListener('click',()=>{
+      const state=filterButton.dataset.filterState;
+      queueFilters.forEach((button)=>button.classList.toggle('active',button===filterButton));
+      document.querySelectorAll('#work-items tr[data-queue-state]').forEach((row)=>{
+        const states=(row.dataset.queueState||'').split(/\s+/);
+        row.hidden=state!=='all' && !states.includes(state);
+      });
+    });
+  });
+}
+const settingsTabs=[...document.querySelectorAll('[data-settings-tab]')];
+const settingsPanels=[...document.querySelectorAll('[data-settings-panel]')];
+if(settingsTabs.length && settingsPanels.length){
+  function showSettingsTab(tab){
+    const known=settingsTabs.some((button)=>button.dataset.settingsTab===tab);
+    const active=known ? tab : 'workflow';
+    settingsTabs.forEach((button)=>{
+      const selected=button.dataset.settingsTab===active;
+      button.classList.toggle('active',selected);
+      button.setAttribute('aria-selected',selected ? 'true' : 'false');
+    });
+    settingsPanels.forEach((panel)=>{panel.hidden=panel.dataset.settingsPanel!==active;});
+  }
+  settingsTabs.forEach((button)=>{
+    button.addEventListener('click',()=>{
+      const tab=button.dataset.settingsTab;
+      showSettingsTab(tab);
+      history.replaceState(null,'',`#${tab}`);
+    });
+  });
+  showSettingsTab((window.location.hash||'').replace(/^#/,''));
+}
+document.querySelectorAll('.delete-work-form').forEach((deleteForm)=>{
+  deleteForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    const workId=deleteForm.dataset.workId;
+    const title=deleteForm.dataset.workTitle || workId;
+    if(!confirm(`Delete work item "${title}"?`)){return;}
+    const button=deleteForm.querySelector('button');
+    button.disabled=true;
+    button.textContent='Deleting...';
+    const response=await fetch(`/api/items/${workId}/delete`,{method:'POST'});
+    if(!response.ok){button.disabled=false;button.textContent='Delete';alert(await response.text());return;}
+    deleteForm.closest('tr').remove();
+  });
+});
+document.querySelectorAll('.delete-domain-group-form').forEach((deleteForm)=>{
+  deleteForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    const groupId=deleteForm.dataset.domainGroupId;
+    const name=deleteForm.dataset.domainGroupName || groupId;
+    if(!confirm(`Delete domain group "${name}"?`)){return;}
+    const button=deleteForm.querySelector('button');
+    button.disabled=true;
+    button.textContent='Deleting...';
+    const response=await fetch(`/api/domain-groups/${groupId}/delete`,{method:'POST'});
+    if(!response.ok){button.disabled=false;button.textContent='Delete';alert(await response.text());return;}
+    deleteForm.closest('tr').remove();
+  });
+});
+document.querySelectorAll('.delete-domain-form').forEach((deleteForm)=>{
+  deleteForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    const domainId=deleteForm.dataset.domainId;
+    const name=deleteForm.dataset.domainName || domainId;
+    if(!confirm(`Delete domain "${name}"?`)){return;}
+    const button=deleteForm.querySelector('button');
+    button.disabled=true;
+    button.textContent='Deleting...';
+    const response=await fetch(`/api/domains/${domainId}/delete`,{method:'POST'});
+    if(!response.ok){button.disabled=false;button.textContent='Delete';alert(await response.text());return;}
+    deleteForm.closest('tr').remove();
+  });
+});
+const agentProfileForm=document.getElementById('agent-profile-form');
+if(agentProfileForm){
+  const agentProfileStatus=document.getElementById('agent-profile-status');
+  const kindSelect=document.getElementById('agent-kind');
+  const runtimeInput=agentProfileForm.querySelector('input[name="runtime"]');
+  const adapterInput=agentProfileForm.querySelector('input[name="adapter"]');
+  function syncAgentKind(){
+    if(kindSelect.value==='codex_app_server'){
+      runtimeInput.value='codex-app-local';
+      adapterInput.value='stdio.codex-app-server';
+    }else{
+      runtimeInput.value='codex-local';
+      adapterInput.value='process.codex-cli';
+    }
+  }
+  kindSelect.addEventListener('change',syncAgentKind);
+  syncAgentKind();
+  agentProfileForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    agentProfileStatus.textContent='Saving agent...';
+    syncAgentKind();
+    const response=await fetch(agentProfileForm.dataset.action,{method:'POST',body:new URLSearchParams(new FormData(agentProfileForm))});
+    if(!response.ok){agentProfileStatus.textContent=await response.text();return;}
+    agentProfileStatus.textContent='Agent saved.';
+    window.location.href=agentProfileForm.dataset.redirect || '/settings';
+  });
+  const deleteAgentButton=document.getElementById('delete-agent-button');
+  if(deleteAgentButton){
+    deleteAgentButton.addEventListener('click',async()=>{
+      const name=deleteAgentButton.dataset.agentName || 'this agent';
+      if(!confirm(`Delete agent "${name}"?`)){return;}
+      deleteAgentButton.disabled=true;
+      deleteAgentButton.textContent='Deleting...';
+      const response=await fetch(deleteAgentButton.dataset.action,{method:'POST'});
+      if(!response.ok){deleteAgentButton.disabled=false;deleteAgentButton.textContent='Delete Agent';agentProfileStatus.textContent=await response.text();return;}
+      window.location.href=agentProfileForm.dataset.redirect || '/settings';
+    });
+  }
+}
+const domainProfileForm=document.getElementById('domain-profile-form');
+if(domainProfileForm){
+  const domainProfileStatus=document.getElementById('domain-profile-status');
+  domainProfileForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    domainProfileStatus.textContent='Saving domain...';
+    const response=await fetch(domainProfileForm.dataset.action,{method:'POST',body:new URLSearchParams(new FormData(domainProfileForm))});
+    if(!response.ok){domainProfileStatus.textContent=await response.text();return;}
+    domainProfileStatus.textContent='Domain saved.';
+    window.location.href=domainProfileForm.dataset.redirect || '/settings';
+  });
+}
+const domainGroupForm=document.getElementById('domain-group-form');
+if(domainGroupForm){
+  const domainGroupStatus=document.getElementById('domain-group-status');
+  domainGroupForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    domainGroupStatus.textContent='Saving domain group...';
+    const response=await fetch(domainGroupForm.dataset.action,{method:'POST',body:new URLSearchParams(new FormData(domainGroupForm))});
+    if(!response.ok){domainGroupStatus.textContent=await response.text();return;}
+    domainGroupStatus.textContent='Domain group saved.';
+    window.location.href=domainGroupForm.dataset.redirect || '/settings';
+  });
+}
+const workflowSettingsForm=document.getElementById('workflow-settings-form');
+if(workflowSettingsForm){
+  const workflowSettingsStatus=document.getElementById('workflow-settings-status');
+  workflowSettingsForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    workflowSettingsStatus.textContent='Saving workflow settings...';
+    const response=await fetch(workflowSettingsForm.dataset.action,{method:'POST',body:new URLSearchParams(new FormData(workflowSettingsForm))});
+    if(!response.ok){workflowSettingsStatus.textContent=await response.text();return;}
+    workflowSettingsStatus.textContent='Workflow settings saved.';
+  });
+}
+const answerForm=document.getElementById('answer-form');
+if(answerForm){
+  const answerStatus=document.getElementById('answer-status');
+  answerForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    answerStatus.textContent='Saving answer...';
+    const workId=answerForm.dataset.workId;
+    const response=await fetch(`/api/items/${workId}/answer`,{method:'POST',body:new URLSearchParams(new FormData(answerForm))});
+    if(!response.ok){answerStatus.textContent=await response.text();return;}
+    answerStatus.textContent='Answer saved. Background execution started.';
+    window.location.reload();
+  });
+}
+const runForm=document.getElementById('run-form');
+if(runForm){
+  const runStatus=document.getElementById('run-status');
+  runForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    runStatus.textContent='Running...';
+    const workId=window.location.pathname.split('/').pop();
+    const response=await fetch(`/api/items/${workId}/run`,{method:'POST',body:new URLSearchParams(new FormData(runForm))});
+    if(!response.ok){runStatus.textContent=await response.text();return;}
+    runStatus.textContent='Run completed.';
+    window.location.reload();
+  });
+}
+const dispatchForm=document.getElementById('dispatch-form');
+if(dispatchForm){
+  const dispatchStatus=document.getElementById('dispatch-status');
+  dispatchForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    dispatchStatus.textContent='Dispatching...';
+    const workId=window.location.pathname.split('/').pop();
+    const response=await fetch(`/api/items/${workId}/preview`,{method:'POST',body:new URLSearchParams(new FormData(dispatchForm))});
+    if(!response.ok){dispatchStatus.textContent=await response.text();return;}
+    dispatchStatus.textContent='Dispatch completed.';
+    window.location.reload();
+  });
+}
+const dispatchAcceptForm=document.getElementById('dispatch-accept-form');
+if(dispatchAcceptForm){
+  const dispatchAcceptStatus=document.getElementById('dispatch-accept-status');
+  dispatchAcceptForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    dispatchAcceptStatus.textContent='Accepting dispatch plan...';
+    const workId=window.location.pathname.split('/').pop();
+    const response=await fetch(`/api/items/${workId}/dispatch/accept`,{method:'POST',body:new URLSearchParams(new FormData(dispatchAcceptForm))});
+    if(!response.ok){dispatchAcceptStatus.textContent=await response.text();return;}
+    dispatchAcceptStatus.textContent='Dispatch plan accepted.';
+    window.location.reload();
+  });
+}
+const reviewForm=document.getElementById('review-form');
+if(reviewForm){
+  const reviewStatus=document.getElementById('review-status');
+  reviewForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    reviewStatus.textContent='Reviewing...';
+    const workId=window.location.pathname.split('/').pop();
+    const response=await fetch(`/api/items/${workId}/review`,{method:'POST',body:new URLSearchParams(new FormData(reviewForm))});
+    if(!response.ok){reviewStatus.textContent=await response.text();return;}
+    reviewStatus.textContent='Review completed.';
+    window.location.reload();
+  });
+}
+const approveForm=document.getElementById('approve-form');
+if(approveForm){
+  const approveStatus=document.getElementById('approve-status');
+  approveForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    approveStatus.textContent='Approving...';
+    const workId=window.location.pathname.split('/').pop();
+    const response=await fetch(`/api/items/${workId}/approve`,{method:'POST',body:new URLSearchParams(new FormData(approveForm))});
+    if(!response.ok){approveStatus.textContent=await response.text();return;}
+    approveStatus.textContent='Approved.';
+    window.location.reload();
+  });
+}
+const rejectForm=document.getElementById('reject-form');
+if(rejectForm){
+  const rejectStatus=document.getElementById('reject-status');
+  rejectForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    rejectStatus.textContent='Rejecting...';
+    const workId=window.location.pathname.split('/').pop();
+    const response=await fetch(`/api/items/${workId}/reject`,{method:'POST',body:new URLSearchParams(new FormData(rejectForm))});
+    if(!response.ok){rejectStatus.textContent=await response.text();return;}
+    rejectStatus.textContent='Rejected. Dispatch is next.';
+    window.location.reload();
+  });
+}
+const recoverForm=document.getElementById('recover-form');
+if(recoverForm){
+  const recoverStatus=document.getElementById('recover-status');
+  recoverForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    recoverStatus.textContent='Creating recovery plan...';
+    const workId=window.location.pathname.split('/').pop();
+    const response=await fetch(`/api/items/${workId}/recover`,{method:'POST',body:new URLSearchParams(new FormData(recoverForm))});
+    if(!response.ok){recoverStatus.textContent=await response.text();return;}
+    recoverStatus.textContent='Recovery plan created.';
+    window.location.reload();
+  });
+}
+const recoverAcceptForm=document.getElementById('recover-accept-form');
+if(recoverAcceptForm){
+  const recoverAcceptStatus=document.getElementById('recover-accept-status');
+  recoverAcceptForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    recoverAcceptStatus.textContent='Accepting recovery plan...';
+    const workId=window.location.pathname.split('/').pop();
+    const response=await fetch(`/api/items/${workId}/recover/accept`,{method:'POST',body:new URLSearchParams(new FormData(recoverAcceptForm))});
+    if(!response.ok){recoverAcceptStatus.textContent=await response.text();return;}
+    recoverAcceptStatus.textContent='Recovery plan accepted.';
+    window.location.reload();
+  });
+}
+const recoverApplyForm=document.getElementById('recover-apply-form');
+if(recoverApplyForm){
+  const recoverApplyStatus=document.getElementById('recover-apply-status');
+  recoverApplyForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    recoverApplyStatus.textContent='Applying recovery plan...';
+    const workId=window.location.pathname.split('/').pop();
+    const response=await fetch(`/api/items/${workId}/recover/apply`,{method:'POST',body:new URLSearchParams(new FormData(recoverApplyForm))});
+    if(!response.ok){recoverApplyStatus.textContent=await response.text();return;}
+    recoverApplyStatus.textContent='Recovery plan applied.';
+    window.location.reload();
+  });
+}"#
+}

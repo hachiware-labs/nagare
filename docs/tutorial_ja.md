@@ -2,7 +2,7 @@
 
 [English](tutorial.md)
 
-このチュートリアルでは、最初に完成したユーザーシナリオを扱います。Codex CLI agent profile の失敗、Evidence 保存、Codex App Server agent profile への Handoff、成功する再実行、Verification、Human approval、最終的な `done` までを確認します。
+このチュートリアルでは、最初に完成したユーザーシナリオを扱います。Codex CLI agent profile の失敗、Evidence 保存、Codex App Server agent profile への Handoff、成功する再実行、Review、Human approval、最終的な `done` までを確認します。
 
 ## 前提
 
@@ -47,8 +47,8 @@ nagare locale show
 
 ```powershell
 nagare locale use --language ja-JP --timezone Asia/Tokyo
-nagare agent add --id codex-impl-smoke --display-name "Codex CLI Smoke Implementer" --runtime codex-local --adapter process.codex-cli --role implementer --working-dir . --description "実装と検証向け" --specialties implementation,verification
-nagare agent add --id codex-app-smoke --display-name "Codex App Server Smoke Implementer" --runtime codex-app-local --adapter stdio.codex-app-server --role implementer --working-dir . --description "計画とレビュー向け" --specialties planning,review
+nagare agent add --id codex-impl-smoke --display-name "Codex CLI Smoke Implementer" --runtime codex-local --adapter process.codex-cli --working-dir . --description "実装とレビュー向け" --specialties implementation,review
+nagare agent add --id codex-app-smoke --display-name "Codex App Server Smoke Implementer" --runtime codex-app-local --adapter stdio.codex-app-server --working-dir . --description "計画とレビュー向け" --specialties planning,review
 nagare agent list
 nagare agent use --work-agent codex-impl-smoke --review-agent codex-app-smoke --dispatch-agent codex-impl-smoke
 nagare agent defaults
@@ -100,13 +100,13 @@ nagare item run work_0001 --agent codex-app-smoke --command "echo codex app serv
 ## 8. 検証する
 
 ```powershell
-nagare verify work_0001 --command "echo verification passed && exit /B 0"
+nagare item review work_0001 --command "type review-pass.md"
 ```
 
 ## 9. 承認する
 
 ```powershell
-nagare decision approve work_0001 --rationale "Required verification passed after cross-agent handoff."
+nagare decision approve work_0001 --rationale "Required review passed after cross-agent handoff."
 ```
 
 作成された Work Item を確認します。
@@ -124,7 +124,7 @@ runs:
 evidence:
   Agent run failed with profile `codex-impl-smoke`
   Agent run succeeded with profile `codex-app-smoke`
-  Verification passed
+  Review passed
 handoffs:
   codex-impl-smoke -> codex-app-smoke
 decisions:
@@ -138,7 +138,7 @@ $tmp = Join-Path $env:TEMP "nagare-first"
 $env:NAGARE_ROOT = $tmp
 nagare init
 nagare locale use --language ja-JP --timezone Asia/Tokyo
-nagare agent add --id codex-impl-smoke --runtime codex-local --adapter process.codex-cli --working-dir . --description "実装と検証向け" --specialties implementation,verification
+nagare agent add --id codex-impl-smoke --runtime codex-local --adapter process.codex-cli --working-dir . --description "実装とレビュー向け" --specialties implementation,review
 nagare agent add --id codex-app-smoke --runtime codex-app-local --adapter stdio.codex-app-server --working-dir . --description "計画とレビュー向け" --specialties planning,review
 nagare agent use --work-agent codex-impl-smoke --review-agent codex-app-smoke --dispatch-agent codex-impl-smoke
 nagare agent probe codex-impl-smoke
@@ -148,7 +148,7 @@ nagare item dispatch accept work_0001
 nagare item run work_0001 --command "echo codex run failed && exit /B 1"
 nagare handoff create work_0001 --from-agent codex-impl-smoke --to-agent codex-app-smoke --reason "Codex agent profile produced a failing run"
 nagare item run work_0001 --agent codex-app-smoke --command "echo codex app server retry fixed the task && exit /B 0"
-nagare verify work_0001 --command "echo verification passed && exit /B 0"
+nagare item review work_0001 --command "type review-pass.md"
 nagare decision approve work_0001
 nagare item show work_0001
 Remove-Item Env:\NAGARE_ROOT
@@ -158,4 +158,4 @@ Remove-Item Env:\NAGARE_ROOT
 
 `stdio.codex-app-server` adapter の Agent Profile に対して `--prompt` を使うと、
 Nagare は `codex app-server --listen stdio://` を起動し、thread を作成して turn を開始します。
-app-server の transcript は AgentRun artifact として保存されます。
+app-server の transcript は AgentRun ExecutionRecord として保存されます。

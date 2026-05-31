@@ -38,6 +38,9 @@ fn default_config_declares_initial_adapters() {
     let config = default_config();
     assert!(config.contains("process.codex-cli"));
     assert!(config.contains("stdio.codex-app-server"));
+    assert!(config.contains("role = \"worker\""));
+    assert!(config.contains("role = \"reviewer\""));
+    assert!(config.contains("role = \"dispatcher\""));
 }
 
 #[test]
@@ -47,9 +50,9 @@ fn first_scenario_reaches_done() {
     assert_eq!(result.final_status, WorkItemStatus::Done);
     let snapshot =
         get_work_item_snapshot(&root, &result.work_item_id).expect("snapshot should load");
-    assert_eq!(snapshot.runs.len(), 2);
+    assert_eq!(snapshot.runs.len(), 3);
     assert_eq!(snapshot.handoffs.len(), 1);
-    assert_eq!(snapshot.verification_results.len(), 1);
+    assert_eq!(snapshot.review_results.len(), 1);
     assert_eq!(snapshot.decisions.len(), 1);
     fs::remove_dir_all(root).ok();
 }
@@ -61,7 +64,7 @@ fn agent_profile_can_be_registered_and_used_in_scenario() {
     assert_eq!(result.final_status, WorkItemStatus::Done);
 
     let profiles = list_agent_profiles(&root).expect("profiles should load");
-    assert!(profiles.iter().any(|profile| profile.id == "codex-cli"));
+    assert!(profiles.iter().any(|profile| profile.id == "worker"));
     assert!(
         profiles
             .iter()
@@ -103,8 +106,8 @@ fn unknown_agent_profile_is_rejected() {
 fn agent_probe_records_capability_snapshot() {
     let root = test_root("probe");
     init_project(&root).expect("project should init");
-    let result = agent_probe(&root, "codex-cli").expect("probe should be recorded");
-    assert_eq!(result.probe.agent_profile_id, "codex-cli");
+    let result = agent_probe(&root, "worker").expect("probe should be recorded");
+    assert_eq!(result.probe.agent_profile_id, "worker");
     assert_eq!(result.probe.adapter_id, "process.codex-cli");
     assert!(
         result
@@ -133,7 +136,7 @@ fn run_auto_probes_missing_and_stale_capability_snapshot() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "codex-cli",
+            agent_profile_id: "worker",
             dispatch_plan_id: None,
             path: None,
             prompt: None,
@@ -154,7 +157,7 @@ fn run_auto_probes_missing_and_stale_capability_snapshot() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "codex-cli",
+            agent_profile_id: "worker",
             dispatch_plan_id: None,
             path: None,
             prompt: None,
@@ -193,6 +196,8 @@ fn agent_profile_working_dir_is_used_for_runs() {
             working_dir: "packages/app",
             description: "",
             specialties: Vec::new(),
+            domain_group_ids: Vec::new(),
+            domain_ids: Vec::new(),
         },
     )
     .expect("profile should be added");
@@ -231,6 +236,8 @@ fn agent_profile_routing_hints_are_persisted() {
             working_dir: ".",
             description: "Handles source gathering and synthesis.",
             specialties: vec!["research".to_string(), "synthesis".to_string()],
+            domain_group_ids: Vec::new(),
+            domain_ids: Vec::new(),
         },
     )
     .expect("profile should be added");
@@ -259,6 +266,8 @@ fn agent_profile_can_be_updated_as_project_local_override() {
             working_dir: ".",
             description: "Initial profile.",
             specialties: vec!["drafting".to_string()],
+            domain_group_ids: Vec::new(),
+            domain_ids: Vec::new(),
         },
     )
     .expect("profile should be added");
@@ -268,10 +277,14 @@ fn agent_profile_can_be_updated_as_project_local_override() {
         "draft-agent",
         UpdateAgentProfileInput {
             display_name: Some("Research Writer"),
+            runtime: None,
+            adapter: None,
             role: Some("researcher"),
             working_dir: Some("."),
             description: Some("Research and writing profile."),
             specialties: Some(vec!["research".to_string(), "writing".to_string()]),
+            domain_group_ids: None,
+            domain_ids: None,
             output_contract: None,
         },
     )
@@ -284,6 +297,170 @@ fn agent_profile_can_be_updated_as_project_local_override() {
     assert_eq!(profile.description, "Research and writing profile.");
     assert_eq!(profile.specialties, vec!["research", "writing"]);
     assert_eq!(profile.source, AgentProfileSource::ProjectAgentDirectory);
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn workflow_settings_and_domain_override_resolve_for_new_items() {
+    let root = test_root("workflow-settings-domain");
+    init_project(&root).expect("project should init");
+    set_workflow_settings(
+        &root,
+        WorkflowSettings {
+            default_progress_mode: WorkflowMode::FinishFirst,
+            approval_policy: ApprovalPolicy::AutoCompleteOnReviewPass,
+        },
+    )
+    .expect("workflow settings should save");
+    add_domain_profile(
+        &root,
+        AddDomainProfileInput {
+            id: "docs",
+            group_id: None,
+            display_name: "Docs",
+            description: "Documentation work",
+            artifact_types: vec!["markdown".to_string()],
+            rubric: vec!["clear for readers".to_string()],
+            dispatch_hints: vec!["use for docs".to_string()],
+            workflow: DomainWorkflowOverride {
+                progress_mode: Some(WorkflowMode::ConfirmFirst),
+                approval_policy: Some(ApprovalPolicy::ManualFinalApproval),
+            },
+        },
+    )
+    .expect("domain should be added");
+
+    let project_default_item = create_work_item_with_input(
+        &root,
+        CreateWorkItemInput {
+            title: "Project default".to_string(),
+            ..CreateWorkItemInput::default()
+        },
+    )
+    .expect("item should create")
+    .item;
+    let domain_item = create_work_item_with_input(
+        &root,
+        CreateWorkItemInput {
+            title: "Domain override".to_string(),
+            domain_id: Some("docs".to_string()),
+            ..CreateWorkItemInput::default()
+        },
+    )
+    .expect("item should create")
+    .item;
+
+    assert_eq!(
+        project_default_item.workflow_mode,
+        WorkflowMode::FinishFirst
+    );
+    assert_eq!(
+        project_default_item.approval_policy,
+        ApprovalPolicy::AutoCompleteOnReviewPass
+    );
+    assert_eq!(domain_item.workflow_mode, WorkflowMode::ConfirmFirst);
+    assert_eq!(
+        domain_item.approval_policy,
+        ApprovalPolicy::ManualFinalApproval
+    );
+    assert_eq!(domain_item.domain_id.as_deref(), Some("docs"));
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn domain_group_defaults_domain_override_and_agent_scope_are_persisted() {
+    let root = test_root("domain-group-scope");
+    init_project(&root).expect("project should init");
+    set_workflow_settings(
+        &root,
+        WorkflowSettings {
+            default_progress_mode: WorkflowMode::ConfirmFirst,
+            approval_policy: ApprovalPolicy::ManualFinalApproval,
+        },
+    )
+    .expect("workflow settings should save");
+    add_domain_group(
+        &root,
+        AddDomainGroupInput {
+            id: "software-development",
+            display_name: "Software Development",
+            description: "Software changes",
+            shared_knowledge: vec!["small changes".to_string()],
+            common_rubric: vec!["tests pass".to_string()],
+            dispatch_hints: vec!["prefer code agents".to_string()],
+            workflow: DomainWorkflowOverride {
+                progress_mode: Some(WorkflowMode::FinishFirst),
+                approval_policy: Some(ApprovalPolicy::AutoCompleteOnReviewPass),
+            },
+        },
+    )
+    .expect("domain group should be added");
+    add_domain_profile(
+        &root,
+        AddDomainProfileInput {
+            id: "frontend-ui",
+            group_id: Some("software-development"),
+            display_name: "Frontend UI",
+            description: "UI work",
+            artifact_types: vec!["html".to_string()],
+            rubric: vec!["responsive".to_string()],
+            dispatch_hints: vec!["use ui agents".to_string()],
+            workflow: DomainWorkflowOverride {
+                progress_mode: None,
+                approval_policy: Some(ApprovalPolicy::ManualFinalApproval),
+            },
+        },
+    )
+    .expect("domain should be added");
+    add_agent_profile(
+        &root,
+        AddAgentProfileInput {
+            id: "ui-reviewer",
+            display_name: "UI Reviewer",
+            runtime: "codex-local",
+            adapter: "process.codex-cli",
+            role: "reviewer",
+            working_dir: ".",
+            description: "Reviews frontend UI.",
+            specialties: vec!["ui".to_string(), "review".to_string()],
+            domain_group_ids: vec!["software-development".to_string()],
+            domain_ids: vec!["frontend-ui".to_string()],
+        },
+    )
+    .expect("agent should be added");
+
+    let item = create_work_item_with_input(
+        &root,
+        CreateWorkItemInput {
+            title: "Polish settings UI".to_string(),
+            domain_id: Some("frontend-ui".to_string()),
+            ..CreateWorkItemInput::default()
+        },
+    )
+    .expect("item should create")
+    .item;
+    assert_eq!(
+        item.domain_group_id.as_deref(),
+        Some("software-development")
+    );
+    assert_eq!(item.domain_id.as_deref(), Some("frontend-ui"));
+    assert_eq!(item.workflow_mode, WorkflowMode::FinishFirst);
+    assert_eq!(item.approval_policy, ApprovalPolicy::ManualFinalApproval);
+
+    let profile = get_agent_profile(&root, "ui-reviewer").expect("profile should load");
+    assert_eq!(profile.domain_group_ids, vec!["software-development"]);
+    assert_eq!(profile.domain_ids, vec!["frontend-ui"]);
+
+    let mismatch = create_work_item_with_input(
+        &root,
+        CreateWorkItemInput {
+            title: "Mismatched domain".to_string(),
+            domain_group_id: Some("other".to_string()),
+            domain_id: Some("frontend-ui".to_string()),
+            ..CreateWorkItemInput::default()
+        },
+    );
+    assert!(mismatch.is_err());
     fs::remove_dir_all(root).ok();
 }
 
@@ -302,6 +479,8 @@ fn agent_profile_output_contracts_can_be_updated() {
             working_dir: ".",
             description: "",
             specialties: Vec::new(),
+            domain_group_ids: Vec::new(),
+            domain_ids: Vec::new(),
         },
     )
     .expect("profile should be added");
@@ -350,6 +529,8 @@ fn nagare_agent_settings_can_select_default_work_agent() {
             working_dir: ".",
             description: "",
             specialties: Vec::new(),
+            domain_group_ids: Vec::new(),
+            domain_ids: Vec::new(),
         },
     )
     .expect("profile should be added");
@@ -365,7 +546,7 @@ fn nagare_agent_settings_can_select_default_work_agent() {
     )
     .expect("settings should update");
     assert_eq!(settings.work_agent, "codex-work");
-    assert_eq!(settings.review_agent, "codex-app-server");
+    assert_eq!(settings.review_agent, "reviewer");
     assert_eq!(settings.dispatch_agent, "codex-work");
     assert_eq!(settings.supervisor_agent, "codex-work");
 
@@ -388,7 +569,7 @@ fn dispatch_preview_and_review_runs_do_not_advance_item_status() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "codex-cli",
+            agent_profile_id: "worker",
             dispatch_plan_id: None,
             path: None,
             prompt: None,
@@ -405,7 +586,7 @@ fn dispatch_preview_and_review_runs_do_not_advance_item_status() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "codex-app-server",
+            agent_profile_id: "reviewer",
             dispatch_plan_id: None,
             path: None,
             prompt: None,
@@ -443,6 +624,8 @@ fn handoff_dispatch_uses_same_plan_lifecycle() {
             working_dir: ".",
             description: "Handles repair work.",
             specialties: vec!["repair".to_string()],
+            domain_group_ids: Vec::new(),
+            domain_ids: Vec::new(),
         },
     )
     .expect("profile should be added");
@@ -452,7 +635,7 @@ fn handoff_dispatch_uses_same_plan_lifecycle() {
     create_handoff(
         &root,
         &item.id,
-        "codex-cli",
+        "worker",
         "repair-agent",
         "Initial agent failed",
         "Use repair profile for retry.",
@@ -473,7 +656,7 @@ fn handoff_dispatch_uses_same_plan_lifecycle() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "codex-cli",
+            agent_profile_id: "worker",
             dispatch_plan_id: None,
             path: None,
             prompt: None,
@@ -519,6 +702,8 @@ fn accepted_dispatch_plan_selects_target_for_work_run() {
             working_dir: ".",
             description: "Research and source synthesis.",
             specialties: vec!["research".to_string()],
+            domain_group_ids: Vec::new(),
+            domain_ids: Vec::new(),
         },
     )
     .expect("profile should be added");
@@ -542,7 +727,7 @@ default_agent = "research-agent"
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "codex-cli",
+            agent_profile_id: "worker",
             dispatch_plan_id: None,
             path: Some("docs/topic.md"),
             prompt: None,
@@ -617,6 +802,8 @@ fn dispatch_agent_json_can_choose_between_writing_and_research_agents() {
             working_dir: ".",
             description: "Drafts and edits user-facing prose.",
             specialties: vec!["writing".to_string(), "editing".to_string()],
+            domain_group_ids: Vec::new(),
+            domain_ids: Vec::new(),
         },
     )
     .expect("writing profile should be added");
@@ -631,6 +818,8 @@ fn dispatch_agent_json_can_choose_between_writing_and_research_agents() {
             working_dir: ".",
             description: "Collects sources and synthesizes findings.",
             specialties: vec!["research".to_string(), "synthesis".to_string()],
+            domain_group_ids: Vec::new(),
+            domain_ids: Vec::new(),
         },
     )
     .expect("research profile should be added");
@@ -664,7 +853,7 @@ default_agent = "writing-agent"
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "codex-cli",
+            agent_profile_id: "worker",
             dispatch_plan_id: None,
             path: Some("docs/topic.md"),
             prompt: None,
@@ -729,7 +918,7 @@ fn dispatch_contract_fallback_records_selection_warnings() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "codex-cli",
+            agent_profile_id: "worker",
             dispatch_plan_id: None,
             path: Some("README.md"),
             prompt: None,
@@ -741,12 +930,56 @@ fn dispatch_contract_fallback_records_selection_warnings() {
 
     let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot should load");
     let plan = &snapshot.dispatch_plans[0];
-    assert_eq!(plan.target_agent_profile_id, "codex-cli");
+    assert_eq!(plan.target_agent_profile_id, "worker");
     assert_eq!(plan.summary, "No target provided.");
     assert!(plan.selection_warnings.iter().any(|warning| {
         warning.contains("missing required target_agent_profile_id")
-            && warning.contains("fallback target `codex-cli`")
+            && warning.contains("fallback target `worker`")
     }));
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn dispatch_contract_control_agent_target_falls_back_to_work_agent() {
+    let root = test_root("dispatch-control-target");
+    init_project(&root).expect("project should init");
+    let item = create_work_item(&root, "Dispatch control target", "")
+        .expect("item should create")
+        .item;
+    fs::write(
+        root.join("dispatch.json"),
+        r#"{"target_agent_profile_id":"dispatcher","summary":"Incorrectly selected dispatcher.","risks":[],"missing_information":[]}"#,
+    )
+    .expect("dispatch output should write");
+    let command = if cfg!(windows) {
+        "type dispatch.json"
+    } else {
+        "cat dispatch.json"
+    };
+
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "dispatcher",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(command),
+            purpose: AgentRunPurpose::DispatchPreview,
+        },
+    )
+    .expect("dispatch preview should fallback");
+
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot should load");
+    let plan = &snapshot.dispatch_plans[0];
+    assert_eq!(plan.dispatch_agent_profile_id, "dispatcher");
+    assert_eq!(plan.target_agent_profile_id, "worker");
+    assert!(
+        plan.selection_warnings
+            .iter()
+            .any(|warning| warning.contains("not registered") && warning.contains("`worker`"))
+    );
     fs::remove_dir_all(root).ok();
 }
 
@@ -782,6 +1015,8 @@ fn project_rule_resolution_selects_most_specific_rule() {
             working_dir: ".",
             description: "",
             specialties: Vec::new(),
+            domain_group_ids: Vec::new(),
+            domain_ids: Vec::new(),
         },
     )
     .expect("profile should be added");
@@ -799,11 +1034,10 @@ optional_capabilities = ["shell_command"]
 id = "rust-core"
 match = ["crates/**"]
 default_agent = "codex-rust"
-review_agent = "codex-app-server"
+review_agent = "reviewer"
 skill_sets = ["rust-core"]
 permission_policy = "medium-code-task"
 workspace_policy = "project-root"
-verification = ["cargo test --workspace"]
 "#,
     );
     fs::write(&layout.config_path, config).expect("config should write");
@@ -816,15 +1050,11 @@ verification = ["cargo test --workspace"]
     );
     assert_eq!(rust_resolution.agent_profile_id, "codex-rust");
     assert_eq!(rust_resolution.skill_set_ids, vec!["rust-core".to_string()]);
-    assert_eq!(
-        rust_resolution.verification,
-        vec!["cargo test --workspace".to_string()]
-    );
 
     let default_resolution =
         resolve_rule_for_path(&root, Some("README.md"), None).expect("rule should resolve");
     assert_eq!(default_resolution.matched_rule_id.as_deref(), None);
-    assert_eq!(default_resolution.agent_profile_id, "codex-cli");
+    assert_eq!(default_resolution.agent_profile_id, "worker");
     fs::remove_dir_all(root).ok();
 }
 
@@ -840,7 +1070,7 @@ fn run_with_path_records_resolved_skill_context_and_run_packet() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "codex-cli",
+            agent_profile_id: "worker",
             dispatch_plan_id: None,
             path: Some("README.md"),
             prompt: None,
@@ -859,11 +1089,11 @@ fn run_with_path_records_resolved_skill_context_and_run_packet() {
     assert_eq!(ledger.dispatch_plans.len(), 1);
     let context = &ledger.resolved_skill_contexts[0];
     let packet = &ledger.resolved_run_packets[0];
-    assert_eq!(context.agent_profile_id, "codex-cli");
+    assert_eq!(context.agent_profile_id, "worker");
     assert!(context.project_rule_ids.is_empty());
     assert!(context.applied_skill_set_ids.is_empty());
     assert_eq!(packet.resolved_skill_context_id, context.id);
-    assert_eq!(packet.agent_profile_id, "codex-cli");
+    assert_eq!(packet.agent_profile_id, "worker");
     assert_eq!(packet.adapter_id, "process.codex-cli");
     assert_eq!(packet.purpose, AgentRunPurpose::DispatchPreview);
     assert_eq!(packet.goal, "Resolve packet");
@@ -872,21 +1102,16 @@ fn run_with_path_records_resolved_skill_context_and_run_packet() {
     assert!(packet.project_rule_ids.is_empty());
     let plan = &ledger.dispatch_plans[0];
     assert_eq!(plan.resolved_run_packet_id, packet.id);
-    assert_eq!(plan.dispatch_agent_profile_id, "codex-cli");
-    assert_eq!(plan.target_agent_profile_id, "codex-cli");
+    assert_eq!(plan.dispatch_agent_profile_id, "worker");
+    assert_eq!(plan.target_agent_profile_id, "worker");
     assert_eq!(plan.path.as_deref(), Some("README.md"));
     assert!(
         layout
-            .artifacts_dir
+            .logs_dir
             .join(format!("{}.json", context.id))
             .exists()
     );
-    assert!(
-        layout
-            .artifacts_dir
-            .join(format!("{}.json", packet.id))
-            .exists()
-    );
+    assert!(layout.logs_dir.join(format!("{}.json", packet.id)).exists());
     fs::remove_dir_all(root).ok();
 }
 
@@ -907,7 +1132,7 @@ optional_capabilities = []
 [[project_rules]]
 id = "network-skill"
 match = ["secure/**"]
-default_agent = "codex-cli"
+default_agent = "worker"
 skill_sets = ["network-only"]
 "#,
     );
@@ -920,7 +1145,7 @@ skill_sets = ["network-only"]
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "codex-cli",
+            agent_profile_id: "worker",
             dispatch_plan_id: None,
             path: Some("secure/config.rs"),
             prompt: None,
@@ -968,7 +1193,7 @@ fn locale_is_recorded_and_used_for_generated_evidence() {
     let result = run_work_item(
         &root,
         &item.id,
-        "codex-cli",
+        "worker",
         scenario_command("locale run", true).as_str(),
     )
     .expect("run should succeed");

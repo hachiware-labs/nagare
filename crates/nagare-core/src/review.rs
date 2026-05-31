@@ -22,7 +22,7 @@ pub struct ReviewResult {
     #[serde(default)]
     pub questions: Vec<String>,
     pub next_action: Option<String>,
-    pub artifact_id: Option<String>,
+    pub execution_record_id: String,
     #[serde(default = "default_locale_language")]
     pub locale: String,
     pub created_at: String,
@@ -106,7 +106,7 @@ pub(crate) fn review_result_from_agent_output(
         criteria_results: criteria_results_from_output(output, acceptance_criteria),
         questions: output.questions.clone(),
         next_action: output.next_action.clone(),
-        artifact_id: output.artifact_id.clone(),
+        execution_record_id: output.execution_record_id.clone(),
         locale: output.locale.clone(),
         created_at: output.created_at.clone(),
     }
@@ -114,24 +114,20 @@ pub(crate) fn review_result_from_agent_output(
 
 pub(crate) fn review_work_item_status(
     review: &ReviewResult,
-    current: WorkItemStatus,
+    current_status: WorkItemStatus,
 ) -> WorkItemStatus {
-    if !review.questions.is_empty()
-        || review
-            .next_action
-            .as_deref()
-            .is_some_and(|action| action == "answer_question" || action == "needs_input")
-    {
+    if !review.questions.is_empty() {
         return WorkItemStatus::NeedsInput;
     }
     match review.verdict {
-        ReviewVerdict::Pass if criteria_results_pass(review) => {
-            WorkItemStatus::ReadyForVerification
-        }
+        ReviewVerdict::Pass if criteria_results_pass(review) => WorkItemStatus::ReadyForReview,
         ReviewVerdict::Pass => WorkItemStatus::ChangesRequested,
         ReviewVerdict::RequestChanges => WorkItemStatus::ChangesRequested,
         ReviewVerdict::Blocked => WorkItemStatus::NeedsInput,
-        ReviewVerdict::Unknown => current,
+        ReviewVerdict::Unknown if current_status == WorkItemStatus::ReadyForReview => {
+            WorkItemStatus::ChangesRequested
+        }
+        ReviewVerdict::Unknown => current_status,
     }
 }
 

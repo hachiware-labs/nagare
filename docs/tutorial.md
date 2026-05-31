@@ -4,7 +4,7 @@
 
 This tutorial covers the first completed user scenario: a failing Codex agent
 profile run, evidence capture, handoff to a Codex App Server agent profile, successful follow-up run,
-verification, human approval, and final `done` state.
+review, human approval, and final `done` state.
 
 ## Prerequisites
 
@@ -50,8 +50,8 @@ Register project-local Agent Profiles first:
 
 ```powershell
 nagare locale use --language en-US --timezone America/Los_Angeles
-nagare agent add --id codex-impl-smoke --display-name "Codex CLI Smoke Implementer" --runtime codex-local --adapter process.codex-cli --role implementer --working-dir . --description "Implementation and verification" --specialties implementation,verification
-nagare agent add --id codex-app-smoke --display-name "Codex App Server Smoke Implementer" --runtime codex-app-local --adapter stdio.codex-app-server --role implementer --working-dir . --description "Planning and review" --specialties planning,review
+nagare agent add --id codex-impl-smoke --display-name "Codex CLI Smoke Implementer" --runtime codex-local --adapter process.codex-cli --working-dir . --description "Implementation and review" --specialties implementation,review
+nagare agent add --id codex-app-smoke --display-name "Codex App Server Smoke Implementer" --runtime codex-app-local --adapter stdio.codex-app-server --working-dir . --description "Planning and review" --specialties planning,review
 nagare agent list
 nagare agent use --work-agent codex-impl-smoke --review-agent codex-app-smoke --dispatch-agent codex-impl-smoke
 nagare agent defaults
@@ -101,16 +101,16 @@ nagare handoff create work_0001 --from-agent codex-impl-smoke --to-agent codex-a
 nagare item run work_0001 --agent codex-app-smoke --command "echo codex app server retry fixed the task && exit /B 0"
 ```
 
-## 8. Verify the Work
+## 8. Review the Work
 
 ```powershell
-nagare verify work_0001 --command "echo verification passed && exit /B 0"
+nagare item review work_0001 --command "type review-pass.md"
 ```
 
 ## 9. Approve the Work
 
 ```powershell
-nagare decision approve work_0001 --rationale "Required verification passed after cross-agent handoff."
+nagare decision approve work_0001 --rationale "Required review passed after cross-agent handoff."
 ```
 
 Inspect the resulting work item:
@@ -128,7 +128,7 @@ runs:
 evidence:
   Agent run failed with profile `codex-impl-smoke`
   Agent run succeeded with profile `codex-app-smoke`
-  Verification passed
+  Review passed
 handoffs:
   codex-impl-smoke -> codex-app-smoke
 decisions:
@@ -142,7 +142,7 @@ $tmp = Join-Path $env:TEMP "nagare-first"
 $env:NAGARE_ROOT = $tmp
 nagare init
 nagare locale use --language en-US --timezone America/Los_Angeles
-nagare agent add --id codex-impl-smoke --runtime codex-local --adapter process.codex-cli --working-dir . --description "Implementation and verification" --specialties implementation,verification
+nagare agent add --id codex-impl-smoke --runtime codex-local --adapter process.codex-cli --working-dir . --description "Implementation and review" --specialties implementation,review
 nagare agent add --id codex-app-smoke --runtime codex-app-local --adapter stdio.codex-app-server --working-dir . --description "Planning and review" --specialties planning,review
 nagare agent use --work-agent codex-impl-smoke --review-agent codex-app-smoke --dispatch-agent codex-impl-smoke
 nagare agent probe codex-impl-smoke
@@ -152,7 +152,7 @@ nagare item dispatch accept work_0001
 nagare item run work_0001 --command "echo codex run failed && exit /B 1"
 nagare handoff create work_0001 --from-agent codex-impl-smoke --to-agent codex-app-smoke --reason "Codex agent profile produced a failing run"
 nagare item run work_0001 --agent codex-app-smoke --command "echo codex app server retry fixed the task && exit /B 0"
-nagare verify work_0001 --command "echo verification passed && exit /B 0"
+nagare item review work_0001 --command "type review-pass.md"
 nagare decision approve work_0001
 nagare item show work_0001
 Remove-Item Env:\NAGARE_ROOT

@@ -1,11 +1,9 @@
+use crate::*;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io;
 use std::path::{Path, PathBuf};
-
-use serde::{Deserialize, Serialize};
-
-use crate::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Ledger {
@@ -17,9 +15,9 @@ pub struct Ledger {
     #[serde(default)]
     pub artifacts: Vec<Artifact>,
     #[serde(default)]
-    pub evidence: Vec<Evidence>,
+    pub execution_records: Vec<ExecutionRecord>,
     #[serde(default)]
-    pub verification_results: Vec<VerificationResult>,
+    pub evidence: Vec<Evidence>,
     #[serde(default)]
     pub review_results: Vec<ReviewResult>,
     #[serde(default)]
@@ -51,8 +49,8 @@ impl Default for Ledger {
             work_items: Vec::new(),
             runs: Vec::new(),
             artifacts: Vec::new(),
+            execution_records: Vec::new(),
             evidence: Vec::new(),
-            verification_results: Vec::new(),
             review_results: Vec::new(),
             handoffs: Vec::new(),
             decisions: Vec::new(),
@@ -99,10 +97,17 @@ pub struct WorkItem {
     pub acceptance_criteria: Vec<String>,
     #[serde(default)]
     pub expected_artifacts: Vec<String>,
-    pub verification_hint: Option<String>,
     pub work_folder: Option<String>,
     #[serde(default)]
     pub constraints: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub domain_group_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub domain_id: Option<String>,
+    #[serde(default = "default_workflow_mode")]
+    pub workflow_mode: WorkflowMode,
+    #[serde(default = "default_approval_policy")]
+    pub approval_policy: ApprovalPolicy,
     #[serde(default = "default_locale_language")]
     pub locale: String,
     pub status: WorkItemStatus,
@@ -116,10 +121,8 @@ pub enum WorkItemStatus {
     Ready,
     AgentRunning,
     NeedsInput,
-    FailedVerification,
     NeedsHandoff,
     ReadyForReview,
-    ReadyForVerification,
     ChangesRequested,
     Done,
 }
@@ -130,10 +133,8 @@ impl fmt::Display for WorkItemStatus {
             Self::Ready => "ready",
             Self::AgentRunning => "agent_running",
             Self::NeedsInput => "needs_input",
-            Self::FailedVerification => "failed_verification",
             Self::NeedsHandoff => "needs_handoff",
             Self::ReadyForReview => "ready_for_review",
-            Self::ReadyForVerification => "ready_for_verification",
             Self::ChangesRequested => "changes_requested",
             Self::Done => "done",
         };
@@ -154,7 +155,7 @@ pub struct AgentRun {
     pub exit_code: Option<i32>,
     pub started_at: String,
     pub ended_at: String,
-    pub artifact_id: String,
+    pub execution_record_id: String,
     #[serde(default = "default_locale_language")]
     pub locale: String,
 }
@@ -209,45 +210,32 @@ pub struct Artifact {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Evidence {
+pub struct ExecutionRecord {
     pub id: String,
     pub work_item_id: String,
-    pub claim: String,
-    pub basis: String,
-    pub artifact_id: Option<String>,
-    pub produced_by: String,
+    pub agent_run_id: Option<String>,
+    pub record_type: String,
+    pub uri: String,
+    pub title: String,
     #[serde(default = "default_locale_language")]
     pub locale: String,
     pub created_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VerificationResult {
+pub struct Evidence {
     pub id: String,
     pub work_item_id: String,
-    pub command: String,
-    pub result: VerificationStatus,
-    pub evidence_id: String,
-    pub artifact_id: String,
+    pub claim: String,
+    pub basis: String,
+    #[serde(default)]
+    pub artifact_id: Option<String>,
+    #[serde(default)]
+    pub execution_record_id: Option<String>,
+    pub produced_by: String,
     #[serde(default = "default_locale_language")]
     pub locale: String,
-    pub verified_at: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum VerificationStatus {
-    Passed,
-    Failed,
-}
-
-impl fmt::Display for VerificationStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Passed => f.write_str("passed"),
-            Self::Failed => f.write_str("failed"),
-        }
-    }
+    pub created_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -265,9 +253,7 @@ pub struct HandoffPacket {
     #[serde(default)]
     pub artifact_ids: Vec<String>,
     #[serde(default)]
-    pub diff_artifact_ids: Vec<String>,
-    #[serde(default)]
-    pub failed_verification_ids: Vec<String>,
+    pub execution_record_ids: Vec<String>,
     #[serde(default)]
     pub review_result_ids: Vec<String>,
     #[serde(default)]
@@ -317,7 +303,7 @@ pub struct AgentOutputRecord {
     pub next_action: Option<String>,
     #[serde(default)]
     pub warnings: Vec<String>,
-    pub artifact_id: Option<String>,
+    pub execution_record_id: String,
     #[serde(default = "default_locale_language")]
     pub locale: String,
     pub created_at: String,
@@ -349,7 +335,7 @@ pub struct DispatchPlan {
     pub dispatch_agent_profile_id: String,
     pub target_agent_profile_id: String,
     pub resolved_run_packet_id: String,
-    pub raw_output_artifact_id: String,
+    pub raw_output_execution_record_id: String,
     pub path: Option<String>,
     pub summary: String,
     #[serde(default)]
@@ -420,7 +406,7 @@ pub struct ResolvedSkillContext {
     pub capabilities_in_force: Vec<String>,
     #[serde(default)]
     pub instruction_sources: Vec<String>,
-    pub artifact_uri: String,
+    pub execution_record_uri: String,
     pub content_hash: String,
     #[serde(default = "default_locale_language")]
     pub locale: String,
@@ -452,10 +438,8 @@ pub struct ResolvedRunPacket {
     #[serde(default)]
     pub project_rule_ids: Vec<String>,
     #[serde(default)]
-    pub verification: Vec<String>,
-    #[serde(default)]
     pub constraints: Vec<String>,
-    pub artifact_uri: String,
+    pub execution_record_uri: String,
     pub content_hash: String,
     #[serde(default = "default_locale_language")]
     pub locale: String,
@@ -481,6 +465,10 @@ pub struct AgentProfile {
     pub description: String,
     #[serde(default)]
     pub specialties: Vec<String>,
+    #[serde(default)]
+    pub domain_group_ids: Vec<String>,
+    #[serde(default)]
+    pub domain_ids: Vec<String>,
     #[serde(default)]
     pub output_contracts: AgentOutputContracts,
     #[serde(skip)]
@@ -609,6 +597,127 @@ impl fmt::Display for AgentProfileSource {
 }
 
 #[derive(Debug, Clone)]
+pub struct DomainProfile {
+    pub id: String,
+    pub group_id: Option<String>,
+    pub display_name: String,
+    pub description: String,
+    pub artifact_types: Vec<String>,
+    pub rubric: Vec<String>,
+    pub dispatch_hints: Vec<String>,
+    pub workflow: DomainWorkflowOverride,
+    pub source: DomainProfileSource,
+}
+
+#[derive(Debug, Clone)]
+pub struct DomainGroup {
+    pub id: String,
+    pub display_name: String,
+    pub description: String,
+    pub shared_knowledge: Vec<String>,
+    pub common_rubric: Vec<String>,
+    pub dispatch_hints: Vec<String>,
+    pub workflow: DomainWorkflowOverride,
+    pub source: DomainGroupSource,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DomainGroupSource {
+    #[default]
+    ProjectDomainGroupDirectory,
+}
+
+impl fmt::Display for DomainGroupSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ProjectDomainGroupDirectory => f.write_str("project_domain_group_directory"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DomainProfileSource {
+    #[default]
+    ProjectDomainDirectory,
+}
+
+impl fmt::Display for DomainProfileSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ProjectDomainDirectory => f.write_str("project_domain_directory"),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AddDomainProfileInput<'a> {
+    pub id: &'a str,
+    pub group_id: Option<&'a str>,
+    pub display_name: &'a str,
+    pub description: &'a str,
+    pub artifact_types: Vec<String>,
+    pub rubric: Vec<String>,
+    pub dispatch_hints: Vec<String>,
+    pub workflow: DomainWorkflowOverride,
+}
+
+#[derive(Debug, Clone)]
+pub struct AddDomainProfileResult {
+    pub domain: DomainProfile,
+    pub path: PathBuf,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct UpdateDomainProfileInput<'a> {
+    pub group_id: Option<Option<&'a str>>,
+    pub display_name: Option<&'a str>,
+    pub description: Option<&'a str>,
+    pub artifact_types: Option<Vec<String>>,
+    pub rubric: Option<Vec<String>>,
+    pub dispatch_hints: Option<Vec<String>>,
+    pub workflow: Option<DomainWorkflowOverride>,
+}
+
+#[derive(Debug, Clone)]
+pub struct UpdateDomainProfileResult {
+    pub domain: DomainProfile,
+    pub path: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+pub struct AddDomainGroupInput<'a> {
+    pub id: &'a str,
+    pub display_name: &'a str,
+    pub description: &'a str,
+    pub shared_knowledge: Vec<String>,
+    pub common_rubric: Vec<String>,
+    pub dispatch_hints: Vec<String>,
+    pub workflow: DomainWorkflowOverride,
+}
+
+#[derive(Debug, Clone)]
+pub struct AddDomainGroupResult {
+    pub group: DomainGroup,
+    pub path: PathBuf,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct UpdateDomainGroupInput<'a> {
+    pub display_name: Option<&'a str>,
+    pub description: Option<&'a str>,
+    pub shared_knowledge: Option<Vec<String>>,
+    pub common_rubric: Option<Vec<String>>,
+    pub dispatch_hints: Option<Vec<String>>,
+    pub workflow: Option<DomainWorkflowOverride>,
+}
+
+#[derive(Debug, Clone)]
+pub struct UpdateDomainGroupResult {
+    pub group: DomainGroup,
+    pub path: PathBuf,
+}
+
+#[derive(Debug, Clone)]
 pub struct AddAgentProfileInput<'a> {
     pub id: &'a str,
     pub display_name: &'a str,
@@ -618,6 +727,8 @@ pub struct AddAgentProfileInput<'a> {
     pub working_dir: &'a str,
     pub description: &'a str,
     pub specialties: Vec<String>,
+    pub domain_group_ids: Vec<String>,
+    pub domain_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -629,10 +740,14 @@ pub struct AddAgentProfileResult {
 #[derive(Debug, Clone, Default)]
 pub struct UpdateAgentProfileInput<'a> {
     pub display_name: Option<&'a str>,
+    pub runtime: Option<&'a str>,
+    pub adapter: Option<&'a str>,
     pub role: Option<&'a str>,
     pub working_dir: Option<&'a str>,
     pub description: Option<&'a str>,
     pub specialties: Option<Vec<String>>,
+    pub domain_group_ids: Option<Vec<String>>,
+    pub domain_ids: Option<Vec<String>>,
     pub output_contract: Option<AgentOutputContractUpdate<'a>>,
 }
 
@@ -794,8 +909,6 @@ pub struct ProjectRule {
     pub permission_policy: Option<String>,
     #[serde(default)]
     pub workspace_policy: Option<String>,
-    #[serde(default)]
-    pub verification: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -807,7 +920,6 @@ pub struct RuleResolution {
     pub skill_set_ids: Vec<String>,
     pub permission_policy_id: Option<String>,
     pub workspace_policy_id: Option<String>,
-    pub verification: Vec<String>,
     pub warnings: Vec<String>,
 }
 
@@ -942,61 +1054,4 @@ impl From<toml::ser::Error> for NagareError {
     fn from(value: toml::ser::Error) -> Self {
         Self::TomlSer(value)
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct CreateItemResult {
-    pub item: WorkItem,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct CreateWorkItemInput {
-    pub title: String,
-    pub description: String,
-    pub acceptance_criteria: Vec<String>,
-    pub expected_artifacts: Vec<String>,
-    pub verification_hint: Option<String>,
-    pub work_folder: Option<String>,
-    pub constraints: Vec<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct RunWorkItemResult {
-    pub run: AgentRun,
-    pub evidence_id: String,
-    pub item_status: WorkItemStatus,
-    pub dispatch_plan_id: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct VerifyResult {
-    pub verification: VerificationResult,
-    pub item_status: WorkItemStatus,
-}
-
-#[derive(Debug, Clone)]
-pub struct HandoffResult {
-    pub handoff: HandoffPacket,
-}
-
-#[derive(Debug, Clone)]
-pub struct AcceptDispatchPlanResult {
-    pub plan: DispatchPlan,
-}
-
-#[derive(Debug, Clone)]
-pub struct DecisionResult {
-    pub decision: HumanDecision,
-    pub item_status: WorkItemStatus,
-}
-
-#[derive(Debug, Clone)]
-pub struct ScenarioResult {
-    pub work_item_id: String,
-    pub codex_run_id: String,
-    pub handoff_id: String,
-    pub codex_app_run_id: String,
-    pub verification_id: String,
-    pub decision_id: String,
-    pub final_status: WorkItemStatus,
 }

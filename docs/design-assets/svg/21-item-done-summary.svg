@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960">
+  <rect width="1440" height="960" fill="#f8fafc"/>
+  <style>
+    .title{font:700 24px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h2{font:700 17px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h3{font:700 14px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .body{font:500 13px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .small{font:500 11px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .tiny{font:600 10px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .mono{font:500 12px Consolas,Menlo,monospace;fill:#020617}
+    .nav{font:650 13px Inter,Segoe UI,Arial,sans-serif;fill:#334155}
+    .nav-on{font:700 13px Inter,Segoe UI,Arial,sans-serif;fill:#4338ca}
+  </style>
+  
+    <rect x="0" y="0" width="200" height="960" rx="0" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="28" y="42" class="title">Nagare</text>
+    <text x="30" y="64" class="tiny" style="fill:#4338ca">HACHIWARE LABS</text>
+    <text x="30" y="82" class="small">Agent work control</text>
+    <rect x="18" y="96" width="164" height="32" rx="7" fill="#eef2ff" stroke="#eef2ff"/>
+      <text x="34" y="118" class="nav-on">Work Items</text>
+      <text x="34" y="156" class="nav">Agents</text>
+      <text x="34" y="194" class="nav">Settings</text>
+    <line x1="200" y1="0" x2="200" y2="960" stroke="#e2e8f0"/>
+    
+    <text x="232" y="48" class="title">README のセットアップ手順を更新</text>
+    <rect x="694" y="30" width="48" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="703" y="46" class="tiny" style="fill:#047857">完了</text>
+    <rect x="764" y="30" width="116" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="773" y="46" class="tiny" style="fill:#047857">approved 12:11</text>
+    <rect x="1248" y="26" width="148" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="1262" y="48" class="body" style="fill:#020617">Create Similar Item</text>
+
+    <rect x="232" y="86" width="520" height="698" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="260" y="126" class="h2">Final Answer</text><text x="260" y="146" class="small">完了後は結果を最初に読める</text>
+    <text x="260" y="178" class="body">README のセットアップ手順更新は完了しました。</text>
+    <text x="260" y="208" class="small">変更内容、review、verification log は</text>
+    <text x="260" y="230" class="small">この Work Item に保存されています。</text>
+    <text x="260" y="306" class="h2">Completion facts</text>
+    <rect x="260" y="334" width="165" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="269" y="350" class="tiny" style="fill:#047857">HumanDecisionApproved</text>
+    <rect x="260" y="370" width="102" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="269" y="386" class="tiny" style="fill:#047857">WorkItemDone</text>
+    <rect x="260" y="406" width="158" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="269" y="422" class="tiny" style="fill:#4338ca">artifact README diff</text>
+    <rect x="260" y="442" width="165" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="269" y="458" class="tiny" style="fill:#047857">verification npm test</text>
+    <text x="260" y="504" class="h2">Approval</text>
+    <text x="260" y="536" class="small">Approved by User at 12:11</text>
+    <text x="260" y="564" class="small">Comment: 内容と検証結果を確認済み</text>
+    <rect x="260" y="642" width="118" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="274" y="664" class="body" style="fill:#020617">Open artifact</text>
+    <rect x="396" y="642" width="146" height="34" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="410" y="664" class="body" style="fill:#020617">Open verification</text>
+
+    <rect x="780" y="86" width="616" height="698" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="808" y="126" class="h2">処理履歴</text><text x="808" y="146" class="small">依頼から完了までを低レベル Event に分解しすぎない</text>
+    
+    <rect x="834" y="174" width="420" height="86" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+    <circle cx="864" cy="217" r="16" fill="#ecfdf5" stroke="#047857" stroke-width="2"/>
+    <text x="856" y="221" class="tiny" style="fill:#047857">01</text>
+    <text x="892" y="204" class="h3">依頼を作成</text>
+    <rect x="892" y="214" width="48" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="901" y="230" class="tiny" style="fill:#047857">完了</text>
+    <rect x="966" y="214" width="48" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="975" y="230" class="tiny" style="fill:#475569">User</text>
+    <text x="892" y="246" class="small">12:03 / title, request, criteria recorded</text>
+  
+    
+    <rect x="834" y="268" width="420" height="86" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+    <circle cx="864" cy="311" r="16" fill="#ecfdf5" stroke="#047857" stroke-width="2"/>
+    <text x="856" y="315" class="tiny" style="fill:#047857">02</text>
+    <text x="892" y="298" class="h3">Agent 選定</text>
+    <rect x="892" y="308" width="48" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="901" y="324" class="tiny" style="fill:#047857">完了</text>
+    <rect x="966" y="308" width="116" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="975" y="324" class="tiny" style="fill:#475569">dispatch-agent</text>
+    <text x="892" y="340" class="small">12:03 / writing-agent selected</text>
+  
+    
+    <rect x="834" y="362" width="420" height="86" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+    <circle cx="864" cy="405" r="16" fill="#ecfdf5" stroke="#047857" stroke-width="2"/>
+    <text x="856" y="409" class="tiny" style="fill:#047857">03</text>
+    <text x="892" y="392" class="h3">作業完了</text>
+    <rect x="892" y="402" width="48" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="901" y="418" class="tiny" style="fill:#047857">完了</text>
+    <rect x="966" y="402" width="109" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="975" y="418" class="tiny" style="fill:#475569">writing-agent</text>
+    <text x="892" y="434" class="small">12:05 / README diff and evidence recorded</text>
+  
+    
+    <rect x="834" y="456" width="420" height="86" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+    <circle cx="864" cy="499" r="16" fill="#ecfdf5" stroke="#047857" stroke-width="2"/>
+    <text x="856" y="503" class="tiny" style="fill:#047857">04</text>
+    <text x="892" y="486" class="h3">Review passed</text>
+    <rect x="892" y="496" width="48" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="901" y="512" class="tiny" style="fill:#047857">完了</text>
+    <rect x="966" y="496" width="102" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="975" y="512" class="tiny" style="fill:#475569">review-agent</text>
+    <text x="892" y="528" class="small">12:06 / all acceptance criteria passed</text>
+  
+    
+    <rect x="834" y="550" width="420" height="86" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+    <circle cx="864" cy="593" r="16" fill="#ecfdf5" stroke="#047857" stroke-width="2"/>
+    <text x="856" y="597" class="tiny" style="fill:#047857">05</text>
+    <text x="892" y="580" class="h3">Verification passed</text>
+    <rect x="892" y="590" width="48" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="901" y="606" class="tiny" style="fill:#047857">完了</text>
+    <rect x="966" y="590" width="60" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="975" y="606" class="tiny" style="fill:#475569">runner</text>
+    <text x="892" y="622" class="small">12:07 / npm test exit 0</text>
+  
+    
+    <rect x="834" y="644" width="420" height="86" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+    <circle cx="864" cy="687" r="16" fill="#ecfdf5" stroke="#047857" stroke-width="2"/>
+    <text x="856" y="691" class="tiny" style="fill:#047857">06</text>
+    <text x="892" y="674" class="h3">承認して完了</text>
+    <rect x="892" y="684" width="48" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="901" y="700" class="tiny" style="fill:#047857">完了</text>
+    <rect x="966" y="684" width="48" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="975" y="700" class="tiny" style="fill:#475569">User</text>
+    <text x="892" y="716" class="small">12:11 / User approved final answer</text>
+  
+  
+  
+</svg>

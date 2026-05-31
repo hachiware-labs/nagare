@@ -4,17 +4,18 @@ use std::path::Path;
 use nagare_core::{
     AddAgentProfileInput, AdvanceUntilBlockedInput, AdvanceWorkItemInput,
     AgentOutputContractPurpose, AgentOutputContractUpdate, AgentOutputInjection, AgentProfile,
-    AgentRunPurpose, AnswerWorkItemInput, ApplyRecoveryPlanInput, CreateWorkItemInput,
-    RuleResolution, RunWorkItemInput, SelectRunAgentInput, SetLocaleInput,
-    SetNagareAgentSettingsInput, UpdateAgentProfileInput, VERSION, accept_dispatch_plan,
-    accept_recovery_plan, add_agent_profile, advance_work_item_once,
+    AgentRunPurpose, AnswerWorkItemInput, ApplyRecoveryPlanInput, ApprovalPolicy,
+    CreateWorkItemInput, RuleResolution, RunWorkItemInput, SelectRunAgentInput, SetLocaleInput,
+    SetNagareAgentSettingsInput, UpdateAgentProfileInput, VERSION, WorkflowMode,
+    accept_dispatch_plan, accept_recovery_plan, add_agent_profile, advance_work_item_once,
     advance_work_item_until_blocked, agent_doctor, agent_probe, answer_work_item,
     apply_recovery_plan, approve_work_item, create_handoff, create_recovery_plan,
     create_work_item_with_input, doctor, get_agent_profile, get_locale_settings,
     get_nagare_agent_settings, get_work_item_snapshot, init_project, list_agent_profiles,
-    list_work_items, resolve_rule_for_path, run_first_scenario, run_registered_agent_scenario,
+    list_domain_groups, list_domain_profiles, list_work_items, reject_work_item,
+    resolve_rule_for_path, run_first_scenario, run_registered_agent_scenario,
     run_work_item_with_input, select_agent_for_work_item_run, set_locale_settings,
-    set_nagare_agent_settings, update_agent_profile, verify_work_item,
+    set_nagare_agent_settings, update_agent_profile,
 };
 
 use crate::args::ParsedArgs;
@@ -37,9 +38,9 @@ pub(crate) fn run(args: Vec<String>) -> Result<(), String> {
         Some("agent") => agent_command(&args[1..]),
         Some("locale") => locale_command(&args[1..]),
         Some("item") => item_command(&args[1..]),
-        Some("verify") => verify_command(&args[1..]),
         Some("handoff") => handoff_command(&args[1..]),
         Some("decision") => decision_command(&args[1..]),
+        Some("ui") => crate::ui::ui_command(&args[1..]),
         Some("dev") => dev_command(&args[1..]),
         Some("status") => item_list_command(&args[1..]),
         Some(command) => Err(format!("unknown command `{command}`")),
@@ -100,9 +101,9 @@ fn agent_add_command(args: &[String]) -> Result<(), String> {
     let runtime = parsed.required("--runtime")?;
     let adapter = parsed.required("--adapter")?;
     let display_name = parsed.optional("--display-name").unwrap_or(id);
-    let role = parsed.optional("--role").unwrap_or("implementer");
     let working_dir = parsed.optional("--working-dir").unwrap_or(".");
     let description = parsed.optional("--description").unwrap_or("");
+    let role = parsed.optional("--role").unwrap_or("");
     let specialties = parse_comma_list(parsed.optional("--specialties"));
     let result = add_agent_profile(
         parsed.root()?,
@@ -115,15 +116,16 @@ fn agent_add_command(args: &[String]) -> Result<(), String> {
             working_dir,
             description,
             specialties,
+            domain_group_ids: parse_comma_list(parsed.optional("--domain-groups")),
+            domain_ids: parse_comma_list(parsed.optional("--domains")),
         },
     )
     .map_err(|e| e.to_string())?;
     println!(
-        "agent {} added adapter={} runtime={} role={} working_dir={} path={}",
+        "agent {} added adapter={} runtime={} working_dir={} path={}",
         result.profile.id,
         result.profile.adapter,
         result.profile.runtime,
-        result.profile.role,
         result.profile.working_dir,
         result.path.display()
     );
@@ -141,6 +143,8 @@ fn agent_update_command(args: &[String]) -> Result<(), String> {
         || parsed.optional("--working-dir").is_some()
         || parsed.optional("--description").is_some()
         || parsed.optional("--specialties").is_some()
+        || parsed.optional("--domain-groups").is_some()
+        || parsed.optional("--domains").is_some()
         || parsed.optional("--output-purpose").is_some()
         || parsed.optional("--output-contract").is_some()
         || parsed.optional("--instruction-pack").is_some()
@@ -155,20 +159,27 @@ fn agent_update_command(args: &[String]) -> Result<(), String> {
         agent_profile_id,
         UpdateAgentProfileInput {
             display_name: parsed.optional("--display-name"),
+            runtime: None,
+            adapter: None,
             role: parsed.optional("--role"),
             working_dir: parsed.optional("--working-dir"),
             description: parsed.optional("--description"),
             specialties: parsed
                 .optional("--specialties")
                 .map(|value| parse_comma_list(Some(value))),
+            domain_group_ids: parsed
+                .optional("--domain-groups")
+                .map(|value| parse_comma_list(Some(value))),
+            domain_ids: parsed
+                .optional("--domains")
+                .map(|value| parse_comma_list(Some(value))),
             output_contract,
         },
     )
     .map_err(|e| e.to_string())?;
     println!(
-        "agent {} updated role={} working_dir={} specialties={} path={}",
+        "agent {} updated working_dir={} specialties={} path={}",
         result.profile.id,
-        result.profile.role,
         result.profile.working_dir,
         comma_list(&result.profile.specialties),
         result.path.display()
@@ -200,7 +211,7 @@ fn agent_show_command(args: &[String]) -> Result<(), String> {
     println!("display_name: {}", profile.display_name);
     println!("runtime: {}", profile.runtime);
     println!("adapter: {}", profile.adapter);
-    println!("role: {}", profile.role);
+    println!("role: {}", empty_label(&profile.role));
     println!("working_dir: {}", profile.working_dir);
     println!("description: {}", empty_label(&profile.description));
     println!("specialties: {}", comma_list(&profile.specialties));
@@ -273,6 +284,14 @@ fn parse_bool(value: &str) -> Result<bool, String> {
         "false" | "no" | "0" => Ok(false),
         other => Err(format!("expected boolean true or false, got `{other}`")),
     }
+}
+
+fn parse_optional_workflow_mode(parsed: &ParsedArgs) -> Result<Option<WorkflowMode>, String> {
+    parsed
+        .optional("--workflow-mode")
+        .or_else(|| parsed.optional("--mode"))
+        .map(WorkflowMode::parse)
+        .transpose()
 }
 
 fn parse_usize(value: &str) -> Result<usize, String> {
@@ -443,13 +462,22 @@ fn item_create_command(args: &[String]) -> Result<(), String> {
             description: description.to_string(),
             acceptance_criteria: parse_comma_list(parsed.optional("--acceptance")),
             expected_artifacts: parse_comma_list(parsed.optional("--artifact")),
-            verification_hint: parsed.optional("--verification").map(ToOwned::to_owned),
             work_folder: parsed.optional("--work-folder").map(ToOwned::to_owned),
             constraints: parse_comma_list(parsed.optional("--constraint")),
+            domain_group_id: parsed.optional("--domain-group").map(ToOwned::to_owned),
+            domain_id: parsed.optional("--domain").map(ToOwned::to_owned),
+            workflow_mode: parse_optional_workflow_mode(&parsed)?,
+            approval_policy: parsed
+                .optional("--approval-policy")
+                .map(ApprovalPolicy::parse)
+                .transpose()?,
         },
     )
     .map_err(|e| e.to_string())?;
-    println!("created {} {}", result.item.id, result.item.status);
+    println!(
+        "created {} {} workflow_mode={} approval_policy={}",
+        result.item.id, result.item.status, result.item.workflow_mode, result.item.approval_policy
+    );
     Ok(())
 }
 
@@ -684,13 +712,18 @@ fn item_advance_command(args: &[String]) -> Result<(), String> {
         dev_command: parsed.optional("--command"),
         dispatch_dev_command: parsed.optional("--dispatch-command"),
         review_dev_command: parsed.optional("--review-command"),
-        verification_command: parsed.optional("--verify-command"),
         use_supervisor: parsed
             .optional("--supervisor")
             .map(parse_bool)
             .transpose()?
             .unwrap_or(false),
         supervisor_dev_command: parsed.optional("--supervisor-command"),
+        auto_recover: parsed
+            .optional("--auto-recover")
+            .map(parse_bool)
+            .transpose()?
+            .unwrap_or(false),
+        workflow_mode: parse_optional_workflow_mode(&parsed)?,
     };
     let until_blocked = parsed
         .optional("--until-blocked")
@@ -746,9 +779,6 @@ fn item_advance_command(args: &[String]) -> Result<(), String> {
     if let Some(plan_id) = result.recovery_plan_id {
         println!("recovery_plan: {plan_id}");
     }
-    if let Some(verification_id) = result.verification_id {
-        println!("verification: {verification_id}");
-    }
     Ok(())
 }
 
@@ -788,9 +818,18 @@ fn run_item_with_nagare_agent(
                 &root,
                 &defaults.work_agent,
                 &defaults.review_agent,
+                &defaults.dispatch_agent,
+                &defaults.supervisor_agent,
                 resolution.as_ref(),
             )?;
-            Some(dispatch_prompt(resolution.as_ref(), &candidates))
+            let domain_groups = list_domain_groups(&root).map_err(|e| e.to_string())?;
+            let domains = list_domain_profiles(&root).map_err(|e| e.to_string())?;
+            Some(dispatch_prompt(
+                resolution.as_ref(),
+                &candidates,
+                &domain_groups,
+                &domains,
+            ))
         } else {
             None
         };
@@ -829,23 +868,38 @@ fn dispatch_agent_candidates(
     root: &Path,
     default_work_agent: &str,
     default_review_agent: &str,
+    default_dispatch_agent: &str,
+    default_supervisor_agent: &str,
     resolution: Option<&RuleResolution>,
 ) -> Result<Vec<AgentProfile>, String> {
     let profiles = list_agent_profiles(root).map_err(|e| e.to_string())?;
     let mut selected_ids = Vec::new();
     let mut seen = BTreeSet::new();
+    let is_control_agent =
+        |id: &str| id == default_dispatch_agent || id == default_supervisor_agent;
 
     if let Some(resolution) = resolution {
-        push_unique(&mut selected_ids, &mut seen, &resolution.agent_profile_id);
-        push_unique(
-            &mut selected_ids,
-            &mut seen,
-            &resolution.review_agent_profile_id,
-        );
+        if !is_control_agent(&resolution.agent_profile_id) {
+            push_unique(&mut selected_ids, &mut seen, &resolution.agent_profile_id);
+        }
+        if !is_control_agent(&resolution.review_agent_profile_id) {
+            push_unique(
+                &mut selected_ids,
+                &mut seen,
+                &resolution.review_agent_profile_id,
+            );
+        }
     }
-    push_unique(&mut selected_ids, &mut seen, default_work_agent);
-    push_unique(&mut selected_ids, &mut seen, default_review_agent);
+    if !is_control_agent(default_work_agent) {
+        push_unique(&mut selected_ids, &mut seen, default_work_agent);
+    }
+    if !is_control_agent(default_review_agent) {
+        push_unique(&mut selected_ids, &mut seen, default_review_agent);
+    }
     for profile in &profiles {
+        if is_control_agent(&profile.id) {
+            continue;
+        }
         push_unique(&mut selected_ids, &mut seen, &profile.id);
         if selected_ids.len() >= DISPATCH_AGENT_CANDIDATE_LIMIT {
             break;
@@ -868,22 +922,6 @@ fn push_unique(selected_ids: &mut Vec<String>, seen: &mut BTreeSet<String>, id: 
     if !id.trim().is_empty() && seen.insert(id.to_string()) {
         selected_ids.push(id.to_string());
     }
-}
-
-fn verify_command(args: &[String]) -> Result<(), String> {
-    let parsed = ParsedArgs::parse(args)?;
-    let work_item_id = parsed
-        .positionals
-        .first()
-        .ok_or_else(|| "verify requires a work item id".to_string())?;
-    let command = parsed.required("--command")?;
-    let result =
-        verify_work_item(parsed.root()?, work_item_id, command).map_err(|e| e.to_string())?;
-    println!(
-        "verification {} {} item_status={}",
-        result.verification.id, result.verification.result, result.item_status
-    );
-    Ok(())
 }
 
 fn handoff_command(args: &[String]) -> Result<(), String> {
@@ -928,9 +966,29 @@ fn handoff_dispatch_command(args: &[String]) -> Result<(), String> {
 fn decision_command(args: &[String]) -> Result<(), String> {
     match args.first().map(String::as_str) {
         Some("approve") => decision_approve_command(&args[1..]),
+        Some("reject") => decision_reject_command(&args[1..]),
         Some(command) => Err(format!("unknown decision command `{command}`")),
-        None => Err("decision command required: approve".to_string()),
+        None => Err("decision command required: approve or reject".to_string()),
     }
+}
+
+fn decision_reject_command(args: &[String]) -> Result<(), String> {
+    let parsed = ParsedArgs::parse(args)?;
+    let work_item_id = parsed
+        .positionals
+        .first()
+        .ok_or_else(|| "decision reject requires a work item id".to_string())?;
+    let rationale = parsed
+        .optional("--rationale")
+        .or_else(|| parsed.optional("--reason"))
+        .ok_or_else(|| "decision reject requires --rationale <text>".to_string())?;
+    let result =
+        reject_work_item(parsed.root()?, work_item_id, rationale).map_err(|e| e.to_string())?;
+    println!(
+        "decision {} reject item_status={} next_action=dispatch",
+        result.decision.id, result.item_status
+    );
+    Ok(())
 }
 
 fn decision_approve_command(args: &[String]) -> Result<(), String> {

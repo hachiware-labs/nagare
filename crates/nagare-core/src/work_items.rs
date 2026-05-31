@@ -22,7 +22,59 @@ pub fn create_work_item_with_input(
     input: CreateWorkItemInput,
 ) -> Result<CreateItemResult, NagareError> {
     let layout = ensure_project(root)?;
-    let locale = load_project_config(&layout)?.locale.language;
+    let config = load_project_config(&layout)?;
+    let locale = config.locale.language.clone();
+    let domain_groups = load_domain_groups(&layout)?;
+    let domain = input
+        .domain_id
+        .as_deref()
+        .map(|domain_id| {
+            load_domain_profiles(&layout)?
+                .remove(domain_id)
+                .ok_or_else(|| NagareError::NotFound(format!("domain profile `{domain_id}`")))
+        })
+        .transpose()?;
+    let domain_group_id = match (input.domain_group_id.as_deref(), domain.as_ref()) {
+        (Some(input_group_id), Some(domain)) => {
+            validate_existing_domain_group(&layout, input_group_id)?;
+            if let Some(domain_group_id) = domain.group_id.as_deref() {
+                if domain_group_id != input_group_id {
+                    return Err(NagareError::InvalidState(format!(
+                        "domain profile `{}` belongs to group `{domain_group_id}`, not `{input_group_id}`",
+                        domain.id
+                    )));
+                }
+            }
+            Some(input_group_id.to_string())
+        }
+        (Some(input_group_id), None) => {
+            validate_existing_domain_group(&layout, input_group_id)?;
+            Some(input_group_id.to_string())
+        }
+        (None, Some(domain)) => domain.group_id.clone(),
+        (None, None) => None,
+    };
+    let domain_group = domain_group_id
+        .as_deref()
+        .and_then(|group_id| domain_groups.get(group_id));
+    let workflow_mode = input
+        .workflow_mode
+        .or_else(|| {
+            domain
+                .as_ref()
+                .and_then(|domain| domain.workflow.progress_mode)
+        })
+        .or_else(|| domain_group.and_then(|group| group.workflow.progress_mode))
+        .unwrap_or(config.workflow.default_progress_mode);
+    let approval_policy = input
+        .approval_policy
+        .or_else(|| {
+            domain
+                .as_ref()
+                .and_then(|domain| domain.workflow.approval_policy)
+        })
+        .or_else(|| domain_group.and_then(|group| group.workflow.approval_policy))
+        .unwrap_or(config.workflow.approval_policy);
     let mut ledger = load_ledger(&layout)?;
     let work_folder = input
         .work_folder
@@ -37,12 +89,12 @@ pub fn create_work_item_with_input(
         description: input.description,
         acceptance_criteria: normalize_text_list(input.acceptance_criteria),
         expected_artifacts: normalize_text_list(input.expected_artifacts),
-        verification_hint: input
-            .verification_hint
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty()),
         work_folder,
         constraints: normalize_text_list(input.constraints),
+        domain_group_id,
+        domain_id: input.domain_id,
+        workflow_mode,
+        approval_policy,
         locale,
         status: WorkItemStatus::Ready,
         created_at: now.clone(),
@@ -56,6 +108,61 @@ pub fn create_work_item_with_input(
 pub fn list_work_items(root: impl Into<PathBuf>) -> Result<Vec<WorkItem>, NagareError> {
     let layout = ensure_project(root)?;
     Ok(load_ledger(&layout)?.work_items)
+}
+
+pub fn delete_work_item(
+    root: impl Into<PathBuf>,
+    work_item_id: &str,
+) -> Result<WorkItem, NagareError> {
+    let layout = ensure_project(root)?;
+    let mut ledger = load_ledger(&layout)?;
+    let index = ledger
+        .work_items
+        .iter()
+        .position(|item| item.id == work_item_id)
+        .ok_or_else(|| NagareError::NotFound(format!("work item `{work_item_id}`")))?;
+    let item = ledger.work_items.remove(index);
+
+    ledger.runs.retain(|run| run.work_item_id != work_item_id);
+    ledger
+        .artifacts
+        .retain(|artifact| artifact.work_item_id != work_item_id);
+    ledger
+        .evidence
+        .retain(|evidence| evidence.work_item_id != work_item_id);
+    ledger
+        .review_results
+        .retain(|review| review.work_item_id != work_item_id);
+    ledger
+        .handoffs
+        .retain(|handoff| handoff.work_item_id != work_item_id);
+    ledger
+        .decisions
+        .retain(|decision| decision.work_item_id != work_item_id);
+    ledger
+        .human_feedback
+        .retain(|feedback| feedback.work_item_id != work_item_id);
+    ledger
+        .dispatch_plans
+        .retain(|plan| plan.work_item_id != work_item_id);
+    ledger
+        .recovery_plans
+        .retain(|plan| plan.work_item_id != work_item_id);
+    ledger
+        .workflow_decisions
+        .retain(|decision| decision.work_item_id != work_item_id);
+    ledger
+        .resolved_skill_contexts
+        .retain(|context| context.work_item_id != work_item_id);
+    ledger
+        .resolved_run_packets
+        .retain(|packet| packet.work_item_id != work_item_id);
+    ledger
+        .agent_outputs
+        .retain(|output| output.work_item_id != work_item_id);
+
+    save_ledger(&layout, &ledger)?;
+    Ok(item)
 }
 
 pub fn get_work_item_snapshot(
@@ -120,7 +227,6 @@ pub(crate) fn work_item_goal_prompt(item: &WorkItem) -> String {
     if item.description.trim().is_empty()
         && item.acceptance_criteria.is_empty()
         && item.expected_artifacts.is_empty()
-        && item.verification_hint.is_none()
         && item.constraints.is_empty()
     {
         return item.title.clone();
@@ -144,10 +250,6 @@ pub(crate) fn work_item_goal_prompt(item: &WorkItem) -> String {
                 .iter()
                 .map(|artifact| format!("- {artifact}")),
         );
-    }
-    if let Some(verification) = &item.verification_hint {
-        lines.push("## Verification Hint".to_string());
-        lines.push(verification.clone());
     }
     if !item.constraints.is_empty() {
         lines.push("## Constraints".to_string());

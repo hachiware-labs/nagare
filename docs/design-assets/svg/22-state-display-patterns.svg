@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960">
+  <rect width="1440" height="960" fill="#f8fafc"/>
+  <style>
+    .title{font:700 24px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h2{font:700 17px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h3{font:700 14px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .body{font:500 13px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .small{font:500 11px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .tiny{font:600 10px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .mono{font:500 12px Consolas,Menlo,monospace;fill:#020617}
+    .nav{font:650 13px Inter,Segoe UI,Arial,sans-serif;fill:#334155}
+    .nav-on{font:700 13px Inter,Segoe UI,Arial,sans-serif;fill:#4338ca}
+  </style>
+  
+    <rect x="0" y="0" width="200" height="960" rx="0" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="28" y="42" class="title">Nagare</text>
+    <text x="30" y="64" class="tiny" style="fill:#4338ca">HACHIWARE LABS</text>
+    <text x="30" y="82" class="small">Agent work control</text>
+    <rect x="18" y="96" width="164" height="32" rx="7" fill="#eef2ff" stroke="#eef2ff"/>
+      <text x="34" y="118" class="nav-on">Work Items</text>
+      <text x="34" y="156" class="nav">Agents</text>
+      <text x="34" y="194" class="nav">Settings</text>
+    <line x1="200" y1="0" x2="200" y2="960" stroke="#e2e8f0"/>
+    
+    <text x="232" y="48" class="title">状態表示パターン</text>
+    <text x="232" y="74" class="small">Board、Detail、History で同じ状態語彙を使う</text>
+
+    <rect x="232" y="108" width="1164" height="182" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="260" y="148" class="h2">一覧行パターン</text><text x="260" y="168" class="small">一覧では State / Actor / Latest Event / Next を横並びにする</text>
+    <rect x="260" y="184" width="1078" height="54" rx="0" fill="#ffffff" stroke="#e2e8f0"/><text x="274" y="205" class="body">README 更新</text><text x="274" y="223" class="small">Work Item</text><text x="467.8" y="205" class="small">処理中</text><text x="467.8" y="223" class="small">state</text><text x="661.6" y="205" class="small">writing-agent</text><text x="661.6" y="223" class="small">actor</text><text x="855.4000000000001" y="205" class="small">WorkAgentRunStarted</text><text x="855.4000000000001" y="223" class="small">latest</text><text x="1049.2" y="205" class="small">Open Run Log</text><text x="1049.2" y="223" class="small">next</text><rect x="1257" y="199" width="67" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="1266" y="215" class="tiny" style="fill:#4338ca">running</text>
+    <rect x="260" y="238" width="1078" height="54" rx="0" fill="#ffffff" stroke="#e2e8f0"/><text x="274" y="259" class="body">release note 整理</text><text x="274" y="277" class="small">Work Item</text><text x="466.4" y="259" class="small">承認待ち</text><text x="466.4" y="277" class="small">state</text><text x="658.8" y="259" class="small">User</text><text x="658.8" y="277" class="small">actor</text><text x="851.2" y="259" class="small">VerificationPassed</text><text x="851.2" y="277" class="small">latest</text><text x="1043.6" y="259" class="small">Approve Result</text><text x="1043.6" y="277" class="small">next</text><rect x="1250" y="253" width="74" height="24" rx="12" fill="#fffbeb" stroke="#fffbeb"/>
+  <text x="1259" y="269" class="tiny" style="fill:#b45309">approval</text>
+
+    <rect x="232" y="320" width="364" height="464" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="260" y="360" class="h2">詳細サマリーパターン</text><text x="260" y="380" class="small">詳細上部は5行に固定する</text>
+    <text x="260" y="416" class="body">Current: 承認待ち</text>
+    <text x="260" y="450" class="small">Why: review and verification passed</text>
+    <text x="260" y="484" class="small">Actor: User</text>
+    <text x="260" y="518" class="small">Latest Result: npm test passed</text>
+    <text x="260" y="552" class="small">Next: Approve Result</text>
+    <rect x="260" y="642" width="132" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
+  <text x="274" y="664" class="body" style="fill:#ffffff">Approve Result</text>
+
+    <rect x="626" y="320" width="364" height="464" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="654" y="360" class="h2">状態バッジ語彙</text><text x="654" y="380" class="small">色は意味にだけ使う</text>
+    <rect x="654" y="416" width="48" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="663" y="432" class="tiny" style="fill:#4338ca">処理中</text>
+    <text x="784" y="432" class="small">処理中、選択中、次へ進める</text>
+    <rect x="654" y="466" width="48" height="24" rx="12" fill="#fffbeb" stroke="#fffbeb"/>
+  <text x="663" y="482" class="tiny" style="fill:#b45309">入力待ち</text>
+    <text x="784" y="482" class="small">ユーザー入力、確認、承認待ち</text>
+    <rect x="654" y="516" width="48" height="24" rx="12" fill="#fef2f2" stroke="#fef2f2"/>
+  <text x="663" y="532" class="tiny" style="fill:#b91c1c">要回復</text>
+    <text x="784" y="532" class="small">失敗、検証失敗、回復必要</text>
+    <rect x="654" y="566" width="48" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="663" y="582" class="tiny" style="fill:#047857">完了</text>
+    <text x="784" y="582" class="small">成功、検証通過、完了</text>
+    <rect x="654" y="616" width="48" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="663" y="632" class="tiny" style="fill:#475569">下書き</text>
+    <text x="784" y="632" class="small">下書き、待機、補助情報</text>
+
+    <rect x="1020" y="320" width="376" height="464" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="1048" y="360" class="h2">HistoryStep パターン</text><text x="1048" y="380" class="small">kind / state / actor / facts / links を固定する</text>
+    
+    <rect x="1048" y="414" width="300" height="86" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+    <circle cx="1078" cy="457" r="16" fill="#ecfdf5" stroke="#047857" stroke-width="2"/>
+    <text x="1070" y="461" class="tiny" style="fill:#047857">01</text>
+    <text x="1106" y="444" class="h3">Agent 選定</text>
+    <rect x="1106" y="454" width="48" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="1115" y="470" class="tiny" style="fill:#047857">完了</text>
+    <rect x="1180" y="454" width="74" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="1189" y="470" class="tiny" style="fill:#475569">dispatch</text>
+    <text x="1106" y="486" class="small">kind dispatch / links dispatch_0001</text>
+  
+    
+    <rect x="1048" y="514" width="300" height="86" rx="7" fill="#eef2ff" stroke="#4338ca"/>
+    <circle cx="1078" cy="557" r="16" fill="#eef2ff" stroke="#4338ca" stroke-width="2"/>
+    <text x="1070" y="561" class="tiny" style="fill:#4338ca">02</text>
+    <text x="1106" y="544" class="h3">作業実行</text>
+    <rect x="1106" y="554" width="48" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="1115" y="570" class="tiny" style="fill:#4338ca">処理中</text>
+    <rect x="1180" y="554" width="48" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="1189" y="570" class="tiny" style="fill:#475569">work</text>
+    <text x="1106" y="586" class="small">kind work / facts artifact 2</text>
+  
+    
+    <rect x="1048" y="614" width="300" height="86" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+    <circle cx="1078" cy="657" r="16" fill="#f1f5f9" stroke="#475569" stroke-width="2"/>
+    <text x="1070" y="661" class="tiny" style="fill:#475569">03</text>
+    <text x="1106" y="644" class="h3">Verification</text>
+    <rect x="1106" y="654" width="48" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="1115" y="670" class="tiny" style="fill:#475569">待機</text>
+    <rect x="1180" y="654" width="60" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="1189" y="670" class="tiny" style="fill:#475569">runner</text>
+    <text x="1106" y="686" class="small">kind verification / review待ち</text>
+  
+
+    <rect x="232" y="812" width="1164" height="104" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="260" y="852" class="h2">状態遷移</text><text x="260" y="872" class="small">通常経路と人間待ちを分ける</text>
+    <rect x="260" y="874" width="48" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="269" y="890" class="tiny" style="fill:#475569">下書き</text>
+    <text x="332" y="890" class="small">-&gt;</text>
+    <rect x="360" y="874" width="48" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="369" y="890" class="tiny" style="fill:#4338ca">処理中</text>
+    <text x="436" y="890" class="small">-&gt;</text>
+    <rect x="464" y="874" width="48" height="24" rx="12" fill="#fffbeb" stroke="#fffbeb"/>
+  <text x="473" y="890" class="tiny" style="fill:#b45309">承認待ち</text>
+    <text x="556" y="890" class="small">-&gt;</text>
+    <rect x="584" y="874" width="48" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="593" y="890" class="tiny" style="fill:#047857">完了</text>
+    <text x="710" y="890" class="small">例外:</text>
+    <rect x="756" y="874" width="48" height="24" rx="12" fill="#fffbeb" stroke="#fffbeb"/>
+  <text x="765" y="890" class="tiny" style="fill:#b45309">入力待ち</text>
+    <rect x="850" y="874" width="48" height="24" rx="12" fill="#fef2f2" stroke="#fef2f2"/>
+  <text x="859" y="890" class="tiny" style="fill:#b91c1c">要回復</text>
+  
+  
+</svg>

@@ -7,7 +7,7 @@ JSON shapes.
 Nagare must manage agent usage before it manages individual adapters. Agent
 tools can be invoked as local processes, stdio app servers, hosted jobs, or CI
 workers. Projects and folders can also require different working directories,
-permissions, and verification expectations.
+permissions, and review expectations.
 
 The management model separates five concerns:
 
@@ -44,7 +44,7 @@ Nagare resolves configuration from broad to narrow scope:
 ```
 
 Narrower layers can add or override agent profiles, policies, and
-verification defaults. They should not mutate global runtime discovery results.
+review check defaults. They should not mutate global runtime discovery results.
 
 ## Storage Split
 
@@ -148,7 +148,11 @@ adapter to a role, workspace policy, permission policy, skill set, and limits.
 It also declares `working_dir`, the project-relative directory where the agent
 process starts. This is separate from the directory where the profile TOML file
 is stored. `description` and `specialties` are compact routing hints that the
-Nagare dispatch agent can use when selecting from a small candidate list.
+Nagare dispatch agent can use when selecting from a small candidate list. `role`
+is intentionally domain-agnostic: use values such as `planner`, `worker`,
+`reviewer`, `dispatcher`, and express the domain through profile IDs,
+`specialties`, and `description`, for example `code-planner`, `docs-worker`, or
+`ui-reviewer`.
 `output_contracts` declare the Nagare-managed final-output contracts to inject
 for work, review, and dispatch runs.
 
@@ -161,7 +165,7 @@ adapter = "process.codex-cli"
 role = "implementer"
 working_dir = "."
 description = "Implementation-focused Codex CLI profile"
-specialties = ["implementation", "verification"]
+specialties = ["implementation", "review"]
 workspace_policy = "worktree-per-item"
 permission_policy = "medium-code-task"
 max_parallel_runs = 2
@@ -306,7 +310,7 @@ the exact capability and instruction-source context given to an Agent Run.
   "agent_profile_id": "codex-impl",
   "discovered_capability_ids": ["repo_read", "file_edit", "shell_command"],
   "instruction_sources": ["AGENTS.md"],
-  "artifact_uri": "file://.nagare/artifacts/work_0001/skill_context.json",
+  "execution_record_uri": "file://.nagare/logs/skillctx_0001.json",
   "content_hash": "sha256:...",
   "resolved_at": "2026-05-24T15:01:00+09:00"
 }
@@ -350,7 +354,7 @@ Work Item
   + permission policy
   + latest valid capability probe
   + resolved skill context
-  + verification defaults
+  + review check defaults
   = Run Packet
 ```
 
@@ -402,7 +406,7 @@ nagare item run work_0001 --work-folder apps/web
 The `item preview` command is the pre-run confirmation step. It runs the
 configured `dispatch_agent`, resolves a compact work scope from the requested
 `work_folder`, registered Agent Profile attributes, Profile `working_dir`,
-fresh Capability Probe, policy, and verification context, records Resolved Skill
+fresh Capability Probe, policy, and review context, records Resolved Skill
 Context and Resolved Run Packet, and stores an Agent Run with purpose
 `dispatch_preview` without advancing the Work Item status. A successful preview
 also stores a DispatchPlan that links the dispatch AgentRun, target Agent

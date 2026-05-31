@@ -1,11 +1,13 @@
 # Nagare / 流
 
+![Nagare logo](logo.png)
+
 [日本語 README](README_ja.md) | [Spec](docs/spec.md) | [Architecture](docs/architecture.md) | [Tutorial](docs/tutorial.md) | [日本語チュートリアル](docs/tutorial_ja.md)
 
 Nagare is an adapter-first execution ledger for coding agents.
 
 The goal is to keep work items, run packets, agent runs, artifacts, evidence,
-verification results, handoffs, and human decisions in one local-first control
+review results, handoffs, and human decisions in one local-first control
 layer while letting agent backends change underneath.
 
 ## Current Slice
@@ -19,7 +21,7 @@ This repository now includes the first end-to-end user scenario:
 - capture the failure as evidence
 - create a handoff to `codex-app-server`
 - run a succeeding retry
-- verify the work
+- review the work, including any CI/test/artifact checks
 - approve it as a human decision
 - reach `done`
 
@@ -40,7 +42,7 @@ Run the scenario as normal user commands:
 $env:NAGARE_ROOT = "$env:TEMP\nagare-first"
 nagare init
 nagare locale use --language en-US --timezone America/Los_Angeles
-nagare agent add --id codex-impl-smoke --display-name "Codex CLI Smoke Implementer" --runtime codex-local --adapter process.codex-cli --role implementer --working-dir . --description "Implementation and verification" --specialties implementation,verification
+nagare agent add --id codex-impl-smoke --display-name "Codex CLI Smoke Implementer" --runtime codex-local --adapter process.codex-cli --role worker --working-dir . --description "Implementation and review checks" --specialties implementation,review-checks
 nagare agent add --id codex-app-smoke --display-name "Codex App Server Smoke Implementer" --runtime codex-app-local --adapter stdio.codex-app-server --role implementer --working-dir . --description "Planning and review" --specialties planning,review
 nagare agent list
 nagare agent use --work-agent codex-impl-smoke --review-agent codex-app-smoke --dispatch-agent codex-impl-smoke
@@ -53,8 +55,8 @@ nagare item dispatch accept work_0001
 nagare item run work_0001 --command "echo codex run failed && exit /B 1"
 nagare handoff create work_0001 --from-agent codex-impl-smoke --to-agent codex-app-smoke --reason "Codex agent profile produced a failing run" --summary "Retry with Codex App Server agent profile using the captured run log as evidence."
 nagare item run work_0001 --agent codex-app-smoke --command "echo codex app server retry fixed the task && exit /B 0"
-nagare verify work_0001 --command "echo verification passed && exit /B 0"
-nagare decision approve work_0001 --rationale "Required verification passed after cross-agent handoff."
+nagare item review work_0001 --agent codex-app-smoke --command "echo ## Nagare Review && echo verdict: pass && echo summary: && echo - review passed && echo completed: && echo - reviewed result and checks && echo findings: && echo - none && echo questions: && echo next_notes: && echo - ready for approval && echo next_action: approve"
+nagare decision approve work_0001 --rationale "Required review passed after cross-agent handoff."
 nagare item show work_0001
 Remove-Item Env:\NAGARE_ROOT
 ```

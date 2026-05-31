@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960">
+  <rect width="1440" height="960" fill="#f8fafc"/>
+  <style>
+    .title{font:700 24px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h2{font:700 17px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h3{font:700 14px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .body{font:500 13px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .small{font:500 11px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .tiny{font:600 10px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .mono{font:500 12px Consolas,Menlo,monospace;fill:#020617}
+    .nav{font:650 13px Inter,Segoe UI,Arial,sans-serif;fill:#334155}
+    .nav-on{font:700 13px Inter,Segoe UI,Arial,sans-serif;fill:#4338ca}
+  </style>
+  
+    <rect x="0" y="0" width="200" height="960" rx="0" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="28" y="42" class="title">Nagare</text>
+    <text x="30" y="64" class="tiny" style="fill:#4338ca">HACHIWARE LABS</text>
+    <text x="30" y="82" class="small">Agent work control</text>
+    <rect x="18" y="96" width="164" height="32" rx="7" fill="#eef2ff" stroke="#eef2ff"/>
+      <text x="34" y="118" class="nav-on">Work Items</text>
+      <text x="34" y="156" class="nav">Agents</text>
+      <text x="34" y="194" class="nav">Settings</text>
+    <line x1="200" y1="0" x2="200" y2="960" stroke="#e2e8f0"/>
+    
+    <text x="232" y="48" class="title">README のセットアップ手順を更新</text>
+    <rect x="704" y="30" width="48" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="713" y="46" class="tiny" style="fill:#4338ca">処理中</text>
+    <rect x="790" y="30" width="116" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="799" y="46" class="tiny" style="fill:#475569">dispatch-agent</text>
+    <rect x="928" y="30" width="74" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="937" y="46" class="tiny" style="fill:#4338ca">経過 00:03</text>
+
+    <rect x="232" y="86" width="1164" height="130" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="260" y="124" class="h2">現在地</text>
+    <text x="260" y="156" class="body">Current: dispatch-agent が担当 Agent を選定中</text>
+    <text x="260" y="184" class="small">Latest Step: dispatch / processing / 12:03:08</text>
+    <text x="694" y="156" class="body">Next: target agent が決まると work run へ進む</text>
+    <text x="694" y="184" class="small">User action: 自動進行中。操作は不要</text>
+
+    <rect x="232" y="244" width="724" height="540" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="260" y="284" class="h2">処理履歴</text><text x="260" y="304" class="small">作成直後から履歴として現在地を見せる</text>
+    
+    <rect x="286" y="330" width="440" height="86" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+    <circle cx="316" cy="373" r="16" fill="#ecfdf5" stroke="#047857" stroke-width="2"/>
+    <text x="308" y="377" class="tiny" style="fill:#047857">01</text>
+    <text x="344" y="360" class="h3">依頼を作成</text>
+    <rect x="344" y="370" width="48" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="353" y="386" class="tiny" style="fill:#047857">完了</text>
+    <rect x="418" y="370" width="48" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="427" y="386" class="tiny" style="fill:#475569">User</text>
+    <text x="344" y="402" class="small">12:03:04 / title, request, criteria recorded</text>
+  
+    
+    <rect x="286" y="436" width="440" height="86" rx="7" fill="#eef2ff" stroke="#4338ca"/>
+    <circle cx="316" cy="479" r="16" fill="#eef2ff" stroke="#4338ca" stroke-width="2"/>
+    <text x="308" y="483" class="tiny" style="fill:#4338ca">02</text>
+    <text x="344" y="466" class="h3">Dispatch run</text>
+    <rect x="344" y="476" width="48" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="353" y="492" class="tiny" style="fill:#4338ca">処理中</text>
+    <rect x="418" y="476" width="116" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="427" y="492" class="tiny" style="fill:#475569">dispatch-agent</text>
+    <text x="344" y="508" class="small">12:03:08 / target agent を選定中</text>
+  
+    
+    <rect x="286" y="542" width="440" height="86" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+    <circle cx="316" cy="585" r="16" fill="#f1f5f9" stroke="#475569" stroke-width="2"/>
+    <text x="308" y="589" class="tiny" style="fill:#475569">03</text>
+    <text x="344" y="572" class="h3">Work run</text>
+    <rect x="344" y="582" width="48" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="353" y="598" class="tiny" style="fill:#475569">待機</text>
+    <rect x="418" y="582" width="88" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="427" y="598" class="tiny" style="fill:#475569">work-agent</text>
+    <text x="344" y="614" class="small">target agent 決定待ち</text>
+  
+    
+    <rect x="286" y="648" width="440" height="86" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+    <circle cx="316" cy="691" r="16" fill="#f1f5f9" stroke="#475569" stroke-width="2"/>
+    <text x="308" y="695" class="tiny" style="fill:#475569">04</text>
+    <text x="344" y="678" class="h3">Review / Verify</text>
+    <rect x="344" y="688" width="48" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="353" y="704" class="tiny" style="fill:#475569">待機</text>
+    <rect x="418" y="688" width="60" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="427" y="704" class="tiny" style="fill:#475569">system</text>
+    <text x="344" y="720" class="small">work output 待ち</text>
+  
+
+    <rect x="984" y="244" width="412" height="540" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="1012" y="284" class="h2">選択中の履歴</text><text x="1012" y="304" class="small">ユーザーが見るべき粒度にまとめる</text>
+    <rect x="1012" y="324" width="48" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="1021" y="340" class="tiny" style="fill:#4338ca">処理中</text>
+    <rect x="1090" y="324" width="116" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="1099" y="340" class="tiny" style="fill:#475569">dispatch-agent</text>
+    <text x="1012" y="382" class="h2">担当 Agent を選定中</text>
+    <text x="1012" y="418" class="small">依頼文、受入条件、Agent Profile をもとに</text>
+    <text x="1012" y="440" class="small">候補を評価している。</text>
+    <text x="1012" y="510" class="h3">Facts</text>
+    <rect x="1012" y="536" width="88" height="24" rx="12" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="1021" y="552" class="tiny" style="fill:#047857">criteria 2</text>
+    <rect x="1106" y="536" width="158" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="1115" y="552" class="tiny" style="fill:#4338ca">expected README diff</text>
+    <rect x="1012" y="572" width="109" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="1021" y="588" class="tiny" style="fill:#475569">work folder .</text>
+  
+  
+</svg>

@@ -1,10 +1,10 @@
 # plan.md（必ず書く：最新版）
 
 # current
-- [ ] [SEED-agent-data-model] Agent Profile / Skill / Capability Probe / Resolved Skill Context / Resolved Run Packet のデータ形式を `docs/agent_data_model.md` に固定し、実装時の schema seed とする
-- [ ] [SEED-adapter-kernel] MVP 1 として Agent Profile、Run Packet、Run Event、Artifact、Evidence、Verification Result、Permission Policy、Workspace Policy の正規モデルを `nagare-core` に整理する。完了条件: `cargo test --workspace` と CLI smoke test が PASS する
+- なし
 
 # future
+- NEXT UI: 静的HTML exportで固めたBoard / Detail情報構造を、次のUI実装単位として対話型UIへ展開する
 - MVP 1: Agent Management Kernel。Runtime、Adapter、Agent Profile、Capability Probe、Scope Resolution、Permission Policy、Run Packet Preview を実装する
 - MVP 2: Agent Adapter Kernel。Agent Profile、Run Packet、Run Event、Artifact、Evidence、Verification Result、Workspace Policy の正規モデルを adapter 実行に接続する
 - MVP 3: First-Class Codex Adapters。`process.codex-cli`、`stdio.codex-app-server` を実装する
@@ -51,7 +51,7 @@
 - [x] [SEED-review-result-transition] ReviewResult を導入し、review verdict を ready_for_verification / changes_requested / needs_input の状態遷移に接続した
 - [x] [SEED-recovery-plan] RecoveryPlan と draft / accepted / superseded lifecycle、`item recover` / `item recover accept` を実装した
 - [x] [SEED-contract-recovery-apply] OutputContract欠落時に rerun_with_contract_reminder のRecoveryPlanを作り、`item recover apply` で再出力runへ接続した
-- [x] [SEED-git-artifact-collection] Agent Run 後にGit changed files と diff patch をArtifactとして保存し、Timeline/CLIで確認できるようにした
+- [x] [SEED-git-execution-record-collection] Agent Run 後にGit changed files と diff patch をExecutionRecordとして保存し、Timeline/CLIで確認できるようにした
 - [x] [SEED-work-item-dod] Work Item に acceptance criteria、expected artifacts、verification hint、work folder、constraints を追加し、Run Packet と prompt に反映した
 - [x] [SEED-supervisor-agent-default] Nagare Agent defaults に supervisor_agent を追加し、`workflow_supervision` AgentRun から WorkflowDecision を作れるようにした
 - [x] [SEED-workflow-decision] WorkflowDecision を台帳と Timeline に追加し、次アクション判断を監査可能にした
@@ -60,3 +60,28 @@
 - [x] [SEED-criteria-aware-review] ReviewResult に criteria_results を追加し、acceptance criteria 未充足では承認できないようにした
 - [x] [SEED-rich-handoff-packet] HandoffPacket に状態、未解決質問、artifact、diff、review、failed verification、next request を追加し、後続Runへcontext注入した
 - [x] [SEED-complex-workflow-regression] review changes と verification failure から recovery を経由して approval gate に戻る複雑ワークフロー回帰テストを追加した
+- [x] [UI-WF-slice-1] UI実装の最小入口として、Work Item Board / Detail を静的HTMLにexportできる `nagare ui export` を追加した
+- [x] [UI-WF-slice-2] 静的UIに DoD、latest workflow decision、criteria state、recovery state、handoff state、timeline を表示した
+- [x] [UI-WF-slice-3] Workflow Advance が採用済みRecoveryPlanを `ApplyRecoveryPlan` として実行できるようにし、回復後の完遂ループを短縮した
+- [x] [UI-WF-slice-4] 回帰テスト、CLI smoke、コードサイズ確認を通し、構造を崩していないことを確認した
+- [x] [DR-20260526-auto-recovery-advance] `--auto-recover true` で draft RecoveryPlan の accept/apply を advance ループに乗せ、approval gate まで戻れる回帰テストを追加した
+- [x] [DR-20260526-workflow-mode] Work Item 作成時の `workflow_mode` で確認優先 / 完走優先を選べるようにし、`finish_first` を advance recovery 自動継続へ接続した
+- [x] [DR-20260526-finish-first-handoff-resume] `finish_first` の作成済み HandoffPacket から dispatch / accept / run / review / verify を経て approval gate まで戻る回帰を固定した
+- [x] [DR-20260526-approval-gate-summary] approval gate の判断材料を snapshot / CLI / Static UI に表示し、最新 Work run 後の verification / criteria を明示した
+- [x] [DR-20260526-agent-output-notes] Work / Review agent Output に completed / next_notes を追加し、CLI / Static UI で後続判断材料として確認できるようにした
+- [x] [DR-20260526-output-notes-recovery] completed / next_notes 欠落を warning と RecoveryPlan に接続し、notes 欠落を修復候補として扱えるようにした
+- [x] [DR-20260526-ui-next-action-panel] Static UI detail に Next Action Panel を追加し、次操作・判断材料・推奨コマンドを一箇所で確認できるようにした
+- [x] [DR-20260526-ui-visibility-input] Static UI の確認キューと Human Input Panel を追加し、確認対象の視認と追加指示入力の手数を減らした
+- [x] [DR-20260526-ui-e2e-command-replay] Static UI の Human Input Panel が生成した command をE2EでCLI実行し、再export後の状態変化まで検証した
+- [x] [DR-20260526-ui-e2e-agent-run-replay] 回答後の agent run 導線をUI入力から実行可能にし、E2Eでテスト用agent run実行と再export後の進行を検証した
+- [x] [DR-20260526-ui-serve-create] `nagare ui serve` を追加し、ブラウザUIから Work Item を作成して一覧反映できる最小ローカルサーバを実装した
+- [x] [DR-20260526-ui-serve-answer] `nagare ui serve` で Work Item detail と回答APIを追加し、ブラウザから `needs_input` に回答して `ready` に戻せるようにした
+- [x] [DR-20260526-ui-serve-run] `nagare ui serve` の detail から agent run を実行し、ブラウザ操作で `ready_for_review` まで進められるようにした
+- [x] [DR-20260526-ui-serve-review] `nagare ui serve` の detail から review を実行し、ブラウザ操作で `ready_for_verification` まで進められるようにした
+- [x] [DR-20260526-ui-serve-verify] `nagare ui serve` の detail から verification を実行し、ブラウザ操作で approval gate まで進められるようにした
+- [x] [DR-20260526-ui-serve-approve] `nagare ui serve` の detail から approval を実行し、ブラウザ操作で `done` まで進められるようにした
+- [x] [DR-20260526-ui-serve-recover] `nagare ui serve` の detail から recovery plan を作成・承認・適用し、失敗状態から通常ルートへ戻せるようにした
+- [x] [DR-20260526-ui-serve-info-architecture] `nagare ui serve` の detail を次アクション中心へ整理し、単発実行・手動継続の実行方針を表示するようにした
+- [x] [DR-20260526-ui-serve-agent-visibility] `nagare ui serve` の home に Agent Defaults と Agent Profiles を表示し、現在使われるAgent設定を確認できるようにした
+- [x] [DR-20260526-ui-serve-manual-continuation] 途中キャンセルを「次Agentへ自動継続しない停止点」と定義し、UIサーバdetailで `single step` / `manual continuation` を表示する仕様として固定した
+- [x] [DR-20260526-ui-serve-agent-management] `nagare ui serve` の home から Agent Profile を追加し、Work / Review / Dispatch / Supervisor の既定Agentを設定できるようにした

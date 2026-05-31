@@ -100,7 +100,7 @@ fn run_codex_app_server(request: &AdapterRunRequest<'_>) -> Result<AdapterRunOut
             "sandbox": "workspace-write",
             "threadSource": "user",
             "developerInstructions": format!(
-                "You are executing Nagare run packet {} for Work Item {}. Keep the final response concise and describe the work result.",
+                "You are executing Nagare run packet {} for Work Item {}. If the user prompt contains a Nagare output contract, your final response must satisfy it exactly. Put every required contract key at the start of its own line and do not wrap the contract block in a code fence.",
                 request.run_packet.id, request.run_packet.work_item_id
             ),
         }),
