@@ -7,7 +7,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::adapters::{ProcessCodexCliAdapter, StdioCodexAppServerAdapter};
+use crate::adapters::{
+    ProcessCodexCliAdapter, ProcessOpenClawAgentAdapter, StdioCodexAppServerAdapter,
+};
 use crate::model::AgentAdapter;
 use crate::*;
 
@@ -114,6 +116,10 @@ pub(crate) fn run_shell_in(command: &str, cwd: Option<&Path>) -> io::Result<Comm
     })
 }
 
+pub(crate) fn run_tool_owned(command: &str, args: &[String]) -> io::Result<std::process::Output> {
+    Command::new(command).args(args).output()
+}
+
 pub(crate) fn write_adapter_log(
     path: &Path,
     run_packet: &ResolvedRunPacket,
@@ -125,11 +131,25 @@ pub(crate) fn write_adapter_log(
     fs::write(
         path,
         format!(
-            "run_packet: {}\nwork_item: {}\nagent_profile: {}\nadapter: {}\nworking_dir: {}\ngoal: {}\ncommand: {}\nexit_code: {:?}\n\n[stdout]\n{}\n[stderr]\n{}\n",
+            "run_packet: {}\nwork_item: {}\nagent_profile: {}\nadapter: {}\nmodel: {}\nexternal_provider: {}\nexternal_agent_id: {}\nworking_dir: {}\ngoal: {}\ncommand: {}\nexit_code: {:?}\n\n[stdout]\n{}\n[stderr]\n{}\n",
             run_packet.id,
             run_packet.work_item_id,
             run_packet.agent_profile_id,
             run_packet.adapter_id,
+            run_packet
+                .model
+                .model_ref()
+                .unwrap_or_else(|| "-".to_string()),
+            if run_packet.external.provider.is_empty() {
+                "-"
+            } else {
+                &run_packet.external.provider
+            },
+            if run_packet.external.agent_id.is_empty() {
+                "-"
+            } else {
+                &run_packet.external.agent_id
+            },
             run_packet.working_dir,
             run_packet.goal,
             output.command,
@@ -288,6 +308,7 @@ pub(crate) fn normalize_adapter_id(adapter_id: &str) -> Result<&'static str, Nag
     match adapter_id {
         "process.codex-cli" | "process-codex-cli" => Ok("process.codex-cli"),
         "stdio.codex-app-server" | "stdio-codex-app-server" => Ok("stdio.codex-app-server"),
+        "process.openclaw-agent" | "process-openclaw-agent" => Ok("process.openclaw-agent"),
         _ => Err(NagareError::InvalidState(format!(
             "unsupported adapter `{adapter_id}`"
         ))),
@@ -298,6 +319,7 @@ pub(crate) fn adapter_for_id(adapter_id: &str) -> Result<Box<dyn AgentAdapter>, 
     match adapter_id {
         "process.codex-cli" => Ok(Box::new(ProcessCodexCliAdapter)),
         "stdio.codex-app-server" => Ok(Box::new(StdioCodexAppServerAdapter)),
+        "process.openclaw-agent" => Ok(Box::new(ProcessOpenClawAgentAdapter)),
         _ => Err(NagareError::InvalidState(format!(
             "unsupported adapter `{adapter_id}`"
         ))),

@@ -393,7 +393,7 @@ pub(crate) fn render_serve_settings(root: &Path) -> Result<String, String> {
           <h2>Agents</h2>
           <span class="badge gray">registered</span>
         </div>
-        <table><thead><tr><th>Agent</th><th>Type</th><th>Domain scope</th><th>Workdir</th><th>Instruction</th><th>Source</th></tr></thead><tbody id="agent-profiles">{}</tbody></table>
+        <table><thead><tr><th>Agent</th><th>Type</th><th>Model</th><th>Domain scope</th><th>Workdir</th><th>Instruction</th><th>Source</th></tr></thead><tbody id="agent-profiles">{}</tbody></table>
       </section>
     </section>
   </main>
@@ -696,7 +696,7 @@ fn agent_profile_rows(
     domains: &[nagare_core::DomainProfile],
 ) -> String {
     if agents.is_empty() {
-        return "<tr><td colspan=\"6\" class=\"muted\">No agents registered.</td></tr>".to_string();
+        return "<tr><td colspan=\"7\" class=\"muted\">No agents registered.</td></tr>".to_string();
     }
     let mut agents = agents.iter().collect::<Vec<_>>();
     agents.sort_by_key(|agent| {
@@ -716,19 +716,40 @@ fn agent_profile_rows(
   <td>{}</td>
   <td>{}</td>
   <td>{}</td>
+  <td>{}</td>
 </tr>"#,
                 h(&agent.id),
                 h(&agent.display_name),
                 h(&agent.id),
                 h(&agent_kind_label(&agent.runtime, &agent.adapter)),
+                h(&agent_model_label(agent)),
                 h(&agent_domain_scope_label(agent, groups, domains)),
                 h(&agent.working_dir),
                 h(&compact_instruction(&agent.description)),
-                h(&agent.source.to_string())
+                h(&agent_source_label(agent))
             )
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+fn agent_model_label(agent: &nagare_core::AgentProfile) -> String {
+    let model = agent.model.model_ref().unwrap_or_else(|| "-".to_string());
+    let external = if agent.external.provider.is_empty() {
+        "-".to_string()
+    } else {
+        format!("{}/{}", agent.external.provider, agent.external.agent_id)
+    };
+    format!("{model} / {external}")
+}
+
+fn agent_source_label(agent: &nagare_core::AgentProfile) -> String {
+    let managed = if agent.external.is_nagare_managed(&agent.managed_by) {
+        "nagare"
+    } else {
+        "external"
+    };
+    format!("{} / {}", agent.source, managed)
 }
 
 fn agent_domain_scope_label(
@@ -785,6 +806,7 @@ fn agent_kind_label(runtime: &str, adapter: &str) -> String {
         }
         ("codex-app-local", "stdio.codex-app-server")
         | ("codex-app-server", "stdio.codex-app-server") => "Codex App Server".to_string(),
+        ("openclaw-local", "process.openclaw-agent") => "OpenClaw".to_string(),
         _ => format!("{runtime} / {adapter}"),
     }
 }
@@ -793,6 +815,7 @@ fn agent_kind_value(runtime: &str, adapter: &str) -> &'static str {
     match (runtime, adapter) {
         ("codex-app-local", "stdio.codex-app-server")
         | ("codex-app-server", "stdio.codex-app-server") => "codex_app_server",
+        ("openclaw-local", "process.openclaw-agent") => "openclaw",
         _ => "codex_cli",
     }
 }
@@ -1142,6 +1165,21 @@ pub(crate) fn render_serve_agent_form(
     let kind = agent
         .map(|agent| agent_kind_value(&agent.runtime, &agent.adapter))
         .unwrap_or("codex_cli");
+    let model_provider = agent
+        .map(|agent| agent.model.provider.as_str())
+        .unwrap_or("");
+    let model_id = agent.map(|agent| agent.model.id.as_str()).unwrap_or("");
+    let base_url = agent
+        .map(|agent| agent.model.base_url.as_str())
+        .unwrap_or("");
+    let external_agent_id = agent
+        .map(|agent| agent.external.agent_id.as_str())
+        .filter(|value| !value.is_empty())
+        .unwrap_or(id_value);
+    let external_source = agent
+        .map(|agent| agent.external.source.as_str())
+        .filter(|value| !value.is_empty())
+        .unwrap_or("created");
     let action = if is_new {
         "/api/agents".to_string()
     } else {
@@ -1202,13 +1240,31 @@ pub(crate) fn render_serve_agent_form(
             <select name="agent_kind" id="agent-kind">
               <option value="codex_cli"{}>Codex CLI</option>
               <option value="codex_app_server"{}>Codex App Server</option>
+              <option value="openclaw"{}>OpenClaw</option>
             </select>
           </label>
           <input type="hidden" name="runtime" value="">
           <input type="hidden" name="adapter" value="">
+          <input type="hidden" name="external_provider" value="">
+          <input type="hidden" name="external_agent_id" id="external-agent-id" value="{}">
+          <input type="hidden" name="external_managed" value="true">
+          <input type="hidden" name="external_source" value="{}">
+          <input type="hidden" name="api_key_env" value="">
           <label>Display Name<input name="display_name" required value="{}"></label>
           <label>Role<input name="role" placeholder="planner / worker / reviewer" value="{}"></label>
           <label>Workdir<select name="working_dir">{}</select></label>
+          <div data-model-section="model">
+            <div class="form-grid">
+              <label data-model-field="provider">Model Provider<select name="model_provider" id="openclaw-model-provider">{}</select></label>
+              <label>Model<input name="model_id" value="{}" placeholder="gpt-5.3-codex"></label>
+            </div>
+            <label data-model-field="base-url">Base URL<input name="base_url" value="{}" placeholder="http://127.0.0.1:11434/v1"></label>
+          </div>
+          <datalist id="openai-model-options">
+            <option value="gpt-5.3-codex"></option>
+            <option value="gpt-5.2-codex"></option>
+            <option value="gpt-5.3"></option>
+          </datalist>
           <label>Domain Groups<select name="domain_group_ids" multiple size="4">{}</select></label>
           <label>Domains<select name="domain_ids" multiple size="5">{}</select></label>
           <label>Instructions<textarea name="description" rows="6">{}</textarea></label>
@@ -1234,9 +1290,15 @@ pub(crate) fn render_serve_agent_form(
         } else {
             ""
         },
+        if kind == "openclaw" { " selected" } else { "" },
+        h(external_agent_id),
+        h(external_source),
         h(display_name),
         h(role),
         workdir_options,
+        openclaw_provider_options(model_provider),
+        h(model_id),
+        h(base_url),
         domain_group_options,
         domain_options,
         h(&description),
@@ -1245,4 +1307,28 @@ pub(crate) fn render_serve_agent_form(
         delete_button,
         serve_script()
     ))
+}
+
+fn openclaw_provider_options(selected: &str) -> String {
+    let selected = match selected {
+        "ollama" | "lmstudio" | "openai" | "openai-codex" => selected,
+        _ => "openai-codex",
+    };
+    [
+        ("openai-codex", "OpenAI"),
+        ("ollama", "Ollama"),
+        ("lmstudio", "LM Studio"),
+    ]
+    .into_iter()
+    .map(|(value, label)| {
+        let selected_attr = if value == selected { " selected" } else { "" };
+        format!(
+            r#"<option value="{}"{}>{}</option>"#,
+            h(value),
+            selected_attr,
+            h(label)
+        )
+    })
+    .collect::<Vec<_>>()
+    .join("")
 }

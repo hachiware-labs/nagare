@@ -88,6 +88,14 @@ pub fn run_registered_agent_scenario(
             specialties: vec!["implementation".to_string(), "review-checks".to_string()],
             domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            managed_by: Some("nagare"),
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding {
+                provider: "codex-cli".to_string(),
+                agent_id: "codex-impl-smoke".to_string(),
+                managed: true,
+                source: "created".to_string(),
+            },
         },
     )?;
     add_agent_profile(
@@ -103,6 +111,14 @@ pub fn run_registered_agent_scenario(
             specialties: vec!["review".to_string(), "planning".to_string()],
             domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            managed_by: Some("nagare"),
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding {
+                provider: "codex".to_string(),
+                agent_id: "codex-app-smoke".to_string(),
+                managed: true,
+                source: "created".to_string(),
+            },
         },
     )?;
 

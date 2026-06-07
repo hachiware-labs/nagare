@@ -235,7 +235,7 @@ pub(crate) fn print_snapshot(snapshot: &WorkItemSnapshot) {
 
 pub(crate) fn print_agent_profile_row(profile: &AgentProfile) {
     println!(
-        "{}\trole={}\t{}\t{}\t{}\t{}\tdomain_groups={}\tdomains={}\twork_contract={}\treview_contract={}\tdispatch_contract={}\tsupervision_contract={}\t{}",
+        "{}\trole={}\t{}\t{}\t{}\tmodel={}\texternal={}/{}\tmanaged={}\t{}\tdomain_groups={}\tdomains={}\twork_contract={}\treview_contract={}\tdispatch_contract={}\tsupervision_contract={}\t{}",
         profile.id,
         if profile.role.trim().is_empty() {
             "-"
@@ -245,6 +245,10 @@ pub(crate) fn print_agent_profile_row(profile: &AgentProfile) {
         profile.adapter,
         profile.runtime,
         profile.working_dir,
+        profile.model.model_ref().unwrap_or_else(|| "-".to_string()),
+        empty_display(&profile.external.provider),
+        empty_display(&profile.external.agent_id),
+        profile.external.is_nagare_managed(&profile.managed_by),
         comma_list(&profile.specialties),
         comma_list(&profile.domain_group_ids),
         comma_list(&profile.domain_ids),
@@ -254,6 +258,10 @@ pub(crate) fn print_agent_profile_row(profile: &AgentProfile) {
         profile.output_contracts.supervision.contract,
         profile.source
     );
+}
+
+fn empty_display(value: &str) -> &str {
+    if value.trim().is_empty() { "-" } else { value }
 }
 
 pub(crate) fn print_agent_defaults(settings: &NagareAgentSettings) {
@@ -324,7 +332,7 @@ pub(crate) fn dispatch_prompt(
 
 fn compact_agent_candidate(profile: &AgentProfile) -> String {
     format!(
-        "- id: {} | role: {} | adapter: {} | working_dir: {} | specialties: {} | domain_groups: {} | domains: {} | description: {}",
+        "- id: {} | role: {} | adapter: {} | working_dir: {} | model: {} | external: {}/{} | specialties: {} | domain_groups: {} | domains: {} | description: {}",
         profile.id,
         if profile.role.trim().is_empty() {
             "-"
@@ -333,6 +341,9 @@ fn compact_agent_candidate(profile: &AgentProfile) -> String {
         },
         profile.adapter,
         profile.working_dir,
+        profile.model.model_ref().unwrap_or_else(|| "-".to_string()),
+        empty_display(&profile.external.provider),
+        empty_display(&profile.external.agent_id),
         comma_list(&profile.specialties),
         comma_list(&profile.domain_group_ids),
         comma_list(&profile.domain_ids),

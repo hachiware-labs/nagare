@@ -14,7 +14,11 @@ impl AgentAdapter for ProcessCodexCliAdapter {
             return run_dev_command(command, request.working_dir);
         }
 
-        let output = run_codex_cli_exec(request.working_dir, request.prompt)?;
+        let output = run_codex_cli_exec(
+            request.working_dir,
+            request.prompt,
+            request.run_packet.model.model_ref().as_deref(),
+        )?;
         Ok(AdapterRunOutput {
             command: format!("codex exec --cd {} <prompt>", request.working_dir.display()),
             stdout: String::from_utf8_lossy(&output.stdout).to_string(),
@@ -24,15 +28,28 @@ impl AgentAdapter for ProcessCodexCliAdapter {
     }
 }
 
-fn run_codex_cli_exec(working_dir: &Path, prompt: &str) -> Result<Output, NagareError> {
+fn run_codex_cli_exec(
+    working_dir: &Path,
+    prompt: &str,
+    model: Option<&str>,
+) -> Result<Output, NagareError> {
     let cd = working_dir.display().to_string();
-    let args = ["exec", "--cd", cd.as_str(), prompt];
+    let mut args = vec![
+        "exec".to_string(),
+        "--cd".to_string(),
+        cd,
+        prompt.to_string(),
+    ];
+    if let Some(model) = model.filter(|value| !value.trim().is_empty()) {
+        args.insert(1, "--model".to_string());
+        args.insert(2, model.to_string());
+    }
     if cfg!(windows) {
         if let Some(script) = find_windows_codex_js() {
-            return Ok(Command::new("node").arg(script).args(args).output()?);
+            return Ok(Command::new("node").arg(script).args(&args).output()?);
         }
     }
-    Ok(run_tool("codex", &args)?)
+    Ok(run_tool_owned("codex", &args)?)
 }
 
 fn find_windows_codex_js() -> Option<PathBuf> {
@@ -65,6 +82,48 @@ impl AgentAdapter for StdioCodexAppServerAdapter {
         }
 
         run_codex_app_server(request)
+    }
+}
+
+pub(crate) struct ProcessOpenClawAgentAdapter;
+
+impl AgentAdapter for ProcessOpenClawAgentAdapter {
+    fn run(&self, request: &AdapterRunRequest<'_>) -> Result<AdapterRunOutput, NagareError> {
+        if let Some(command) = request.dev_command {
+            return run_dev_command(command, request.working_dir);
+        }
+
+        let external_agent_id = request.run_packet.external.agent_id.trim();
+        if external_agent_id.is_empty() {
+            return Err(NagareError::InvalidState(
+                "OpenClaw run requires external.agent_id".to_string(),
+            ));
+        }
+        let model = request.run_packet.model.model_ref();
+        let command =
+            std::env::var("NAGARE_OPENCLAW_COMMAND").unwrap_or_else(|_| "openclaw".to_string());
+        let mut args = vec![
+            "agent".to_string(),
+            "--agent".to_string(),
+            external_agent_id.to_string(),
+            "--message".to_string(),
+            request.prompt.to_string(),
+            "--json".to_string(),
+        ];
+        if let Some(model) = model {
+            args.push("--model".to_string());
+            args.push(model);
+        }
+        let output = Command::new(&command)
+            .args(&args)
+            .current_dir(request.working_dir)
+            .output()?;
+        Ok(AdapterRunOutput {
+            command: format!("{} {}", command, args.join(" ")),
+            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+            exit_code: output.status.code(),
+        })
     }
 }
 

@@ -80,6 +80,12 @@ pub(crate) struct AgentProfileFileEntry {
     pub(crate) domain_group_ids: Vec<String>,
     #[serde(default)]
     pub(crate) domain_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub(crate) managed_by: String,
+    #[serde(default)]
+    pub(crate) model: AgentModelSelection,
+    #[serde(default)]
+    pub(crate) external: ExternalAgentBinding,
     #[serde(default)]
     pub(crate) output_contracts: AgentOutputContracts,
 }
@@ -282,6 +288,9 @@ impl AgentProfileFileEntry {
             specialties: normalize_specialties(self.specialties),
             domain_group_ids: normalize_domain_group_ids(self.domain_group_ids)?,
             domain_ids: normalize_domain_profile_ids(self.domain_ids)?,
+            managed_by: normalize_managed_by(&self.managed_by)?,
+            model: normalize_agent_model_selection(self.model)?,
+            external: normalize_external_agent_binding(self.external)?,
             output_contracts: self.output_contracts,
             source,
         })
@@ -378,6 +387,11 @@ fn migrate_legacy_default_agents(layout: &ProjectLayout) -> Result<(), NagareErr
         "supervisor",
         "Decide the next workflow action from the current state. Prefer forward progress, stop when human input is needed, and return the workflow decision contract.",
     );
+    raw = ensure_default_agent_management(raw, "worker", "codex-cli");
+    raw = ensure_default_agent_management(raw, "reviewer", "codex-cli");
+    raw = ensure_default_agent_management(raw, "dispatcher", "codex-cli");
+    raw = ensure_default_agent_management(raw, "supervisor", "codex-cli");
+    raw = ensure_openclaw_runtime_and_adapter(raw);
     fs::write(&layout.config_path, raw)?;
     Ok(())
 }
@@ -416,6 +430,48 @@ fn ensure_default_agent_instruction(mut raw: String, agent_id: &str, instruction
     let insert_at = next_section;
     let escaped = instruction.replace('\\', "\\\\").replace('"', "\\\"");
     raw.insert_str(insert_at, &format!("\ndescription = \"{escaped}\""));
+    raw
+}
+
+fn ensure_default_agent_management(mut raw: String, agent_id: &str, provider: &str) -> String {
+    let header = format!("[agent_profiles.{agent_id}]");
+    let Some(section_start) = raw.find(&header) else {
+        return raw;
+    };
+    let section_body_start = section_start + header.len();
+    let next_section = raw[section_body_start..]
+        .find("\n[")
+        .map(|index| section_body_start + index)
+        .unwrap_or(raw.len());
+    let section = &raw[section_start..next_section];
+    let mut insert = String::new();
+    if !section.contains("\nmanaged_by = ") {
+        insert.push_str("\nmanaged_by = \"nagare\"");
+    }
+    let external_header = format!("[agent_profiles.{agent_id}.external]");
+    if !raw.contains(&external_header) {
+        insert.push_str(&format!(
+            "\n\n{external_header}\nprovider = \"{provider}\"\nagent_id = \"{agent_id}\"\nmanaged = true\nsource = \"created\""
+        ));
+    }
+    if !insert.is_empty() {
+        raw.insert_str(next_section, &insert);
+    }
+    raw
+}
+
+fn ensure_openclaw_runtime_and_adapter(mut raw: String) -> String {
+    if !raw.contains("[runtimes.openclaw-local]") {
+        raw.push_str(
+            "\n\n[runtimes.openclaw-local]\nkind = \"process\"\ncommand = \"openclaw\"\nargs = [\"agent\"]\nhealthcheck = [\"openclaw\", \"--version\"]",
+        );
+    }
+    if !raw.contains("[adapters.process-openclaw-agent]") {
+        raw.push_str(
+            "\n\n[adapters.process-openclaw-agent]\nkind = \"process.openclaw-agent\"\nruntime_kind = \"process\"\nknown_capabilities = [\"implement\", \"edit\", \"shell\", \"review\", \"test\", \"dispatch\", \"supervise\"]",
+        );
+    }
+    raw.push('\n');
     raw
 }
 
@@ -940,6 +996,121 @@ pub(crate) fn normalize_domain_profile_ids(ids: Vec<String>) -> Result<Vec<Strin
     Ok(normalized)
 }
 
+pub(crate) fn normalize_managed_by(value: &str) -> Result<String, NagareError> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Ok(String::new());
+    }
+    if value != "nagare" {
+        return Err(NagareError::InvalidState(format!(
+            "managed_by `{value}` is not supported; expected `nagare`"
+        )));
+    }
+    Ok(value.to_string())
+}
+
+pub(crate) fn normalize_external_agent_binding(
+    mut external: ExternalAgentBinding,
+) -> Result<ExternalAgentBinding, NagareError> {
+    external.provider = external.provider.trim().to_string();
+    external.agent_id = external.agent_id.trim().to_string();
+    external.source = external.source.trim().to_string();
+    if external.provider.is_empty()
+        && external.agent_id.is_empty()
+        && external.source.is_empty()
+        && !external.managed
+    {
+        return Ok(external);
+    }
+    match external.provider.as_str() {
+        "codex" | "codex-cli" | "openclaw" => {}
+        other => {
+            return Err(NagareError::InvalidState(format!(
+                "external provider `{other}` is not supported"
+            )));
+        }
+    }
+    if external.agent_id.is_empty() {
+        return Err(NagareError::InvalidState(
+            "external.agent_id is required when external provider is set".to_string(),
+        ));
+    }
+    if !external.source.is_empty()
+        && !matches!(external.source.as_str(), "created" | "adopted" | "imported")
+    {
+        return Err(NagareError::InvalidState(format!(
+            "external.source `{}` is not supported; expected created, adopted, or imported",
+            external.source
+        )));
+    }
+    Ok(external)
+}
+
+pub(crate) fn normalize_agent_model_selection(
+    mut model: AgentModelSelection,
+) -> Result<AgentModelSelection, NagareError> {
+    model.provider = model.provider.trim().to_string();
+    model.id = model.id.trim().to_string();
+    model.base_url = model.base_url.trim().to_string();
+    model.api_key_env = model.api_key_env.trim().to_string();
+    if model.provider.is_empty()
+        && model.id.is_empty()
+        && model.base_url.is_empty()
+        && model.api_key_env.is_empty()
+    {
+        return Ok(model);
+    }
+    if model.id.is_empty() {
+        return Err(NagareError::InvalidState(
+            "model.id is required when model provider, base_url, or api_key_env is set".to_string(),
+        ));
+    }
+    if !model.api_key_env.is_empty()
+        && !model
+            .api_key_env
+            .chars()
+            .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit() || ch == '_')
+    {
+        return Err(NagareError::InvalidState(format!(
+            "model.api_key_env `{}` must be an environment variable name",
+            model.api_key_env
+        )));
+    }
+    Ok(model)
+}
+
+pub(crate) fn validate_model_for_adapter(
+    adapter_id: &str,
+    model: &AgentModelSelection,
+) -> Result<(), NagareError> {
+    if model.provider.is_empty() && model.id.is_empty() {
+        return Ok(());
+    }
+    match normalize_adapter_id(adapter_id)? {
+        "process.codex-cli" | "stdio.codex-app-server" => {
+            if !matches!(model.provider.as_str(), "" | "openai" | "openai-codex") {
+                return Err(NagareError::InvalidState(format!(
+                    "adapter `{adapter_id}` only supports OpenAI/Codex model providers"
+                )));
+            }
+            if !model.base_url.is_empty() {
+                return Err(NagareError::InvalidState(format!(
+                    "adapter `{adapter_id}` does not support model.base_url"
+                )));
+            }
+        }
+        "process.openclaw-agent" => {
+            if !model.id.is_empty() && model.provider.is_empty() && !model.base_url.is_empty() {
+                return Err(NagareError::InvalidState(
+                    "OpenClaw custom endpoints require model.provider".to_string(),
+                ));
+            }
+        }
+        _ => unreachable!("normalize_adapter_id returned an unknown adapter"),
+    }
+    Ok(())
+}
+
 pub(crate) fn normalize_working_dir(working_dir: &str) -> Result<String, NagareError> {
     let value = working_dir.trim();
     if value.is_empty() || value == "." {
@@ -991,6 +1162,13 @@ pub(crate) fn capabilities_for_adapter(adapter_id: &str) -> Result<Vec<String>, 
             "approval_flow",
             "event_stream",
         ],
+        "process.openclaw-agent" => vec![
+            "repo_read",
+            "file_edit",
+            "shell_command",
+            "thread_state",
+            "provider_model_selection",
+        ],
         _ => unreachable!("normalize_adapter_id returned an unknown adapter"),
     };
     Ok(capabilities.into_iter().map(ToOwned::to_owned).collect())
@@ -1000,6 +1178,7 @@ pub(crate) fn skill_modes_for_adapter(adapter_id: &str) -> Result<Vec<String>, N
     let modes = match normalize_adapter_id(adapter_id)? {
         "process.codex-cli" => vec!["prompt_injection", "file_reference"],
         "stdio.codex-app-server" => vec!["prompt_injection", "file_reference", "event_stream"],
+        "process.openclaw-agent" => vec!["prompt_injection", "file_reference", "agent_session"],
         _ => unreachable!("normalize_adapter_id returned an unknown adapter"),
     };
     Ok(modes.into_iter().map(ToOwned::to_owned).collect())

@@ -119,21 +119,96 @@ if(agentProfileForm){
   const kindSelect=document.getElementById('agent-kind');
   const runtimeInput=agentProfileForm.querySelector('input[name="runtime"]');
   const adapterInput=agentProfileForm.querySelector('input[name="adapter"]');
+  const idInput=agentProfileForm.querySelector('input[name="id"]');
+  const externalProviderInput=agentProfileForm.querySelector('input[name="external_provider"]');
+  const externalAgentIdInput=document.getElementById('external-agent-id');
+  const modelSection=agentProfileForm.querySelector('[data-model-section="model"]');
+  const providerField=agentProfileForm.querySelector('[data-model-field="provider"]');
+  const baseUrlField=agentProfileForm.querySelector('[data-model-field="base-url"]');
+  const providerInput=document.getElementById('openclaw-model-provider');
+  const modelInput=agentProfileForm.querySelector('input[name="model_id"]');
+  const baseUrlInput=agentProfileForm.querySelector('input[name="base_url"]');
+  const apiKeyEnvInput=agentProfileForm.querySelector('input[name="api_key_env"]');
+  function isOpenClawAgent(){
+    return kindSelect.value==='openclaw';
+  }
+  function setHidden(element, hidden){
+    if(element){element.hidden=hidden;}
+  }
+  function syncExternalAgentId(){
+    if(externalAgentIdInput && idInput){externalAgentIdInput.value=idInput.value.trim();}
+  }
+  function syncModelFields(){
+    const isOpenClaw=isOpenClawAgent();
+    setHidden(modelSection,false);
+    setHidden(providerField,!isOpenClaw);
+    setHidden(baseUrlField,!isOpenClaw || providerInput.value==='openai-codex' || providerInput.value==='openai');
+    modelInput.required=false;
+    baseUrlInput.required=false;
+    if(!isOpenClaw){
+      providerInput.value='';
+      baseUrlInput.value='';
+      apiKeyEnvInput.value='';
+      modelInput.removeAttribute('list');
+      modelInput.placeholder='gpt-5.3-codex';
+      return;
+    }
+    if(!providerInput.value){providerInput.value='openai-codex';}
+    modelInput.required=true;
+    if(providerInput.value==='openai-codex' || providerInput.value==='openai'){
+      modelInput.setAttribute('list','openai-model-options');
+      modelInput.placeholder='gpt-5.3-codex';
+      if(!modelInput.value){modelInput.value='gpt-5.3-codex';}
+      baseUrlInput.value='';
+      apiKeyEnvInput.value='';
+    }else{
+      modelInput.removeAttribute('list');
+      modelInput.placeholder=providerInput.value==='ollama' ? 'llama3.2' : 'loaded-model-name';
+      if(providerInput.value==='ollama' && !baseUrlInput.value){baseUrlInput.value='http://127.0.0.1:11434/v1';}
+      if(providerInput.value==='lmstudio' && !baseUrlInput.value){baseUrlInput.value='http://127.0.0.1:1234/v1';}
+      baseUrlInput.required=true;
+      apiKeyEnvInput.value='';
+    }
+  }
+  function scrubModelFieldsForSubmit(){
+    syncExternalAgentId();
+    if(!isOpenClawAgent()){
+      providerInput.value='';
+      baseUrlInput.value='';
+      apiKeyEnvInput.value='';
+      return;
+    }
+    if(providerInput.value==='openai-codex' || providerInput.value==='openai'){
+      baseUrlInput.value='';
+      apiKeyEnvInput.value='';
+    }
+  }
   function syncAgentKind(){
     if(kindSelect.value==='codex_app_server'){
       runtimeInput.value='codex-app-local';
       adapterInput.value='stdio.codex-app-server';
+      externalProviderInput.value='codex';
+    }else if(kindSelect.value==='openclaw'){
+      runtimeInput.value='openclaw-local';
+      adapterInput.value='process.openclaw-agent';
+      externalProviderInput.value='openclaw';
     }else{
       runtimeInput.value='codex-local';
       adapterInput.value='process.codex-cli';
+      externalProviderInput.value='codex-cli';
     }
+    syncExternalAgentId();
+    syncModelFields();
   }
   kindSelect.addEventListener('change',syncAgentKind);
+  if(idInput){idInput.addEventListener('input',syncExternalAgentId);}
+  if(providerInput){providerInput.addEventListener('change',syncModelFields);}
   syncAgentKind();
   agentProfileForm.addEventListener('submit',async(event)=>{
     event.preventDefault();
     agentProfileStatus.textContent='Saving agent...';
     syncAgentKind();
+    scrubModelFieldsForSubmit();
     const response=await fetch(agentProfileForm.dataset.action,{method:'POST',body:new URLSearchParams(new FormData(agentProfileForm))});
     if(!response.ok){agentProfileStatus.textContent=await response.text();return;}
     agentProfileStatus.textContent='Agent saved.';

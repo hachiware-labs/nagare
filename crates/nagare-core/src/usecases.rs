@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
+use std::process::Command;
 
 use crate::*;
 
@@ -289,6 +290,14 @@ pub fn add_agent_profile(
     }
 
     let adapter = normalize_adapter_id(input.adapter)?;
+    let managed_by = normalize_managed_by(input.managed_by.unwrap_or("nagare"))?;
+    let model = normalize_agent_model_selection(input.model)?;
+    validate_model_for_adapter(adapter, &model)?;
+    let external = normalize_external_agent_binding(default_external_binding(
+        input.id,
+        adapter,
+        input.external,
+    ))?;
     let domain_group_ids = normalize_domain_group_ids(input.domain_group_ids)?;
     let domain_ids = normalize_domain_profile_ids(input.domain_ids)?;
     validate_existing_domain_group_ids(&layout, &domain_group_ids)?;
@@ -312,14 +321,44 @@ pub fn add_agent_profile(
         specialties: normalize_specialties(input.specialties),
         domain_group_ids,
         domain_ids,
+        managed_by,
+        model,
+        external,
         output_contracts: AgentOutputContracts::default(),
         source: AgentProfileSource::ProjectAgentDirectory,
     };
+    create_external_agent_if_needed(&layout, &profile)?;
     existing.insert(profile.id.clone(), profile.clone());
 
     let path = write_agent_profile_file(&layout, &profile)?;
 
     Ok(AddAgentProfileResult { profile, path })
+}
+
+fn default_external_binding(
+    agent_profile_id: &str,
+    adapter: &str,
+    external: ExternalAgentBinding,
+) -> ExternalAgentBinding {
+    if !external.provider.is_empty()
+        || !external.agent_id.is_empty()
+        || !external.source.is_empty()
+        || external.managed
+    {
+        return external;
+    }
+    let provider = match adapter {
+        "process.codex-cli" => "codex-cli",
+        "stdio.codex-app-server" => "codex",
+        "process.openclaw-agent" => "openclaw",
+        _ => return external,
+    };
+    ExternalAgentBinding {
+        provider: provider.to_string(),
+        agent_id: agent_profile_id.to_string(),
+        managed: true,
+        source: "created".to_string(),
+    }
 }
 
 pub fn update_agent_profile(
@@ -330,6 +369,7 @@ pub fn update_agent_profile(
     let layout = ensure_project(root)?;
     validate_agent_profile_id(agent_profile_id)?;
     let mut profile = get_agent_profile_from_layout(&layout, agent_profile_id)?;
+    let previous_profile = profile.clone();
     if let Some(display_name) = input.display_name {
         profile.display_name = if display_name.trim().is_empty() {
             profile.id.clone()
@@ -367,12 +407,79 @@ pub fn update_agent_profile(
         profile.domain_ids = normalize_domain_profile_ids(domain_ids)?;
         validate_existing_domain_profile_ids(&layout, &profile.domain_ids)?;
     }
+    if let Some(managed_by) = input.managed_by {
+        profile.managed_by = normalize_managed_by(managed_by)?;
+    }
+    if let Some(model) = input.model {
+        profile.model =
+            normalize_agent_model_selection(merge_agent_model_selection(&profile.model, model))?;
+    }
+    if let Some(external) = input.external {
+        profile.external = normalize_external_agent_binding(merge_external_agent_binding(
+            &profile.external,
+            external,
+        ))?;
+    }
+    validate_model_for_adapter(&profile.adapter, &profile.model)?;
     if let Some(update) = input.output_contract {
         apply_output_contract_update(&mut profile.output_contracts, update)?;
     }
     profile.source = AgentProfileSource::ProjectAgentDirectory;
+    sync_external_agent_after_update(&layout, &previous_profile, &profile)?;
     let path = write_agent_profile_file(&layout, &profile)?;
     Ok(UpdateAgentProfileResult { profile, path })
+}
+
+fn merge_agent_model_selection(
+    current: &AgentModelSelection,
+    update: AgentModelSelection,
+) -> AgentModelSelection {
+    AgentModelSelection {
+        provider: if update.provider.is_empty() {
+            current.provider.clone()
+        } else {
+            update.provider
+        },
+        id: if update.id.is_empty() {
+            current.id.clone()
+        } else {
+            update.id
+        },
+        base_url: if update.base_url.is_empty() {
+            current.base_url.clone()
+        } else {
+            update.base_url
+        },
+        api_key_env: if update.api_key_env.is_empty() {
+            current.api_key_env.clone()
+        } else {
+            update.api_key_env
+        },
+    }
+}
+
+fn merge_external_agent_binding(
+    current: &ExternalAgentBinding,
+    update: ExternalAgentBinding,
+) -> ExternalAgentBinding {
+    ExternalAgentBinding {
+        provider: if update.provider.is_empty() {
+            current.provider.clone()
+        } else {
+            update.provider
+        },
+        agent_id: if update.agent_id.is_empty() {
+            current.agent_id.clone()
+        } else {
+            update.agent_id
+        },
+        managed: update.managed || current.managed,
+        source: if update.source.is_empty() {
+            current.source.clone()
+        } else {
+            update.source
+        },
+    }
 }
 
 pub fn delete_agent_profile(
@@ -391,7 +498,217 @@ pub fn delete_agent_profile(
     if path.exists() {
         fs::remove_file(&path)?;
     }
+    delete_external_agent_if_needed(&profile)?;
     Ok(profile)
+}
+
+fn create_external_agent_if_needed(
+    layout: &ProjectLayout,
+    profile: &AgentProfile,
+) -> Result<(), NagareError> {
+    if !profile.external.is_nagare_managed(&profile.managed_by)
+        || profile.external.provider != "openclaw"
+        || profile.external.source != "created"
+    {
+        return Ok(());
+    }
+    let command = openclaw_command();
+    if !profile.model.provider.is_empty() && !profile.model.base_url.is_empty() {
+        let provider_json = openclaw_provider_config_json(&profile.model)?;
+        run_openclaw_command(
+            &command,
+            &[
+                "config",
+                "set",
+                &format!("models.providers.{}", profile.model.provider),
+                &provider_json,
+                "--strict-json",
+                "--merge",
+            ],
+        )?;
+    }
+    let workspace = resolve_profile_working_dir(layout, profile)?;
+    let workspace = workspace.display().to_string();
+    let mut args = vec![
+        "agents",
+        "add",
+        &profile.external.agent_id,
+        "--workspace",
+        &workspace,
+    ];
+    let model = profile.model.model_ref();
+    if let Some(model) = model.as_deref() {
+        args.push("--model");
+        args.push(model);
+    }
+    args.extend(["--non-interactive", "--json"]);
+    run_openclaw_command(&command, &args)?;
+    set_openclaw_agent_identity_if_needed(layout, profile)?;
+    Ok(())
+}
+
+fn sync_external_agent_after_update(
+    layout: &ProjectLayout,
+    previous: &AgentProfile,
+    current: &AgentProfile,
+) -> Result<(), NagareError> {
+    let previous_managed = is_managed_openclaw_created(previous);
+    let current_managed = is_managed_openclaw_created(current);
+    match (previous_managed, current_managed) {
+        (false, false) => Ok(()),
+        (false, true) => create_external_agent_if_needed(layout, current),
+        (true, false) => delete_external_agent_if_needed(previous),
+        (true, true) => {
+            if openclaw_agent_requires_recreate(previous, current, layout)? {
+                delete_external_agent_if_needed(previous)?;
+                create_external_agent_if_needed(layout, current)?;
+            } else if previous.display_name != current.display_name {
+                set_openclaw_agent_identity_if_needed(layout, current)?;
+            } else if previous.model != current.model && !current.model.base_url.is_empty() {
+                configure_openclaw_model_provider(current)?;
+            }
+            Ok(())
+        }
+    }
+}
+
+fn is_managed_openclaw_created(profile: &AgentProfile) -> bool {
+    profile.external.is_nagare_managed(&profile.managed_by)
+        && profile.external.provider == "openclaw"
+        && profile.external.source == "created"
+}
+
+fn openclaw_agent_requires_recreate(
+    previous: &AgentProfile,
+    current: &AgentProfile,
+    layout: &ProjectLayout,
+) -> Result<bool, NagareError> {
+    Ok(previous.external.agent_id != current.external.agent_id
+        || previous.model.model_ref() != current.model.model_ref()
+        || resolve_profile_working_dir(layout, previous)?
+            != resolve_profile_working_dir(layout, current)?)
+}
+
+fn configure_openclaw_model_provider(profile: &AgentProfile) -> Result<(), NagareError> {
+    if profile.model.provider.is_empty() || profile.model.base_url.is_empty() {
+        return Ok(());
+    }
+    let command = openclaw_command();
+    let provider_json = openclaw_provider_config_json(&profile.model)?;
+    run_openclaw_command(
+        &command,
+        &[
+            "config",
+            "set",
+            &format!("models.providers.{}", profile.model.provider),
+            &provider_json,
+            "--strict-json",
+            "--merge",
+        ],
+    )
+}
+
+fn set_openclaw_agent_identity_if_needed(
+    layout: &ProjectLayout,
+    profile: &AgentProfile,
+) -> Result<(), NagareError> {
+    if profile.display_name.trim().is_empty() || profile.display_name == profile.external.agent_id {
+        return Ok(());
+    }
+    let command = openclaw_command();
+    let workspace = resolve_profile_working_dir(layout, profile)?;
+    run_openclaw_command(
+        &command,
+        &[
+            "agents",
+            "set-identity",
+            "--agent",
+            &profile.external.agent_id,
+            "--workspace",
+            &workspace.display().to_string(),
+            "--name",
+            &profile.display_name,
+            "--json",
+        ],
+    )
+}
+
+fn delete_external_agent_if_needed(profile: &AgentProfile) -> Result<(), NagareError> {
+    if !is_managed_openclaw_created(profile) {
+        return Ok(());
+    }
+    let command = openclaw_command();
+    run_openclaw_command(
+        &command,
+        &[
+            "agents",
+            "delete",
+            &profile.external.agent_id,
+            "--force",
+            "--json",
+        ],
+    )
+}
+
+fn openclaw_command() -> String {
+    std::env::var("NAGARE_OPENCLAW_COMMAND").unwrap_or_else(|_| "openclaw".to_string())
+}
+
+fn openclaw_provider_config_json(model: &AgentModelSelection) -> Result<String, NagareError> {
+    let mut object = serde_json::Map::new();
+    object.insert(
+        "baseUrl".to_string(),
+        serde_json::Value::String(model.base_url.clone()),
+    );
+    if !model.api_key_env.is_empty() {
+        object.insert(
+            "apiKey".to_string(),
+            serde_json::json!({
+                "source": "env",
+                "provider": "default",
+                "id": model.api_key_env,
+            }),
+        );
+    }
+    let model_id = model
+        .id
+        .rsplit_once('/')
+        .map(|(_, id)| id)
+        .unwrap_or(&model.id);
+    object.insert(
+        "models".to_string(),
+        serde_json::json!([{ "id": model_id }]),
+    );
+    Ok(serde_json::Value::Object(object).to_string())
+}
+
+fn run_openclaw_command(command: &str, args: &[&str]) -> Result<(), NagareError> {
+    let output = Command::new(command).args(args).output()?;
+    if output.status.success() {
+        return Ok(());
+    }
+    Err(NagareError::InvalidState(format!(
+        "openclaw command failed: {} {}\nstdout: {}\nstderr: {}",
+        command,
+        args.join(" "),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    )))
+}
+
+fn managed_candidate_profiles(
+    profiles: BTreeMap<String, AgentProfile>,
+) -> BTreeMap<String, AgentProfile> {
+    let managed = profiles
+        .iter()
+        .filter(|(_, profile)| profile.external.is_nagare_managed(&profile.managed_by))
+        .map(|(id, profile)| (id.clone(), profile.clone()))
+        .collect::<BTreeMap<_, _>>();
+    if managed.is_empty() {
+        profiles
+    } else {
+        managed
+    }
 }
 
 fn write_agent_profile_file(
@@ -412,6 +729,9 @@ fn write_agent_profile_file(
             specialties: profile.specialties.clone(),
             domain_group_ids: profile.domain_group_ids.clone(),
             domain_ids: profile.domain_ids.clone(),
+            managed_by: profile.managed_by.clone(),
+            model: profile.model.clone(),
+            external: profile.external.clone(),
             output_contracts: profile.output_contracts.clone(),
         }),
         agent_profiles: BTreeMap::new(),
@@ -474,6 +794,29 @@ fn prompt_with_agent_instructions(prompt: &str, instructions: &str) -> String {
         return prompt.to_string();
     }
     format!("{prompt}\n\n## Nagare Agent Instructions\n{instructions}")
+}
+
+fn prompt_with_nagare_agent_context(
+    prompt: &str,
+    profile: &AgentProfile,
+    work_item_id: &str,
+    output_contract: &AgentOutputContract,
+) -> String {
+    let model = profile.model.model_ref().unwrap_or_else(|| "-".to_string());
+    format!(
+        "{prompt}\n\n## Nagare Agent Context\n- managed_by: {}\n- agent_profile_id: {}\n- external_provider: {}\n- external_agent_id: {}\n- model: {}\n- work_item_id: {}\n- required_output_contract: {}\n",
+        empty_marker(&profile.managed_by),
+        profile.id,
+        empty_marker(&profile.external.provider),
+        empty_marker(&profile.external.agent_id),
+        model,
+        work_item_id,
+        output_contract.contract
+    )
+}
+
+fn empty_marker(value: &str) -> &str {
+    if value.trim().is_empty() { "-" } else { value }
 }
 
 fn prompt_with_domain_context(prompt: &str, context: &str) -> String {
@@ -858,6 +1201,8 @@ pub fn run_work_item_with_input(
         workspace_policy_id: rule_resolution.workspace_policy_id.clone(),
         resolved_skill_context_id: skill_context_id.clone(),
         output_contract: output_contract.clone(),
+        model: agent_profile.model.clone(),
+        external: agent_profile.external.clone(),
         project_rule_ids: rule_resolution.matched_rule_id.iter().cloned().collect(),
         constraints: rule_resolution
             .warnings
@@ -885,15 +1230,20 @@ pub fn run_work_item_with_input(
         .filter(|prompt| !prompt.trim().is_empty())
         .unwrap_or(goal.as_str());
     let prompt = prompt_with_output_contract(
-        &prompt_with_agent_instructions(
-            &prompt_with_domain_context(
-                &prompt_with_handoff_context(
-                    &prompt_with_human_feedback(prompt, &human_feedback_context),
-                    &handoff_context,
+        &prompt_with_nagare_agent_context(
+            &prompt_with_agent_instructions(
+                &prompt_with_domain_context(
+                    &prompt_with_handoff_context(
+                        &prompt_with_human_feedback(prompt, &human_feedback_context),
+                        &handoff_context,
+                    ),
+                    &domain_context,
                 ),
-                &domain_context,
+                &agent_profile.description,
             ),
-            &agent_profile.description,
+            &agent_profile,
+            work_item_id,
+            &output_contract,
         ),
         input.purpose,
         &output_contract,
@@ -998,7 +1348,7 @@ pub fn run_work_item_with_input(
     };
     let dispatch_suggestion = parse_dispatch_plan_suggestion(&output.stdout);
     let valid_dispatch_targets = if dispatch_plan_id.is_some() {
-        load_agent_profiles(&layout)?
+        managed_candidate_profiles(load_agent_profiles(&layout)?)
             .into_iter()
             .filter(|(id, _)| {
                 id != input.agent_profile_id

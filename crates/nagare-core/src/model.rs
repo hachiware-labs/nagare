@@ -436,6 +436,10 @@ pub struct ResolvedRunPacket {
     #[serde(default)]
     pub output_contract: AgentOutputContract,
     #[serde(default)]
+    pub model: AgentModelSelection,
+    #[serde(default)]
+    pub external: ExternalAgentBinding,
+    #[serde(default)]
     pub project_rule_ids: Vec<String>,
     #[serde(default)]
     pub constraints: Vec<String>,
@@ -470,9 +474,58 @@ pub struct AgentProfile {
     #[serde(default)]
     pub domain_ids: Vec<String>,
     #[serde(default)]
+    pub managed_by: String,
+    #[serde(default)]
+    pub model: AgentModelSelection,
+    #[serde(default)]
+    pub external: ExternalAgentBinding,
+    #[serde(default)]
     pub output_contracts: AgentOutputContracts,
     #[serde(skip)]
     pub source: AgentProfileSource,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct AgentModelSelection {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub provider: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub id: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub base_url: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub api_key_env: String,
+}
+
+impl AgentModelSelection {
+    pub fn model_ref(&self) -> Option<String> {
+        if self.id.trim().is_empty() {
+            return None;
+        }
+        if self.provider.trim().is_empty() || self.id.contains('/') {
+            Some(self.id.clone())
+        } else {
+            Some(format!("{}/{}", self.provider, self.id))
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct ExternalAgentBinding {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub provider: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub agent_id: String,
+    #[serde(default)]
+    pub managed: bool,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub source: String,
+}
+
+impl ExternalAgentBinding {
+    pub fn is_nagare_managed(&self, managed_by: &str) -> bool {
+        managed_by == "nagare" && self.managed
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -729,6 +782,9 @@ pub struct AddAgentProfileInput<'a> {
     pub specialties: Vec<String>,
     pub domain_group_ids: Vec<String>,
     pub domain_ids: Vec<String>,
+    pub managed_by: Option<&'a str>,
+    pub model: AgentModelSelection,
+    pub external: ExternalAgentBinding,
 }
 
 #[derive(Debug, Clone)]
@@ -748,6 +804,9 @@ pub struct UpdateAgentProfileInput<'a> {
     pub specialties: Option<Vec<String>>,
     pub domain_group_ids: Option<Vec<String>>,
     pub domain_ids: Option<Vec<String>>,
+    pub managed_by: Option<&'a str>,
+    pub model: Option<AgentModelSelection>,
+    pub external: Option<ExternalAgentBinding>,
     pub output_contract: Option<AgentOutputContractUpdate<'a>>,
 }
 

@@ -198,6 +198,9 @@ fn agent_profile_working_dir_is_used_for_runs() {
             specialties: Vec::new(),
             domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
         },
     )
     .expect("profile should be added");
@@ -238,6 +241,9 @@ fn agent_profile_routing_hints_are_persisted() {
             specialties: vec!["research".to_string(), "synthesis".to_string()],
             domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
         },
     )
     .expect("profile should be added");
@@ -268,6 +274,9 @@ fn agent_profile_can_be_updated_as_project_local_override() {
             specialties: vec!["drafting".to_string()],
             domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
         },
     )
     .expect("profile should be added");
@@ -286,6 +295,9 @@ fn agent_profile_can_be_updated_as_project_local_override() {
             domain_group_ids: None,
             domain_ids: None,
             output_contract: None,
+            managed_by: None,
+            model: None,
+            external: None,
         },
     )
     .expect("profile should update");
@@ -425,6 +437,9 @@ fn domain_group_defaults_domain_override_and_agent_scope_are_persisted() {
             specialties: vec!["ui".to_string(), "review".to_string()],
             domain_group_ids: vec!["software-development".to_string()],
             domain_ids: vec!["frontend-ui".to_string()],
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
         },
     )
     .expect("agent should be added");
@@ -481,6 +496,9 @@ fn agent_profile_output_contracts_can_be_updated() {
             specialties: Vec::new(),
             domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
         },
     )
     .expect("profile should be added");
@@ -531,6 +549,9 @@ fn nagare_agent_settings_can_select_default_work_agent() {
             specialties: Vec::new(),
             domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
         },
     )
     .expect("profile should be added");
@@ -626,6 +647,9 @@ fn handoff_dispatch_uses_same_plan_lifecycle() {
             specialties: vec!["repair".to_string()],
             domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
         },
     )
     .expect("profile should be added");
@@ -704,6 +728,9 @@ fn accepted_dispatch_plan_selects_target_for_work_run() {
             specialties: vec!["research".to_string()],
             domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
         },
     )
     .expect("profile should be added");
@@ -804,6 +831,9 @@ fn dispatch_agent_json_can_choose_between_writing_and_research_agents() {
             specialties: vec!["writing".to_string(), "editing".to_string()],
             domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
         },
     )
     .expect("writing profile should be added");
@@ -820,6 +850,9 @@ fn dispatch_agent_json_can_choose_between_writing_and_research_agents() {
             specialties: vec!["research".to_string(), "synthesis".to_string()],
             domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
         },
     )
     .expect("research profile should be added");
@@ -1017,6 +1050,9 @@ fn project_rule_resolution_selects_most_specific_rule() {
             specialties: Vec::new(),
             domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
         },
     )
     .expect("profile should be added");

@@ -9,16 +9,17 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use nagare_core::{
     AddAgentProfileInput, AddDomainGroupInput, AddDomainProfileInput, AdvanceUntilBlockedInput,
-    AdvanceWorkItemInput, AgentRunPurpose, AnswerWorkItemInput, ApplyRecoveryPlanInput,
-    ApprovalPolicy, CreateWorkItemInput, DomainWorkflowOverride, RunWorkItemInput,
-    StaticUiExportInput, UpdateAgentProfileInput, UpdateDomainGroupInput, UpdateDomainProfileInput,
-    WorkflowMode, WorkflowSettings, accept_dispatch_plan, accept_recovery_plan, add_agent_profile,
-    add_domain_group, add_domain_profile, advance_work_item_once, advance_work_item_until_blocked,
-    answer_work_item, apply_recovery_plan, approve_work_item, create_recovery_plan,
-    create_work_item_with_input, delete_agent_profile, delete_domain_group, delete_domain_profile,
-    delete_work_item, export_static_ui, get_nagare_agent_settings, get_work_item_snapshot,
-    logo_png, reject_work_item, run_work_item_with_input, set_workflow_settings,
-    update_agent_profile, update_domain_group, update_domain_profile,
+    AdvanceWorkItemInput, AgentModelSelection, AgentRunPurpose, AnswerWorkItemInput,
+    ApplyRecoveryPlanInput, ApprovalPolicy, CreateWorkItemInput, DomainWorkflowOverride,
+    ExternalAgentBinding, RunWorkItemInput, StaticUiExportInput, UpdateAgentProfileInput,
+    UpdateDomainGroupInput, UpdateDomainProfileInput, WorkflowMode, WorkflowSettings,
+    accept_dispatch_plan, accept_recovery_plan, add_agent_profile, add_domain_group,
+    add_domain_profile, advance_work_item_once, advance_work_item_until_blocked, answer_work_item,
+    apply_recovery_plan, approve_work_item, create_recovery_plan, create_work_item_with_input,
+    delete_agent_profile, delete_domain_group, delete_domain_profile, delete_work_item,
+    export_static_ui, get_nagare_agent_settings, get_work_item_snapshot, logo_png,
+    reject_work_item, run_work_item_with_input, set_workflow_settings, update_agent_profile,
+    update_domain_group, update_domain_profile,
 };
 
 use crate::args::ParsedArgs;
@@ -363,6 +364,7 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
             );
         }
         let description = agent_description_from_fields(&fields);
+        let external = agent_external_from_fields(id, &fields);
         let result = add_agent_profile(
             root,
             AddAgentProfileInput {
@@ -384,6 +386,9 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                 specialties: split_list(fields.get("specialties").map(String::as_str)),
                 domain_group_ids: split_list(fields.get("domain_group_ids").map(String::as_str)),
                 domain_ids: split_list(fields.get("domain_ids").map(String::as_str)),
+                managed_by: Some("nagare"),
+                model: agent_model_from_fields(&fields),
+                external,
             },
         )
         .map_err(|error| error.to_string())?;
@@ -647,6 +652,9 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                     )),
                     domain_ids: Some(split_list(fields.get("domain_ids").map(String::as_str))),
                     output_contract: None,
+                    managed_by: Some("nagare"),
+                    model: Some(agent_model_from_fields(&fields)),
+                    external: Some(agent_external_from_fields(agent_profile_id, &fields)),
                 },
             )
             .map_err(|error| error.to_string())?;
@@ -1062,6 +1070,61 @@ fn nonempty_field<'a>(fields: &'a HashMap<String, String>, name: &str) -> Option
         .get(name)
         .map(String::as_str)
         .filter(|value| !value.trim().is_empty())
+}
+
+fn agent_model_from_fields(fields: &HashMap<String, String>) -> AgentModelSelection {
+    if nonempty_field(fields, "model_mode") == Some("default") {
+        return AgentModelSelection::default();
+    }
+    AgentModelSelection {
+        provider: nonempty_field(fields, "model_provider")
+            .unwrap_or("")
+            .trim()
+            .to_string(),
+        id: nonempty_field(fields, "model_id")
+            .unwrap_or("")
+            .trim()
+            .to_string(),
+        base_url: nonempty_field(fields, "base_url")
+            .unwrap_or("")
+            .trim()
+            .to_string(),
+        api_key_env: nonempty_field(fields, "api_key_env")
+            .unwrap_or("")
+            .trim()
+            .to_string(),
+    }
+}
+
+fn agent_external_from_fields(id: &str, fields: &HashMap<String, String>) -> ExternalAgentBinding {
+    let provider = nonempty_field(fields, "external_provider")
+        .or_else(|| match nonempty_field(fields, "agent_kind") {
+            Some("codex_app_server") => Some("codex"),
+            Some("openclaw") => Some("openclaw"),
+            _ => Some("codex-cli"),
+        })
+        .unwrap_or("codex-cli")
+        .trim()
+        .to_string();
+    ExternalAgentBinding {
+        provider,
+        agent_id: nonempty_field(fields, "external_agent_id")
+            .unwrap_or(id)
+            .trim()
+            .to_string(),
+        managed: fields
+            .get("external_managed")
+            .map(String::as_str)
+            .map(parse_bool)
+            .transpose()
+            .ok()
+            .flatten()
+            .unwrap_or(true),
+        source: nonempty_field(fields, "external_source")
+            .unwrap_or("created")
+            .trim()
+            .to_string(),
+    }
 }
 
 fn domain_workflow_override_from_fields(

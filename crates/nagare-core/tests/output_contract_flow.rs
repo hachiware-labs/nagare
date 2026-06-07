@@ -590,6 +590,9 @@ fn dispatch_preview_selects_registered_agent_and_records_timeline() {
             specialties: vec!["research".to_string()],
             domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
         },
     )
     .expect("research profile should be added");
@@ -646,6 +649,9 @@ fn multi_agent_question_handoff_review_and_approval_workflow_completes() {
             specialties: vec!["research".to_string(), "source-check".to_string()],
             domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
         },
     )
     .expect("research profile should be added");
@@ -662,6 +668,9 @@ fn multi_agent_question_handoff_review_and_approval_workflow_completes() {
             specialties: vec!["implementation".to_string(), "review".to_string()],
             domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
         },
     )
     .expect("repair profile should be added");

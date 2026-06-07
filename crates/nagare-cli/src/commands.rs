@@ -2,18 +2,18 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 use nagare_core::{
-    AddAgentProfileInput, AdvanceUntilBlockedInput, AdvanceWorkItemInput,
+    AddAgentProfileInput, AdvanceUntilBlockedInput, AdvanceWorkItemInput, AgentModelSelection,
     AgentOutputContractPurpose, AgentOutputContractUpdate, AgentOutputInjection, AgentProfile,
     AgentRunPurpose, AnswerWorkItemInput, ApplyRecoveryPlanInput, ApprovalPolicy,
-    CreateWorkItemInput, RuleResolution, RunWorkItemInput, SelectRunAgentInput, SetLocaleInput,
-    SetNagareAgentSettingsInput, UpdateAgentProfileInput, VERSION, WorkflowMode,
-    accept_dispatch_plan, accept_recovery_plan, add_agent_profile, advance_work_item_once,
-    advance_work_item_until_blocked, agent_doctor, agent_probe, answer_work_item,
-    apply_recovery_plan, approve_work_item, create_handoff, create_recovery_plan,
-    create_work_item_with_input, doctor, get_agent_profile, get_locale_settings,
-    get_nagare_agent_settings, get_work_item_snapshot, init_project, list_agent_profiles,
-    list_domain_groups, list_domain_profiles, list_work_items, reject_work_item,
-    resolve_rule_for_path, run_first_scenario, run_registered_agent_scenario,
+    CreateWorkItemInput, ExternalAgentBinding, RuleResolution, RunWorkItemInput,
+    SelectRunAgentInput, SetLocaleInput, SetNagareAgentSettingsInput, UpdateAgentProfileInput,
+    VERSION, WorkflowMode, accept_dispatch_plan, accept_recovery_plan, add_agent_profile,
+    advance_work_item_once, advance_work_item_until_blocked, agent_doctor, agent_probe,
+    answer_work_item, apply_recovery_plan, approve_work_item, create_handoff, create_recovery_plan,
+    create_work_item_with_input, delete_agent_profile, doctor, get_agent_profile,
+    get_locale_settings, get_nagare_agent_settings, get_work_item_snapshot, init_project,
+    list_agent_profiles, list_domain_groups, list_domain_profiles, list_work_items,
+    reject_work_item, resolve_rule_for_path, run_first_scenario, run_registered_agent_scenario,
     run_work_item_with_input, select_agent_for_work_item_run, set_locale_settings,
     set_nagare_agent_settings, update_agent_profile,
 };
@@ -81,6 +81,7 @@ fn agent_command(args: &[String]) -> Result<(), String> {
     match args.first().map(String::as_str) {
         Some("add") => agent_add_command(&args[1..]),
         Some("update") => agent_update_command(&args[1..]),
+        Some("delete") => agent_delete_command(&args[1..]),
         Some("list") => agent_list_command(&args[1..]),
         Some("show") => agent_show_command(&args[1..]),
         Some("defaults") => agent_defaults_command(&args[1..]),
@@ -89,7 +90,7 @@ fn agent_command(args: &[String]) -> Result<(), String> {
         Some("probe") => agent_probe_command(&args[1..]),
         Some(command) => Err(format!("unknown agent command `{command}`")),
         None => Err(
-            "agent command required: add, update, list, show, defaults, use, doctor, probe"
+            "agent command required: add, update, delete, list, show, defaults, use, doctor, probe"
                 .to_string(),
         ),
     }
@@ -98,13 +99,24 @@ fn agent_command(args: &[String]) -> Result<(), String> {
 fn agent_add_command(args: &[String]) -> Result<(), String> {
     let parsed = ParsedArgs::parse(args)?;
     let id = parsed.required("--id")?;
-    let runtime = parsed.required("--runtime")?;
-    let adapter = parsed.required("--adapter")?;
+    let provider = parsed.optional("--provider");
+    let runtime_default = provider.and_then(default_runtime_for_provider);
+    let adapter_default = provider.and_then(default_adapter_for_provider);
+    let runtime = parsed
+        .optional("--runtime")
+        .or(runtime_default)
+        .ok_or_else(|| "--runtime is required unless --provider is specified".to_string())?;
+    let adapter = parsed
+        .optional("--adapter")
+        .or(adapter_default)
+        .ok_or_else(|| "--adapter is required unless --provider is specified".to_string())?;
     let display_name = parsed.optional("--display-name").unwrap_or(id);
     let working_dir = parsed.optional("--working-dir").unwrap_or(".");
     let description = parsed.optional("--description").unwrap_or("");
     let role = parsed.optional("--role").unwrap_or("");
     let specialties = parse_comma_list(parsed.optional("--specialties"));
+    let external = external_binding_for_add(id, provider, &parsed);
+    let managed_by = external.managed.then_some("nagare");
     let result = add_agent_profile(
         parsed.root()?,
         AddAgentProfileInput {
@@ -118,6 +130,9 @@ fn agent_add_command(args: &[String]) -> Result<(), String> {
             specialties,
             domain_group_ids: parse_comma_list(parsed.optional("--domain-groups")),
             domain_ids: parse_comma_list(parsed.optional("--domains")),
+            managed_by,
+            model: model_selection_from_args(&parsed),
+            external,
         },
     )
     .map_err(|e| e.to_string())?;
@@ -130,6 +145,79 @@ fn agent_add_command(args: &[String]) -> Result<(), String> {
         result.path.display()
     );
     Ok(())
+}
+
+fn agent_delete_command(args: &[String]) -> Result<(), String> {
+    let parsed = ParsedArgs::parse(args)?;
+    let agent_profile_id = parsed
+        .positionals
+        .first()
+        .ok_or_else(|| "agent delete requires an agent profile id".to_string())?;
+    let profile =
+        delete_agent_profile(parsed.root()?, agent_profile_id).map_err(|e| e.to_string())?;
+    println!(
+        "agent {} deleted adapter={} runtime={}",
+        profile.id, profile.adapter, profile.runtime
+    );
+    Ok(())
+}
+
+fn default_runtime_for_provider(provider: &str) -> Option<&'static str> {
+    match provider {
+        "codex-cli" => Some("codex-local"),
+        "codex" | "codex-app-server" => Some("codex-app-local"),
+        "openclaw" => Some("openclaw-local"),
+        _ => None,
+    }
+}
+
+fn default_adapter_for_provider(provider: &str) -> Option<&'static str> {
+    match provider {
+        "codex-cli" => Some("process.codex-cli"),
+        "codex" | "codex-app-server" => Some("stdio.codex-app-server"),
+        "openclaw" => Some("process.openclaw-agent"),
+        _ => None,
+    }
+}
+
+fn external_binding_for_add(
+    id: &str,
+    provider: Option<&str>,
+    parsed: &ParsedArgs,
+) -> ExternalAgentBinding {
+    let Some(provider) = provider else {
+        return ExternalAgentBinding::default();
+    };
+    let external_provider = match provider {
+        "codex" | "codex-app-server" => "codex",
+        "codex-cli" => "codex-cli",
+        "openclaw" => "openclaw",
+        other => other,
+    };
+    ExternalAgentBinding {
+        provider: external_provider.to_string(),
+        agent_id: parsed
+            .optional("--external-agent-id")
+            .unwrap_or(id)
+            .to_string(),
+        managed: true,
+        source: parsed
+            .optional("--external-source")
+            .unwrap_or("created")
+            .to_string(),
+    }
+}
+
+fn model_selection_from_args(parsed: &ParsedArgs) -> AgentModelSelection {
+    AgentModelSelection {
+        provider: parsed
+            .optional("--model-provider")
+            .unwrap_or("")
+            .to_string(),
+        id: parsed.optional("--model").unwrap_or("").to_string(),
+        base_url: parsed.optional("--base-url").unwrap_or("").to_string(),
+        api_key_env: parsed.optional("--api-key-env").unwrap_or("").to_string(),
+    }
 }
 
 fn agent_update_command(args: &[String]) -> Result<(), String> {
@@ -145,6 +233,15 @@ fn agent_update_command(args: &[String]) -> Result<(), String> {
         || parsed.optional("--specialties").is_some()
         || parsed.optional("--domain-groups").is_some()
         || parsed.optional("--domains").is_some()
+        || parsed.optional("--managed-by").is_some()
+        || parsed.optional("--model-provider").is_some()
+        || parsed.optional("--model").is_some()
+        || parsed.optional("--base-url").is_some()
+        || parsed.optional("--api-key-env").is_some()
+        || parsed.optional("--external-provider").is_some()
+        || parsed.optional("--external-agent-id").is_some()
+        || parsed.optional("--external-managed").is_some()
+        || parsed.optional("--external-source").is_some()
         || parsed.optional("--output-purpose").is_some()
         || parsed.optional("--output-contract").is_some()
         || parsed.optional("--instruction-pack").is_some()
@@ -173,6 +270,9 @@ fn agent_update_command(args: &[String]) -> Result<(), String> {
             domain_ids: parsed
                 .optional("--domains")
                 .map(|value| parse_comma_list(Some(value))),
+            managed_by: parsed.optional("--managed-by"),
+            model: any_model_option(&parsed).then(|| model_selection_from_args(&parsed)),
+            external: any_external_option(&parsed).then(|| external_binding_from_update(&parsed)),
             output_contract,
         },
     )
@@ -185,6 +285,38 @@ fn agent_update_command(args: &[String]) -> Result<(), String> {
         result.path.display()
     );
     Ok(())
+}
+
+fn any_model_option(parsed: &ParsedArgs) -> bool {
+    parsed.optional("--model-provider").is_some()
+        || parsed.optional("--model").is_some()
+        || parsed.optional("--base-url").is_some()
+        || parsed.optional("--api-key-env").is_some()
+}
+
+fn any_external_option(parsed: &ParsedArgs) -> bool {
+    parsed.optional("--external-provider").is_some()
+        || parsed.optional("--external-agent-id").is_some()
+        || parsed.optional("--external-managed").is_some()
+        || parsed.optional("--external-source").is_some()
+}
+
+fn external_binding_from_update(parsed: &ParsedArgs) -> ExternalAgentBinding {
+    ExternalAgentBinding {
+        provider: parsed
+            .optional("--external-provider")
+            .unwrap_or("")
+            .to_string(),
+        agent_id: parsed
+            .optional("--external-agent-id")
+            .unwrap_or("")
+            .to_string(),
+        managed: parsed.optional("--external-managed") == Some("true"),
+        source: parsed
+            .optional("--external-source")
+            .unwrap_or("")
+            .to_string(),
+    }
 }
 
 fn agent_list_command(args: &[String]) -> Result<(), String> {
@@ -213,6 +345,24 @@ fn agent_show_command(args: &[String]) -> Result<(), String> {
     println!("adapter: {}", profile.adapter);
     println!("role: {}", empty_label(&profile.role));
     println!("working_dir: {}", profile.working_dir);
+    println!("managed_by: {}", empty_label(&profile.managed_by));
+    println!("model.provider: {}", empty_label(&profile.model.provider));
+    println!("model.id: {}", empty_label(&profile.model.id));
+    println!("model.base_url: {}", empty_label(&profile.model.base_url));
+    println!(
+        "model.api_key_env: {}",
+        empty_label(&profile.model.api_key_env)
+    );
+    println!(
+        "external.provider: {}",
+        empty_label(&profile.external.provider)
+    );
+    println!(
+        "external.agent_id: {}",
+        empty_label(&profile.external.agent_id)
+    );
+    println!("external.managed: {}", profile.external.managed);
+    println!("external.source: {}", empty_label(&profile.external.source));
     println!("description: {}", empty_label(&profile.description));
     println!("specialties: {}", comma_list(&profile.specialties));
     println!(
@@ -872,7 +1022,7 @@ fn dispatch_agent_candidates(
     default_supervisor_agent: &str,
     resolution: Option<&RuleResolution>,
 ) -> Result<Vec<AgentProfile>, String> {
-    let profiles = list_agent_profiles(root).map_err(|e| e.to_string())?;
+    let profiles = managed_dispatch_profiles(list_agent_profiles(root).map_err(|e| e.to_string())?);
     let mut selected_ids = Vec::new();
     let mut seen = BTreeSet::new();
     let is_control_agent =
@@ -921,6 +1071,19 @@ fn dispatch_agent_candidates(
 fn push_unique(selected_ids: &mut Vec<String>, seen: &mut BTreeSet<String>, id: &str) {
     if !id.trim().is_empty() && seen.insert(id.to_string()) {
         selected_ids.push(id.to_string());
+    }
+}
+
+fn managed_dispatch_profiles(profiles: Vec<AgentProfile>) -> Vec<AgentProfile> {
+    let managed = profiles
+        .iter()
+        .filter(|profile| profile.external.is_nagare_managed(&profile.managed_by))
+        .cloned()
+        .collect::<Vec<_>>();
+    if managed.is_empty() {
+        profiles
+    } else {
+        managed
     }
 }
 
