@@ -61,6 +61,152 @@ fn agent_add_delete_targets_codex_cli_profile() {
 }
 
 #[test]
+fn agent_add_can_attach_installed_skill_sets() {
+    let root = test_root("agent-skills");
+    assert_success(nagare(&root, &["init"]));
+    let config_path = root.join(".nagare").join("project.toml");
+    let mut config = fs::read_to_string(&config_path).expect("config should read");
+    config.push_str(
+        r#"
+
+[skill_sets.react-review]
+paths = ["skills/react-review"]
+required_capabilities = ["repo_read"]
+optional_capabilities = []
+
+[skill_sets.test-runner]
+paths = ["skills/test-runner"]
+required_capabilities = ["repo_read"]
+optional_capabilities = ["shell_command"]
+"#,
+    );
+    fs::write(&config_path, config).expect("config should write");
+
+    assert_success(nagare(
+        &root,
+        &[
+            "agent",
+            "add",
+            "--id",
+            "frontend-worker",
+            "--provider",
+            "codex-cli",
+            "--model-provider",
+            "openai",
+            "--model",
+            "gpt-5.3-codex",
+            "--skills",
+            "react-review,test-runner",
+        ],
+    ));
+
+    let show = nagare(&root, &["agent", "show", "frontend-worker"]);
+    assert_success(show);
+    let stdout =
+        String::from_utf8_lossy(&nagare(&root, &["agent", "show", "frontend-worker"]).stdout)
+            .to_string();
+    assert!(stdout.contains("tool_kind: codex_cli"));
+    assert!(stdout.contains("skills: react-review,test-runner"));
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn skill_add_from_skill_creator_folder_infers_skill_name() {
+    let root = test_root("skill-creator");
+    assert_success(nagare(&root, &["init"]));
+    let skill_dir = root.join("skills").join("react-review");
+    fs::create_dir_all(&skill_dir).expect("skill dir should create");
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        r#"---
+name: react-review
+description: Review React code for maintainability and performance.
+---
+
+# React Review
+"#,
+    )
+    .expect("skill should write");
+
+    assert_success(nagare(
+        &root,
+        &[
+            "skill",
+            "add",
+            "--from",
+            "skill-creator",
+            "--path",
+            skill_dir.to_str().expect("path should be utf-8"),
+            "--requires",
+            "repo_read",
+            "--optional",
+            "shell_command",
+        ],
+    ));
+
+    let config =
+        fs::read_to_string(root.join(".nagare").join("project.toml")).expect("config should read");
+    assert!(config.contains("[skill_packages.react-review]"));
+    assert!(config.contains("source_kind = \"skill_creator\""));
+    assert!(config.contains("[skill_sets.react-review]"));
+    assert!(config.contains("required_capabilities = [\"repo_read\"]"));
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn skill_add_records_clawhub_and_vercel_sources() {
+    let root = test_root("skill-sources");
+    assert_success(nagare(&root, &["init"]));
+
+    assert_success(nagare(
+        &root,
+        &[
+            "skill",
+            "add",
+            "--from",
+            "clawhub",
+            "--id",
+            "skill-provenance",
+            "--source",
+            "skill-provenance",
+            "--ref",
+            "1.0.0",
+            "--checksum",
+            "sha256:example",
+            "--requires",
+            "repo_read",
+        ],
+    ));
+    assert_success(nagare(
+        &root,
+        &[
+            "skill",
+            "add",
+            "--from",
+            "vercel",
+            "--id",
+            "vercel-react",
+            "--source",
+            "vercel-labs/agent-skills",
+            "--skill-id",
+            "vercel-react",
+            "--paths",
+            "src",
+            "--requires",
+            "repo_read",
+        ],
+    ));
+
+    let list = nagare(&root, &["skill", "list"]);
+    assert_success(list);
+    let stdout = String::from_utf8_lossy(&nagare(&root, &["skill", "list"]).stdout).to_string();
+    assert!(stdout.contains("skill-provenance source_kind=clawhub"));
+    assert!(stdout.contains("vercel-react source_kind=vercel"));
+    assert!(stdout.contains("skill_sets:"));
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
 fn agent_add_delete_targets_codex_app_server_profile() {
     let root = test_root("codex-app");
     assert_success(nagare(&root, &["init"]));
@@ -196,6 +342,42 @@ fn agent_add_openclaw_can_use_default_model() {
     let log = fs::read_to_string(log_path).expect("fake openclaw log should exist");
     assert!(log.contains("agents add openclaw-default-model --workspace"));
     assert!(!log.contains("--model"));
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn agent_add_openclaw_ollama_requires_base_url() {
+    let root = test_root("openclaw-ollama-base-url");
+    fs::create_dir_all(&root).expect("root should create");
+    let log_path = root.join("openclaw.log");
+    let fake_openclaw = fake_openclaw_command(&root, &log_path);
+    assert_success(nagare(&root, &["init"]));
+
+    let mut add = Command::new(env!("CARGO_BIN_EXE_nagare"));
+    add.env("NAGARE_OPENCLAW_COMMAND", &fake_openclaw)
+        .arg("agent")
+        .args([
+            "add",
+            "--id",
+            "ollama-openclaw",
+            "--provider",
+            "openclaw",
+            "--model-provider",
+            "ollama",
+            "--model",
+            "qwen2.5-coder:32b",
+        ])
+        .arg("--root")
+        .arg(&root);
+    let output = add.output().expect("add should run");
+    assert!(
+        !output.status.success(),
+        "command unexpectedly succeeded\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("requires model.base_url"));
     fs::remove_dir_all(root).ok();
 }
 

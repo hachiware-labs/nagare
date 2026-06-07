@@ -3,6 +3,7 @@ mod artifacts;
 mod config;
 mod dispatch;
 mod handoff;
+mod i18n;
 mod layout;
 mod model;
 mod output_contract;
@@ -23,6 +24,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub use dispatch::*;
 pub use handoff::*;
+pub use i18n::{I18n, NagareLanguage, UiTextKey, detect_environment_locale, language_from_locale};
 pub use layout::{
     DoctorReport, InitResult, ProjectLayout, ToolStatus, doctor, init_project, resolve_root,
 };
@@ -44,6 +46,7 @@ pub use workflow_types::*;
 
 pub(crate) use artifacts::*;
 pub(crate) use config::*;
+pub(crate) use i18n::*;
 pub(crate) use layout::*;
 pub(crate) use output_contract::*;
 pub(crate) use util::*;

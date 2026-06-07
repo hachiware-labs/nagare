@@ -32,6 +32,14 @@ fn event_count(snapshot: &WorkItemSnapshot, event_type: &str) -> usize {
 fn work_item_definition_of_done_flows_into_run_packet() {
     let root = test_root("work-item-dod");
     init_project(&root).expect("project should init");
+    set_locale_settings(
+        &root,
+        SetLocaleInput {
+            language: Some("en-US"),
+            timezone: None,
+        },
+    )
+    .expect("locale should update");
     fs::create_dir_all(root.join("docs")).expect("docs dir should exist");
     fs::write(
         root.join("done.md"),

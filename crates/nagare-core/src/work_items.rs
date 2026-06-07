@@ -93,6 +93,8 @@ pub fn create_work_item_with_input(
         constraints: normalize_text_list(input.constraints),
         domain_group_id,
         domain_id: input.domain_id,
+        domain_agent_policy: input.domain_agent_policy,
+        require_domain_agent: false,
         workflow_mode,
         approval_policy,
         locale,
@@ -223,7 +225,8 @@ pub fn answer_work_item(
     })
 }
 
-pub(crate) fn work_item_goal_prompt(item: &WorkItem) -> String {
+pub(crate) fn work_item_goal_prompt_for_locale(item: &WorkItem, locale: &str) -> String {
+    let i18n = I18n::new(locale);
     if item.description.trim().is_empty()
         && item.acceptance_criteria.is_empty()
         && item.expected_artifacts.is_empty()
@@ -236,7 +239,7 @@ pub(crate) fn work_item_goal_prompt(item: &WorkItem) -> String {
         lines.push(item.description.clone());
     }
     if !item.acceptance_criteria.is_empty() {
-        lines.push("## Acceptance Criteria".to_string());
+        lines.push(format!("## {}", i18n.ui(UiTextKey::AcceptanceCriteria)));
         lines.extend(
             item.acceptance_criteria
                 .iter()
@@ -244,7 +247,7 @@ pub(crate) fn work_item_goal_prompt(item: &WorkItem) -> String {
         );
     }
     if !item.expected_artifacts.is_empty() {
-        lines.push("## Expected Artifacts".to_string());
+        lines.push(format!("## {}", i18n.ui(UiTextKey::ExpectedArtifacts)));
         lines.extend(
             item.expected_artifacts
                 .iter()
@@ -252,7 +255,7 @@ pub(crate) fn work_item_goal_prompt(item: &WorkItem) -> String {
         );
     }
     if !item.constraints.is_empty() {
-        lines.push("## Constraints".to_string());
+        lines.push(format!("## {}", i18n.ui(UiTextKey::Constraints)));
         lines.extend(
             item.constraints
                 .iter()

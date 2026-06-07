@@ -56,6 +56,7 @@ pub fn init_project(root: impl Into<PathBuf>) -> io::Result<InitResult> {
     fs::create_dir_all(&layout.agents_dir)?;
     fs::create_dir_all(&layout.domain_groups_dir)?;
     fs::create_dir_all(&layout.domains_dir)?;
+    seed_default_domains(&layout)?;
 
     let created_config = if layout.config_path.exists() {
         false
@@ -78,134 +79,55 @@ pub fn init_project(root: impl Into<PathBuf>) -> io::Result<InitResult> {
     })
 }
 
-pub(crate) fn default_config() -> &'static str {
-    r#"# Nagare local project configuration.
+pub(crate) fn seed_default_domains(layout: &ProjectLayout) -> io::Result<()> {
+    let i18n = default_seed_i18n(layout);
+    write_default_seed_file(
+        &layout.domain_groups_dir.join("general.toml"),
+        &i18n.general_domain_group_toml(),
+        &[
+            "General-purpose work that does not need a specialized domain.",
+            "display_name = \"General\"",
+        ],
+    )?;
+    write_default_seed_file(
+        &layout.domains_dir.join("general.toml"),
+        &i18n.general_domain_profile_toml(),
+        &[
+            "General implementation, review, documentation, and maintenance work.",
+            "display_name = \"General\"",
+        ],
+    )
+}
 
-[project]
-name = "nagare-local"
+fn write_default_seed_file(path: &Path, contents: &str, legacy_markers: &[&str]) -> io::Result<()> {
+    if !path.exists() {
+        return fs::write(path, contents);
+    }
+    let raw = fs::read_to_string(path)?;
+    if legacy_markers.iter().any(|marker| raw.contains(marker)) {
+        return fs::write(path, contents);
+    }
+    Ok(())
+}
 
-[storage]
-kind = "json-ledger"
-path = ".nagare/state/ledger.json"
-sqlite_future_path = ".nagare/state/nagare.db"
+fn default_seed_i18n(layout: &ProjectLayout) -> I18n {
+    if let Ok(raw) = fs::read_to_string(&layout.config_path) {
+        if let Ok(value) = raw.parse::<toml::Value>() {
+            if let Some(language) = value
+                .get("locale")
+                .and_then(|locale| locale.get("language"))
+                .and_then(toml::Value::as_str)
+            {
+                return I18n::new(language);
+            }
+        }
+    }
+    I18n::environment()
+}
 
-[locale]
-language = "ja-JP"
-timezone = "Asia/Tokyo"
-
-[workflow]
-default_progress_mode = "confirm_first"
-approval_policy = "manual_final_approval"
-
-[nagare_agents]
-work_agent = "worker"
-review_agent = "reviewer"
-dispatch_agent = "dispatcher"
-supervisor_agent = "supervisor"
-
-[runtimes.codex-local]
-kind = "process"
-command = "codex"
-args = ["exec"]
-healthcheck = ["codex", "--version"]
-
-[runtimes.codex-app-local]
-kind = "stdio"
-command = "codex"
-args = ["app-server", "--listen", "stdio://"]
-healthcheck = ["codex", "app-server", "--help"]
-
-[runtimes.openclaw-local]
-kind = "process"
-command = "openclaw"
-args = ["agent"]
-healthcheck = ["openclaw", "--version"]
-
-[adapters.process-codex-cli]
-kind = "process.codex-cli"
-runtime_kind = "process"
-known_capabilities = ["repo_read", "file_edit", "shell_command", "stdin_prompt"]
-
-[adapters.stdio-codex-app-server]
-kind = "stdio.codex-app-server"
-runtime_kind = "stdio"
-known_capabilities = ["repo_read", "file_edit", "shell_command", "thread_state", "approval_flow", "event_stream"]
-
-[adapters.process-openclaw-agent]
-kind = "process.openclaw-agent"
-runtime_kind = "process"
-known_capabilities = ["repo_read", "file_edit", "shell_command", "thread_state", "provider_model_selection"]
-
-[agent_profiles.worker]
-display_name = "Worker"
-runtime = "codex-local"
-adapter = "process-codex-cli"
-role = "worker"
-working_dir = "."
-managed_by = "nagare"
-description = "Implement the assigned work item. Prefer small, verifiable changes and leave concise completed work and next notes in the Nagare result."
-
-[agent_profiles.worker.external]
-provider = "codex-cli"
-agent_id = "worker"
-managed = true
-source = "created"
-
-[agent_profiles.reviewer]
-display_name = "Reviewer"
-runtime = "codex-local"
-adapter = "process-codex-cli"
-role = "reviewer"
-working_dir = "."
-managed_by = "nagare"
-description = "Review the current work item against acceptance criteria, artifacts, and test evidence. Report pass/fail per criterion and concrete follow-up notes."
-
-[agent_profiles.reviewer.external]
-provider = "codex-cli"
-agent_id = "reviewer"
-managed = true
-source = "created"
-
-[agent_profiles.dispatcher]
-display_name = "Dispatcher"
-runtime = "codex-local"
-adapter = "process-codex-cli"
-role = "dispatcher"
-working_dir = "."
-managed_by = "nagare"
-description = "Choose the most suitable target agent profile for the next work step. Return only the required dispatch JSON and keep the rationale concise."
-
-[agent_profiles.dispatcher.external]
-provider = "codex-cli"
-agent_id = "dispatcher"
-managed = true
-source = "created"
-
-[agent_profiles.supervisor]
-display_name = "Supervisor"
-runtime = "codex-local"
-adapter = "process-codex-cli"
-role = "supervisor"
-working_dir = "."
-managed_by = "nagare"
-description = "Decide the next workflow action from the current state. Prefer forward progress, stop when human input is needed, and return the workflow decision contract."
-
-[agent_profiles.supervisor.external]
-provider = "codex-cli"
-agent_id = "supervisor"
-managed = true
-source = "created"
-
-[permission_policies.medium-code-task]
-allowed_actions = ["repo_read", "worktree_write", "test_run"]
-disallowed_actions = ["main_push", "production_access", "secrets_read"]
-approval_required = ["network_access", "dependency_install"]
-
-[workspace_policies.project-root]
-kind = "project_root"
-isolate_per_work_item = false
-cleanup = "keep"
-"#
+pub(crate) fn default_config() -> String {
+    let i18n = I18n::environment();
+    i18n.default_config_toml(&detect_environment_timezone())
 }
 
 #[derive(Debug, Clone)]

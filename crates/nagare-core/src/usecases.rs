@@ -290,6 +290,8 @@ pub fn add_agent_profile(
     }
 
     let adapter = normalize_adapter_id(input.adapter)?;
+    let tool_kind = AgentToolKind::infer(input.runtime, adapter);
+    validate_tool_kind_for_runtime_adapter(tool_kind, input.runtime, adapter)?;
     let managed_by = normalize_managed_by(input.managed_by.unwrap_or("nagare"))?;
     let model = normalize_agent_model_selection(input.model)?;
     validate_model_for_adapter(adapter, &model)?;
@@ -300,8 +302,14 @@ pub fn add_agent_profile(
     ))?;
     let domain_group_ids = normalize_domain_group_ids(input.domain_group_ids)?;
     let domain_ids = normalize_domain_profile_ids(input.domain_ids)?;
+    let skill_set_ids = normalize_skill_set_ids(input.skill_set_ids)?;
+    validate_existing_skill_set_ids(&layout, &skill_set_ids)?;
     validate_existing_domain_group_ids(&layout, &domain_group_ids)?;
     validate_existing_domain_profile_ids(&layout, &domain_ids)?;
+    let prompt = AgentPromptConfig {
+        instructions: input.description.trim().to_string(),
+        version: default_agent_prompt_version(),
+    };
     let profile = AgentProfile {
         id: input.id.to_string(),
         display_name: if input.display_name.trim().is_empty() {
@@ -309,6 +317,7 @@ pub fn add_agent_profile(
         } else {
             input.display_name.to_string()
         },
+        tool_kind,
         runtime: input.runtime.to_string(),
         adapter: adapter.to_string(),
         role: if input.role.trim().is_empty() {
@@ -319,11 +328,13 @@ pub fn add_agent_profile(
         working_dir: normalize_working_dir(input.working_dir)?,
         description: input.description.trim().to_string(),
         specialties: normalize_specialties(input.specialties),
+        skill_set_ids,
         domain_group_ids,
         domain_ids,
         managed_by,
         model,
         external,
+        prompt,
         output_contracts: AgentOutputContracts::default(),
         source: AgentProfileSource::ProjectAgentDirectory,
     };
@@ -383,6 +394,8 @@ pub fn update_agent_profile(
     if let Some(adapter) = input.adapter {
         profile.adapter = normalize_adapter_id(adapter)?.to_string();
     }
+    profile.tool_kind = AgentToolKind::infer(&profile.runtime, &profile.adapter);
+    validate_tool_kind_for_runtime_adapter(profile.tool_kind, &profile.runtime, &profile.adapter)?;
     if let Some(role) = input.role {
         profile.role = if role.trim().is_empty() {
             "implementer".to_string()
@@ -395,9 +408,16 @@ pub fn update_agent_profile(
     }
     if let Some(description) = input.description {
         profile.description = description.trim().to_string();
+        if profile.prompt.instructions.trim().is_empty() {
+            profile.prompt.instructions = profile.description.clone();
+        }
     }
     if let Some(specialties) = input.specialties {
         profile.specialties = normalize_specialties(specialties);
+    }
+    if let Some(skill_set_ids) = input.skill_set_ids {
+        profile.skill_set_ids = normalize_skill_set_ids(skill_set_ids)?;
+        validate_existing_skill_set_ids(&layout, &profile.skill_set_ids)?;
     }
     if let Some(domain_group_ids) = input.domain_group_ids {
         profile.domain_group_ids = normalize_domain_group_ids(domain_group_ids)?;
@@ -500,6 +520,123 @@ pub fn delete_agent_profile(
     }
     delete_external_agent_if_needed(&profile)?;
     Ok(profile)
+}
+
+pub fn list_skill_set_catalog(
+    root: impl Into<PathBuf>,
+) -> Result<Vec<SkillSetCatalogEntry>, NagareError> {
+    let layout = ensure_project(root)?;
+    let config = load_project_config(&layout)?;
+    Ok(config
+        .skill_sets
+        .into_iter()
+        .map(|(id, skill_set)| SkillSetCatalogEntry {
+            id,
+            paths: skill_set.paths,
+            required_capabilities: skill_set.required_capabilities,
+            optional_capabilities: skill_set.optional_capabilities,
+        })
+        .collect())
+}
+
+pub fn list_skill_packages(
+    root: impl Into<PathBuf>,
+) -> Result<Vec<SkillPackageCatalogEntry>, NagareError> {
+    let layout = ensure_project(root)?;
+    let config = load_project_config(&layout)?;
+    Ok(config
+        .skill_packages
+        .into_iter()
+        .map(|(id, package)| SkillPackageCatalogEntry {
+            id,
+            source_kind: package.source_kind,
+            source: package.source,
+            reference: package.reference,
+            checksum: package.checksum,
+            installed_path: package.installed_path,
+            provided_skill_sets: package.provided_skill_sets,
+        })
+        .collect())
+}
+
+pub fn add_skill_package(
+    root: impl Into<PathBuf>,
+    input: AddSkillPackageInput<'_>,
+) -> Result<SkillPackageInstallResult, NagareError> {
+    let layout = ensure_project(root)?;
+    let source_kind = normalize_skill_source_kind(input.source_kind)?;
+    let skill_md = skill_md_metadata(input.path)?;
+    let package_id = input
+        .id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .or(skill_md.name.as_deref())
+        .ok_or_else(|| {
+            NagareError::InvalidState(
+                "--id is required when the source does not provide SKILL.md name".to_string(),
+            )
+        })?;
+    validate_skill_package_id(package_id)?;
+    let skill_set_id = input
+        .skill_set_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(package_id);
+    let skill_set_id = normalize_skill_set_ids(vec![skill_set_id.to_string()])?
+        .into_iter()
+        .next()
+        .ok_or_else(|| NagareError::InvalidState("skill set id is required".to_string()))?;
+    let source = input
+        .source
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .or_else(|| input.path.map(|path| path.trim().to_string()))
+        .unwrap_or_else(|| package_id.to_string());
+    let installed_path = input
+        .path
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("")
+        .replace('\\', "/");
+    let skill_paths = normalize_skill_paths(input.skill_paths, input.path)?;
+    let skill_set = SkillSetDeclaration {
+        paths: skill_paths,
+        required_capabilities: normalize_specialties(input.required_capabilities),
+        optional_capabilities: normalize_specialties(input.optional_capabilities),
+    };
+    let package = SkillPackageDeclaration {
+        source_kind: source_kind.to_string(),
+        source,
+        reference: input.reference.unwrap_or("").trim().to_string(),
+        checksum: input.checksum.unwrap_or("").trim().to_string(),
+        installed_path,
+        provided_skill_sets: vec![skill_set_id.clone()],
+    };
+    write_skill_package_to_project_config(
+        &layout,
+        package_id,
+        &package,
+        &skill_set_id,
+        &skill_set,
+    )?;
+    Ok(SkillPackageInstallResult {
+        package: SkillPackageCatalogEntry {
+            id: package_id.to_string(),
+            source_kind: package.source_kind,
+            source: package.source,
+            reference: package.reference,
+            checksum: package.checksum,
+            installed_path: package.installed_path,
+            provided_skill_sets: package.provided_skill_sets,
+        },
+        skill_set: SkillSetCatalogEntry {
+            id: skill_set_id,
+            paths: skill_set.paths,
+            required_capabilities: skill_set.required_capabilities,
+            optional_capabilities: skill_set.optional_capabilities,
+        },
+    })
 }
 
 fn create_external_agent_if_needed(
@@ -721,17 +858,20 @@ fn write_agent_profile_file(
         agent_profile: Some(AgentProfileFileEntry {
             id: Some(profile.id.clone()),
             display_name: profile.display_name.clone(),
+            tool_kind: Some(profile.tool_kind),
             runtime: profile.runtime.clone(),
             adapter: profile.adapter.clone(),
             role: profile.role.clone(),
             working_dir: profile.working_dir.clone(),
             description: profile.description.clone(),
             specialties: profile.specialties.clone(),
+            skill_set_ids: profile.skill_set_ids.clone(),
             domain_group_ids: profile.domain_group_ids.clone(),
             domain_ids: profile.domain_ids.clone(),
             managed_by: profile.managed_by.clone(),
             model: profile.model.clone(),
             external: profile.external.clone(),
+            prompt: profile.prompt.clone(),
             output_contracts: profile.output_contracts.clone(),
         }),
         agent_profiles: BTreeMap::new(),
@@ -788,12 +928,15 @@ fn write_domain_group_file(
     Ok(path)
 }
 
-fn prompt_with_agent_instructions(prompt: &str, instructions: &str) -> String {
+fn prompt_with_agent_instructions(prompt: &str, instructions: &str, locale: &str) -> String {
     let instructions = instructions.trim();
     if instructions.is_empty() {
         return prompt.to_string();
     }
-    format!("{prompt}\n\n## Nagare Agent Instructions\n{instructions}")
+    format!(
+        "{prompt}\n\n## {}\n{instructions}",
+        localized_context_heading(locale, ContextHeading::AgentInstructions)
+    )
 }
 
 fn prompt_with_nagare_agent_context(
@@ -819,15 +962,155 @@ fn empty_marker(value: &str) -> &str {
     if value.trim().is_empty() { "-" } else { value }
 }
 
-fn prompt_with_domain_context(prompt: &str, context: &str) -> String {
+#[derive(Default)]
+struct SkillMdMetadata {
+    name: Option<String>,
+}
+
+fn normalize_skill_source_kind(kind: &str) -> Result<&'static str, NagareError> {
+    match kind.trim().to_ascii_lowercase().replace('_', "-").as_str() {
+        "local" => Ok("local"),
+        "git" => Ok("git"),
+        "clawhub" | "claw-hub" => Ok("clawhub"),
+        "vercel" | "vercel-skills" => Ok("vercel"),
+        "skill-creator" | "skillcreator" => Ok("skill_creator"),
+        other => Err(NagareError::InvalidState(format!(
+            "unsupported skill source kind `{other}`; expected local, git, clawhub, vercel, or skill-creator"
+        ))),
+    }
+}
+
+fn validate_skill_package_id(id: &str) -> Result<(), NagareError> {
+    let id = id.trim();
+    if id.is_empty()
+        || !id
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
+    {
+        return Err(NagareError::InvalidState(format!(
+            "skill package id `{id}` contains unsupported characters"
+        )));
+    }
+    Ok(())
+}
+
+fn normalize_skill_paths(
+    paths: Vec<String>,
+    source_path: Option<&str>,
+) -> Result<Vec<String>, NagareError> {
+    let mut paths = normalize_specialties(paths);
+    if paths.is_empty() {
+        if let Some(path) = source_path.map(str::trim).filter(|path| !path.is_empty()) {
+            paths.push(path.replace('\\', "/"));
+        }
+    }
+    if paths.is_empty() {
+        paths.push(".".to_string());
+    }
+    Ok(paths)
+}
+
+fn skill_md_metadata(path: Option<&str>) -> Result<SkillMdMetadata, NagareError> {
+    let Some(path) = path.map(str::trim).filter(|path| !path.is_empty()) else {
+        return Ok(SkillMdMetadata::default());
+    };
+    let skill_path = PathBuf::from(path).join("SKILL.md");
+    if !skill_path.exists() {
+        return Ok(SkillMdMetadata::default());
+    }
+    let raw = fs::read_to_string(skill_path)?;
+    let mut lines = raw.lines();
+    if lines.next().map(str::trim) != Some("---") {
+        return Ok(SkillMdMetadata::default());
+    }
+    let mut metadata = SkillMdMetadata::default();
+    for line in lines {
+        let line = line.trim();
+        if line == "---" {
+            break;
+        }
+        if let Some(value) = line.strip_prefix("name:") {
+            let value = value.trim().trim_matches('"').trim_matches('\'');
+            if !value.is_empty() {
+                metadata.name = Some(value.to_string());
+            }
+        }
+    }
+    Ok(metadata)
+}
+
+fn write_skill_package_to_project_config(
+    layout: &ProjectLayout,
+    package_id: &str,
+    package: &SkillPackageDeclaration,
+    skill_set_id: &str,
+    skill_set: &SkillSetDeclaration,
+) -> Result<(), NagareError> {
+    let raw = fs::read_to_string(&layout.config_path)?;
+    let mut value = raw.parse::<toml::Value>()?;
+    let root_table = value.as_table_mut().ok_or_else(|| {
+        NagareError::InvalidState("project config must be a TOML table".to_string())
+    })?;
+    let skill_sets = root_table
+        .entry("skill_sets".to_string())
+        .or_insert_with(|| toml::Value::Table(toml::map::Map::new()))
+        .as_table_mut()
+        .ok_or_else(|| NagareError::InvalidState("skill_sets must be a TOML table".to_string()))?;
+    skill_sets.insert(
+        skill_set_id.to_string(),
+        toml::Value::try_from(skill_set.clone())?,
+    );
+    let skill_packages = root_table
+        .entry("skill_packages".to_string())
+        .or_insert_with(|| toml::Value::Table(toml::map::Map::new()))
+        .as_table_mut()
+        .ok_or_else(|| {
+            NagareError::InvalidState("skill_packages must be a TOML table".to_string())
+        })?;
+    skill_packages.insert(
+        package_id.to_string(),
+        toml::Value::try_from(package.clone())?,
+    );
+    let rendered = toml::to_string_pretty(&value)?;
+    fs::write(&layout.config_path, rendered)?;
+    Ok(())
+}
+
+fn validate_existing_skill_set_ids(
+    layout: &ProjectLayout,
+    skill_set_ids: &[String],
+) -> Result<(), NagareError> {
+    if skill_set_ids.is_empty() {
+        return Ok(());
+    }
+    let config = load_project_config(layout)?;
+    for skill_set_id in skill_set_ids {
+        if !config.skill_sets.contains_key(skill_set_id) {
+            return Err(NagareError::InvalidState(format!(
+                "skill set `{skill_set_id}` is not declared"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn prompt_with_domain_context(prompt: &str, context: &str, locale: &str) -> String {
     let context = context.trim();
     if context.is_empty() {
         return prompt.to_string();
     }
-    format!("{prompt}\n\n## Nagare Domain Context\n{context}")
+    format!(
+        "{prompt}\n\n## {}\n{context}",
+        localized_context_heading(locale, ContextHeading::DomainContext)
+    )
 }
 
-fn domain_prompt_context(layout: &ProjectLayout, item: &WorkItem) -> Result<String, NagareError> {
+fn domain_prompt_context(
+    layout: &ProjectLayout,
+    item: &WorkItem,
+    locale: &str,
+) -> Result<String, NagareError> {
+    let i18n = I18n::new(locale);
     let domain_groups = load_domain_groups(layout)?;
     let domains = load_domain_profiles(layout)?;
     let domain = item
@@ -845,24 +1128,69 @@ fn domain_prompt_context(layout: &ProjectLayout, item: &WorkItem) -> Result<Stri
     let mut lines = Vec::new();
     if let Some(group) = domain_group {
         lines.push(format!(
-            "Domain group: {} ({})",
-            group.display_name, group.id
+            "{}: {} ({})",
+            i18n.ui(UiTextKey::DomainGroup),
+            group.display_name,
+            group.id
         ));
         if !group.description.trim().is_empty() {
-            lines.push(format!("Group description: {}", group.description));
+            lines.push(format!(
+                "{} {}: {}",
+                i18n.ui(UiTextKey::Group),
+                i18n.ui(UiTextKey::Description).to_ascii_lowercase(),
+                group.description
+            ));
         }
-        append_context_list(&mut lines, "Shared knowledge", &group.shared_knowledge);
+        append_context_list(
+            &mut lines,
+            i18n.ui(UiTextKey::SharedKnowledge),
+            &group.shared_knowledge,
+        );
         append_context_list(&mut lines, "Common rubric", &group.common_rubric);
-        append_context_list(&mut lines, "Group dispatch hints", &group.dispatch_hints);
+        append_context_list(
+            &mut lines,
+            &format!(
+                "{} {}",
+                i18n.ui(UiTextKey::Group),
+                i18n.ui(UiTextKey::DispatchHints)
+            ),
+            &group.dispatch_hints,
+        );
     }
     if let Some(domain) = domain {
-        lines.push(format!("Domain: {} ({})", domain.display_name, domain.id));
+        lines.push(format!(
+            "{}: {} ({})",
+            i18n.ui(UiTextKey::Domain),
+            domain.display_name,
+            domain.id
+        ));
         if !domain.description.trim().is_empty() {
-            lines.push(format!("Domain description: {}", domain.description));
+            lines.push(format!(
+                "{} {}: {}",
+                i18n.ui(UiTextKey::Domain),
+                i18n.ui(UiTextKey::Description).to_ascii_lowercase(),
+                domain.description
+            ));
         }
         append_context_list(&mut lines, "Artifact types", &domain.artifact_types);
-        append_context_list(&mut lines, "Domain rubric", &domain.rubric);
-        append_context_list(&mut lines, "Domain dispatch hints", &domain.dispatch_hints);
+        append_context_list(
+            &mut lines,
+            &format!(
+                "{} {}",
+                i18n.ui(UiTextKey::Domain),
+                i18n.ui(UiTextKey::Rubric)
+            ),
+            &domain.rubric,
+        );
+        append_context_list(
+            &mut lines,
+            &format!(
+                "{} {}",
+                i18n.ui(UiTextKey::Domain),
+                i18n.ui(UiTextKey::DispatchHints)
+            ),
+            &domain.dispatch_hints,
+        );
     }
     Ok(lines.join("\n"))
 }
@@ -1155,13 +1483,12 @@ pub fn run_work_item_with_input(
     let capability_probe =
         ensure_fresh_capability_probe(&layout, &mut ledger, &locale, &agent_profile)?;
     let capabilities_in_force = capability_probe.discovered_capabilities.clone();
-    let skill_set_resolution = resolve_skill_sets_for_run(
-        &layout,
-        &rule_resolution.skill_set_ids,
-        &capabilities_in_force,
-    )?;
+    let skill_set_ids =
+        merged_skill_set_ids(&rule_resolution.skill_set_ids, &agent_profile.skill_set_ids);
+    let skill_set_resolution =
+        resolve_skill_sets_for_run(&layout, &skill_set_ids, &capabilities_in_force)?;
     let instruction_sources = capability_probe.instruction_sources.clone();
-    let default_goal = work_item_goal_prompt(&item);
+    let default_goal = work_item_goal_prompt_for_locale(&item, &locale);
     let goal = input
         .prompt
         .filter(|prompt| !prompt.trim().is_empty())
@@ -1169,7 +1496,7 @@ pub fn run_work_item_with_input(
         .to_string();
     let human_feedback_context = human_feedback_prompt_context(&ledger, work_item_id);
     let handoff_context = handoff_prompt_context(&ledger, work_item_id);
-    let domain_context = domain_prompt_context(&layout, &item)?;
+    let domain_context = domain_prompt_context(&layout, &item, &locale)?;
     let resolved_skill_context = ResolvedSkillContext {
         id: skill_context_id.clone(),
         work_item_id: work_item_id.to_string(),
@@ -1234,12 +1561,17 @@ pub fn run_work_item_with_input(
             &prompt_with_agent_instructions(
                 &prompt_with_domain_context(
                     &prompt_with_handoff_context(
-                        &prompt_with_human_feedback(prompt, &human_feedback_context),
+                        &prompt_with_human_feedback(prompt, &human_feedback_context, &locale),
                         &handoff_context,
+                        &locale,
                     ),
                     &domain_context,
+                    &locale,
                 ),
-                &agent_profile.description,
+                agent_profile
+                    .prompt
+                    .effective_instructions(&agent_profile.description),
+                &locale,
             ),
             &agent_profile,
             work_item_id,
@@ -1247,6 +1579,7 @@ pub fn run_work_item_with_input(
         ),
         input.purpose,
         &output_contract,
+        &locale,
     );
     let request = AdapterRunRequest {
         working_dir: &working_dir,
@@ -1328,7 +1661,7 @@ pub fn run_work_item_with_input(
     let review_result = review_result_id
         .zip(agent_output.as_ref())
         .map(|(id, output)| review_result_from_agent_output(id, output, &item.acceptance_criteria));
-    let item_status = if input.purpose == AgentRunPurpose::Work {
+    let mut item_status = if input.purpose == AgentRunPurpose::Work {
         if agent_output_requires_input(agent_output.as_ref()) {
             WorkItemStatus::NeedsInput
         } else if agent_output_requests_handoff(agent_output.as_ref()) {
@@ -1359,14 +1692,48 @@ pub fn run_work_item_with_input(
     } else {
         BTreeMap::new()
     };
+    let domain_agent_policy = effective_domain_agent_policy(&item);
+    let domain_agent_missing =
+        dispatch_plan_id.is_some() && domain_agent_missing(&item, &valid_dispatch_targets);
+    let domain_fallback_confirmation = if domain_agent_missing
+        && domain_agent_policy == DomainAgentPolicy::ConfirmGeneralFallback
+    {
+        domain_fallback_confirmation(&item, &valid_dispatch_targets, &agent_settings.work_agent)
+    } else if domain_agent_missing && domain_agent_policy == DomainAgentPolicy::RequireDomainAgent {
+        required_domain_agent_confirmation(
+            &item,
+            &valid_dispatch_targets,
+            &agent_settings.work_agent,
+        )
+    } else {
+        None
+    };
+    let auto_general_fallback =
+        domain_agent_missing && domain_agent_policy == DomainAgentPolicy::AutoGeneralFallback;
+    let domain_fallback_target = if auto_general_fallback || domain_fallback_confirmation.is_some()
+    {
+        general_fallback_agent_id(&valid_dispatch_targets, &agent_settings.work_agent)
+    } else {
+        agent_settings.work_agent.clone()
+    };
     let dispatch_plan = dispatch_plan_id.map(|id| {
-        let fallback_target_agent_profile_id = dispatch_target_resolution
+        let fallback_target_agent_profile_id = domain_fallback_confirmation
+            .as_ref()
+            .map(|confirmation| confirmation.target_agent_profile_id.clone())
+            .or_else(|| {
+                dispatch_target_resolution
             .as_ref()
             .map(|resolution| resolution.agent_profile_id.clone())
-            .filter(|target| valid_dispatch_targets.contains_key(target))
-            .unwrap_or_else(|| agent_settings.work_agent.clone());
+                .filter(|target| valid_dispatch_targets.contains_key(target))
+            })
+            .unwrap_or_else(|| domain_fallback_target.clone());
         let mut selection_warnings = Vec::new();
-        let target_agent_profile_id = match dispatch_suggestion
+        let target_agent_profile_id = if domain_fallback_confirmation.is_some()
+            || auto_general_fallback
+        {
+            fallback_target_agent_profile_id.clone()
+        } else {
+            match dispatch_suggestion
             .as_ref()
             .and_then(|suggestion| suggestion.target_agent_profile_id.as_deref())
         {
@@ -1389,6 +1756,7 @@ pub fn run_work_item_with_input(
                 }
                 fallback_target_agent_profile_id
             }
+            }
         };
         let summary = dispatch_suggestion
             .as_ref()
@@ -1404,11 +1772,17 @@ pub fn run_work_item_with_input(
             .map(|suggestion| suggestion.risks.clone())
             .filter(|risks| !risks.is_empty())
             .unwrap_or_else(|| extract_prefixed_lines(&output.stdout, "risk:"));
-        let missing_information = dispatch_suggestion
+        let mut missing_information = dispatch_suggestion
             .as_ref()
             .map(|suggestion| suggestion.missing_information.clone())
             .filter(|missing_information| !missing_information.is_empty())
             .unwrap_or_else(|| extract_prefixed_lines(&output.stdout, "missing:"));
+        if let Some(confirmation) = domain_fallback_confirmation.as_ref() {
+            if !missing_information.contains(&confirmation.message) {
+                missing_information.push(confirmation.message.clone());
+            }
+            selection_warnings.push(confirmation.message.clone());
+        }
         DispatchPlan {
             id,
             work_item_id: work_item_id.to_string(),
@@ -1465,9 +1839,12 @@ pub fn run_work_item_with_input(
         &format!("{}.json", resolved_run_packet.id),
         &resolved_run_packet,
     )?;
+    if domain_fallback_confirmation.is_some() {
+        item_status = WorkItemStatus::NeedsInput;
+    }
     if matches!(
         input.purpose,
-        AgentRunPurpose::Work | AgentRunPurpose::Review
+        AgentRunPurpose::Work | AgentRunPurpose::Review | AgentRunPurpose::DispatchPreview
     ) {
         let item = ledger.work_item_mut(work_item_id)?;
         item.status = item_status;
@@ -1481,6 +1858,141 @@ pub fn run_work_item_with_input(
         item_status,
         dispatch_plan_id,
     })
+}
+
+fn merged_skill_set_ids(
+    rule_skill_set_ids: &[String],
+    agent_skill_set_ids: &[String],
+) -> Vec<String> {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut merged = Vec::new();
+    for id in rule_skill_set_ids.iter().chain(agent_skill_set_ids.iter()) {
+        if seen.insert(id.clone()) {
+            merged.push(id.clone());
+        }
+    }
+    merged
+}
+
+struct DomainFallbackConfirmation {
+    target_agent_profile_id: String,
+    message: String,
+}
+
+fn effective_domain_agent_policy(item: &WorkItem) -> DomainAgentPolicy {
+    if item.require_domain_agent
+        && item.domain_agent_policy == DomainAgentPolicy::AutoGeneralFallback
+    {
+        return DomainAgentPolicy::ConfirmGeneralFallback;
+    }
+    item.domain_agent_policy
+}
+
+fn domain_fallback_confirmation(
+    item: &WorkItem,
+    candidates: &BTreeMap<String, AgentProfile>,
+    default_work_agent_id: &str,
+) -> Option<DomainFallbackConfirmation> {
+    if !domain_agent_missing(item, candidates) {
+        return None;
+    }
+    let fallback_agent = general_fallback_agent_id(candidates, default_work_agent_id);
+    let domain = item.domain_id.as_deref().unwrap_or("-");
+    let group = item.domain_group_id.as_deref().unwrap_or("-");
+    Some(DomainFallbackConfirmation {
+        target_agent_profile_id: fallback_agent.clone(),
+        message: format!(
+            "No candidate agent is scoped to domain `{domain}` or domain group `{group}`; confirm whether to proceed with general fallback agent `{fallback_agent}`."
+        ),
+    })
+}
+
+fn required_domain_agent_confirmation(
+    item: &WorkItem,
+    candidates: &BTreeMap<String, AgentProfile>,
+    default_work_agent_id: &str,
+) -> Option<DomainFallbackConfirmation> {
+    if !domain_agent_missing(item, candidates) {
+        return None;
+    }
+    let fallback_agent = general_fallback_agent_id(candidates, default_work_agent_id);
+    let domain = item.domain_id.as_deref().unwrap_or("-");
+    let group = item.domain_group_id.as_deref().unwrap_or("-");
+    Some(DomainFallbackConfirmation {
+        target_agent_profile_id: fallback_agent.clone(),
+        message: format!(
+            "Domain-scoped agent is required for domain `{domain}` or domain group `{group}`, but no candidate agent is scoped to it; add a matching agent or change the domain agent policy before proceeding."
+        ),
+    })
+}
+
+fn domain_agent_missing(item: &WorkItem, candidates: &BTreeMap<String, AgentProfile>) -> bool {
+    if item.domain_id.is_none() && item.domain_group_id.is_none() {
+        return false;
+    }
+    if item.domain_id.as_deref() == Some("general")
+        || item.domain_group_id.as_deref() == Some("general")
+    {
+        return false;
+    }
+    if candidates
+        .values()
+        .any(|profile| agent_matches_item_domain(profile, item))
+    {
+        return false;
+    }
+    true
+}
+
+fn general_fallback_agent_id(
+    candidates: &BTreeMap<String, AgentProfile>,
+    default_work_agent_id: &str,
+) -> String {
+    if candidates
+        .get(default_work_agent_id)
+        .is_some_and(agent_is_general)
+    {
+        return default_work_agent_id.to_string();
+    }
+    candidates
+        .iter()
+        .find(|(_, profile)| agent_is_general(profile))
+        .map(|(id, _)| id.clone())
+        .or_else(|| {
+            candidates
+                .get(default_work_agent_id)
+                .map(|_| default_work_agent_id.to_string())
+        })
+        .or_else(|| candidates.keys().next().cloned())
+        .unwrap_or_else(|| default_work_agent_id.to_string())
+}
+
+fn agent_is_general(profile: &AgentProfile) -> bool {
+    profile
+        .domain_ids
+        .iter()
+        .any(|domain_id| domain_id == "general")
+        || profile
+            .domain_group_ids
+            .iter()
+            .any(|domain_group_id| domain_group_id == "general")
+}
+
+fn agent_matches_item_domain(profile: &AgentProfile, item: &WorkItem) -> bool {
+    item.domain_id.as_deref().is_some_and(|domain_id| {
+        profile
+            .domain_ids
+            .iter()
+            .any(|profile_domain_id| profile_domain_id == domain_id)
+    }) || item
+        .domain_group_id
+        .as_deref()
+        .is_some_and(|domain_group_id| {
+            profile
+                .domain_group_ids
+                .iter()
+                .any(|profile_domain_group_id| profile_domain_group_id == domain_group_id)
+        })
 }
 
 pub fn approve_work_item(

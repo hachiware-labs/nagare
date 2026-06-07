@@ -19,8 +19,8 @@ Adapter
   How does Nagare talk to that runtime?
 
 Agent Profile
-  Which runtime + adapter + role + working_dir + limits should be used for a
-  class of work?
+  Which tool kind, runtime, adapter, model, role, working_dir, prompt, and
+  skills should be used for a class of work?
 
 Capability Probe
   What does the agent tool actually support in this project right now?
@@ -156,21 +156,33 @@ is intentionally domain-agnostic: use values such as `planner`, `worker`,
 `output_contracts` declare the Nagare-managed final-output contracts to inject
 for work, review, and dispatch runs.
 
+Agent Profiles are tool-agnostic from the user's point of view. `tool_kind`
+identifies Codex, Codex CLI, or OpenClaw, while `runtime` and `adapter` bind the
+profile to the concrete execution mechanism. `model` is selected inside that
+tool. `skill_set_ids` are skills attached directly to the Agent Profile and are
+merged with Project Rule skills at run time.
+
 ```toml
 [agent_profiles.codex-impl]
 id = "codex-impl"
 display_name = "Codex Implementer"
+tool_kind = "codex_cli"
 runtime = "codex-local"
 adapter = "process.codex-cli"
 role = "implementer"
 working_dir = "."
 description = "Implementation-focused Codex CLI profile"
 specialties = ["implementation", "review"]
+skill_set_ids = ["rust-core", "test-runner"]
 workspace_policy = "worktree-per-item"
 permission_policy = "medium-code-task"
 max_parallel_runs = 2
 timeout_minutes = 60
 probe_before_run = true
+
+[agent_profiles.codex-impl.prompt]
+instructions = "Implement in small steps and report verification evidence."
+version = "v1"
 
 [agent_profiles.codex-impl.output_contracts.work]
 contract = "nagare.result.v1"

@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::env;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
@@ -13,6 +12,7 @@ pub(crate) fn ensure_project(root: impl Into<PathBuf>) -> Result<ProjectLayout, 
     if !layout.config_path.exists() || !layout.ledger_path.exists() {
         init_project(&layout.root)?;
     }
+    seed_default_domains(&layout)?;
     migrate_legacy_default_agents(&layout)?;
     Ok(layout)
 }
@@ -54,6 +54,8 @@ pub(crate) struct ProjectConfigFile {
     #[serde(default)]
     pub(crate) skill_sets: BTreeMap<String, SkillSetDeclaration>,
     #[serde(default)]
+    pub(crate) skill_packages: BTreeMap<String, SkillPackageDeclaration>,
+    #[serde(default)]
     pub(crate) permission_policies: BTreeMap<String, PermissionPolicyDeclaration>,
     #[serde(default)]
     pub(crate) workspace_policies: BTreeMap<String, WorkspacePolicyDeclaration>,
@@ -66,6 +68,8 @@ pub(crate) struct AgentProfileFileEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) id: Option<String>,
     pub(crate) display_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) tool_kind: Option<AgentToolKind>,
     pub(crate) runtime: String,
     pub(crate) adapter: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -77,6 +81,8 @@ pub(crate) struct AgentProfileFileEntry {
     #[serde(default)]
     pub(crate) specialties: Vec<String>,
     #[serde(default)]
+    pub(crate) skill_set_ids: Vec<String>,
+    #[serde(default)]
     pub(crate) domain_group_ids: Vec<String>,
     #[serde(default)]
     pub(crate) domain_ids: Vec<String>,
@@ -86,6 +92,8 @@ pub(crate) struct AgentProfileFileEntry {
     pub(crate) model: AgentModelSelection,
     #[serde(default)]
     pub(crate) external: ExternalAgentBinding,
+    #[serde(default)]
+    pub(crate) prompt: AgentPromptConfig,
     #[serde(default)]
     pub(crate) output_contracts: AgentOutputContracts,
 }
@@ -277,20 +285,33 @@ impl AgentProfileFileEntry {
     ) -> Result<AgentProfile, NagareError> {
         validate_agent_profile_id(&id)?;
         let adapter = normalize_adapter_id(&self.adapter)?;
+        let tool_kind = self
+            .tool_kind
+            .unwrap_or_else(|| AgentToolKind::infer(&self.runtime, adapter));
+        validate_tool_kind_for_runtime_adapter(tool_kind, &self.runtime, adapter)?;
+        let mut prompt = self.prompt;
+        prompt.instructions = prompt.instructions.trim().to_string();
+        prompt.version = prompt.version.trim().to_string();
+        if prompt.version.is_empty() {
+            prompt.version = default_agent_prompt_version();
+        }
         Ok(AgentProfile {
             id,
             display_name: self.display_name,
+            tool_kind,
             runtime: self.runtime,
             adapter: adapter.to_string(),
             role: self.role,
             working_dir: normalize_working_dir(&self.working_dir)?,
             description: self.description,
             specialties: normalize_specialties(self.specialties),
+            skill_set_ids: normalize_skill_set_ids(self.skill_set_ids)?,
             domain_group_ids: normalize_domain_group_ids(self.domain_group_ids)?,
             domain_ids: normalize_domain_profile_ids(self.domain_ids)?,
             managed_by: normalize_managed_by(&self.managed_by)?,
             model: normalize_agent_model_selection(self.model)?,
             external: normalize_external_agent_binding(self.external)?,
+            prompt,
             output_contracts: self.output_contracts,
             source,
         })
@@ -342,6 +363,18 @@ fn migrate_legacy_default_agents(layout: &ProjectLayout) -> Result<(), NagareErr
         return Ok(());
     }
     let mut raw = fs::read_to_string(&layout.config_path)?;
+    let locale = raw
+        .parse::<toml::Value>()
+        .ok()
+        .and_then(|value| {
+            value
+                .get("locale")
+                .and_then(|locale| locale.get("language"))
+                .and_then(toml::Value::as_str)
+                .map(ToOwned::to_owned)
+        })
+        .unwrap_or_else(default_locale_language);
+    let i18n = I18n::new(locale);
     let has_workflow_agents = raw.contains("[agent_profiles.worker]")
         && raw.contains("[agent_profiles.reviewer]")
         && raw.contains("[agent_profiles.dispatcher]")
@@ -367,25 +400,25 @@ fn migrate_legacy_default_agents(layout: &ProjectLayout) -> Result<(), NagareErr
     raw = ensure_default_agent_role(raw, "reviewer", "reviewer");
     raw = ensure_default_agent_role(raw, "dispatcher", "dispatcher");
     raw = ensure_default_agent_role(raw, "supervisor", "supervisor");
-    raw = ensure_default_agent_instruction(
-        raw,
-        "worker",
-        "Implement the assigned work item. Prefer small, verifiable changes and leave concise completed work and next notes in the Nagare result.",
-    );
+    raw = ensure_default_agent_domain_scope(raw, "worker");
+    raw = ensure_default_agent_domain_scope(raw, "reviewer");
+    raw = ensure_default_agent_domain_scope(raw, "dispatcher");
+    raw = ensure_default_agent_domain_scope(raw, "supervisor");
+    raw = ensure_default_agent_instruction(raw, "worker", i18n.agent_default_description("worker"));
     raw = ensure_default_agent_instruction(
         raw,
         "reviewer",
-        "Review the current work item against acceptance criteria, artifacts, and test evidence. Report pass/fail per criterion and concrete follow-up notes.",
+        i18n.agent_default_description("reviewer"),
     );
     raw = ensure_default_agent_instruction(
         raw,
         "dispatcher",
-        "Choose the most suitable target agent profile for the next work step. Return only the required dispatch JSON and keep the rationale concise.",
+        i18n.agent_default_description("dispatcher"),
     );
     raw = ensure_default_agent_instruction(
         raw,
         "supervisor",
-        "Decide the next workflow action from the current state. Prefer forward progress, stop when human input is needed, and return the workflow decision contract.",
+        i18n.agent_default_description("supervisor"),
     );
     raw = ensure_default_agent_management(raw, "worker", "codex-cli");
     raw = ensure_default_agent_management(raw, "reviewer", "codex-cli");
@@ -411,6 +444,33 @@ fn ensure_default_agent_role(mut raw: String, agent_id: &str, role: &str) -> Str
     }
     let insert_at = next_section;
     raw.insert_str(insert_at, &format!("\nrole = \"{role}\""));
+    raw
+}
+
+fn ensure_default_agent_domain_scope(mut raw: String, agent_id: &str) -> String {
+    raw = ensure_default_agent_array_field(raw, agent_id, "domain_group_ids", "general");
+    ensure_default_agent_array_field(raw, agent_id, "domain_ids", "general")
+}
+
+fn ensure_default_agent_array_field(
+    mut raw: String,
+    agent_id: &str,
+    field: &str,
+    value: &str,
+) -> String {
+    let header = format!("[agent_profiles.{agent_id}]");
+    let Some(section_start) = raw.find(&header) else {
+        return raw;
+    };
+    let section_body_start = section_start + header.len();
+    let next_section = raw[section_body_start..]
+        .find("\n[")
+        .map(|index| section_body_start + index)
+        .unwrap_or(raw.len());
+    if raw[section_body_start..next_section].contains(&format!("\n{field} = ")) {
+        return raw;
+    }
+    raw.insert_str(next_section, &format!("\n{field} = [\"{value}\"]"));
     raw
 }
 
@@ -862,6 +922,29 @@ pub(crate) fn resolve_skill_sets_for_run(
     })
 }
 
+pub(crate) fn normalize_skill_set_ids(ids: Vec<String>) -> Result<Vec<String>, NagareError> {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut normalized = Vec::new();
+    for id in ids {
+        let id = id.trim();
+        if id.is_empty() {
+            continue;
+        }
+        if !id
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '/'))
+        {
+            return Err(NagareError::InvalidState(format!(
+                "skill set id `{id}` contains unsupported characters"
+            )));
+        }
+        if seen.insert(id.to_string()) {
+            normalized.push(id.to_string());
+        }
+    }
+    Ok(normalized)
+}
+
 pub(crate) fn default_work_agent_id() -> String {
     "worker".to_string()
 }
@@ -883,11 +966,11 @@ pub(crate) fn default_agent_run_purpose() -> AgentRunPurpose {
 }
 
 pub(crate) fn default_locale_language() -> String {
-    env::var("NAGARE_LOCALE").unwrap_or_else(|_| "ja-JP".to_string())
+    detect_environment_locale()
 }
 
 pub(crate) fn default_locale_timezone() -> String {
-    env::var("NAGARE_TIMEZONE").unwrap_or_else(|_| "Asia/Tokyo".to_string())
+    detect_environment_timezone()
 }
 
 pub(crate) fn default_workspace_policy_kind() -> String {
@@ -1105,8 +1188,32 @@ pub(crate) fn validate_model_for_adapter(
                     "OpenClaw custom endpoints require model.provider".to_string(),
                 ));
             }
+            if matches!(model.provider.as_str(), "ollama" | "lmstudio")
+                && !model.id.is_empty()
+                && model.base_url.is_empty()
+            {
+                return Err(NagareError::InvalidState(format!(
+                    "OpenClaw provider `{}` requires model.base_url",
+                    model.provider
+                )));
+            }
         }
         _ => unreachable!("normalize_adapter_id returned an unknown adapter"),
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_tool_kind_for_runtime_adapter(
+    tool_kind: AgentToolKind,
+    runtime: &str,
+    adapter_id: &str,
+) -> Result<(), NagareError> {
+    let adapter = normalize_adapter_id(adapter_id)?;
+    let inferred = AgentToolKind::infer(runtime, adapter);
+    if inferred != tool_kind {
+        return Err(NagareError::InvalidState(format!(
+            "tool_kind `{tool_kind}` does not match runtime `{runtime}` and adapter `{adapter}`"
+        )));
     }
     Ok(())
 }

@@ -39,6 +39,7 @@ pub(crate) fn print_snapshot(snapshot: &WorkItemSnapshot) {
         "domain: {}",
         snapshot.item.domain_id.as_deref().unwrap_or("-")
     );
+    println!("domain_agent_policy: {}", snapshot.item.domain_agent_policy);
     println!("workflow_mode: {}", snapshot.item.workflow_mode);
     println!("approval_policy: {}", snapshot.item.approval_policy);
     println!("locale: {}", snapshot.item.locale);
@@ -235,13 +236,14 @@ pub(crate) fn print_snapshot(snapshot: &WorkItemSnapshot) {
 
 pub(crate) fn print_agent_profile_row(profile: &AgentProfile) {
     println!(
-        "{}\trole={}\t{}\t{}\t{}\tmodel={}\texternal={}/{}\tmanaged={}\t{}\tdomain_groups={}\tdomains={}\twork_contract={}\treview_contract={}\tdispatch_contract={}\tsupervision_contract={}\t{}",
+        "{}\trole={}\ttool={}\t{}\t{}\t{}\tmodel={}\texternal={}/{}\tmanaged={}\tspecialties={}\tskills={}\tdomain_groups={}\tdomains={}\twork_contract={}\treview_contract={}\tdispatch_contract={}\tsupervision_contract={}\t{}",
         profile.id,
         if profile.role.trim().is_empty() {
             "-"
         } else {
             profile.role.as_str()
         },
+        profile.tool_kind,
         profile.adapter,
         profile.runtime,
         profile.working_dir,
@@ -250,6 +252,7 @@ pub(crate) fn print_agent_profile_row(profile: &AgentProfile) {
         empty_display(&profile.external.agent_id),
         profile.external.is_nagare_managed(&profile.managed_by),
         comma_list(&profile.specialties),
+        comma_list(&profile.skill_set_ids),
         comma_list(&profile.domain_group_ids),
         comma_list(&profile.domain_ids),
         profile.output_contracts.work.contract,
@@ -434,6 +437,9 @@ Usage:
   nagare doctor [--root <path>]
   nagare locale show [--root <path>]
   nagare locale use [--language <locale>] [--timezone <timezone>] [--root <path>]
+  nagare skill add --from local|git|clawhub|vercel|skill-creator [--id <package_id>] [--source <name-or-url>] [--path <path>] [--ref <ref>] [--checksum <sha>] [--skill-id <skill_set_id>] [--paths <csv>] [--requires <csv>] [--optional <csv>] [--root <path>]
+  nagare skill install ... (alias of skill add)
+  nagare skill list [--root <path>]
   nagare agent add --id <agent_profile_id> --runtime <runtime_id> --adapter <adapter_id> [--display-name <text>] [--role <planner|worker|reviewer>] [--working-dir <relative_path>] [--description <text>] [--specialties <csv>] [--domain-groups <csv>] [--domains <csv>] [--root <path>]
   nagare agent update <agent_profile_id> [--display-name <text>] [--role <planner|worker|reviewer>] [--working-dir <relative_path>] [--description <text>] [--specialties <csv>] [--domain-groups <csv>] [--domains <csv>] [--output-purpose work|review|dispatch|supervision] [--output-contract <id>] [--instruction-pack <id>] [--output-required true|false] [--output-injection prompt_suffix] [--root <path>]
   nagare agent list [--root <path>]
@@ -442,7 +448,7 @@ Usage:
   nagare agent use [--work-agent <agent_profile_id>] [--review-agent <agent_profile_id>] [--dispatch-agent <agent_profile_id>] [--supervisor-agent <agent_profile_id>] [--root <path>]
   nagare agent doctor <agent_profile_id> [--root <path>]
   nagare agent probe <agent_profile_id> [--root <path>]
-  nagare item create --title <title> [--description <text>] [--acceptance <csv>] [--artifact <csv>] [--work-folder <relative_path>] [--constraint <csv>] [--domain-group <group_id>] [--domain <domain_id>] [--workflow-mode confirm_first|finish_first] [--approval-policy manual_final_approval|auto_complete_on_review_pass] [--root <path>]
+  nagare item create --title <title> [--description <text>] [--acceptance <csv>] [--artifact <csv>] [--work-folder <relative_path>] [--constraint <csv>] [--domain-group <group_id>] [--domain <domain_id>] [--domain-agent-policy auto_general_fallback|confirm_general_fallback|require_domain_agent] [--workflow-mode confirm_first|finish_first] [--approval-policy manual_final_approval|auto_complete_on_review_pass] [--root <path>]
   nagare item list [--root <path>]
   nagare item show <work_id> [--root <path>]
   nagare item answer <work_id> --answer <text> [--question <text>] [--root <path>]

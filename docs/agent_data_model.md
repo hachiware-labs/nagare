@@ -133,12 +133,18 @@ Example:
 [agent_profile]
 id = "codex-impl-smoke"
 display_name = "Codex CLI Smoke Implementer"
+tool_kind = "codex_cli"
 runtime = "codex-local"
 adapter = "process.codex-cli"
 role = "implementer"
 working_dir = "packages/app"
 description = "コード実装と検証を担当する Codex CLI agent"
 specialties = ["implementation", "review"]
+skill_set_ids = ["rust-core", "test-runner"]
+
+[agent_profile.prompt]
+instructions = "小さく実装し、検証結果を最後に書く。"
+version = "v1"
 
 [agent_profile.output_contracts.work]
 contract = "nagare.result.v1"
@@ -165,6 +171,38 @@ starts. It must be a relative path inside the project; the default is `"."`.
 `description` and `specialties` are compact routing hints for the Nagare
 dispatch agent. They are not treated as observed capability; actual availability
 still comes from CapabilityProbe.
+
+`tool_kind` is the user-facing agent tool category. Existing profiles without
+`tool_kind` are inferred from `runtime` and `adapter`; saved profiles write the
+field explicitly. `model` selects the model inside the chosen tool. Codex and
+Codex CLI accept OpenAI/Codex providers. OpenClaw can use OpenAI, Ollama, or LM
+Studio style providers; local providers require `base_url`.
+
+`skill_set_ids` are agent-specific skills. At run time Nagare merges
+ProjectRule skill sets with Agent Profile skill sets and records the resolved
+applied/skipped result in `ResolvedSkillContext`.
+
+Skill packages record where a skill came from. The package entry is separate
+from the skill set so ClawHub, Vercel Skills, git, local folders, and
+skill-creator output can all provide the same Agent-facing `skill_set_id`.
+
+```toml
+[skill_packages.react-review]
+source_kind = "skill_creator"
+source = "./skills/react-review"
+installed_path = "./skills/react-review"
+provided_skill_sets = ["react-review"]
+
+[skill_sets.react-review]
+paths = ["./skills/react-review"]
+required_capabilities = ["repo_read"]
+optional_capabilities = ["shell_command"]
+```
+
+`prompt.instructions` is the execution instruction for this Agent. `description`
+remains a compact display and dispatch hint. During migration, if
+`prompt.instructions` is empty, Nagare uses `description` as the fallback
+instruction.
 
 `output_contracts` are Nagare-managed instruction packs for stable final
 outputs. They are configured per Agent Profile and per purpose:

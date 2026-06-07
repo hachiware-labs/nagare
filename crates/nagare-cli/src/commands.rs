@@ -2,20 +2,22 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 use nagare_core::{
-    AddAgentProfileInput, AdvanceUntilBlockedInput, AdvanceWorkItemInput, AgentModelSelection,
-    AgentOutputContractPurpose, AgentOutputContractUpdate, AgentOutputInjection, AgentProfile,
-    AgentRunPurpose, AnswerWorkItemInput, ApplyRecoveryPlanInput, ApprovalPolicy,
-    CreateWorkItemInput, ExternalAgentBinding, RuleResolution, RunWorkItemInput,
-    SelectRunAgentInput, SetLocaleInput, SetNagareAgentSettingsInput, UpdateAgentProfileInput,
-    VERSION, WorkflowMode, accept_dispatch_plan, accept_recovery_plan, add_agent_profile,
+    AddAgentProfileInput, AddSkillPackageInput, AdvanceUntilBlockedInput, AdvanceWorkItemInput,
+    AgentModelSelection, AgentOutputContractPurpose, AgentOutputContractUpdate,
+    AgentOutputInjection, AgentProfile, AgentRunPurpose, AnswerWorkItemInput,
+    ApplyRecoveryPlanInput, ApprovalPolicy, CreateWorkItemInput, DomainAgentPolicy,
+    ExternalAgentBinding, RuleResolution, RunWorkItemInput, SelectRunAgentInput, SetLocaleInput,
+    SetNagareAgentSettingsInput, UpdateAgentProfileInput, VERSION, WorkflowMode,
+    accept_dispatch_plan, accept_recovery_plan, add_agent_profile, add_skill_package,
     advance_work_item_once, advance_work_item_until_blocked, agent_doctor, agent_probe,
     answer_work_item, apply_recovery_plan, approve_work_item, create_handoff, create_recovery_plan,
     create_work_item_with_input, delete_agent_profile, doctor, get_agent_profile,
     get_locale_settings, get_nagare_agent_settings, get_work_item_snapshot, init_project,
-    list_agent_profiles, list_domain_groups, list_domain_profiles, list_work_items,
-    reject_work_item, resolve_rule_for_path, run_first_scenario, run_registered_agent_scenario,
-    run_work_item_with_input, select_agent_for_work_item_run, set_locale_settings,
-    set_nagare_agent_settings, update_agent_profile,
+    list_agent_profiles, list_domain_groups, list_domain_profiles, list_skill_packages,
+    list_skill_set_catalog, list_work_items, reject_work_item, resolve_rule_for_path,
+    run_first_scenario, run_registered_agent_scenario, run_work_item_with_input,
+    select_agent_for_work_item_run, set_locale_settings, set_nagare_agent_settings,
+    update_agent_profile,
 };
 
 use crate::args::ParsedArgs;
@@ -36,6 +38,7 @@ pub(crate) fn run(args: Vec<String>) -> Result<(), String> {
         Some("init") => init_command(&args[1..]),
         Some("doctor") => doctor_command(&args[1..]),
         Some("agent") => agent_command(&args[1..]),
+        Some("skill") => skill_command(&args[1..]),
         Some("locale") => locale_command(&args[1..]),
         Some("item") => item_command(&args[1..]),
         Some("handoff") => handoff_command(&args[1..]),
@@ -96,6 +99,86 @@ fn agent_command(args: &[String]) -> Result<(), String> {
     }
 }
 
+fn skill_command(args: &[String]) -> Result<(), String> {
+    match args.first().map(String::as_str) {
+        Some("add") | Some("install") => skill_add_command(&args[1..]),
+        Some("list") => skill_list_command(&args[1..]),
+        Some(command) => Err(format!("unknown skill command `{command}`")),
+        None => Err("skill command required: add, list".to_string()),
+    }
+}
+
+fn skill_add_command(args: &[String]) -> Result<(), String> {
+    let parsed = ParsedArgs::parse(args)?;
+    let source_kind = parsed.optional("--from").unwrap_or("local");
+    let result = add_skill_package(
+        parsed.root()?,
+        AddSkillPackageInput {
+            id: parsed.optional("--id"),
+            source_kind,
+            source: parsed.optional("--source"),
+            path: parsed.optional("--path"),
+            reference: parsed.optional("--ref"),
+            checksum: parsed.optional("--checksum"),
+            skill_set_id: parsed.optional("--skill-id"),
+            skill_paths: parse_comma_list(parsed.optional("--paths")),
+            required_capabilities: parse_comma_list(parsed.optional("--requires")),
+            optional_capabilities: parse_comma_list(parsed.optional("--optional")),
+        },
+    )
+    .map_err(|error| error.to_string())?;
+    println!(
+        "skill package {} added source_kind={} source={} skill_set={} paths={} requires={} optional={}",
+        result.package.id,
+        result.package.source_kind,
+        result.package.source,
+        result.skill_set.id,
+        comma_list(&result.skill_set.paths),
+        comma_list(&result.skill_set.required_capabilities),
+        comma_list(&result.skill_set.optional_capabilities)
+    );
+    Ok(())
+}
+
+fn skill_list_command(args: &[String]) -> Result<(), String> {
+    let parsed = ParsedArgs::parse(args)?;
+    let root = parsed.root()?;
+    let packages = list_skill_packages(&root).map_err(|error| error.to_string())?;
+    let skill_sets = list_skill_set_catalog(&root).map_err(|error| error.to_string())?;
+    println!("skill_packages:");
+    if packages.is_empty() {
+        println!("  -");
+    } else {
+        for package in packages {
+            println!(
+                "  {} source_kind={} source={} ref={} checksum={} path={} provides={}",
+                package.id,
+                package.source_kind,
+                package.source,
+                empty_label(&package.reference),
+                empty_label(&package.checksum),
+                empty_label(&package.installed_path),
+                comma_list(&package.provided_skill_sets)
+            );
+        }
+    }
+    println!("skill_sets:");
+    if skill_sets.is_empty() {
+        println!("  -");
+    } else {
+        for skill_set in skill_sets {
+            println!(
+                "  {} paths={} requires={} optional={}",
+                skill_set.id,
+                comma_list(&skill_set.paths),
+                comma_list(&skill_set.required_capabilities),
+                comma_list(&skill_set.optional_capabilities)
+            );
+        }
+    }
+    Ok(())
+}
+
 fn agent_add_command(args: &[String]) -> Result<(), String> {
     let parsed = ParsedArgs::parse(args)?;
     let id = parsed.required("--id")?;
@@ -115,6 +198,7 @@ fn agent_add_command(args: &[String]) -> Result<(), String> {
     let description = parsed.optional("--description").unwrap_or("");
     let role = parsed.optional("--role").unwrap_or("");
     let specialties = parse_comma_list(parsed.optional("--specialties"));
+    let skill_set_ids = parse_comma_list(parsed.optional("--skills"));
     let external = external_binding_for_add(id, provider, &parsed);
     let managed_by = external.managed.then_some("nagare");
     let result = add_agent_profile(
@@ -128,6 +212,7 @@ fn agent_add_command(args: &[String]) -> Result<(), String> {
             working_dir,
             description,
             specialties,
+            skill_set_ids,
             domain_group_ids: parse_comma_list(parsed.optional("--domain-groups")),
             domain_ids: parse_comma_list(parsed.optional("--domains")),
             managed_by,
@@ -231,6 +316,7 @@ fn agent_update_command(args: &[String]) -> Result<(), String> {
         || parsed.optional("--working-dir").is_some()
         || parsed.optional("--description").is_some()
         || parsed.optional("--specialties").is_some()
+        || parsed.optional("--skills").is_some()
         || parsed.optional("--domain-groups").is_some()
         || parsed.optional("--domains").is_some()
         || parsed.optional("--managed-by").is_some()
@@ -263,6 +349,9 @@ fn agent_update_command(args: &[String]) -> Result<(), String> {
             description: parsed.optional("--description"),
             specialties: parsed
                 .optional("--specialties")
+                .map(|value| parse_comma_list(Some(value))),
+            skill_set_ids: parsed
+                .optional("--skills")
                 .map(|value| parse_comma_list(Some(value))),
             domain_group_ids: parsed
                 .optional("--domain-groups")
@@ -343,6 +432,7 @@ fn agent_show_command(args: &[String]) -> Result<(), String> {
     println!("display_name: {}", profile.display_name);
     println!("runtime: {}", profile.runtime);
     println!("adapter: {}", profile.adapter);
+    println!("tool_kind: {}", profile.tool_kind);
     println!("role: {}", empty_label(&profile.role));
     println!("working_dir: {}", profile.working_dir);
     println!("managed_by: {}", empty_label(&profile.managed_by));
@@ -364,7 +454,13 @@ fn agent_show_command(args: &[String]) -> Result<(), String> {
     println!("external.managed: {}", profile.external.managed);
     println!("external.source: {}", empty_label(&profile.external.source));
     println!("description: {}", empty_label(&profile.description));
+    println!(
+        "prompt.instructions: {}",
+        empty_label(&profile.prompt.instructions)
+    );
+    println!("prompt.version: {}", empty_label(&profile.prompt.version));
     println!("specialties: {}", comma_list(&profile.specialties));
+    println!("skills: {}", comma_list(&profile.skill_set_ids));
     println!(
         "output_contract.work: {} / {} / required={} / injection={}",
         profile.output_contracts.work.contract,
@@ -616,6 +712,7 @@ fn item_create_command(args: &[String]) -> Result<(), String> {
             constraints: parse_comma_list(parsed.optional("--constraint")),
             domain_group_id: parsed.optional("--domain-group").map(ToOwned::to_owned),
             domain_id: parsed.optional("--domain").map(ToOwned::to_owned),
+            domain_agent_policy: parse_optional_domain_agent_policy(&parsed)?.unwrap_or_default(),
             workflow_mode: parse_optional_workflow_mode(&parsed)?,
             approval_policy: parsed
                 .optional("--approval-policy")
@@ -629,6 +726,24 @@ fn item_create_command(args: &[String]) -> Result<(), String> {
         result.item.id, result.item.status, result.item.workflow_mode, result.item.approval_policy
     );
     Ok(())
+}
+
+fn parse_optional_domain_agent_policy(
+    parsed: &ParsedArgs,
+) -> Result<Option<DomainAgentPolicy>, String> {
+    if let Some(value) = parsed.optional("--domain-agent-policy") {
+        return DomainAgentPolicy::parse(value)
+            .map(Some)
+            .map_err(|error| error.to_string());
+    }
+    parsed
+        .optional("--require-domain-agent")
+        .map(|value| match value {
+            "true" => Ok(DomainAgentPolicy::ConfirmGeneralFallback),
+            "false" => Ok(DomainAgentPolicy::AutoGeneralFallback),
+            _ => Err("--require-domain-agent must be true or false".to_string()),
+        })
+        .transpose()
 }
 
 fn item_list_command(args: &[String]) -> Result<(), String> {

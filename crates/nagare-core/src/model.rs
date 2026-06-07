@@ -104,6 +104,10 @@ pub struct WorkItem {
     pub domain_group_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub domain_id: Option<String>,
+    #[serde(default = "default_domain_agent_policy")]
+    pub domain_agent_policy: DomainAgentPolicy,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub require_domain_agent: bool,
     #[serde(default = "default_workflow_mode")]
     pub workflow_mode: WorkflowMode,
     #[serde(default = "default_approval_policy")]
@@ -113,6 +117,51 @@ pub struct WorkItem {
     pub status: WorkItemStatus,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DomainAgentPolicy {
+    AutoGeneralFallback,
+    ConfirmGeneralFallback,
+    RequireDomainAgent,
+}
+
+impl Default for DomainAgentPolicy {
+    fn default() -> Self {
+        Self::AutoGeneralFallback
+    }
+}
+
+impl fmt::Display for DomainAgentPolicy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::AutoGeneralFallback => f.write_str("auto_general_fallback"),
+            Self::ConfirmGeneralFallback => f.write_str("confirm_general_fallback"),
+            Self::RequireDomainAgent => f.write_str("require_domain_agent"),
+        }
+    }
+}
+
+impl DomainAgentPolicy {
+    pub fn parse(value: &str) -> Result<Self, NagareError> {
+        match value {
+            "auto_general_fallback" => Ok(Self::AutoGeneralFallback),
+            "confirm_general_fallback" => Ok(Self::ConfirmGeneralFallback),
+            "require_domain_agent" => Ok(Self::RequireDomainAgent),
+            _ => Err(NagareError::InvalidState(format!(
+                "unknown domain agent policy `{value}`"
+            ))),
+        }
+    }
+}
+
+pub fn default_domain_agent_policy() -> DomainAgentPolicy {
+    DomainAgentPolicy::AutoGeneralFallback
+}
+
+pub(crate) fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -461,6 +510,8 @@ pub struct CommandRunOutput {
 pub struct AgentProfile {
     pub id: String,
     pub display_name: String,
+    #[serde(default)]
+    pub tool_kind: AgentToolKind,
     pub runtime: String,
     pub adapter: String,
     pub role: String,
@@ -469,6 +520,8 @@ pub struct AgentProfile {
     pub description: String,
     #[serde(default)]
     pub specialties: Vec<String>,
+    #[serde(default)]
+    pub skill_set_ids: Vec<String>,
     #[serde(default)]
     pub domain_group_ids: Vec<String>,
     #[serde(default)]
@@ -480,9 +533,82 @@ pub struct AgentProfile {
     #[serde(default)]
     pub external: ExternalAgentBinding,
     #[serde(default)]
+    pub prompt: AgentPromptConfig,
+    #[serde(default)]
     pub output_contracts: AgentOutputContracts,
     #[serde(skip)]
     pub source: AgentProfileSource,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentToolKind {
+    Codex,
+    #[default]
+    CodexCli,
+    OpenClaw,
+}
+
+impl fmt::Display for AgentToolKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Codex => f.write_str("codex"),
+            Self::CodexCli => f.write_str("codex_cli"),
+            Self::OpenClaw => f.write_str("openclaw"),
+        }
+    }
+}
+
+impl AgentToolKind {
+    pub fn parse(value: &str) -> Result<Self, NagareError> {
+        match value.trim() {
+            "codex" | "codex_app" | "codex_app_server" => Ok(Self::Codex),
+            "codex_cli" | "codex-cli" => Ok(Self::CodexCli),
+            "openclaw" => Ok(Self::OpenClaw),
+            other => Err(NagareError::InvalidState(format!(
+                "unknown agent tool kind `{other}`"
+            ))),
+        }
+    }
+
+    pub fn infer(runtime: &str, adapter: &str) -> Self {
+        match (runtime, adapter) {
+            ("codex-app-local", _) | (_, "stdio.codex-app-server") => Self::Codex,
+            ("openclaw-local", _) | (_, "process.openclaw-agent") => Self::OpenClaw,
+            _ => Self::CodexCli,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentPromptConfig {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub instructions: String,
+    #[serde(default = "default_agent_prompt_version")]
+    pub version: String,
+}
+
+impl Default for AgentPromptConfig {
+    fn default() -> Self {
+        Self {
+            instructions: String::new(),
+            version: default_agent_prompt_version(),
+        }
+    }
+}
+
+pub fn default_agent_prompt_version() -> String {
+    "v1".to_string()
+}
+
+impl AgentPromptConfig {
+    pub fn effective_instructions<'a>(&'a self, description: &'a str) -> &'a str {
+        if self.instructions.trim().is_empty() {
+            description
+        } else {
+            &self.instructions
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -780,6 +906,7 @@ pub struct AddAgentProfileInput<'a> {
     pub working_dir: &'a str,
     pub description: &'a str,
     pub specialties: Vec<String>,
+    pub skill_set_ids: Vec<String>,
     pub domain_group_ids: Vec<String>,
     pub domain_ids: Vec<String>,
     pub managed_by: Option<&'a str>,
@@ -802,6 +929,7 @@ pub struct UpdateAgentProfileInput<'a> {
     pub working_dir: Option<&'a str>,
     pub description: Option<&'a str>,
     pub specialties: Option<Vec<String>>,
+    pub skill_set_ids: Option<Vec<String>>,
     pub domain_group_ids: Option<Vec<String>>,
     pub domain_ids: Option<Vec<String>>,
     pub managed_by: Option<&'a str>,
@@ -931,6 +1059,59 @@ pub struct SkillSetDeclaration {
     pub required_capabilities: Vec<String>,
     #[serde(default)]
     pub optional_capabilities: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SkillSetCatalogEntry {
+    pub id: String,
+    pub paths: Vec<String>,
+    pub required_capabilities: Vec<String>,
+    pub optional_capabilities: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillPackageDeclaration {
+    pub source_kind: String,
+    pub source: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub reference: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub checksum: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub installed_path: String,
+    #[serde(default)]
+    pub provided_skill_sets: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SkillPackageCatalogEntry {
+    pub id: String,
+    pub source_kind: String,
+    pub source: String,
+    pub reference: String,
+    pub checksum: String,
+    pub installed_path: String,
+    pub provided_skill_sets: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AddSkillPackageInput<'a> {
+    pub id: Option<&'a str>,
+    pub source_kind: &'a str,
+    pub source: Option<&'a str>,
+    pub path: Option<&'a str>,
+    pub reference: Option<&'a str>,
+    pub checksum: Option<&'a str>,
+    pub skill_set_id: Option<&'a str>,
+    pub skill_paths: Vec<String>,
+    pub required_capabilities: Vec<String>,
+    pub optional_capabilities: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SkillPackageInstallResult {
+    pub package: SkillPackageCatalogEntry,
+    pub skill_set: SkillSetCatalogEntry,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

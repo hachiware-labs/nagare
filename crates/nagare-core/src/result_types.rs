@@ -15,6 +15,7 @@ pub struct CreateWorkItemInput {
     pub constraints: Vec<String>,
     pub domain_group_id: Option<String>,
     pub domain_id: Option<String>,
+    pub domain_agent_policy: DomainAgentPolicy,
     pub workflow_mode: Option<WorkflowMode>,
     pub approval_policy: Option<ApprovalPolicy>,
 }

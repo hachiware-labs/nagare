@@ -107,28 +107,35 @@ pub(crate) fn prompt_with_output_contract(
     prompt: &str,
     purpose: AgentRunPurpose,
     contract: &AgentOutputContract,
+    locale: &str,
 ) -> String {
     if contract.injection != AgentOutputInjection::PromptSuffix {
         return prompt.to_string();
     }
     format!(
         "{prompt}\n\n{}",
-        output_contract_instruction(purpose, contract)
+        localized_output_contract_instruction(locale, purpose, contract)
     )
 }
 
-pub(crate) fn prompt_with_human_feedback(prompt: &str, context: &str) -> String {
+pub(crate) fn prompt_with_human_feedback(prompt: &str, context: &str, locale: &str) -> String {
     if context.trim().is_empty() {
         return prompt.to_string();
     }
-    format!("{prompt}\n\n## Nagare Human Feedback\n{context}")
+    format!(
+        "{prompt}\n\n## {}\n{context}",
+        localized_context_heading(locale, ContextHeading::HumanFeedback)
+    )
 }
 
-pub(crate) fn prompt_with_handoff_context(prompt: &str, context: &str) -> String {
+pub(crate) fn prompt_with_handoff_context(prompt: &str, context: &str, locale: &str) -> String {
     if context.trim().is_empty() {
         return prompt.to_string();
     }
-    format!("{prompt}\n\n## Nagare Handoff Context\n{context}")
+    format!(
+        "{prompt}\n\n## {}\n{context}",
+        localized_context_heading(locale, ContextHeading::HandoffContext)
+    )
 }
 
 pub(crate) fn human_feedback_prompt_context(ledger: &Ledger, work_item_id: &str) -> String {
@@ -359,36 +366,6 @@ fn valid_next_action(value: &str) -> bool {
             | "wait"
             | "stop"
     )
-}
-
-fn output_contract_instruction(purpose: AgentRunPurpose, contract: &AgentOutputContract) -> String {
-    let required = if contract.required {
-        "This final block is required."
-    } else {
-        "Include this final block when possible."
-    };
-    match purpose {
-        AgentRunPurpose::DispatchPreview => format!(
-            "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\nReturn one JSON object only with keys: target_agent_profile_id, summary, risks, missing_information. target_agent_profile_id must exactly match a registered candidate agent profile id. Do not add Markdown around the JSON.",
-            contract_id = contract.contract,
-            pack = contract.instruction_pack,
-        ),
-        AgentRunPurpose::Review => format!(
-            "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\nFinish with this exact Markdown contract shape. Put each contract key at the start of its own line. Do not nest contract keys under summary, do not put contract keys inside bullet text, and do not wrap the block in a code fence.\n\n## Nagare Review\nverdict: pass|request_changes|blocked\nsummary:\n- concise review summary\ncompleted:\n- what you reviewed, including CI/tests/checks when applicable\ncriteria:\n- <criterion>: passed|failed|unknown - note\nfindings:\n- finding or none\nreferenced_artifacts:\n- requested deliverable artifact id/path or none\nrequested_changes:\n- requested change or none\nquestions:\n- question or none\nnext_notes:\n- handoff hint for the next dispatch or agent\nnext_action: approve|run_agent|answer_question|stop",
-            contract_id = contract.contract,
-            pack = contract.instruction_pack,
-        ),
-        AgentRunPurpose::Work => format!(
-            "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\nFinish with this exact Markdown contract shape. Put each contract key at the start of its own line. Do not nest contract keys under summary, do not put contract keys inside bullet text, and do not wrap the block in a code fence.\n\n## Nagare Result\nstatus: succeeded|blocked|failed\nsummary:\n- final user-facing result or concise answer\ncompleted:\n- completed work item\nartifacts:\n- requested deliverable artifact path/id or none\nevidence:\n- evidence or none\nquestions:\n- question or none\nnext_notes:\n- handoff hint for the next dispatch or agent\nnext_action: review|answer_question|handoff|stop",
-            contract_id = contract.contract,
-            pack = contract.instruction_pack,
-        ),
-        AgentRunPurpose::WorkflowSupervision => format!(
-            "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\nFinish with this exact Markdown contract shape. Put each contract key at the start of its own line. Do not wrap the block in a code fence.\n\n## Nagare Workflow Decision\naction: dispatch|run_agent|run_review|recover|approve|stop\nreason: concise reason\ntarget_agent_profile_id: agent id or none\nrequires_human: true|false\nconfidence: 0.0-1.0\ncommand_hint: nagare command or none",
-            contract_id = contract.contract,
-            pack = contract.instruction_pack,
-        ),
-    }
 }
 
 #[cfg(test)]

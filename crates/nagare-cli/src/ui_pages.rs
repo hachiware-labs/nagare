@@ -2,21 +2,32 @@ use std::fs;
 use std::path::Path;
 
 use nagare_core::{
-    ApprovalPolicy, WorkItemStatus, WorkflowMode, WorkflowSettings, get_domain_group,
-    get_domain_profile, get_work_item_snapshot, get_workflow_settings, list_agent_profiles,
-    list_domain_groups, list_domain_profiles, list_work_items,
+    ApprovalPolicy, I18n, UiTextKey, WorkItemStatus, WorkflowMode, WorkflowSettings,
+    get_domain_group, get_domain_profile, get_locale_settings, get_work_item_snapshot,
+    get_workflow_settings, list_agent_profiles, list_domain_groups, list_domain_profiles,
+    list_skill_set_catalog, list_work_items,
 };
 
 use crate::ui::read_ui_running_state;
 use crate::ui_answer::{answer_view, render_answer_preview};
-use crate::ui_assets::{serve_script, serve_stylesheet};
+use crate::ui_assets::{serve_responsive_stylesheet, serve_script, serve_stylesheet};
 use crate::ui_html::h;
+
+fn i18n_for_root(root: &Path) -> Result<I18n, String> {
+    let locale = get_locale_settings(root).map_err(|error| error.to_string())?;
+    Ok(I18n::new(locale.language))
+}
+
 pub(crate) fn render_serve_home(root: &Path) -> Result<String, String> {
+    let i18n = i18n_for_root(root)?;
     let items = list_work_items(root).map_err(|error| error.to_string())?;
     let agents = list_agent_profiles(root).map_err(|error| error.to_string())?;
     let mut queue_signals = QueueSignals::default();
     let rows = if items.is_empty() {
-        "<tr><td colspan=\"8\" class=\"muted\">No work items yet</td></tr>".to_string()
+        format!(
+            "<tr><td colspan=\"8\" class=\"muted\">{}</td></tr>",
+            h(i18n.ui(UiTextKey::NoWorkItemsYet))
+        )
     } else {
         items
             .iter()
@@ -36,7 +47,7 @@ pub(crate) fn render_serve_home(root: &Path) -> Result<String, String> {
                 let answer = snapshot.as_ref().map(answer_view);
                 let filter_state = queue_filter_state(&state_label);
                 format!(
-                    r#"<tr class="{}" data-queue-state="{}"><td><a href="/items/{}">{}</a><div class="muted">{}</div></td><td>{}</td><td>{}</td><td><span class="badge {}">{}</span><div class="muted">{}</div></td><td>{}</td><td>{}</td><td><form class="delete-work-form" data-work-id="{}" data-work-title="{}"><button class="danger" type="submit">Delete</button></form></td></tr>"#,
+                    r#"<tr class="{}" data-queue-state="{}"><td><a href="/items/{}">{}</a><div class="muted">{}</div></td><td>{}</td><td>{}</td><td><span class="badge {}">{}</span><div class="muted">{}</div></td><td>{}</td><td>{}</td><td><form class="delete-work-form" data-work-id="{}" data-work-title="{}"><button class="danger" type="submit">{}</button></form></td></tr>"#,
                     h(&format!("state-{}", state_label.to_ascii_lowercase().replace(' ', "-"))),
                     h(filter_state),
                     h(&item.id),
@@ -45,12 +56,13 @@ pub(crate) fn render_serve_home(root: &Path) -> Result<String, String> {
                     h(&item.title),
                     render_answer_preview(answer.as_ref()),
                     state_class,
-                    h(&state_label),
-                    h(&state_detail),
+                    h(&localized_queue_state(&i18n, &state_label)),
+                    h(&localized_queue_detail(&i18n, &state_detail)),
                     h(next_action),
                     h(&item.workflow_mode.to_string()),
                     h(&item.id),
-                    h(&item.title)
+                    h(&item.title),
+                    h(i18n.ui(UiTextKey::Delete))
                 )
             })
             .collect::<Vec<_>>()
@@ -68,38 +80,38 @@ pub(crate) fn render_serve_home(root: &Path) -> Result<String, String> {
 <body>
   <main class="app">
     <aside class="sidebar">
-      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" alt=""><span class="brand-text">Nagare</span></h1>
+      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
       <nav>
-        <a class="active" href="/">Work Queue</a>
-        <a href="/settings">Settings</a>
+        <a class="active" href="/">{}</a>
+        <a href="/settings">{}</a>
       </nav>
     </aside>
     <section class="content">
       <header class="topbar">
         <div>
-          <h1>Work Queue</h1>
-          <p class="muted">Monitor, filter, and continue agent work from one queue.</p>
+          <h1>{}</h1>
+          <p class="muted">{}</p>
         </div>
         <div class="actions">
-          <a class="button-link" href="/new">Create New Item</a>
-          <span class="badge blue">work {}</span>
-          <span class="badge gray">agents {}</span>
+          <a class="button-link" href="/new">{}</a>
+            <span class="badge blue">{} {}</span>
+            <span class="badge gray">{} {}</span>
         </div>
       </header>
       <section class="queue-layout">
         <section class="panel queue-panel">
           <div class="panel-head">
-            <h2>Work Queue</h2>
-            <span class="badge gray">manual continuation</span>
+            <h2>{}</h2>
+            <span class="badge gray">{}</span>
           </div>
           <div class="status-strip">
-            <button class="queue-chip active" type="button" data-filter-state="all">All <b>{}</b></button>
-            <button class="queue-chip attention" type="button" data-filter-state="attention">Needs attention <b>{}</b></button>
-            <button class="queue-chip failed" type="button" data-filter-state="failed">Failed <b>{}</b></button>
-            <button class="queue-chip approval" type="button" data-filter-state="approval">Approval <b>{}</b></button>
-            <button class="queue-chip running" type="button" data-filter-state="running">Running <b>{}</b></button>
+            <button class="queue-chip active" type="button" data-filter-state="all">{} <b>{}</b></button>
+            <button class="queue-chip attention" type="button" data-filter-state="attention">{} <b>{}</b></button>
+            <button class="queue-chip failed" type="button" data-filter-state="failed">{} <b>{}</b></button>
+            <button class="queue-chip approval" type="button" data-filter-state="approval">{} <b>{}</b></button>
+            <button class="queue-chip running" type="button" data-filter-state="running">{} <b>{}</b></button>
           </div>
-          <table><thead><tr><th>ID / Folder</th><th>Title</th><th>Answer</th><th>State</th><th>Next</th><th>Mode</th><th></th></tr></thead><tbody id="work-items">{}</tbody></table>
+          <table><thead><tr><th>{}</th><th>{}</th><th>Answer</th><th>{}</th><th>{}</th><th>{}</th><th></th></tr></thead><tbody id="work-items">{}</tbody></table>
         </section>
       </section>
     </section>
@@ -108,16 +120,77 @@ pub(crate) fn render_serve_home(root: &Path) -> Result<String, String> {
 </body>
 </html>"##,
         serve_stylesheet(),
+        i18n.ui(UiTextKey::WorkQueue),
+        i18n.ui(UiTextKey::Settings),
+        i18n.ui(UiTextKey::WorkQueue),
+        "作業の一覧、フィルタ、継続操作をまとめて確認します",
+        i18n.ui(UiTextKey::CreateNewItem),
+        i18n.ui(UiTextKey::Work),
         items.len(),
+        i18n.ui(UiTextKey::Agents),
         agents.len(),
+        i18n.ui(UiTextKey::WorkQueue),
+        i18n.ui(UiTextKey::ManualContinuation),
+        i18n.ui(UiTextKey::All),
         items.len(),
+        i18n.ui(UiTextKey::NeedsAttention),
         queue_signals.attention,
+        i18n.ui(UiTextKey::Failed),
         queue_signals.failed,
+        i18n.ui(UiTextKey::Approval),
         queue_signals.approval,
+        i18n.ui(UiTextKey::Running),
         queue_signals.running,
+        i18n.ui(UiTextKey::IdFolder),
+        i18n.ui(UiTextKey::Title),
+        i18n.ui(UiTextKey::State),
+        i18n.ui(UiTextKey::Next),
+        i18n.ui(UiTextKey::Mode),
         rows,
         serve_script()
     ))
+}
+
+fn localized_queue_state(i18n: &I18n, label: &str) -> String {
+    if i18n.language().is_ja() {
+        match label {
+            "Done" => "完了",
+            "Running" => "処理中",
+            "Needs input" => "入力待ち",
+            "Needs approval" => "承認待ち",
+            "Queued" => "待機中",
+            "In review" => "レビュー中",
+            "Needs handoff" => "引き継ぎ待ち",
+            "Changes requested" => "変更要求",
+            "Failed" => "失敗",
+            other => other,
+        }
+        .to_string()
+    } else {
+        label.to_string()
+    }
+}
+
+fn localized_queue_detail(i18n: &I18n, detail: &str) -> String {
+    if i18n.language().is_ja() {
+        match detail {
+            "Completed" => "完了しました",
+            "Waiting for your answer" => "回答待ちです",
+            "Ready for final approval" => "最終承認待ちです",
+            "Agent is running" => "エージェントが処理中です",
+            "Waiting for background processing" => "バックグラウンド処理待ちです",
+            "Work is ready for review or approval" => "レビューまたは承認待ちです",
+            "Handoff decision is required" => "引き継ぎ判断が必要です",
+            "Agent should address review feedback" => "レビュー指摘への対応待ちです",
+            other if other.starts_with("Processing: ") => {
+                return format!("処理中: {}", other.trim_start_matches("Processing: "));
+            }
+            other => other,
+        }
+        .to_string()
+    } else {
+        detail.to_string()
+    }
 }
 
 fn queue_filter_state(label: &str) -> &'static str {
@@ -243,62 +316,67 @@ fn work_item_list_state(
 }
 
 pub(crate) fn render_serve_new_item(root: &Path) -> Result<String, String> {
+    let i18n = i18n_for_root(root)?;
     let items = list_work_items(root).map_err(|error| error.to_string())?;
     let domain_groups = list_domain_groups(root).map_err(|error| error.to_string())?;
     let domains = list_domain_profiles(root).map_err(|error| error.to_string())?;
     let settings = get_workflow_settings(root).map_err(|error| error.to_string())?;
-    let domain_group_options = domain_group_select_options(&domain_groups, None, "Project default");
-    let domain_options = domain_select_options(&domains, None, "Project default");
-    let workflow_options = workflow_mode_options(Some(settings.default_progress_mode), false);
-    let approval_options = approval_policy_options(Some(settings.approval_policy), false);
+    let domain_group_options =
+        domain_group_select_options(&domain_groups, None, i18n.ui(UiTextKey::ProjectDefault));
+    let domain_options = domain_select_options(&domains, None, i18n.ui(UiTextKey::ProjectDefault));
+    let workflow_options =
+        workflow_mode_options(Some(settings.default_progress_mode), false, &i18n);
+    let approval_options = approval_policy_options(Some(settings.approval_policy), false, &i18n);
+    let domain_agent_policy_options = domain_agent_policy_options(&i18n);
     Ok(format!(
         r#"<!doctype html>
 <html lang="ja">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>New Work Item</title>
+  <title>{}</title>
   <style>{}</style>
 </head>
 <body>
   <main class="app">
     <aside class="sidebar">
-      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" alt=""><span class="brand-text">Nagare</span></h1>
+      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
       <nav>
-        <a href="/">Work Queue</a>
-        <a href="/settings">Settings</a>
+        <a href="/">{}</a>
+        <a href="/settings">{}</a>
       </nav>
     </aside>
     <section class="content">
       <header class="topbar">
         <div>
-          <h1>Create New Item</h1>
-          <p class="muted">Add one work item; execution continues in the background</p>
+          <h1>{}</h1>
+          <p class="muted">{}</p>
         </div>
         <div class="actions">
-          <a class="button-link secondary" href="/">Work Queue</a>
-          <span class="badge blue">work {}</span>
+          <a class="button-link secondary" href="/">{}</a>
+          <span class="badge blue">{} {}</span>
         </div>
       </header>
       <section class="composer">
-        <h2>New Work Item</h2>
+        <h2>{}</h2>
         <form id="create-work-form">
-          <label>Prompt<textarea name="description" rows="4" required placeholder="エージェントへの依頼内容"></textarea></label>
-          <label>Work folder<input name="work_folder" placeholder="crates/nagare-core"></label>
-          <label>Acceptance criteria<textarea name="acceptance" rows="3" placeholder="1行に1条件"></textarea></label>
+          <label>{}<textarea name="description" rows="4" required placeholder="エージェントへの依頼内容"></textarea></label>
+          <label>{}<input name="work_folder" placeholder="crates/nagare-core"></label>
+          <label>{}<textarea name="acceptance" rows="3" placeholder="1行に1条件"></textarea></label>
           <details class="advanced-form" open>
-            <summary>More context</summary>
-            <label>Expected artifacts<textarea name="artifacts" rows="2" placeholder="README, tests, screenshots"></textarea></label>
-            <label>Constraints<textarea name="constraints" rows="2" placeholder="破壊的操作を避ける、既存APIを維持する"></textarea></label>
-            <label>Domain Group<select name="domain_group_id">{}</select></label>
-            <label>Domain<select name="domain_id">{}</select></label>
-            <label>Progress mode<select name="workflow_mode">{}</select></label>
-            <label>Final approval<select name="approval_policy">{}</select></label>
+            <summary>{}</summary>
+            <label>{}<textarea name="artifacts" rows="2" placeholder="README, tests, screenshots"></textarea></label>
+            <label>{}<textarea name="constraints" rows="2" placeholder="破壊的操作を避ける、既存APIを維持する"></textarea></label>
+            <label>{}<select name="domain_group_id">{}</select></label>
+            <label>{}<select name="domain_id">{}</select></label>
+            <label>{}<select name="domain_agent_policy">{}</select></label>
+            <label>{}<select name="workflow_mode">{}</select></label>
+            <label>{}<select name="approval_policy">{}</select></label>
           </details>
           <input type="hidden" name="max_steps" value="8">
           <input type="hidden" name="command" value="">
           <input type="hidden" name="review_command" value="">
-          <button type="submit">Create Work Item</button>
+          <button type="submit">{}</button>
           <p id="form-status" class="muted" role="status"></p>
         </form>
       </section>
@@ -307,115 +385,185 @@ pub(crate) fn render_serve_new_item(root: &Path) -> Result<String, String> {
   <script>{}</script>
 </body>
 </html>"#,
+        i18n.ui(UiTextKey::CreateNewItem),
         serve_stylesheet(),
+        i18n.ui(UiTextKey::WorkQueue),
+        i18n.ui(UiTextKey::Settings),
+        i18n.ui(UiTextKey::CreateNewItem),
+        i18n.ui(UiTextKey::AddItemLead),
+        i18n.ui(UiTextKey::WorkQueue),
+        i18n.ui(UiTextKey::Work),
         items.len(),
+        i18n.ui(UiTextKey::CreateNewItem),
+        i18n.ui(UiTextKey::Prompt),
+        i18n.ui(UiTextKey::WorkFolder),
+        i18n.ui(UiTextKey::AcceptanceCriteria),
+        i18n.ui(UiTextKey::MoreContext),
+        i18n.ui(UiTextKey::ExpectedArtifacts),
+        i18n.ui(UiTextKey::Constraints),
+        i18n.ui(UiTextKey::DomainGroup),
         domain_group_options,
+        i18n.ui(UiTextKey::Domain),
         domain_options,
+        i18n.ui(UiTextKey::DomainAgentPolicy),
+        domain_agent_policy_options,
+        i18n.ui(UiTextKey::ProgressMode),
         workflow_options,
+        i18n.ui(UiTextKey::FinalApproval),
         approval_options,
+        i18n.ui(UiTextKey::CreateNewItem),
         serve_script()
     ))
 }
 
 pub(crate) fn render_serve_settings(root: &Path) -> Result<String, String> {
+    let i18n = i18n_for_root(root)?;
     let agents = list_agent_profiles(root).map_err(|error| error.to_string())?;
     let domain_groups = list_domain_groups(root).map_err(|error| error.to_string())?;
     let domains = list_domain_profiles(root).map_err(|error| error.to_string())?;
     let workflow_settings = get_workflow_settings(root).map_err(|error| error.to_string())?;
-    let agent_rows = agent_profile_rows(&agents, &domain_groups, &domains);
-    let group_rows = domain_group_rows(&domain_groups);
-    let domain_rows = domain_profile_rows(&domains, &domain_groups);
-    let workflow_form = render_workflow_settings_form(workflow_settings);
+    let agent_rows = agent_profile_rows(&agents, &domain_groups, &domains, &i18n);
+    let group_rows = domain_group_rows(&domain_groups, &i18n);
+    let domain_rows = domain_profile_rows(&domains, &domain_groups, &i18n);
+    let workflow_form = render_workflow_settings_form(workflow_settings, &i18n);
     Ok(format!(
         r##"<!doctype html>
 <html lang="ja">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Nagare Settings</title>
-  <style>{}</style>
+  <title>{}</title>
+  <style>{}{}</style>
 </head>
 <body>
   <main class="app">
     <aside class="sidebar">
-      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" alt=""><span class="brand-text">Nagare</span></h1>
+      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
       <nav>
-        <a href="/">Work Queue</a>
-        <a class="active" href="/settings">Settings</a>
+        <a href="/">{}</a>
+        <a class="active" href="/settings">{}</a>
       </nav>
     </aside>
     <section class="content">
       <header class="topbar">
         <div>
-          <h1>Settings</h1>
-          <p class="muted">Workflow policy, domains, and agent profiles</p>
+          <h1>{}</h1>
+          <p class="muted">{}</p>
         </div>
         <div class="actions">
-          <a class="button-link" href="/settings/agents/new">Create New Agent</a>
-          <span class="badge gray">agents {}</span>
-          <span class="badge gray">groups {}</span>
-          <span class="badge gray">domains {}</span>
-          <span class="badge blue">profiles</span>
+          <a class="button-link" href="/settings/agents/new">{}</a>
+          <span class="badge gray">{} {}</span>
+          <span class="badge gray">{} {}</span>
+          <span class="badge gray">{} {}</span>
+          <span class="badge blue">{}</span>
         </div>
       </header>
-      <div class="settings-tabs" role="tablist" aria-label="Settings sections">
-        <button class="settings-tab active" type="button" role="tab" data-settings-tab="workflow">Workflow</button>
-        <button class="settings-tab" type="button" role="tab" data-settings-tab="domains">Domains</button>
-        <button class="settings-tab" type="button" role="tab" data-settings-tab="agents">Agents</button>
+      <div class="settings-tabs" role="tablist" aria-label="{}">
+        <button id="settings-tab-workflow" class="settings-tab active" type="button" role="tab" aria-selected="true" aria-controls="settings-panel-workflow" data-settings-tab="workflow">{}</button>
+        <button id="settings-tab-domains" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="settings-panel-domains" data-settings-tab="domains">{}</button>
+        <button id="settings-tab-agents" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="settings-panel-agents" data-settings-tab="agents">{}</button>
       </div>
-      <section class="settings-panel" data-settings-panel="workflow">
+      <section id="settings-panel-workflow" class="settings-panel" role="tabpanel" aria-labelledby="settings-tab-workflow" data-settings-panel="workflow">
         {}
       </section>
-      <section class="settings-panel" data-settings-panel="domains" hidden>
+      <section id="settings-panel-domains" class="settings-panel" role="tabpanel" aria-labelledby="settings-tab-domains" data-settings-panel="domains" hidden>
         <section class="panel">
           <div class="panel-head">
             <div>
-              <h2>Domain Groups</h2>
-              <p class="muted">Shared knowledge, common rubric, dispatch hints, and workflow defaults</p>
+              <h2>{}</h2>
+              <p class="muted">{}</p>
             </div>
-            <a class="button-link secondary" href="/settings/domain-groups/new">Create New Domain Group</a>
+            <a class="button-link secondary" href="/settings/domain-groups/new">{}</a>
           </div>
-          <table><thead><tr><th>Group</th><th>Description</th><th>Shared knowledge</th><th>Rubric</th><th>Dispatch hints</th><th>Workflow</th><th>Source</th><th>Actions</th></tr></thead><tbody id="domain-groups">{}</tbody></table>
+          <table class="domain-table"><thead><tr><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th></tr></thead><tbody id="domain-groups">{}</tbody></table>
         </section>
         <section class="panel">
           <div class="panel-head">
             <div>
-              <h2>Domains</h2>
-              <p class="muted">Domain Group membership, artifact types, rubric, dispatch hints, and workflow overrides</p>
+              <h2>{}</h2>
+              <p class="muted">{}</p>
             </div>
-            <a class="button-link secondary" href="/settings/domains/new">Create New Domain</a>
+            <a class="button-link secondary" href="/settings/domains/new">{}</a>
           </div>
-          <table><thead><tr><th>Domain</th><th>Group</th><th>Description</th><th>Rubric</th><th>Dispatch hints</th><th>Workflow</th><th>Source</th><th>Actions</th></tr></thead><tbody id="domain-profiles">{}</tbody></table>
+          <table class="domain-table"><thead><tr><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th></tr></thead><tbody id="domain-profiles">{}</tbody></table>
         </section>
       </section>
-      <section class="panel settings-panel" data-settings-panel="agents" hidden>
+      <section id="settings-panel-agents" class="panel settings-panel" role="tabpanel" aria-labelledby="settings-tab-agents" data-settings-panel="agents" hidden>
         <div class="panel-head">
-          <h2>Agents</h2>
-          <span class="badge gray">registered</span>
+          <h2>{}</h2>
+          <span class="badge gray">{}</span>
         </div>
-        <table><thead><tr><th>Agent</th><th>Type</th><th>Model</th><th>Domain scope</th><th>Workdir</th><th>Instruction</th><th>Source</th></tr></thead><tbody id="agent-profiles">{}</tbody></table>
+        {}
+        <table class="agent-table"><thead><tr><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th></tr></thead><tbody id="agent-profiles">{}</tbody></table>
       </section>
     </section>
   </main>
   <script>{}</script>
 </body>
 </html>"##,
+        i18n.ui(UiTextKey::Settings),
         serve_stylesheet(),
+        serve_responsive_stylesheet(),
+        i18n.ui(UiTextKey::WorkQueue),
+        i18n.ui(UiTextKey::Settings),
+        i18n.ui(UiTextKey::Settings),
+        i18n.ui(UiTextKey::SettingsLead),
+        i18n.ui(UiTextKey::CreateNewAgent),
+        i18n.ui(UiTextKey::Agents),
         agents.len(),
+        i18n.ui(UiTextKey::Groups),
         domain_groups.len(),
+        i18n.ui(UiTextKey::Domains),
         domains.len(),
+        i18n.ui(UiTextKey::Profiles),
+        i18n.ui(UiTextKey::Settings),
+        i18n.ui(UiTextKey::Workflow),
+        i18n.ui(UiTextKey::Domains),
+        i18n.ui(UiTextKey::Agents),
         workflow_form,
+        i18n.ui(UiTextKey::DomainGroups),
+        i18n.ui(UiTextKey::DomainGroupsLead),
+        i18n.ui(UiTextKey::CreateNewDomainGroup),
+        i18n.ui(UiTextKey::Group),
+        i18n.ui(UiTextKey::Description),
+        i18n.ui(UiTextKey::SharedKnowledge),
+        i18n.ui(UiTextKey::Rubric),
+        i18n.ui(UiTextKey::DispatchHints),
+        i18n.ui(UiTextKey::Workflow),
+        i18n.ui(UiTextKey::Source),
+        i18n.ui(UiTextKey::Actions),
         group_rows,
+        i18n.ui(UiTextKey::Domains),
+        i18n.ui(UiTextKey::DomainsLead),
+        i18n.ui(UiTextKey::CreateNewDomain),
+        i18n.ui(UiTextKey::Domain),
+        i18n.ui(UiTextKey::Group),
+        i18n.ui(UiTextKey::Description),
+        i18n.ui(UiTextKey::Rubric),
+        i18n.ui(UiTextKey::DispatchHints),
+        i18n.ui(UiTextKey::Workflow),
+        i18n.ui(UiTextKey::Source),
+        i18n.ui(UiTextKey::Actions),
         domain_rows,
+        i18n.ui(UiTextKey::Agents),
+        i18n.ui(UiTextKey::Registered),
+        agent_filters(&domain_groups, &domains, &i18n),
+        i18n.ui(UiTextKey::Agent),
+        localized(&i18n, "ツール / モデル", "Tool / Model"),
+        localized(&i18n, "スキル", "Skills"),
+        i18n.ui(UiTextKey::DomainScope),
+        i18n.ui(UiTextKey::Actions),
         agent_rows,
         serve_script()
     ))
 }
 
-fn domain_group_rows(groups: &[nagare_core::DomainGroup]) -> String {
+fn domain_group_rows(groups: &[nagare_core::DomainGroup], i18n: &I18n) -> String {
     if groups.is_empty() {
-        return "<tr><td colspan=\"8\" class=\"muted\">No domain groups registered.</td></tr>"
-            .to_string();
+        return format!(
+            "<tr><td colspan=\"5\" class=\"muted\">{}.</td></tr>",
+            h(i18n.ui(UiTextKey::DomainGroups))
+        );
     }
     let mut sorted_groups = groups.iter().collect::<Vec<_>>();
     sorted_groups.sort_by_key(|group| group.display_name.as_str());
@@ -424,27 +572,37 @@ fn domain_group_rows(groups: &[nagare_core::DomainGroup]) -> String {
         .map(|group| {
             format!(
             r#"<tr>
-  <td><a href="/settings/domain-groups/{}">{}</a><div class="muted">{}</div></td>
-  <td>{}</td>
-  <td>{}</td>
-  <td>{}</td>
-  <td>{}</td>
-  <td>{}</td>
-  <td>{}</td>
-  <td><div class="row-actions"><a class="button-link secondary" href="/settings/domain-groups/{}">Edit</a><form class="delete-domain-group-form" data-domain-group-id="{}" data-domain-group-name="{}"><button class="danger" type="submit">Delete</button></form></div></td>
+  <td data-label="{}"><a href="/settings/domain-groups/{}">{}</a><div class="muted">{}</div></td>
+  <td data-label="{}">{}</td>
+  <td data-label="{}">{}</td>
+  <td data-label="{}">{}</td>
+  <td data-label="{}">{}</td>
+  <td data-label="{}">{}</td>
+  <td data-label="{}">{}</td>
+  <td data-label="{}"><div class="row-actions"><a class="button-link secondary" href="/settings/domain-groups/{}">{}</a><form class="delete-domain-group-form" data-domain-group-id="{}" data-domain-group-name="{}"><button class="danger" type="submit">{}</button></form></div></td>
 </tr>"#,
+                h(i18n.ui(UiTextKey::Group)),
                 h(&group.id),
                 h(&group.display_name),
                 h(&group.id),
+                h(i18n.ui(UiTextKey::Description)),
                 h(&compact_instruction(&group.description)),
+                h(i18n.ui(UiTextKey::SharedKnowledge)),
                 h(&group.shared_knowledge.len().to_string()),
+                h(i18n.ui(UiTextKey::Rubric)),
                 h(&group.common_rubric.len().to_string()),
+                h(i18n.ui(UiTextKey::DispatchHints)),
                 h(&group.dispatch_hints.len().to_string()),
-                h(&domain_group_workflow_label(group)),
-                h(&group.source.to_string()),
+                h(i18n.ui(UiTextKey::Workflow)),
+                h(&domain_group_workflow_label(group, i18n)),
+                h(i18n.ui(UiTextKey::Source)),
+                h(&source_label(&group.source.to_string(), i18n)),
+                h(i18n.ui(UiTextKey::Actions)),
                 h(&group.id),
+                h(i18n.ui(UiTextKey::Edit)),
                 h(&group.id),
-                h(&group.display_name)
+                h(&group.display_name),
+                h(i18n.ui(UiTextKey::Delete))
             )
         })
         .collect::<Vec<_>>()
@@ -454,10 +612,13 @@ fn domain_group_rows(groups: &[nagare_core::DomainGroup]) -> String {
 fn domain_profile_rows(
     domains: &[nagare_core::DomainProfile],
     groups: &[nagare_core::DomainGroup],
+    i18n: &I18n,
 ) -> String {
     if domains.is_empty() {
-        return "<tr><td colspan=\"8\" class=\"muted\">No domains registered.</td></tr>"
-            .to_string();
+        return format!(
+            "<tr><td colspan=\"8\" class=\"muted\">{}.</td></tr>",
+            h(i18n.ui(UiTextKey::Domains))
+        );
     }
     let mut domains = domains.iter().collect::<Vec<_>>();
     domains.sort_by_key(|domain| domain.display_name.as_str());
@@ -466,27 +627,37 @@ fn domain_profile_rows(
         .map(|domain| {
             format!(
             r#"<tr>
-  <td><a href="/settings/domains/{}">{}</a><div class="muted">{}</div></td>
-  <td>{}</td>
-  <td>{}</td>
-  <td>{}</td>
-  <td>{}</td>
-  <td>{}</td>
-  <td>{}</td>
-  <td><div class="row-actions"><a class="button-link secondary" href="/settings/domains/{}">Edit</a><form class="delete-domain-form" data-domain-id="{}" data-domain-name="{}"><button class="danger" type="submit">Delete</button></form></div></td>
+  <td data-label="{}"><a href="/settings/domains/{}">{}</a><div class="muted">{}</div></td>
+  <td data-label="{}">{}</td>
+  <td data-label="{}">{}</td>
+  <td data-label="{}">{}</td>
+  <td data-label="{}">{}</td>
+  <td data-label="{}">{}</td>
+  <td data-label="{}">{}</td>
+  <td data-label="{}"><div class="row-actions"><a class="button-link secondary" href="/settings/domains/{}">{}</a><form class="delete-domain-form" data-domain-id="{}" data-domain-name="{}"><button class="danger" type="submit">{}</button></form></div></td>
 </tr>"#,
+                h(i18n.ui(UiTextKey::Domain)),
                 h(&domain.id),
                 h(&domain.display_name),
                 h(&domain.id),
+                h(i18n.ui(UiTextKey::Group)),
                 h(&domain_group_label(groups, domain.group_id.as_deref())),
+                h(i18n.ui(UiTextKey::Description)),
                 h(&compact_instruction(&domain.description)),
+                h(i18n.ui(UiTextKey::Rubric)),
                 h(&domain.rubric.len().to_string()),
+                h(i18n.ui(UiTextKey::DispatchHints)),
                 h(&domain.dispatch_hints.len().to_string()),
-                h(&domain_workflow_label(domain)),
-                h(&domain.source.to_string()),
+                h(i18n.ui(UiTextKey::Workflow)),
+                h(&domain_workflow_label(domain, i18n)),
+                h(i18n.ui(UiTextKey::Source)),
+                h(&source_label(&domain.source.to_string(), i18n)),
+                h(i18n.ui(UiTextKey::Actions)),
                 h(&domain.id),
+                h(i18n.ui(UiTextKey::Edit)),
                 h(&domain.id),
-                h(&domain.display_name)
+                h(&domain.display_name),
+                h(i18n.ui(UiTextKey::Delete))
             )
         })
         .collect::<Vec<_>>()
@@ -504,24 +675,44 @@ fn domain_group_label(groups: &[nagare_core::DomainGroup], id: Option<&str>) -> 
         .unwrap_or_else(|| id.to_string())
 }
 
-fn render_workflow_settings_form(settings: WorkflowSettings) -> String {
+fn source_label(source: &str, i18n: &I18n) -> String {
+    if i18n.language().is_ja() {
+        match source {
+            "project_domain_group_directory" => "プロジェクトのドメイングループ定義",
+            "project_domain_directory" => "プロジェクトのドメイン定義",
+            "project_config" => "プロジェクト設定",
+            "default_config" => "既定設定",
+            other => other,
+        }
+        .to_string()
+    } else {
+        source.to_string()
+    }
+}
+
+fn render_workflow_settings_form(settings: WorkflowSettings, i18n: &I18n) -> String {
     format!(
         r#"<section class="panel">
         <div class="panel-head">
-          <h2>Workflow</h2>
-          <span class="badge gray">project default</span>
+          <h2>{}</h2>
+          <span class="badge gray">{}</span>
         </div>
         <form id="workflow-settings-form" data-action="/api/workflow-settings">
           <div class="form-grid">
-            <label>Progress mode<select name="default_progress_mode">{}</select></label>
-            <label>Final approval<select name="approval_policy">{}</select></label>
+            <label>{}<select name="default_progress_mode">{}</select></label>
+            <label>{}<select name="approval_policy">{}</select></label>
           </div>
-          <button type="submit">Save Workflow Settings</button>
+          <button type="submit">{}</button>
           <p id="workflow-settings-status" class="muted" role="status"></p>
         </form>
       </section>"#,
-        workflow_mode_options(Some(settings.default_progress_mode), false),
-        approval_policy_options(Some(settings.approval_policy), false)
+        i18n.ui(UiTextKey::Workflow),
+        i18n.ui(UiTextKey::ProjectDefault),
+        i18n.ui(UiTextKey::ProgressMode),
+        workflow_mode_options(Some(settings.default_progress_mode), false, i18n),
+        i18n.ui(UiTextKey::FinalApproval),
+        approval_policy_options(Some(settings.approval_policy), false, i18n),
+        i18n.ui(UiTextKey::SaveWorkflowSettings)
     )
 }
 
@@ -617,10 +808,17 @@ fn domain_multi_options(domains: &[nagare_core::DomainProfile], selected: &[Stri
         .join("")
 }
 
-fn workflow_mode_options(selected: Option<WorkflowMode>, include_inherit: bool) -> String {
+fn workflow_mode_options(
+    selected: Option<WorkflowMode>,
+    include_inherit: bool,
+    i18n: &I18n,
+) -> String {
     let mut options = Vec::new();
     if include_inherit {
-        options.push(r#"<option value="">Inherit project default</option>"#.to_string());
+        options.push(format!(
+            r#"<option value="">{}</option>"#,
+            h(i18n.ui(UiTextKey::InheritProjectDefault))
+        ));
     }
     for mode in [WorkflowMode::ConfirmFirst, WorkflowMode::FinishFirst] {
         let selected_attr = if selected == Some(mode) {
@@ -632,16 +830,23 @@ fn workflow_mode_options(selected: Option<WorkflowMode>, include_inherit: bool) 
             r#"<option value="{}"{}>{}</option>"#,
             h(&mode.to_string()),
             selected_attr,
-            h(&mode.to_string())
+            h(&workflow_mode_label(mode, i18n))
         ));
     }
     options.join("")
 }
 
-fn approval_policy_options(selected: Option<ApprovalPolicy>, include_inherit: bool) -> String {
+fn approval_policy_options(
+    selected: Option<ApprovalPolicy>,
+    include_inherit: bool,
+    i18n: &I18n,
+) -> String {
     let mut options = Vec::new();
     if include_inherit {
-        options.push(r#"<option value="">Inherit project default</option>"#.to_string());
+        options.push(format!(
+            r#"<option value="">{}</option>"#,
+            h(i18n.ui(UiTextKey::InheritProjectDefault))
+        ));
     }
     for policy in [
         ApprovalPolicy::ManualFinalApproval,
@@ -656,37 +861,324 @@ fn approval_policy_options(selected: Option<ApprovalPolicy>, include_inherit: bo
             r#"<option value="{}"{}>{}</option>"#,
             h(&policy.to_string()),
             selected_attr,
-            h(&policy.to_string())
+            h(&approval_policy_label(policy, i18n))
         ));
     }
     options.join("")
 }
 
-fn domain_workflow_label(domain: &nagare_core::DomainProfile) -> String {
+fn workflow_mode_label(mode: WorkflowMode, i18n: &I18n) -> String {
+    if i18n.language().is_ja() {
+        match mode {
+            WorkflowMode::ConfirmFirst => "確認してから進める",
+            WorkflowMode::FinishFirst => "完了まで進める",
+        }
+        .to_string()
+    } else {
+        mode.to_string()
+    }
+}
+
+fn approval_policy_label(policy: ApprovalPolicy, i18n: &I18n) -> String {
+    if i18n.language().is_ja() {
+        match policy {
+            ApprovalPolicy::ManualFinalApproval => "最終承認を手動で行う",
+            ApprovalPolicy::AutoCompleteOnReviewPass => "レビュー通過で自動完了",
+        }
+        .to_string()
+    } else {
+        policy.to_string()
+    }
+}
+
+fn domain_agent_policy_options(i18n: &I18n) -> String {
+    let labels = if i18n.language().is_ja() {
+        [
+            ("auto_general_fallback", "専門Agentがなければ汎用で自動実行"),
+            (
+                "confirm_general_fallback",
+                "専門Agentがなければ確認して汎用で実行",
+            ),
+            ("require_domain_agent", "専門Agentを必須にする"),
+        ]
+    } else {
+        [
+            ("auto_general_fallback", "Auto general fallback"),
+            ("confirm_general_fallback", "Confirm general fallback"),
+            ("require_domain_agent", "Require domain agent"),
+        ]
+    };
+    labels
+        .into_iter()
+        .map(|(value, label)| format!(r#"<option value="{}">{}</option>"#, h(value), h(label)))
+        .collect::<Vec<_>>()
+        .join("")
+}
+
+fn agent_filters(
+    groups: &[nagare_core::DomainGroup],
+    domains: &[nagare_core::DomainProfile],
+    i18n: &I18n,
+) -> String {
+    let group_filters = agent_domain_group_filter_options(groups, i18n);
+    let domain_filters = agent_domain_filter_options(domains, i18n);
+    format!(
+        r#"<div class="filter-panel" data-agent-filters>
+          <div>
+            <h3>{}</h3>
+            <div class="checkbox-grid">{}</div>
+          </div>
+          <div>
+            <h3>{}</h3>
+            <div class="checkbox-grid">{}</div>
+          </div>
+          <div class="filter-actions">
+            <button class="secondary-button" type="button" data-clear-agent-filters>{}</button>
+            <span class="muted" data-agent-filter-count></span>
+          </div>
+        </div>"#,
+        i18n.ui(UiTextKey::DomainGroups),
+        group_filters,
+        i18n.ui(UiTextKey::Domains),
+        domain_filters,
+        i18n.ui(UiTextKey::ClearFilters)
+    )
+}
+
+fn agent_domain_group_filter_options(groups: &[nagare_core::DomainGroup], i18n: &I18n) -> String {
+    if groups.is_empty() {
+        return format!(
+            r#"<span class="muted">{}.</span>"#,
+            h(i18n.ui(UiTextKey::DomainGroups))
+        );
+    }
+    let mut groups = groups.iter().collect::<Vec<_>>();
+    groups.sort_by_key(|group| group.display_name.as_str());
+    groups
+        .into_iter()
+        .map(|group| {
+            format!(
+                r#"<label class="check-option"><input type="checkbox" data-agent-filter-group value="{}"><span>{}</span></label>"#,
+                h(&group.id),
+                h(&group.display_name)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("")
+}
+
+fn agent_domain_filter_options(domains: &[nagare_core::DomainProfile], i18n: &I18n) -> String {
+    if domains.is_empty() {
+        return format!(
+            r#"<span class="muted">{}.</span>"#,
+            h(i18n.ui(UiTextKey::Domains))
+        );
+    }
+    let mut domains = domains.iter().collect::<Vec<_>>();
+    domains.sort_by_key(|domain| domain.display_name.as_str());
+    domains
+        .into_iter()
+        .map(|domain| {
+            format!(
+                r#"<label class="check-option"><input type="checkbox" data-agent-filter-domain value="{}"><span>{}</span></label>"#,
+                h(&domain.id),
+                h(&domain.display_name)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("")
+}
+
+fn skill_set_picker(
+    skill_sets: &[nagare_core::SkillSetCatalogEntry],
+    selected: &[String],
+    i18n: &I18n,
+) -> String {
+    if skill_sets.is_empty() {
+        return format!(
+            r#"<div class="skill-picker empty"><p class="muted">{}</p></div>"#,
+            h(localized(
+                i18n,
+                "このプロジェクトにはインストール済みスキルがありません。",
+                "This project has no installed skills."
+            ))
+        );
+    }
+    let mut skill_sets = skill_sets.iter().collect::<Vec<_>>();
+    skill_sets.sort_by_key(|skill| skill.id.as_str());
+    let options = skill_sets
+        .iter()
+        .map(|skill| skill_set_picker_option(skill, selected, i18n))
+        .collect::<Vec<_>>()
+        .join("");
+    let selected_summary = selected_skill_set_summary(&skill_sets, selected, i18n);
+    format!(
+        r#"<div class="skill-picker" data-skill-picker data-empty-label="{}">
+  <label class="skill-search">{}<input type="search" data-skill-search autocomplete="off" placeholder="{}"></label>
+  <div class="skill-selected" data-skill-selected aria-live="polite">{}</div>
+  <div class="skill-picker-list">{}</div>
+</div>"#,
+        h(localized(i18n, "スキル未選択", "No skills selected")),
+        h(localized(i18n, "スキルを検索", "Search Skills")),
+        h(localized(
+            i18n,
+            "skill id / capability…",
+            "skill id / capability…"
+        )),
+        selected_summary,
+        options
+    )
+}
+
+fn skill_set_picker_option(
+    skill: &nagare_core::SkillSetCatalogEntry,
+    selected: &[String],
+    i18n: &I18n,
+) -> String {
+    let checked_attr = if selected.iter().any(|id| id == &skill.id) {
+        " checked"
+    } else {
+        ""
+    };
+    let details = skill_set_option_details(skill, i18n);
+    let search_text = skill_set_search_text(skill);
+    format!(
+        r#"<label class="skill-option" data-skill-option data-skill-search-text="{}">
+  <input type="checkbox" name="skill_set_ids" value="{}"{}>
+  <span class="skill-option-body">
+    <span class="skill-option-title"><span translate="no">{}</span><span class="badge gray">{}</span></span>
+    <span class="skill-option-details">{}</span>
+  </span>
+</label>"#,
+        h(&search_text),
+        h(&skill.id),
+        checked_attr,
+        h(&skill.id),
+        h(localized(i18n, "スキルセット", "Skill Set")),
+        h(&details)
+    )
+}
+
+fn selected_skill_set_summary(
+    skill_sets: &[&nagare_core::SkillSetCatalogEntry],
+    selected: &[String],
+    i18n: &I18n,
+) -> String {
+    let selected = skill_sets
+        .iter()
+        .filter(|skill| selected.iter().any(|id| id == &skill.id))
+        .map(|skill| {
+            format!(
+                r#"<span class="skill-chip" translate="no">{}</span>"#,
+                h(&skill.id)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("");
+    if selected.is_empty() {
+        format!(
+            r#"<span class="muted">{}</span>"#,
+            h(localized(i18n, "スキル未選択", "No skills selected"))
+        )
+    } else {
+        selected
+    }
+}
+
+fn skill_set_option_details(skill: &nagare_core::SkillSetCatalogEntry, i18n: &I18n) -> String {
+    let mut details = Vec::new();
+    if !skill.paths.is_empty() {
+        details.push(format!(
+            "{}: {}",
+            localized(i18n, "対象", "Paths"),
+            skill.paths.join(", ")
+        ));
+    }
+    if !skill.required_capabilities.is_empty() {
+        details.push(format!(
+            "{}: {}",
+            localized(i18n, "必須能力", "Requires"),
+            skill.required_capabilities.join(", ")
+        ));
+    }
+    if !skill.optional_capabilities.is_empty() {
+        details.push(format!(
+            "{}: {}",
+            localized(i18n, "追加能力", "Optional"),
+            skill.optional_capabilities.join(", ")
+        ));
+    }
+    if details.is_empty() {
+        localized(i18n, "追加情報なし", "No additional details").to_string()
+    } else {
+        details.join(" / ")
+    }
+}
+
+fn skill_set_search_text(skill: &nagare_core::SkillSetCatalogEntry) -> String {
+    let mut text = vec![skill.id.clone()];
+    text.extend(skill.paths.iter().cloned());
+    text.extend(skill.required_capabilities.iter().cloned());
+    text.extend(skill.optional_capabilities.iter().cloned());
+    text.join(" ").to_lowercase()
+}
+
+fn role_options(selected: &str) -> String {
+    let known_roles = [
+        "planner",
+        "worker",
+        "reviewer",
+        "dispatcher",
+        "supervisor",
+        "implementer",
+    ];
+    let mut options = known_roles
+        .iter()
+        .map(|role| {
+            let selected_attr = if selected == *role { " selected" } else { "" };
+            format!(
+                r#"<option value="{}"{}>{}</option>"#,
+                h(role),
+                selected_attr,
+                h(role)
+            )
+        })
+        .collect::<Vec<_>>();
+    if !selected.trim().is_empty() && !known_roles.contains(&selected) {
+        options.push(format!(
+            r#"<option value="{}" selected>{}</option>"#,
+            h(selected),
+            h(selected)
+        ));
+    }
+    options.join("")
+}
+
+fn domain_workflow_label(domain: &nagare_core::DomainProfile, i18n: &I18n) -> String {
     let mode = domain
         .workflow
         .progress_mode
-        .map(|mode| mode.to_string())
-        .unwrap_or_else(|| "inherit".to_string());
+        .map(|mode| workflow_mode_label(mode, i18n))
+        .unwrap_or_else(|| i18n.ui(UiTextKey::InheritProjectDefault).to_string());
     let approval = domain
         .workflow
         .approval_policy
-        .map(|policy| policy.to_string())
-        .unwrap_or_else(|| "inherit".to_string());
+        .map(|policy| approval_policy_label(policy, i18n))
+        .unwrap_or_else(|| i18n.ui(UiTextKey::InheritProjectDefault).to_string());
     format!("{mode} / {approval}")
 }
 
-fn domain_group_workflow_label(group: &nagare_core::DomainGroup) -> String {
+fn domain_group_workflow_label(group: &nagare_core::DomainGroup, i18n: &I18n) -> String {
     let mode = group
         .workflow
         .progress_mode
-        .map(|mode| mode.to_string())
-        .unwrap_or_else(|| "inherit".to_string());
+        .map(|mode| workflow_mode_label(mode, i18n))
+        .unwrap_or_else(|| i18n.ui(UiTextKey::InheritProjectDefault).to_string());
     let approval = group
         .workflow
         .approval_policy
-        .map(|policy| policy.to_string())
-        .unwrap_or_else(|| "inherit".to_string());
+        .map(|policy| approval_policy_label(policy, i18n))
+        .unwrap_or_else(|| i18n.ui(UiTextKey::InheritProjectDefault).to_string());
     format!("{mode} / {approval}")
 }
 
@@ -694,9 +1186,13 @@ fn agent_profile_rows(
     agents: &[nagare_core::AgentProfile],
     groups: &[nagare_core::DomainGroup],
     domains: &[nagare_core::DomainProfile],
+    i18n: &I18n,
 ) -> String {
     if agents.is_empty() {
-        return "<tr><td colspan=\"7\" class=\"muted\">No agents registered.</td></tr>".to_string();
+        return format!(
+            "<tr><td colspan=\"8\" class=\"muted\">{}.</td></tr>",
+            h(i18n.ui(UiTextKey::Agents))
+        );
     }
     let mut agents = agents.iter().collect::<Vec<_>>();
     agents.sort_by_key(|agent| {
@@ -708,29 +1204,69 @@ fn agent_profile_rows(
     agents
         .into_iter()
         .map(|agent| {
+            let group_ids = agent.domain_group_ids.join(" ");
+            let domain_ids = agent.domain_ids.join(" ");
             format!(
-                r#"<tr>
-  <td><a href="/settings/agents/{}">{}</a><div class="muted">{}</div></td>
-  <td>{}</td>
-  <td>{}</td>
-  <td>{}</td>
-  <td>{}</td>
-  <td>{}</td>
-  <td>{}</td>
+                r#"<tr data-agent-row data-agent-domain-groups="{}" data-agent-domains="{}">
+  <td data-label="{}">
+    <a href="/settings/agents/{}">{}</a>
+    <div class="muted" translate="no">{}</div>
+    <div class="agent-meta"><span>{}</span><span translate="no">{}</span><span>{}</span></div>
+  </td>
+  <td data-label="{}">
+    <span class="badge gray" translate="no">{}</span>
+    <div class="muted agent-model" translate="no">{}</div>
+    <div class="muted">{}</div>
+  </td>
+  <td data-label="{}">{}</td>
+  <td data-label="{}">{}</td>
+  <td data-label="{}"><div class="row-actions"><a class="button-link secondary" href="/settings/agents/{}">{}</a></div></td>
 </tr>"#,
+                h(&group_ids),
+                h(&domain_ids),
+                h(i18n.ui(UiTextKey::Agent)),
                 h(&agent.id),
                 h(&agent.display_name),
                 h(&agent.id),
-                h(&agent_kind_label(&agent.runtime, &agent.adapter)),
-                h(&agent_model_label(agent)),
-                h(&agent_domain_scope_label(agent, groups, domains)),
+                h(&agent.role),
                 h(&agent.working_dir),
                 h(&compact_instruction(&agent.description)),
-                h(&agent_source_label(agent))
+                h(localized(i18n, "ツール / モデル", "Tool / Model")),
+                h(&agent.tool_kind.to_string()),
+                h(&agent_model_label(agent)),
+                h(&agent_source_label(agent)),
+                h(localized(i18n, "スキル", "Skills")),
+                agent_skill_chips(agent),
+                h(i18n.ui(UiTextKey::DomainScope)),
+                h(&agent_domain_scope_label(agent, groups, domains, i18n)),
+                h(i18n.ui(UiTextKey::Actions)),
+                h(&agent.id),
+                h(i18n.ui(UiTextKey::Edit))
             )
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+fn agent_skill_chips(agent: &nagare_core::AgentProfile) -> String {
+    if agent.skill_set_ids.is_empty() {
+        return r#"<span class="muted">-</span>"#.to_string();
+    }
+    agent
+        .skill_set_ids
+        .iter()
+        .map(|skill| {
+            format!(
+                r#"<span class="skill-chip" translate="no">{}</span>"#,
+                h(skill)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("")
+}
+
+fn localized(i18n: &I18n, ja: &'static str, en: &'static str) -> &'static str {
+    if i18n.language().is_ja() { ja } else { en }
 }
 
 fn agent_model_label(agent: &nagare_core::AgentProfile) -> String {
@@ -756,6 +1292,7 @@ fn agent_domain_scope_label(
     agent: &nagare_core::AgentProfile,
     groups: &[nagare_core::DomainGroup],
     domains: &[nagare_core::DomainProfile],
+    i18n: &I18n,
 ) -> String {
     let mut parts = Vec::new();
     if !agent.domain_group_ids.is_empty() {
@@ -765,7 +1302,7 @@ fn agent_domain_scope_label(
             .map(|id| domain_group_label(groups, Some(id)))
             .collect::<Vec<_>>()
             .join(", ");
-        parts.push(format!("groups: {labels}"));
+        parts.push(format!("{}: {labels}", i18n.ui(UiTextKey::Groups)));
     }
     if !agent.domain_ids.is_empty() {
         let labels = agent
@@ -780,10 +1317,13 @@ fn agent_domain_scope_label(
             })
             .collect::<Vec<_>>()
             .join(", ");
-        parts.push(format!("domains: {labels}"));
+        parts.push(format!("{}: {labels}", i18n.ui(UiTextKey::Domains)));
     }
     if parts.is_empty() {
-        "any".to_string()
+        match i18n.language() {
+            nagare_core::NagareLanguage::Ja => "任意".to_string(),
+            nagare_core::NagareLanguage::En => "any".to_string(),
+        }
     } else {
         parts.join(" / ")
     }
@@ -796,18 +1336,6 @@ fn agent_profile_sort_key(id: &str) -> u8 {
         "dispatcher" => 2,
         "supervisor" => 3,
         _ => 4,
-    }
-}
-
-fn agent_kind_label(runtime: &str, adapter: &str) -> String {
-    match (runtime, adapter) {
-        ("codex-local", "process.codex-cli") | ("codex", "process.codex-cli") => {
-            "Codex CLI".to_string()
-        }
-        ("codex-app-local", "stdio.codex-app-server")
-        | ("codex-app-server", "stdio.codex-app-server") => "Codex App Server".to_string(),
-        ("openclaw-local", "process.openclaw-agent") => "OpenClaw".to_string(),
-        _ => format!("{runtime} / {adapter}"),
     }
 }
 
@@ -826,7 +1354,7 @@ fn compact_instruction(instruction: &str) -> String {
         return instruction;
     }
     let mut compact = instruction.chars().take(96).collect::<String>();
-    compact.push_str("...");
+    compact.push('…');
     compact
 }
 
@@ -885,6 +1413,7 @@ pub(crate) fn render_serve_domain_form(
     root: &Path,
     domain_id: Option<&str>,
 ) -> Result<String, String> {
+    let i18n = i18n_for_root(root)?;
     let groups = list_domain_groups(root).map_err(|error| error.to_string())?;
     let domain = match domain_id {
         Some(id) => Some(get_domain_profile(root, id).map_err(|error| error.to_string())?),
@@ -893,10 +1422,11 @@ pub(crate) fn render_serve_domain_form(
     let is_new = domain.is_none();
     let domain = domain.as_ref();
     let title = if is_new {
-        "Create New Domain".to_string()
+        i18n.ui(UiTextKey::CreateNewDomain).to_string()
     } else {
         format!(
-            "Edit Domain: {}",
+            "{}: {}",
+            i18n.ui(UiTextKey::Edit),
             domain
                 .map(|domain| domain.display_name.as_str())
                 .unwrap_or("")
@@ -912,7 +1442,7 @@ pub(crate) fn render_serve_domain_form(
     let group_options = domain_group_select_options(
         &groups,
         domain.and_then(|domain| domain.group_id.as_deref()),
-        "No group",
+        i18n.ui(UiTextKey::NoGroup),
     );
     let artifact_types = domain
         .map(|domain| domain.artifact_types.join("\n"))
@@ -953,34 +1483,34 @@ pub(crate) fn render_serve_domain_form(
 <body>
   <main class="app">
     <aside class="sidebar">
-      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" alt=""><span class="brand-text">Nagare</span></h1>
+      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
       <nav>
-        <a href="/">Work Queue</a>
-        <a class="active" href="/settings">Settings</a>
+        <a href="/">{}</a>
+        <a class="active" href="/settings">{}</a>
       </nav>
     </aside>
     <section class="content">
       <header class="topbar">
         <div>
           <h1>{}</h1>
-          <p class="muted">Configure domain rubric and dispatch hints</p>
+          <p class="muted">{}</p>
         </div>
         <div class="actions">
-          <a class="button-link secondary" href="/settings">Settings</a>
+          <a class="button-link secondary" href="/settings">{}</a>
         </div>
       </header>
       <section class="composer">
         <form id="domain-profile-form" data-action="{}" data-redirect="/settings#domains">
           {}
-          <label>Domain Group<select name="group_id">{}</select></label>
-          <label>Name<input name="display_name" required value="{}"></label>
-          <label>Description<textarea name="description" rows="4" placeholder="このドメインが扱う作成物や判断対象">{}</textarea></label>
-          <label>Artifact types<textarea name="artifact_types" rows="3" placeholder="1行に1種類。例: html, ui screenshot, rust cli">{}</textarea></label>
-          <label>Rubric<textarea name="rubric" rows="7" placeholder="1行に1基準。例: 主要導線が迷わず使える">{}</textarea></label>
-          <label>Dispatch hints<textarea name="dispatch_hints" rows="4" placeholder="1行に1ヒント。例: UI変更ならfrontend-ui domainを候補にする">{}</textarea></label>
+          <label>{}<select name="group_id">{}</select></label>
+          <label>{}<input name="display_name" required value="{}"></label>
+          <label>{}<textarea name="description" rows="4" placeholder="このドメインが扱う作成物や判断対象">{}</textarea></label>
+          <label>{}<textarea name="artifact_types" rows="3" placeholder="1行に1種類。例: html, ui screenshot, rust cli">{}</textarea></label>
+          <label>{}<textarea name="rubric" rows="7" placeholder="1行に1基準。例: 主要導線が迷わず使える">{}</textarea></label>
+          <label>{}<textarea name="dispatch_hints" rows="4" placeholder="1行に1ヒント。例: UI変更ならfrontend-ui domainを候補にする">{}</textarea></label>
           <div class="form-grid">
-            <label>Progress mode override<select name="workflow_progress_mode">{}</select></label>
-            <label>Final approval override<select name="workflow_approval_policy">{}</select></label>
+            <label>{}<select name="workflow_progress_mode">{}</select></label>
+            <label>{}<select name="workflow_approval_policy">{}</select></label>
           </div>
           <button type="submit">{}</button>
           <p id="domain-profile-status" class="muted" role="status"></p>
@@ -993,21 +1523,33 @@ pub(crate) fn render_serve_domain_form(
 </html>"##,
         h(&title),
         serve_stylesheet(),
+        i18n.ui(UiTextKey::WorkQueue),
+        i18n.ui(UiTextKey::Settings),
         h(&title),
+        i18n.ui(UiTextKey::DomainFormLead),
+        i18n.ui(UiTextKey::Settings),
         h(&action),
         id_field,
+        i18n.ui(UiTextKey::DomainGroup),
         group_options,
+        i18n.ui(UiTextKey::Name),
         h(display_name),
+        i18n.ui(UiTextKey::Description),
         h(description),
+        i18n.ui(UiTextKey::ArtifactTypes),
         h(&artifact_types),
+        i18n.ui(UiTextKey::Rubric),
         h(&rubric),
+        i18n.ui(UiTextKey::DispatchHints),
         h(&dispatch_hints),
-        workflow_mode_options(progress_mode, true),
-        approval_policy_options(approval_policy, true),
+        i18n.ui(UiTextKey::ProgressModeOverride),
+        workflow_mode_options(progress_mode, true, &i18n),
+        i18n.ui(UiTextKey::FinalApprovalOverride),
+        approval_policy_options(approval_policy, true, &i18n),
         if is_new {
-            "Create Domain"
+            i18n.ui(UiTextKey::CreateDomain)
         } else {
-            "Save Domain"
+            i18n.ui(UiTextKey::SaveDomain)
         },
         serve_script()
     ))
@@ -1017,6 +1559,7 @@ pub(crate) fn render_serve_domain_group_form(
     root: &Path,
     group_id: Option<&str>,
 ) -> Result<String, String> {
+    let i18n = i18n_for_root(root)?;
     let group = match group_id {
         Some(id) => Some(get_domain_group(root, id).map_err(|error| error.to_string())?),
         None => None,
@@ -1024,10 +1567,11 @@ pub(crate) fn render_serve_domain_group_form(
     let is_new = group.is_none();
     let group = group.as_ref();
     let title = if is_new {
-        "Create New Domain Group".to_string()
+        i18n.ui(UiTextKey::CreateNewDomainGroup).to_string()
     } else {
         format!(
-            "Edit Domain Group: {}",
+            "{}: {}",
+            i18n.ui(UiTextKey::Edit),
             group.map(|group| group.display_name.as_str()).unwrap_or("")
         )
     };
@@ -1073,33 +1617,33 @@ pub(crate) fn render_serve_domain_group_form(
 <body>
   <main class="app">
     <aside class="sidebar">
-      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" alt=""><span class="brand-text">Nagare</span></h1>
+      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
       <nav>
-        <a href="/">Work Queue</a>
-        <a class="active" href="/settings">Settings</a>
+        <a href="/">{}</a>
+        <a class="active" href="/settings">{}</a>
       </nav>
     </aside>
     <section class="content">
       <header class="topbar">
         <div>
           <h1>{}</h1>
-          <p class="muted">Configure shared knowledge, rubric, and workflow defaults</p>
+          <p class="muted">{}</p>
         </div>
         <div class="actions">
-          <a class="button-link secondary" href="/settings">Settings</a>
+          <a class="button-link secondary" href="/settings">{}</a>
         </div>
       </header>
       <section class="composer">
         <form id="domain-group-form" data-action="{}" data-redirect="/settings#domains">
           {}
-          <label>Name<input name="display_name" required value="{}"></label>
-          <label>Description<textarea name="description" rows="4" placeholder="このグループに含めるドメインの共通知識">{}</textarea></label>
-          <label>Shared knowledge<textarea name="shared_knowledge" rows="4" placeholder="1行に1知識。例: 変更は小さく検証可能にする">{}</textarea></label>
-          <label>Common rubric<textarea name="common_rubric" rows="7" placeholder="1行に1基準。例: 主要な品質基準を満たす">{}</textarea></label>
-          <label>Dispatch hints<textarea name="dispatch_hints" rows="4" placeholder="1行に1ヒント。例: UIならFrontend UI Domainを優先">{}</textarea></label>
+          <label>{}<input name="display_name" required value="{}"></label>
+          <label>{}<textarea name="description" rows="4" placeholder="このグループに含めるドメインの共通知識">{}</textarea></label>
+          <label>{}<textarea name="shared_knowledge" rows="4" placeholder="1行に1知識。例: 変更は小さく検証可能にする">{}</textarea></label>
+          <label>{}<textarea name="common_rubric" rows="7" placeholder="1行に1基準。例: 主要な品質基準を満たす">{}</textarea></label>
+          <label>{}<textarea name="dispatch_hints" rows="4" placeholder="1行に1ヒント。例: UIならFrontend UI Domainを優先">{}</textarea></label>
           <div class="form-grid">
-            <label>Progress mode default<select name="workflow_progress_mode">{}</select></label>
-            <label>Final approval default<select name="workflow_approval_policy">{}</select></label>
+            <label>{}<select name="workflow_progress_mode">{}</select></label>
+            <label>{}<select name="workflow_approval_policy">{}</select></label>
           </div>
           <button type="submit">{}</button>
           <p id="domain-group-status" class="muted" role="status"></p>
@@ -1112,20 +1656,31 @@ pub(crate) fn render_serve_domain_group_form(
 </html>"##,
         h(&title),
         serve_stylesheet(),
+        i18n.ui(UiTextKey::WorkQueue),
+        i18n.ui(UiTextKey::Settings),
         h(&title),
+        i18n.ui(UiTextKey::DomainGroupFormLead),
+        i18n.ui(UiTextKey::Settings),
         h(&action),
         id_field,
+        i18n.ui(UiTextKey::Name),
         h(display_name),
+        i18n.ui(UiTextKey::Description),
         h(description),
+        i18n.ui(UiTextKey::SharedKnowledge),
         h(&shared_knowledge),
+        i18n.ui(UiTextKey::CommonRubric),
         h(&common_rubric),
+        i18n.ui(UiTextKey::DispatchHints),
         h(&dispatch_hints),
-        workflow_mode_options(progress_mode, true),
-        approval_policy_options(approval_policy, true),
+        i18n.ui(UiTextKey::ProgressModeDefault),
+        workflow_mode_options(progress_mode, true, &i18n),
+        i18n.ui(UiTextKey::FinalApprovalDefault),
+        approval_policy_options(approval_policy, true, &i18n),
         if is_new {
-            "Create Domain Group"
+            i18n.ui(UiTextKey::CreateDomainGroup)
         } else {
-            "Save Domain Group"
+            i18n.ui(UiTextKey::SaveDomainGroup)
         },
         serve_script()
     ))
@@ -1135,15 +1690,21 @@ pub(crate) fn render_serve_agent_form(
     root: &Path,
     agent_id: Option<&str>,
 ) -> Result<String, String> {
+    let i18n = i18n_for_root(root)?;
     let agents = list_agent_profiles(root).map_err(|error| error.to_string())?;
     let groups = list_domain_groups(root).map_err(|error| error.to_string())?;
     let domains = list_domain_profiles(root).map_err(|error| error.to_string())?;
+    let skill_sets = list_skill_set_catalog(root).map_err(|error| error.to_string())?;
     let agent = agent_id.and_then(|id| agents.iter().find(|agent| agent.id == id));
     let is_new = agent.is_none();
     let title = if is_new {
-        "Create New Agent".to_string()
+        i18n.ui(UiTextKey::CreateNewAgent).to_string()
     } else {
-        format!("Edit Agent: {}", agent.unwrap().display_name)
+        format!(
+            "{}: {}",
+            i18n.ui(UiTextKey::Edit),
+            agent.unwrap().display_name
+        )
     };
     let id_value = agent.map(|agent| agent.id.as_str()).unwrap_or("");
     let display_name = agent.map(|agent| agent.display_name.as_str()).unwrap_or("");
@@ -1154,6 +1715,9 @@ pub(crate) fn render_serve_agent_form(
     let specialties = agent
         .map(|agent| agent.specialties.join(", "))
         .unwrap_or_default();
+    let selected_skill_set_ids = agent
+        .map(|agent| agent.skill_set_ids.clone())
+        .unwrap_or_default();
     let selected_domain_group_ids = agent
         .map(|agent| agent.domain_group_ids.clone())
         .unwrap_or_default();
@@ -1162,6 +1726,7 @@ pub(crate) fn render_serve_agent_form(
         .unwrap_or_default();
     let domain_group_options = domain_group_multi_options(&groups, &selected_domain_group_ids);
     let domain_options = domain_multi_options(&domains, &selected_domain_ids);
+    let skill_picker = skill_set_picker(&skill_sets, &selected_skill_set_ids, &i18n);
     let kind = agent
         .map(|agent| agent_kind_value(&agent.runtime, &agent.adapter))
         .unwrap_or("codex_cli");
@@ -1189,19 +1754,20 @@ pub(crate) fn render_serve_agent_form(
         String::new()
     } else {
         format!(
-            r#"<button class="danger" type="button" id="delete-agent-button" data-action="/api/agents/{}/delete" data-agent-name="{}">Delete Agent</button>"#,
+            r#"<button class="danger" type="button" id="delete-agent-button" data-action="/api/agents/{}/delete" data-agent-name="{}">{}</button>"#,
             h(id_value),
-            h(display_name)
+            h(display_name),
+            h(i18n.ui(UiTextKey::DeleteAgent))
         )
     };
     let id_field = if is_new {
         format!(
-            r#"<label>ID<input name="id" required placeholder="my-agent" value="{}"></label>"#,
+            r#"<label>ID<input name="id" required spellcheck="false" autocomplete="off" placeholder="my-agent…" value="{}"></label>"#,
             h(id_value)
         )
     } else {
         format!(
-            r#"<label>ID<input name="id" readonly value="{}"></label>"#,
+            r#"<label>ID<input name="id" readonly spellcheck="false" autocomplete="off" value="{}"></label>"#,
             h(id_value)
         )
     };
@@ -1212,31 +1778,31 @@ pub(crate) fn render_serve_agent_form(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>{}</title>
-  <style>{}</style>
+  <style>{}{}</style>
 </head>
   <body>
   <main class="app">
     <aside class="sidebar">
-      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" alt=""><span class="brand-text">Nagare</span></h1>
+      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
       <nav>
-        <a href="/">Work Queue</a>
-        <a class="active" href="/settings">Settings</a>
+        <a href="/">{}</a>
+        <a class="active" href="/settings">{}</a>
       </nav>
     </aside>
     <section class="content">
       <header class="topbar">
         <div>
           <h1>{}</h1>
-          <p class="muted">Configure this agent profile</p>
+          <p class="muted">{}</p>
         </div>
         <div class="actions">
-          <a class="button-link secondary" href="/settings">Agents</a>
+          <a class="button-link secondary" href="/settings">{}</a>
         </div>
       </header>
       <section class="composer">
-        <form id="agent-profile-form" data-action="{}" data-redirect="/settings#agents">
+        <form id="agent-profile-form" data-action="{}" data-redirect="/settings#agents" autocomplete="off">
           {}
-          <label>External Agent Type
+          <label>{}
             <select name="agent_kind" id="agent-kind">
               <option value="codex_cli"{}>Codex CLI</option>
               <option value="codex_app_server"{}>Codex App Server</option>
@@ -1250,25 +1816,35 @@ pub(crate) fn render_serve_agent_form(
           <input type="hidden" name="external_managed" value="true">
           <input type="hidden" name="external_source" value="{}">
           <input type="hidden" name="api_key_env" value="">
-          <label>Display Name<input name="display_name" required value="{}"></label>
-          <label>Role<input name="role" placeholder="planner / worker / reviewer" value="{}"></label>
-          <label>Workdir<select name="working_dir">{}</select></label>
+          <label>{}<input name="display_name" required autocomplete="off" value="{}"></label>
+          <label>{}<select name="role">{}</select></label>
+          <label>{}<select name="working_dir">{}</select></label>
           <div data-model-section="model">
             <div class="form-grid">
-              <label data-model-field="provider">Model Provider<select name="model_provider" id="openclaw-model-provider">{}</select></label>
-              <label>Model<input name="model_id" value="{}" placeholder="gpt-5.3-codex"></label>
+              <label data-model-field="provider">{}<select name="model_provider" id="openclaw-model-provider">{}</select></label>
+              <label>{}<input name="model_id" value="{}" spellcheck="false" autocomplete="off" placeholder="gpt-5.3-codex…" list="openai-model-options"></label>
             </div>
-            <label data-model-field="base-url">Base URL<input name="base_url" value="{}" placeholder="http://127.0.0.1:11434/v1"></label>
+            <label data-model-field="base-url">{}<input type="url" name="base_url" value="{}" spellcheck="false" autocomplete="off" placeholder="http://127.0.0.1:11434/v1…"></label>
           </div>
           <datalist id="openai-model-options">
             <option value="gpt-5.3-codex"></option>
             <option value="gpt-5.2-codex"></option>
             <option value="gpt-5.3"></option>
           </datalist>
-          <label>Domain Groups<select name="domain_group_ids" multiple size="4">{}</select></label>
-          <label>Domains<select name="domain_ids" multiple size="5">{}</select></label>
-          <label>Instructions<textarea name="description" rows="6">{}</textarea></label>
-          <label>Specialties<textarea name="specialties" rows="2" placeholder="カンマまたは改行区切り">{}</textarea></label>
+          <label>{}<select name="domain_group_ids" multiple size="4">{}</select></label>
+          <label>{}<select name="domain_ids" multiple size="5">{}</select></label>
+          <section class="form-section" data-agent-skills>
+            <div class="form-section-head">
+              <div>
+                <h2>{}</h2>
+                <p class="muted">{}</p>
+              </div>
+              <div class="row-actions"><span class="badge gray">{}</span><a class="button-link secondary" href="/settings/skills/new">{}</a></div>
+            </div>
+            {}
+          </section>
+          <label>{}<textarea name="description" rows="6">{}</textarea></label>
+          <label>{}<textarea name="specialties" rows="2" placeholder="{}">{}</textarea></label>
           <button type="submit">{}</button>
           {}
           <p id="agent-profile-status" class="muted" role="status"></p>
@@ -1281,9 +1857,15 @@ pub(crate) fn render_serve_agent_form(
 </html>"##,
         h(&title),
         serve_stylesheet(),
+        serve_responsive_stylesheet(),
+        i18n.ui(UiTextKey::WorkQueue),
+        i18n.ui(UiTextKey::Settings),
         h(&title),
+        i18n.ui(UiTextKey::AgentFormLead),
+        i18n.ui(UiTextKey::Agents),
         action,
         id_field,
+        i18n.ui(UiTextKey::ExternalAgentType),
         if kind == "codex_cli" { " selected" } else { "" },
         if kind == "codex_app_server" {
             " selected"
@@ -1293,20 +1875,147 @@ pub(crate) fn render_serve_agent_form(
         if kind == "openclaw" { " selected" } else { "" },
         h(external_agent_id),
         h(external_source),
+        i18n.ui(UiTextKey::DisplayName),
         h(display_name),
-        h(role),
+        i18n.ui(UiTextKey::Role),
+        role_options(role),
+        i18n.ui(UiTextKey::Workdir),
         workdir_options,
+        i18n.ui(UiTextKey::ModelProvider),
         openclaw_provider_options(model_provider),
+        i18n.ui(UiTextKey::Model),
         h(model_id),
+        i18n.ui(UiTextKey::BaseUrl),
         h(base_url),
+        i18n.ui(UiTextKey::DomainGroups),
         domain_group_options,
+        i18n.ui(UiTextKey::Domains),
         domain_options,
+        localized(&i18n, "スキル", "Skills"),
+        localized(
+            &i18n,
+            "このエージェントで使う能力",
+            "Capabilities used by this agent"
+        ),
+        localized(&i18n, "インストール済み", "Installed"),
+        localized(&i18n, "スキルを追加", "Add Skill"),
+        skill_picker,
+        i18n.ui(UiTextKey::Instructions),
         h(&description),
+        i18n.ui(UiTextKey::Specialties),
+        h(localized(
+            &i18n,
+            "カンマまたは改行区切り…",
+            "Comma or newline separated…"
+        )),
         h(&specialties),
-        if is_new { "Create Agent" } else { "Save Agent" },
+        if is_new {
+            i18n.ui(UiTextKey::CreateAgent)
+        } else {
+            i18n.ui(UiTextKey::SaveAgent)
+        },
         delete_button,
         serve_script()
     ))
+}
+
+pub(crate) fn render_serve_skill_form(root: &Path) -> Result<String, String> {
+    let i18n = i18n_for_root(root)?;
+    Ok(format!(
+        r##"<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{}</title>
+  <style>{}{}</style>
+</head>
+<body>
+  <main class="app">
+    <aside class="sidebar">
+      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
+      <nav>
+        <a href="/">{}</a>
+        <a class="active" href="/settings">{}</a>
+      </nav>
+    </aside>
+    <section class="content">
+      <header class="topbar">
+        <div>
+          <h1>{}</h1>
+          <p class="muted">{}</p>
+        </div>
+        <div class="actions">
+          <a class="button-link secondary" href="/settings/agents/new">{}</a>
+        </div>
+      </header>
+      <section class="composer">
+        <form id="skill-package-form" data-action="/api/skills" data-redirect="/settings/agents/new" autocomplete="off">
+          <div class="form-grid">
+            <label>{}<select name="source_kind">{}</select></label>
+            <label>{}<input name="id" spellcheck="false" autocomplete="off" placeholder="react-review…"></label>
+          </div>
+          <label>{}<input name="source" spellcheck="false" autocomplete="off" placeholder="vercel-labs/agent-skills or skill name…"></label>
+          <label>{}<input name="path" spellcheck="false" autocomplete="off" placeholder="./skills/react-review…"></label>
+          <div class="form-grid">
+            <label>{}<input name="reference" spellcheck="false" autocomplete="off" placeholder="main, v1.0.0, commit sha…"></label>
+            <label>{}<input name="checksum" spellcheck="false" autocomplete="off" placeholder="sha256:…"></label>
+          </div>
+          <label>{}<input name="skill_set_id" spellcheck="false" autocomplete="off" placeholder="react-review…"></label>
+          <label>{}<textarea name="skill_paths" rows="2" placeholder="src, tests…"></textarea></label>
+          <div class="form-grid">
+            <label>{}<textarea name="required_capabilities" rows="2" placeholder="repo_read, shell_command…"></textarea></label>
+            <label>{}<textarea name="optional_capabilities" rows="2" placeholder="event_stream…"></textarea></label>
+          </div>
+          <button type="submit">{}</button>
+          <p id="skill-package-status" class="muted" role="status"></p>
+        </form>
+      </section>
+    </section>
+  </main>
+  <script>{}</script>
+</body>
+</html>"##,
+        h(localized(&i18n, "スキルを追加", "Add Skill")),
+        serve_stylesheet(),
+        serve_responsive_stylesheet(),
+        i18n.ui(UiTextKey::WorkQueue),
+        i18n.ui(UiTextKey::Settings),
+        h(localized(&i18n, "スキルを追加", "Add Skill")),
+        h(localized(
+            &i18n,
+            "ClawHub / Vercel Skills / skill-creator 由来の skill package をProjectに登録します。",
+            "Register a skill package from ClawHub, Vercel Skills, skill-creator, local, or git."
+        )),
+        h(i18n.ui(UiTextKey::Agents)),
+        h(localized(&i18n, "追加元", "Source")),
+        skill_source_options(),
+        h(localized(&i18n, "Package ID", "Package ID")),
+        h(localized(&i18n, "Source", "Source")),
+        h(localized(&i18n, "Path", "Path")),
+        h(localized(&i18n, "Ref / Version", "Ref / Version")),
+        h(localized(&i18n, "Checksum", "Checksum")),
+        h(localized(&i18n, "Skill Set ID", "Skill Set ID")),
+        h(localized(&i18n, "対象Path", "Target Paths")),
+        h(localized(&i18n, "必須能力", "Required Capabilities")),
+        h(localized(&i18n, "追加能力", "Optional Capabilities")),
+        h(localized(&i18n, "スキルを登録", "Register Skill")),
+        serve_script()
+    ))
+}
+
+fn skill_source_options() -> String {
+    [
+        ("skill-creator", "Skill Creator"),
+        ("clawhub", "ClawHub"),
+        ("vercel", "Vercel Skills"),
+        ("local", "Local"),
+        ("git", "Git"),
+    ]
+    .into_iter()
+    .map(|(value, label)| format!(r#"<option value="{}">{}</option>"#, h(value), h(label)))
+    .collect::<Vec<_>>()
+    .join("")
 }
 
 fn openclaw_provider_options(selected: &str) -> String {

@@ -8,18 +8,18 @@ use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use nagare_core::{
-    AddAgentProfileInput, AddDomainGroupInput, AddDomainProfileInput, AdvanceUntilBlockedInput,
-    AdvanceWorkItemInput, AgentModelSelection, AgentRunPurpose, AnswerWorkItemInput,
-    ApplyRecoveryPlanInput, ApprovalPolicy, CreateWorkItemInput, DomainWorkflowOverride,
-    ExternalAgentBinding, RunWorkItemInput, StaticUiExportInput, UpdateAgentProfileInput,
-    UpdateDomainGroupInput, UpdateDomainProfileInput, WorkflowMode, WorkflowSettings,
-    accept_dispatch_plan, accept_recovery_plan, add_agent_profile, add_domain_group,
-    add_domain_profile, advance_work_item_once, advance_work_item_until_blocked, answer_work_item,
-    apply_recovery_plan, approve_work_item, create_recovery_plan, create_work_item_with_input,
-    delete_agent_profile, delete_domain_group, delete_domain_profile, delete_work_item,
-    export_static_ui, get_nagare_agent_settings, get_work_item_snapshot, logo_png,
-    reject_work_item, run_work_item_with_input, set_workflow_settings, update_agent_profile,
-    update_domain_group, update_domain_profile,
+    AddAgentProfileInput, AddDomainGroupInput, AddDomainProfileInput, AddSkillPackageInput,
+    AdvanceUntilBlockedInput, AdvanceWorkItemInput, AgentModelSelection, AgentRunPurpose,
+    AnswerWorkItemInput, ApplyRecoveryPlanInput, ApprovalPolicy, CreateWorkItemInput,
+    DomainAgentPolicy, DomainWorkflowOverride, ExternalAgentBinding, RunWorkItemInput,
+    StaticUiExportInput, UpdateAgentProfileInput, UpdateDomainGroupInput, UpdateDomainProfileInput,
+    WorkflowMode, WorkflowSettings, accept_dispatch_plan, accept_recovery_plan, add_agent_profile,
+    add_domain_group, add_domain_profile, add_skill_package, advance_work_item_once,
+    advance_work_item_until_blocked, answer_work_item, apply_recovery_plan, approve_work_item,
+    create_recovery_plan, create_work_item_with_input, delete_agent_profile, delete_domain_group,
+    delete_domain_profile, delete_work_item, export_static_ui, get_nagare_agent_settings,
+    get_work_item_snapshot, logo_png, reject_work_item, run_work_item_with_input,
+    set_workflow_settings, update_agent_profile, update_domain_group, update_domain_profile,
 };
 
 use crate::args::ParsedArgs;
@@ -30,7 +30,7 @@ use crate::ui_form::{
 };
 use crate::ui_pages::{
     render_serve_agent_form, render_serve_domain_form, render_serve_domain_group_form,
-    render_serve_home, render_serve_new_item, render_serve_settings,
+    render_serve_home, render_serve_new_item, render_serve_settings, render_serve_skill_form,
 };
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -176,6 +176,10 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
         let html = render_serve_agent_form(root, None)?;
         return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
     }
+    if request.method == "GET" && request.path == "/settings/skills/new" {
+        let html = render_serve_skill_form(root)?;
+        return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
+    }
     if request.method == "GET" && request.path == "/settings/domain-groups/new" {
         let html = render_serve_domain_group_form(root, None)?;
         return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
@@ -258,6 +262,14 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                     .get("domain_id")
                     .map(|value| value.trim().to_string())
                     .filter(|value| !value.is_empty()),
+                domain_agent_policy: fields
+                    .get("domain_agent_policy")
+                    .filter(|value| !value.trim().is_empty())
+                    .map(String::as_str)
+                    .map(DomainAgentPolicy::parse)
+                    .transpose()
+                    .map_err(|error| error.to_string())?
+                    .unwrap_or_default(),
                 workflow_mode,
                 approval_policy,
             },
@@ -384,6 +396,7 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                     .unwrap_or("."),
                 description: &description,
                 specialties: split_list(fields.get("specialties").map(String::as_str)),
+                skill_set_ids: split_list(fields.get("skill_set_ids").map(String::as_str)),
                 domain_group_ids: split_list(fields.get("domain_group_ids").map(String::as_str)),
                 domain_ids: split_list(fields.get("domain_ids").map(String::as_str)),
                 managed_by: Some("nagare"),
@@ -397,6 +410,43 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
             json(&result.profile.id),
             json(&result.profile.adapter),
             json(&result.profile.runtime)
+        );
+        return write_response(
+            stream,
+            "201 Created",
+            "application/json; charset=utf-8",
+            &body,
+        );
+    }
+    if request.method == "POST" && request.path == "/api/skills" {
+        let fields = parse_form_urlencoded(&request.body);
+        let result = add_skill_package(
+            root,
+            AddSkillPackageInput {
+                id: fields.get("id").map(String::as_str),
+                source_kind: fields
+                    .get("source_kind")
+                    .map(String::as_str)
+                    .unwrap_or("local"),
+                source: fields.get("source").map(String::as_str),
+                path: fields.get("path").map(String::as_str),
+                reference: fields.get("reference").map(String::as_str),
+                checksum: fields.get("checksum").map(String::as_str),
+                skill_set_id: fields.get("skill_set_id").map(String::as_str),
+                skill_paths: split_list(fields.get("skill_paths").map(String::as_str)),
+                required_capabilities: split_list(
+                    fields.get("required_capabilities").map(String::as_str),
+                ),
+                optional_capabilities: split_list(
+                    fields.get("optional_capabilities").map(String::as_str),
+                ),
+            },
+        )
+        .map_err(|error| error.to_string())?;
+        let body = format!(
+            r#"{{"id":"{}","skill_set_id":"{}"}}"#,
+            json(&result.package.id),
+            json(&result.skill_set.id)
         );
         return write_response(
             stream,
@@ -647,6 +697,9 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                     working_dir: fields.get("working_dir").map(String::as_str),
                     description: Some(&description),
                     specialties: Some(split_list(fields.get("specialties").map(String::as_str))),
+                    skill_set_ids: Some(split_list(
+                        fields.get("skill_set_ids").map(String::as_str),
+                    )),
                     domain_group_ids: Some(split_list(
                         fields.get("domain_group_ids").map(String::as_str),
                     )),

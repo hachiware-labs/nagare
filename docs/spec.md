@@ -18,12 +18,14 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 
 | ID | 仕様 | Given | When | Done | 状態 |
 | --- | --- | --- | --- | --- | --- |
-| 1.1.1 | Project を初期化すると、`.nagare` 配下に設定、台帳、Domain Group / Domain / Agent / artifact / log 保存先を作成する。 | project root が存在する | `nagare init` を実行する | `.nagare/project.toml`、`.nagare/domain-groups/`、`.nagare/domains/`、`.nagare/agents/`、`.nagare/state/ledger.json`、`.nagare/artifacts/`、`.nagare/logs/` が存在する | 実装済み |
+| 1.1.1 | Project を初期化すると、`.nagare` 配下に設定、台帳、Domain Group / Domain / Agent / artifact / log 保存先を作成する。 | project root が存在する | `nagare init` を実行する | `.nagare/project.toml`、`.nagare/domain-groups/general.toml`、`.nagare/domains/general.toml`、`.nagare/agents/`、`.nagare/state/ledger.json`、`.nagare/artifacts/`、`.nagare/logs/` が存在する | 実装済み |
 | 1.1.2 | 既存の Nagare Project を再初期化しても、既存の設定と台帳を破壊しない。 | `.nagare` が存在する | `nagare init` を再実行する | 既存ファイルが維持され、CLI は成功する | 実装済み |
 | 1.2.1 | Project locale を設定できる。 | Project が初期化済み | `nagare locale use --language <locale> --timezone <timezone>` を実行する | `.nagare/project.toml` の `[locale]` が更新される | 実装済み |
 | 1.2.2 | Project locale を確認できる。 | Project が初期化済み | `nagare locale show` を実行する | language と timezone が表示される | 実装済み |
 | 1.2.3 | Nagare が生成する記録には locale を保存する。 | Project locale が設定済み | Work Item、Run、Evidence、Review、Decision、Probe を作成する | 各 ledger record に `locale` が保存される | 実装済み |
 | 1.2.4 | timezone は Project 設定として保存し、日時表示の locale 対応に利用できる設計にする。 | Project locale が設定済み | 時刻を表示または記録する | timezone を参照できる | 進行中 |
+| 1.2.5 | Project 初期化時の locale は起動環境の locale を既定にする。 | `NAGARE_LOCALE` / `LC_*` / `LANG` またはOS localeが設定されている | `nagare init` を実行する | `.nagare/project.toml` の `[locale].language` が環境localeから初期化される。明示設定済みProjectではProject localeを優先する | 実装済み |
+| 1.2.6 | UI文言、初期Domain/Agent説明、Agent prompt補助文は同じi18n層から切り替える。 | Project locale が `ja-JP` または `en-US` | UI表示、Project初期化、Agent実行prompt生成を行う | 固定UI文言、default domain context、default agent instruction、output contract instruction が locale に応じて日本語/英語で生成される | 実装済み |
 
 ## 2. Work Item
 
@@ -58,6 +60,17 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | 3.2.1 | 登録済み Agent Profile を一覧表示できる。 | Agent Profile が存在する | `nagare agent list` を実行する | profile ID、adapter、runtime、role が確認できる | 実装済み |
 | 3.2.2 | 登録済み Agent Profile の詳細を表示できる。 | Agent Profile が存在する | `nagare agent show <agent_profile_id>` を実行する | display_name、adapter、runtime、working_dir が確認できる | 実装済み |
 | 3.2.3 | 未知の Agent Profile を実行対象に指定した場合は拒否する。 | 指定 ID が存在しない | `item run --agent <id>` を実行する | エラーになり、Agent Run は作成されない | 実装済み |
+| 3.2.4 | Settings の Agent 一覧を Domain Group / Domain で絞り込める。 | Domain Group / Domain と Agent Profile が存在する | Settings の Agents で Domain Group または Domain の checkbox を選ぶ | 選択した Domain Group または Domain に属する Agent Profile だけが表示され、Clear filters で全件表示に戻る | 実装済み |
+| 3.2.5 | Agent Profile は tool kind を持ち、Codex / Codex CLI / OpenClaw を横断して管理できる。 | Agent Profile を作成または読み込む | `runtime` / `adapter` が指定される | `tool_kind = codex\|codex_cli\|openclaw` が保存される。既存Profileで未指定の場合は runtime / adapter から推定され、矛盾する組み合わせは拒否される | 実装済み |
+| 3.2.6 | Agent Profile は tool内の model provider / model / base_url を保存できる。 | Agent Profile を作成または更新する | `--model-provider`、`--model`、`--base-url` を指定する、または Settings Agent form を送信する | Codex / Codex CLI は OpenAI系 provider のみ許可し、OpenClaw の Ollama / LM Studio provider は base_url 未指定を拒否する | 実装済み |
+| 3.2.7 | Agent Profile は個別の skill set を持てる。 | Project config に `[skill_sets.<id>]` が定義されている | `nagare agent add/update --skills <ids>` または Settings Agent form で skill を選択する | `.nagare/agents/<id>.toml` に `skill_set_ids` が保存され、未定義の skill set id は拒否される | 実装済み |
+| 3.2.8 | Agent Profile は Prompt instructions を保存でき、既存 description と互換性を持つ。 | Agent Profile を作成または読み込む | Profile に `prompt.instructions` がある、または既存 `description` だけがある | 実行時は `prompt.instructions` を優先し、空の場合だけ `description` を instructions として使う。`description` は表示用 summary / dispatch hint として残る | 実装済み |
+| 3.2.9 | Settings の Agent form から installed skill set を検索・選択できる。 | Project config に skill set が定義されている | Agent 作成または編集画面の Skills section で skill id / path / capability を検索し、checkbox で選択して保存する | 選択済み skill が chip で表示され、Agent Profile に `skill_set_ids` が保存され、Agent 一覧の Skills 列にも chip として表示される | 実装済み |
+| 3.2.10 | Settings の Agent 一覧は Agent を中心に Tool / Model / Skills / Scope / Actions を確認できる。 | Agent Profile が存在する | Settings の Agents を開く | Agent 名、role、working_dir、tool kind、model、source、skills、domain scope が横断的に確認でき、モバイルでは card-like row として読める | 実装済み |
+| 3.2.11 | Settings の Agent 管理 UI は基本的なアクセシビリティ状態を持つ。 | Settings を開く | keyboard / screen reader で Settings tabs と Agent form を操作する | tablist は `aria-controls` / `tabpanel` / `aria-selected` を持ち、focus-visible、hover、status live region、ロゴ寸法属性が設定されている | 実装済み |
+| 3.2.12 | Skill package を source provenance 付きでProjectに登録できる。 | Project が初期化済み | `nagare skill add --from local\|git\|clawhub\|vercel\|skill-creator ...` を実行する | `.nagare/project.toml` に `[skill_packages.<id>]` と `[skill_sets.<id>]` が追加され、source_kind / source / ref / checksum / provided_skill_sets が記録される | 実装済み |
+| 3.2.13 | skill-creator 形式の skill folder から skill id を推定できる。 | `SKILL.md` frontmatter に `name` がある | `nagare skill add --from skill-creator --path <skill-folder>` を実行する | `name` を package id / skill set id として使い、required / optional capability と path を登録できる | 実装済み |
+| 3.2.14 | Settings UI から Skill package 登録画面へ遷移できる。 | Settings の Agent 作成/編集画面を開いている | Skills section の Add Skill を押し、source / path / ref / checksum / capability を入力して保存する | `/api/skills` が skill package と skill set を登録し、Agent 作成画面に戻る | 実装済み |
 
 ## 3A. Workflow Policy
 
@@ -87,7 +100,9 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | 4.2.8 | DispatchPlan を実行前に採用できる。 | draft DispatchPlan が存在する | `nagare item dispatch accept <work_id>` を実行する | 対象 plan が accepted になり、同じ Work Item の他 plan は superseded になる | 実装済み |
 | 4.2.9 | dispatch output contract 違反は fallback として記録する。 | dispatch_agent が JSON なし、target 未指定、または未知 target を返す | dispatch preview を保存する | fallback target が使われ、DispatchPlan.selection_warnings に理由が残る | 実装済み |
 | 4.2.10 | Agent Profile は domain group × domain × role で分化できる。 | `code-planner`、`docs-worker`、`ui-reviewer` のような Agent Profile が登録されている | dispatch preview を実行する | 候補 summary に `role`、`specialties`、`description`、`domain_group_ids`、`domain_ids` が含まれ、dispatch_agent が Planner / Worker / Reviewer を domain に応じて選べる | 実装済み |
-| 4.2.11 | CLI と UI から Agent Profile の role を設定できる。 | Agent Profile を作成または編集する | `nagare agent add/update --role <role>` または Settings の Role 欄を送信する | `.nagare/agents/<id>.toml` に role が保存され、候補表示と dispatch prompt に反映される | 実装済み |
+| 4.2.11 | 初期 Agent Profile は汎用 Domain に紐づく。 | Project が初期化済み | `nagare agent list` または Settings の Agent 一覧を見る | `worker`、`reviewer`、`dispatcher`、`supervisor` が `domain_group_ids = ["general"]`、`domain_ids = ["general"]` を持つ | 実装済み |
+| 4.2.12 | Domain 指定 Work Item は、Domain Agent が見つからない場合の扱いを作成時に3択で固定できる。 | Work Item 作成時に `--domain-agent-policy auto_general_fallback\|confirm_general_fallback\|require_domain_agent` を指定する | dispatch preview を実行する | `auto_general_fallback` は `general` scope の fallback Agent で確認なしに進む。`confirm_general_fallback` は general で進めるか確認し、Work Item を `needs_input` にする。`require_domain_agent` は対応 Agent 追加または policy 変更を求め、Work Item を `needs_input` にする | 実装済み |
+| 4.2.13 | CLI と UI から Agent Profile の role を設定できる。 | Agent Profile を作成または編集する | `nagare agent add/update --role <role>` または Settings の Role select を送信する | `.nagare/agents/<id>.toml` に role が保存され、候補表示と dispatch prompt に反映される。UI は planner / worker / reviewer / dispatcher / supervisor / implementer を選択肢として表示する | 実装済み |
 
 ## 5. Agent Health / Capability Probe
 
@@ -110,6 +125,7 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | 6.2.3 | `item preview` は work_folder、Agent Profile、Policy、Review観点を解決して表示する。 | Work Item と Agent Profile が存在する | `nagare item preview <work_id> --work-folder <path>` を実行する | Agent Profile、working_dir、scope match、Policy、Review観点が表示され、dispatch prompt に含まれる | 予定 |
 | 6.2.4 | dispatch prompt は Agent instruction source の全文を含めない。 | Agent Profile と Probe が存在する | dispatch preview prompt を生成する | 候補 context は profile summary に限定され、大きな AGENTS.md / SOUL.md などは直接展開しない | 実装済み |
 | 6.3.1 | Resolved Skill Context は実行時に使った Capability、Instruction source を固定する。 | Preview または Run が実行される | AgentRun を作成する | `ResolvedSkillContext` が ledger と artifact に保存される | 実装済み |
+| 6.3.1a | 実行時 skill set は Project Rule 由来と Agent Profile 由来を合成する。 | Project Rule と Agent Profile の両方に skill set が設定されている | Preview または Run を実行する | `project_rule.skill_sets + agent_profile.skill_set_ids` が重複排除され、CapabilityProbe により applied / skipped として `ResolvedSkillContext` に保存される | 実装済み |
 | 6.3.2 | Resolved Run Packet は実行時に使った Work Item、Agent Profile、実行目的、working_dir、work_folder、goal、DispatchPlan、Policy、Review観点、Resolved Skill Context を固定する。 | Preview または Run が実行される | AgentRun を作成する | `ResolvedRunPacket` が ledger と artifact に保存され、Adapter 実行入力として使われる | 予定 |
 | 6.3.3 | Work Item 詳細で解決済み Skill Context と Run Packet を確認できる。 | 解決済み記録が存在する | `nagare item show <work_id>` を実行する | resolved_skill_contexts と resolved_run_packets が表示される | 実装済み |
 | 6.3.4 | Context Budget は初期MVPでは固定上限とする。 | dispatch prompt を生成する | 候補 Agent Profile を選ぶ | 候補数は最大5件に固定され、設定化はしない | 実装済み |
