@@ -34,6 +34,10 @@ nagare doctor
 nagare init
 ```
 
+`npm run build` builds the release CLI binary, stages it into the local npm
+package, and links the workspace package globally so `nagare` runs the current
+development build.
+
 ## First Scenario
 
 Run the scenario as normal user commands:

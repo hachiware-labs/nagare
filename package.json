@@ -5,7 +5,8 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "cargo build --workspace",
+    "build": "node scripts/install-dev-global.js",
+    "build:workspace": "cargo build --workspace",
     "build:release": "cargo build --release -p nagare-cli",
     "test": "cargo test --workspace",
     "test:e2e": "playwright test",

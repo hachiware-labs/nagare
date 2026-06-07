@@ -32,6 +32,10 @@ nagare doctor
 nagare init
 ```
 
+`npm run build` は release CLI binary をビルドし、local npm package に
+stage してから workspace package を global link します。これにより
+`nagare` は現在の開発版を実行します。
+
 ## 最初のシナリオ
 
 通常のユーザー向けコマンド列としてシナリオを実行します。
