@@ -27,6 +27,11 @@ button:disabled{cursor:not-allowed;opacity:.65}
 .agent-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .agent-meta span{display:inline-flex;max-width:100%;border:1px solid var(--line);border-radius:12px;background:#f8fafc;color:var(--muted);padding:3px 8px;font-size:11px;font-weight:800;overflow-wrap:anywhere}
 .agent-model{margin-top:7px;overflow-wrap:anywhere}
+.toast-region{position:fixed;top:18px;right:18px;z-index:1000;display:grid;gap:10px;width:min(420px,calc(100vw - 32px))}
+.toast{border:1px solid var(--line);border-left-width:4px;border-radius:8px;background:#fff;color:var(--text);box-shadow:0 18px 42px rgba(15,23,42,.16);padding:12px 14px;font-size:13px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.toast.info{border-left-color:var(--blue)}
+.toast.success{border-left-color:var(--green)}
+.toast.error{border-left-color:var(--red);background:#fff7f7}
 @media(max-width:760px){
   .sidebar{display:flex;border-right:0;border-bottom:1px solid var(--line);padding:14px 18px;align-items:center;justify-content:space-between;gap:12px}
   .brand{margin:0}
@@ -50,16 +55,52 @@ button:disabled{cursor:not-allowed;opacity:.65}
 }
 
 pub(crate) fn serve_script() -> &'static str {
-    r#"const form=document.getElementById('create-work-form');
+    r#"function notificationRegion(){
+  let region=document.getElementById('app-notifications');
+  if(region){return region;}
+  region=document.createElement('div');
+  region.id='app-notifications';
+  region.className='toast-region';
+  region.setAttribute('role','status');
+  region.setAttribute('aria-live','polite');
+  document.body.appendChild(region);
+  return region;
+}
+function notify(message,kind='info'){
+  const text=(message || '').trim();
+  if(!text){return;}
+  const toast=document.createElement('div');
+  toast.className=`toast ${kind}`;
+  toast.textContent=text;
+  notificationRegion().appendChild(toast);
+  setTimeout(()=>toast.remove(),kind==='error' ? 9000 : 4500);
+}
+async function responseMessage(response){
+  const text=await response.text();
+  if(!text){return response.statusText || 'Request failed';}
+  try{
+    const data=JSON.parse(text);
+    return data.error || data.message || text;
+  }catch(_){
+    return text;
+  }
+}
+async function notifyResponseError(response,statusEl){
+  const message=await responseMessage(response);
+  if(statusEl){statusEl.textContent='';}
+  notify(message,'error');
+}
+const form=document.getElementById('create-work-form');
 const statusEl=document.getElementById('form-status');
 if(form){
   form.addEventListener('submit',async(event)=>{
     event.preventDefault();
     statusEl.textContent='Work Itemを追加しています…';
     const response=await fetch('/api/items',{method:'POST',body:new URLSearchParams(new FormData(form))});
-    if(!response.ok){statusEl.textContent=await response.text();return;}
+    if(!response.ok){await notifyResponseError(response,statusEl);return;}
     const item=await response.json();
     statusEl.textContent='Work Itemを追加しました。バックグラウンド実行を開始しました。';
+    notify('Work Itemを追加しました。','success');
     window.location.href=item.id ? `/items/${encodeURIComponent(item.id)}` : '/';
   });
 }
@@ -191,7 +232,7 @@ document.querySelectorAll('.delete-work-form').forEach((deleteForm)=>{
     button.disabled=true;
     button.textContent='削除中…';
     const response=await fetch(`/api/items/${workId}/delete`,{method:'POST'});
-    if(!response.ok){button.disabled=false;button.textContent='削除';alert(await response.text());return;}
+    if(!response.ok){button.disabled=false;button.textContent='削除';await notifyResponseError(response);return;}
     deleteForm.closest('tr').remove();
   });
 });
@@ -205,7 +246,7 @@ document.querySelectorAll('.delete-domain-group-form').forEach((deleteForm)=>{
     button.disabled=true;
     button.textContent='削除中…';
     const response=await fetch(`/api/domain-groups/${groupId}/delete`,{method:'POST'});
-    if(!response.ok){button.disabled=false;button.textContent='削除';alert(await response.text());return;}
+    if(!response.ok){button.disabled=false;button.textContent='削除';await notifyResponseError(response);return;}
     deleteForm.closest('tr').remove();
   });
 });
@@ -219,7 +260,7 @@ document.querySelectorAll('.delete-domain-form').forEach((deleteForm)=>{
     button.disabled=true;
     button.textContent='削除中…';
     const response=await fetch(`/api/domains/${domainId}/delete`,{method:'POST'});
-    if(!response.ok){button.disabled=false;button.textContent='削除';alert(await response.text());return;}
+    if(!response.ok){button.disabled=false;button.textContent='削除';await notifyResponseError(response);return;}
     deleteForm.closest('tr').remove();
   });
 });
@@ -367,7 +408,7 @@ if(agentProfileForm){
     syncAgentKind();
     scrubModelFieldsForSubmit();
     const response=await fetch(agentProfileForm.dataset.action,{method:'POST',body:new URLSearchParams(new FormData(agentProfileForm))});
-    if(!response.ok){agentProfileStatus.textContent=await response.text();return;}
+    if(!response.ok){await notifyResponseError(response,agentProfileStatus);return;}
     agentProfileStatus.textContent='エージェントを保存しました。';
     window.location.href=agentProfileForm.dataset.redirect || '/settings';
   });
@@ -379,7 +420,7 @@ if(agentProfileForm){
       deleteAgentButton.disabled=true;
       deleteAgentButton.textContent='削除中…';
       const response=await fetch(deleteAgentButton.dataset.action,{method:'POST'});
-      if(!response.ok){deleteAgentButton.disabled=false;deleteAgentButton.textContent='エージェントを削除';agentProfileStatus.textContent=await response.text();return;}
+      if(!response.ok){deleteAgentButton.disabled=false;deleteAgentButton.textContent='エージェントを削除';await notifyResponseError(response,agentProfileStatus);return;}
       window.location.href=agentProfileForm.dataset.redirect || '/settings';
     });
   }
@@ -391,7 +432,7 @@ if(domainProfileForm){
     event.preventDefault();
     domainProfileStatus.textContent='ドメインを保存しています…';
     const response=await fetch(domainProfileForm.dataset.action,{method:'POST',body:new URLSearchParams(new FormData(domainProfileForm))});
-    if(!response.ok){domainProfileStatus.textContent=await response.text();return;}
+    if(!response.ok){await notifyResponseError(response,domainProfileStatus);return;}
     domainProfileStatus.textContent='ドメインを保存しました。';
     window.location.href=domainProfileForm.dataset.redirect || '/settings';
   });
@@ -403,7 +444,7 @@ if(domainGroupForm){
     event.preventDefault();
     domainGroupStatus.textContent='ドメイングループを保存しています…';
     const response=await fetch(domainGroupForm.dataset.action,{method:'POST',body:new URLSearchParams(new FormData(domainGroupForm))});
-    if(!response.ok){domainGroupStatus.textContent=await response.text();return;}
+    if(!response.ok){await notifyResponseError(response,domainGroupStatus);return;}
     domainGroupStatus.textContent='ドメイングループを保存しました。';
     window.location.href=domainGroupForm.dataset.redirect || '/settings';
   });
@@ -415,7 +456,7 @@ if(workflowSettingsForm){
     event.preventDefault();
     workflowSettingsStatus.textContent='ワークフロー設定を保存しています…';
     const response=await fetch(workflowSettingsForm.dataset.action,{method:'POST',body:new URLSearchParams(new FormData(workflowSettingsForm))});
-    if(!response.ok){workflowSettingsStatus.textContent=await response.text();return;}
+    if(!response.ok){await notifyResponseError(response,workflowSettingsStatus);return;}
     workflowSettingsStatus.textContent='ワークフロー設定を保存しました。';
   });
 }
@@ -453,7 +494,7 @@ if(skillPackageForm){
     event.preventDefault();
     skillPackageStatus.textContent='スキルを登録しています…';
     const response=await fetch(skillPackageForm.dataset.action,{method:'POST',body:new URLSearchParams(new FormData(skillPackageForm))});
-    if(!response.ok){skillPackageStatus.textContent=await response.text();return;}
+    if(!response.ok){await notifyResponseError(response,skillPackageStatus);return;}
     skillPackageStatus.textContent='スキルを登録しました。';
     window.location.href=skillPackageForm.dataset.redirect || '/settings#agents';
   });
@@ -466,7 +507,7 @@ if(answerForm){
     answerStatus.textContent='回答を保存しています…';
     const workId=answerForm.dataset.workId;
     const response=await fetch(`/api/items/${workId}/answer`,{method:'POST',body:new URLSearchParams(new FormData(answerForm))});
-    if(!response.ok){answerStatus.textContent=await response.text();return;}
+    if(!response.ok){await notifyResponseError(response,answerStatus);return;}
     answerStatus.textContent='回答を保存しました。バックグラウンド実行を開始しました。';
     window.location.reload();
   });
@@ -479,7 +520,7 @@ if(runForm){
     runStatus.textContent='実行中…';
     const workId=window.location.pathname.split('/').pop();
     const response=await fetch(`/api/items/${workId}/run`,{method:'POST',body:new URLSearchParams(new FormData(runForm))});
-    if(!response.ok){runStatus.textContent=await response.text();return;}
+    if(!response.ok){await notifyResponseError(response,runStatus);return;}
     runStatus.textContent='実行が完了しました。';
     window.location.reload();
   });
@@ -492,7 +533,7 @@ if(dispatchForm){
     dispatchStatus.textContent='Dispatch中…';
     const workId=window.location.pathname.split('/').pop();
     const response=await fetch(`/api/items/${workId}/preview`,{method:'POST',body:new URLSearchParams(new FormData(dispatchForm))});
-    if(!response.ok){dispatchStatus.textContent=await response.text();return;}
+    if(!response.ok){await notifyResponseError(response,dispatchStatus);return;}
     dispatchStatus.textContent='Dispatchが完了しました。';
     window.location.reload();
   });
@@ -505,7 +546,7 @@ if(dispatchAcceptForm){
     dispatchAcceptStatus.textContent='Dispatch planを承認しています…';
     const workId=window.location.pathname.split('/').pop();
     const response=await fetch(`/api/items/${workId}/dispatch/accept`,{method:'POST',body:new URLSearchParams(new FormData(dispatchAcceptForm))});
-    if(!response.ok){dispatchAcceptStatus.textContent=await response.text();return;}
+    if(!response.ok){await notifyResponseError(response,dispatchAcceptStatus);return;}
     dispatchAcceptStatus.textContent='Dispatch planを承認しました。';
     window.location.reload();
   });
@@ -518,7 +559,7 @@ if(reviewForm){
     reviewStatus.textContent='レビュー中…';
     const workId=window.location.pathname.split('/').pop();
     const response=await fetch(`/api/items/${workId}/review`,{method:'POST',body:new URLSearchParams(new FormData(reviewForm))});
-    if(!response.ok){reviewStatus.textContent=await response.text();return;}
+    if(!response.ok){await notifyResponseError(response,reviewStatus);return;}
     reviewStatus.textContent='レビューが完了しました。';
     window.location.reload();
   });
@@ -531,7 +572,7 @@ if(approveForm){
     approveStatus.textContent='承認中…';
     const workId=window.location.pathname.split('/').pop();
     const response=await fetch(`/api/items/${workId}/approve`,{method:'POST',body:new URLSearchParams(new FormData(approveForm))});
-    if(!response.ok){approveStatus.textContent=await response.text();return;}
+    if(!response.ok){await notifyResponseError(response,approveStatus);return;}
     approveStatus.textContent='承認しました。';
     window.location.reload();
   });
@@ -544,7 +585,7 @@ if(rejectForm){
     rejectStatus.textContent='差し戻し中…';
     const workId=window.location.pathname.split('/').pop();
     const response=await fetch(`/api/items/${workId}/reject`,{method:'POST',body:new URLSearchParams(new FormData(rejectForm))});
-    if(!response.ok){rejectStatus.textContent=await response.text();return;}
+    if(!response.ok){await notifyResponseError(response,rejectStatus);return;}
     rejectStatus.textContent='差し戻しました。次はDispatchです。';
     window.location.reload();
   });
@@ -557,7 +598,7 @@ if(recoverForm){
     recoverStatus.textContent='Recovery planを作成しています…';
     const workId=window.location.pathname.split('/').pop();
     const response=await fetch(`/api/items/${workId}/recover`,{method:'POST',body:new URLSearchParams(new FormData(recoverForm))});
-    if(!response.ok){recoverStatus.textContent=await response.text();return;}
+    if(!response.ok){await notifyResponseError(response,recoverStatus);return;}
     recoverStatus.textContent='Recovery planを作成しました。';
     window.location.reload();
   });
@@ -570,7 +611,7 @@ if(recoverAcceptForm){
     recoverAcceptStatus.textContent='Recovery planを承認しています…';
     const workId=window.location.pathname.split('/').pop();
     const response=await fetch(`/api/items/${workId}/recover/accept`,{method:'POST',body:new URLSearchParams(new FormData(recoverAcceptForm))});
-    if(!response.ok){recoverAcceptStatus.textContent=await response.text();return;}
+    if(!response.ok){await notifyResponseError(response,recoverAcceptStatus);return;}
     recoverAcceptStatus.textContent='Recovery planを承認しました。';
     window.location.reload();
   });
@@ -583,7 +624,7 @@ if(recoverApplyForm){
     recoverApplyStatus.textContent='Recovery planを適用しています…';
     const workId=window.location.pathname.split('/').pop();
     const response=await fetch(`/api/items/${workId}/recover/apply`,{method:'POST',body:new URLSearchParams(new FormData(recoverApplyForm))});
-    if(!response.ok){recoverApplyStatus.textContent=await response.text();return;}
+    if(!response.ok){await notifyResponseError(response,recoverApplyStatus);return;}
     recoverApplyStatus.textContent='Recovery planを適用しました。';
     window.location.reload();
   });
