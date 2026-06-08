@@ -66,6 +66,14 @@ pub(crate) fn serve_item_detail_stylesheet() -> &'static str {
 .status-card b{display:block;font-size:16px;line-height:1.35;overflow-wrap:anywhere}
 .status-card small{display:block;color:var(--muted);font-size:12px;line-height:1.45;overflow-wrap:anywhere}
 .summary-meta{margin-top:12px}
+.detail-disclosure>summary{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;color:var(--text);font-weight:800;line-height:1.35;list-style-position:inside}
+.detail-disclosure>summary small{color:var(--muted);font-size:12px;font-weight:600;line-height:1.45;text-align:right;overflow-wrap:anywhere}
+.detail-disclosure[open]>summary{margin-bottom:12px}
+.answer-panel .answer-details{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+.answer-attention{border-color:#fde68a;background:#fffbeb}
+.details-stack{display:grid;gap:12px}
+.technical-details .workflow-panel{border:0;background:transparent;padding:0;margin:0}
+.technical-details .workflow-panel+.workflow-panel{border-top:1px solid var(--line);padding-top:14px}
 .progress-panel .panel-head h2{margin-bottom:4px}
 .progress-panel .panel-head p{margin:0}
 .flow-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;list-style:none;margin:14px 0 0;padding:0;counter-reset:none}
@@ -83,6 +91,8 @@ pub(crate) fn serve_item_detail_stylesheet() -> &'static str {
 .flow-node small{display:block;margin-top:6px;color:var(--muted);font-size:12px;line-height:1.45;overflow-wrap:anywhere}
 .candidate-panel .panel-head h2{margin-bottom:4px}
 .candidate-panel .panel-head p{margin:0}
+.candidate-panel>summary span{font-size:17px}
+.candidate-panel>summary small{max-width:560px}
 .candidate-list{display:grid;gap:10px;margin-top:14px}
 .candidate-row{border:1px solid var(--line);border-radius:8px;background:#fbfdff;padding:12px}
 .candidate-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}

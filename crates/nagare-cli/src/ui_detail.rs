@@ -6,7 +6,7 @@ use nagare_core::{
 };
 
 use crate::ui::read_ui_running_state;
-use crate::ui_agent::{agent_label, agent_label_with_meta, agent_meta};
+use crate::ui_agent::{agent_label, agent_label_with_meta};
 use crate::ui_answer::{answer_view, render_answer_panel};
 use crate::ui_assets::{serve_item_detail_stylesheet, serve_script, serve_stylesheet};
 use crate::ui_history::render_run_history_panel;
@@ -19,7 +19,7 @@ fn current_processing_state(
     running: Option<&str>,
 ) -> String {
     if let Some(running) = running {
-        return format!("Processing: {running}");
+        return format!("処理中: {running}");
     }
     if *status == WorkItemStatus::AgentRunning {
         return "エージェントが処理中です".to_string();
@@ -76,9 +76,25 @@ fn render_dispatch_panel(
     let Some(plan) = plan else {
         return r#"<section class="panel workflow-panel"><div class="panel-head"><h2>Dispatch Plan</h2><span class="badge gray">not run</span></div><p class="muted">No dispatch plan has been created yet.</p></section>"#.to_string();
     };
-    let warnings = list_or_dash(&plan.selection_warnings);
-    let risks = list_or_dash(&plan.risks);
-    let missing = list_or_dash(&plan.missing_information);
+    let mut optional_rows = String::new();
+    if !plan.selection_warnings.is_empty() {
+        optional_rows.push_str(&format!(
+            "<dt>Warnings</dt><dd>{}</dd>",
+            list_or_dash(&plan.selection_warnings)
+        ));
+    }
+    if !plan.risks.is_empty() {
+        optional_rows.push_str(&format!(
+            "<dt>Risks</dt><dd>{}</dd>",
+            list_or_dash(&plan.risks)
+        ));
+    }
+    if !plan.missing_information.is_empty() {
+        optional_rows.push_str(&format!(
+            "<dt>Missing info</dt><dd>{}</dd>",
+            list_or_dash(&plan.missing_information)
+        ));
+    }
     let display_status = if plan.status == DispatchPlanStatus::Draft && next_action == "run_agent" {
         "selected".to_string()
     } else {
@@ -97,9 +113,7 @@ fn render_dispatch_panel(
     <dt>Selected agent</dt><dd><b>{}</b></dd>
     <dt>Dispatch Agent</dt><dd>{}</dd>
     <dt>Summary</dt><dd>{}</dd>
-    <dt>Warnings</dt><dd>{}</dd>
-    <dt>Risks</dt><dd>{}</dd>
-    <dt>Missing info</dt><dd>{}</dd>
+    {}
   </dl>
 </section>"#,
         display_class,
@@ -114,9 +128,7 @@ fn render_dispatch_panel(
             &plan.dispatch_agent_profile_id
         )),
         h(&plan.summary),
-        warnings,
-        risks,
-        missing
+        optional_rows
     )
 }
 
@@ -261,6 +273,21 @@ fn candidate_reason_parts(
     parts
 }
 
+fn candidate_main_reason(
+    profile: &nagare_core::AgentProfile,
+    item: &nagare_core::WorkItem,
+    item_text: &str,
+) -> String {
+    let parts = candidate_reason_parts(profile, item, item_text);
+    parts
+        .iter()
+        .find(|part| part.starts_with("専門性一致:") || part.starts_with("スキル一致:"))
+        .or_else(|| parts.iter().find(|part| part.as_str() == "ドメイン一致"))
+        .or_else(|| parts.iter().find(|part| part.contains("汎用Agent")))
+        .cloned()
+        .unwrap_or_else(|| "選定理由は詳細ログで確認できます".to_string())
+}
+
 fn render_candidate_evaluation_panel(
     snapshot: &nagare_core::WorkItemSnapshot,
     latest_dispatch: Option<&DispatchPlan>,
@@ -271,6 +298,16 @@ fn render_candidate_evaluation_panel(
     let selected_score = selected_agent
         .and_then(|selected| profiles.iter().find(|profile| profile.id == selected))
         .map(|profile| candidate_score(profile, &snapshot.item, &item_text));
+    let selected_summary = selected_agent
+        .and_then(|selected| profiles.iter().find(|profile| profile.id == selected))
+        .map(|profile| {
+            format!(
+                "{}: {}",
+                agent_label(profiles, &profile.id),
+                candidate_main_reason(profile, &snapshot.item, &item_text)
+            )
+        })
+        .unwrap_or_else(|| "作業エージェントはまだ選定されていません".to_string());
     let mut rows = profiles
         .iter()
         .map(|profile| {
@@ -344,15 +381,12 @@ fn render_candidate_evaluation_panel(
         .collect::<Vec<_>>()
         .join("\n");
     format!(
-        r#"<section class="panel candidate-panel">
-  <div class="panel-head">
-    <div>
-      <h2>候補評価</h2>
-      <p class="muted">role、専門性、ドメイン、スキルから現在のAgent候補を評価しています。</p>
-    </div>
-  </div>
+        r#"<details class="panel candidate-panel detail-disclosure">
+  <summary><span>なぜこのエージェント？</span><small>{}</small></summary>
+  <p class="muted">role、専門性、ドメイン、スキルから現在のAgent候補を評価しています。</p>
   <div class="candidate-list">{rows}</div>
-</section>"#
+  </details>"#,
+        h(&selected_summary)
     )
 }
 
@@ -389,7 +423,7 @@ fn latest_agent_result(
                     format!(
                         "{} / {}: {}",
                         agent_label(profiles, &output.agent_profile_id),
-                        output.purpose,
+                        purpose_label(output.purpose),
                         summary
                     )
                 })
@@ -408,11 +442,39 @@ fn latest_agent_line(
             format!(
                 "{} / {} ({})",
                 agent_label(profiles, &run.agent_profile_id),
-                run.purpose,
-                run.status
+                purpose_label(run.purpose),
+                run_status_label(run.status)
             )
         })
         .unwrap_or_else(|| "まだエージェントは実行されていません。".to_string())
+}
+
+fn purpose_label(purpose: AgentRunPurpose) -> &'static str {
+    match purpose {
+        AgentRunPurpose::Work => "作業",
+        AgentRunPurpose::DispatchPreview => "割り振り",
+        AgentRunPurpose::Review => "レビュー",
+        AgentRunPurpose::WorkflowSupervision => "進行管理",
+    }
+}
+
+fn run_status_label(status: nagare_core::AgentRunStatus) -> &'static str {
+    match status {
+        nagare_core::AgentRunStatus::Succeeded => "完了",
+        nagare_core::AgentRunStatus::Failed => "失敗",
+    }
+}
+
+fn work_item_status_label(status: &WorkItemStatus) -> &'static str {
+    match status {
+        WorkItemStatus::Ready => "受付済み",
+        WorkItemStatus::AgentRunning => "処理中",
+        WorkItemStatus::NeedsInput => "入力待ち",
+        WorkItemStatus::NeedsHandoff => "引き継ぎ待ち",
+        WorkItemStatus::ReadyForReview => "レビュー待ち",
+        WorkItemStatus::ChangesRequested => "修正依頼",
+        WorkItemStatus::Done => "完了",
+    }
 }
 
 fn assigned_agent_line(
@@ -427,10 +489,10 @@ fn assigned_agent_line(
 fn assigned_agent_context(
     latest_dispatch: Option<&DispatchPlan>,
     next_action: &str,
-    profiles: &[nagare_core::AgentProfile],
+    _profiles: &[nagare_core::AgentProfile],
 ) -> String {
     let Some(plan) = latest_dispatch else {
-        return "Dispatch plan はまだ作成されていません。".to_string();
+        return "作業エージェントはまだ選定されていません。".to_string();
     };
     let status = if plan.status == DispatchPlanStatus::Draft && next_action == "run_agent" {
         "選定済み"
@@ -441,12 +503,7 @@ fn assigned_agent_context(
             DispatchPlanStatus::Superseded => "置き換え済み",
         }
     };
-    let meta = agent_meta(profiles, &plan.target_agent_profile_id);
-    if plan.summary.trim().is_empty() {
-        format!("Dispatch plan は{status}です。{meta}。選定理由は記録されていません。")
-    } else {
-        format!("Dispatch plan は{status}です。{meta}。{}", plan.summary)
-    }
+    format!("割り振りは{status}です。理由は下の「なぜこのエージェント？」で確認できます。")
 }
 
 fn run_status_class(status: nagare_core::AgentRunStatus) -> &'static str {
@@ -535,10 +592,21 @@ fn render_progress_panel(
         .unwrap_or_else(|| "Dispatcher".to_string());
     let dispatch_detail = latest_dispatch
         .map(|plan| {
+            let reason = profiles
+                .iter()
+                .find(|profile| profile.id == plan.target_agent_profile_id)
+                .map(|profile| {
+                    candidate_main_reason(
+                        profile,
+                        &snapshot.item,
+                        &work_item_match_text(&snapshot.item),
+                    )
+                })
+                .unwrap_or_else(|| "選定理由は詳細ログで確認できます".to_string());
             format!(
                 "{} を作業エージェントに選定。{}",
-                agent_label_with_meta(profiles, &plan.target_agent_profile_id),
-                plan.summary
+                agent_label(profiles, &plan.target_agent_profile_id),
+                reason
             )
         })
         .unwrap_or_else(|| "まだ作業エージェントは選定されていません。".to_string());
@@ -550,8 +618,8 @@ fn render_progress_panel(
     let (work_class, work_title, work_detail) = if let Some(run) = work_run {
         let detail = output_summary_for_run(snapshot, run).unwrap_or_else(|| {
             format!(
-                "work run は {} で終了しました。exit {}",
-                run.status,
+                "作業実行は{}で終了しました。終了コード{}",
+                run_status_label(run.status),
                 run.exit_code
                     .map(|code| code.to_string())
                     .unwrap_or_else(|| "-".to_string())
@@ -560,11 +628,7 @@ fn render_progress_panel(
         (
             run_status_class(run.status),
             agent_label(profiles, &run.agent_profile_id),
-            format!(
-                "{}。{}",
-                agent_meta(profiles, &run.agent_profile_id),
-                detail
-            ),
+            detail,
         )
     } else if running == Some("run_agent") || snapshot.completion.next_action == "run_agent" {
         (
@@ -592,22 +656,18 @@ fn render_progress_panel(
         (
             "done",
             agent_label(profiles, &review.agent_profile_id),
-            format!(
-                "{}。レビュー結果: {}",
-                agent_meta(profiles, &review.agent_profile_id),
-                review.verdict
-            ),
+            format!("レビュー結果: {}", review.verdict),
         )
     } else if let Some(run) = review_run {
         (
             run_status_class(run.status),
             agent_label(profiles, &run.agent_profile_id),
-            format!(
-                "{}。{}",
-                agent_meta(profiles, &run.agent_profile_id),
-                output_summary_for_run(snapshot, run)
-                    .unwrap_or_else(|| format!("review run は {} で終了しました。", run.status))
-            ),
+            output_summary_for_run(snapshot, run).unwrap_or_else(|| {
+                format!(
+                    "レビュー実行は{}で終了しました。",
+                    run_status_label(run.status)
+                )
+            }),
         )
     } else if snapshot.completion.next_action == "review" {
         (
@@ -674,11 +734,11 @@ fn judgment_reason(
     running: Option<&str>,
 ) -> String {
     if let Some(running) = running {
-        return format!("{running} is running. You can wait on this page.");
+        return format!("{running} を実行中です。このページで待機できます。");
     }
     if snapshot.item.status == WorkItemStatus::NeedsInput {
         return latest_question
-            .map(|question| format!("The agent asked for human input: {question}"))
+            .map(|question| format!("エージェントから確認があります: {question}"))
             .unwrap_or_else(|| "入力待ち状態ですが、有効な質問は記録されていません。".to_string());
     }
     if let Some(output) = snapshot.agent_outputs.iter().rev().find(|output| {
@@ -707,7 +767,7 @@ fn judgment_label(
     running: Option<&str>,
 ) -> String {
     if running.is_some() {
-        return "Processing".to_string();
+        return "処理中".to_string();
     }
     if snapshot.item.status == WorkItemStatus::NeedsInput {
         return if latest_question.is_some() {
@@ -716,9 +776,12 @@ fn judgment_label(
             "確認が必要".to_string()
         };
     }
+    if snapshot.item.status == WorkItemStatus::ChangesRequested {
+        return "修正対応待ち".to_string();
+    }
     match snapshot.completion.next_action.as_str() {
         "review" => "レビュー待ち".to_string(),
-        "approve" => "Ready for approval".to_string(),
+        "approve" => "承認待ち".to_string(),
         "recover" => "復旧が必要".to_string(),
         "none" => "追加対応なし".to_string(),
         _ => current_state.to_string(),
@@ -731,17 +794,21 @@ fn next_action_label(
     running: Option<&str>,
 ) -> String {
     if running.is_some() {
-        return "Wait for processing".to_string();
+        return "処理完了を待つ".to_string();
     }
     if snapshot.item.status == WorkItemStatus::NeedsInput && latest_question.is_none() {
         return "回答できる質問がありません。最新のエージェント出力を確認してください。"
             .to_string();
     }
     match snapshot.completion.next_action.as_str() {
+        "dispatch" => "作業エージェントを選定".to_string(),
+        "accept_dispatch" => "割り振りを承認".to_string(),
+        "run_agent" => "作業エージェントを実行".to_string(),
         "answer_question" => "エージェントの質問に回答".to_string(),
         "review" => "レビューを実行".to_string(),
         "approve" => "最終結果を承認".to_string(),
         "recover" => "復旧を作成または適用".to_string(),
+        "apply_recovery" => "復旧プランを適用".to_string(),
         "done" => "対応不要".to_string(),
         "none" => "対応不要".to_string(),
         other => other.to_string(),
@@ -771,7 +838,7 @@ fn render_summary_panel(
       <h2>状況</h2>
       <p class="muted">このWork Itemが誰に割り振られ、次に何を待っているかを表示しています。</p>
     </div>
-    <span class="badge blue">Current decision</span>
+    <span class="badge blue">現在</span>
   </div>
   <div class="status-grid">
     <div class="status-card primary">
@@ -787,7 +854,7 @@ fn render_summary_panel(
     <div class="status-card">
       <span>次に必要なこと</span>
       <b>{}</b>
-      <small>System action: {}</small>
+      <small>この画面で実行できる次の操作です</small>
     </div>
     <div class="status-card">
       <span>直近の実行</span>
@@ -795,31 +862,14 @@ fn render_summary_panel(
       <small>{}</small>
     </div>
   </div>
-  <dl class="summary-meta">
-    <dt>Status</dt><dd>{}</dd>
-    <dt>Domain</dt><dd>{}</dd>
-    <dt>Workflow mode</dt><dd>{}</dd>
-    <dt>Final approval</dt><dd>{}</dd>
-    <dt>ID</dt><dd>{}</dd>
-  </dl>
 </section>"#,
         h(&assigned_agent),
         h(&assigned_context),
         h(&current),
         h(&reason),
         h(&next),
-        h(&snapshot.completion.next_action),
         h(&last_agent),
-        h(&result),
-        h(&snapshot.item.status.to_string()),
-        h(snapshot
-            .item
-            .domain_id
-            .as_deref()
-            .unwrap_or("project default")),
-        h(&snapshot.item.workflow_mode.to_string()),
-        h(&snapshot.item.approval_policy.to_string()),
-        h(&snapshot.item.id)
+        h(&result)
     )
 }
 
@@ -854,9 +904,9 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
   <input type="hidden" name="max_steps" value="8">
   <input type="hidden" name="command" value="">
   <input type="hidden" name="review_command" value="">
-  <label>Question<textarea readonly rows="3">{}</textarea></label>
-  <label>Answer<textarea name="answer" rows="4" required></textarea></label>
-  <button type="submit">Submit Answer</button>
+  <label>質問<textarea readonly rows="3">{}</textarea></label>
+  <label>回答<textarea name="answer" rows="4" required></textarea></label>
+  <button type="submit">回答を送信</button>
   <p id="answer-status" class="muted" role="status"></p>
 </form>"#,
                 h(&snapshot.item.id),
@@ -864,21 +914,21 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
                 h(latest_question)
             )
         } else {
-            "<p class=\"muted\">No human input is currently actionable.</p>".to_string()
+            "<p class=\"muted\">現在、回答が必要な質問はありません。</p>".to_string()
         };
     let approve_form = if snapshot.approval_gate.ready {
         r#"<form id="approve-form">
-  <button type="submit">Approve and finish</button>
+  <button type="submit">承認して完了</button>
   <p id="approve-status" class="muted" role="status"></p>
 </form>
 <form id="reject-form">
-  <label>Reject reason<textarea name="rationale" rows="3" required placeholder="差し戻す理由"></textarea></label>
-  <button class="danger" type="submit">Reject and redispatch</button>
+  <label>差し戻し理由<textarea name="rationale" rows="3" required placeholder="差し戻す理由"></textarea></label>
+  <button class="danger" type="submit">差し戻して再割り振り</button>
   <p id="reject-status" class="muted" role="status"></p>
 </form>"#
             .to_string()
     } else {
-        "<p class=\"muted\">Approval gate is not ready.</p>".to_string()
+        "<p class=\"muted\">承認できる状態ではありません。</p>".to_string()
     };
     let latest_recovery = snapshot.recovery_plans.iter().rev().next();
     let latest_draft_recovery = snapshot
@@ -894,7 +944,7 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
     let recovery_summary = latest_recovery
         .map(|plan| {
             format!(
-                "<dl><dt>Plan</dt><dd>{}</dd><dt>Status</dt><dd>{}</dd><dt>Action</dt><dd>{}</dd><dt>Reason</dt><dd>{}</dd><dt>Summary</dt><dd>{}</dd></dl>",
+                "<dl><dt>プラン</dt><dd>{}</dd><dt>状態</dt><dd>{}</dd><dt>操作</dt><dd>{}</dd><dt>理由</dt><dd>{}</dd><dt>概要</dt><dd>{}</dd></dl>",
                 h(&plan.id),
                 h(&plan.status.to_string()),
                 h(&plan.action.to_string()),
@@ -902,43 +952,43 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
                 h(&plan.summary)
             )
         })
-        .unwrap_or_else(|| "<p class=\"muted\">No recovery plan yet.</p>".to_string());
+        .unwrap_or_else(|| "<p class=\"muted\">復旧プランはまだありません。</p>".to_string());
     let recover_create_form = if snapshot.completion.next_action == "recover" {
         r#"<form id="recover-form">
-  <button type="submit">Create Recovery Plan</button>
+  <button type="submit">復旧プランを作成</button>
   <p id="recover-status" class="muted" role="status"></p>
 </form>"#
             .to_string()
     } else {
-        "<p class=\"muted\">Recovery is not the next action.</p>".to_string()
+        "<p class=\"muted\">現在の次アクションは復旧ではありません。</p>".to_string()
     };
     let recover_accept_form = latest_draft_recovery
         .map(|plan| {
             format!(
                 r#"<form id="recover-accept-form">
   <input type="hidden" name="recovery_plan" value="{}">
-  <button type="submit">Accept Recovery Plan</button>
+  <button type="submit">復旧プランを承認</button>
   <p id="recover-accept-status" class="muted" role="status"></p>
 </form>"#,
                 h(&plan.id)
             )
         })
-        .unwrap_or_else(|| "<p class=\"muted\">No draft recovery plan to accept.</p>".to_string());
+        .unwrap_or_else(|| "<p class=\"muted\">承認待ちの復旧プランはありません。</p>".to_string());
     let recover_apply_form = latest_accepted_recovery
         .map(|plan| {
             format!(
                 r#"<form id="recover-apply-form">
   <input type="hidden" name="recovery_plan" value="{}">
-  <label>Prompt<textarea name="prompt" rows="4" placeholder="Recovery agentへの指示">{}</textarea></label>
-  <label>Command<textarea name="command" rows="2" placeholder="E2E/dev用 command"></textarea></label>
-  <button type="submit">Apply Recovery Plan</button>
+  <label>プロンプト<textarea name="prompt" rows="4" placeholder="復旧エージェントへの指示…">{}</textarea></label>
+  <label>コマンド<textarea name="command" rows="2" placeholder="E2E/dev用コマンド…"></textarea></label>
+  <button type="submit">復旧プランを適用</button>
   <p id="recover-apply-status" class="muted" role="status"></p>
 </form>"#,
                 h(&plan.id),
                 h(plan.prompt_hint.as_deref().unwrap_or(""))
             )
         })
-        .unwrap_or_else(|| "<p class=\"muted\">No accepted recovery plan to apply.</p>".to_string());
+        .unwrap_or_else(|| "<p class=\"muted\">適用できる復旧プランはありません。</p>".to_string());
     let recovery_panel = format!(
         "{}{}{}{}",
         recovery_summary, recover_create_form, recover_accept_form, recover_apply_form
@@ -946,12 +996,12 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
     let mut action_sections = Vec::new();
     if snapshot.item.status == WorkItemStatus::NeedsInput && latest_question.is_some() {
         action_sections.push(format!(
-            r#"<section class="panel primary-action"><h2>Answer</h2>{answer_form}</section>"#
+            r#"<section class="panel primary-action"><h2>質問に回答</h2>{answer_form}</section>"#
         ));
     }
     if snapshot.completion.next_action == "review" {
         action_sections.push(
-            r#"<section class="panel primary-action"><h2>Review</h2>
+            r#"<section class="panel primary-action"><h2>レビュー</h2>
 <form id="review-form">
   <button type="submit">レビューを実行</button>
   <p id="review-status" class="muted" role="status"></p>
@@ -962,30 +1012,30 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
     }
     if snapshot.approval_gate.ready {
         action_sections.push(format!(
-            r#"<section class="panel primary-action"><h2>Approval</h2>{approve_form}</section>"#
+            r#"<section class="panel primary-action"><h2>承認</h2>{approve_form}</section>"#
         ));
     }
     if snapshot.completion.next_action == "recover" || latest_recovery.is_some() {
         action_sections.push(format!(
-            r#"<section class="panel primary-action"><h2>Recovery</h2>{recovery_panel}</section>"#
+            r#"<section class="panel primary-action"><h2>復旧</h2>{recovery_panel}</section>"#
         ));
     }
     if let Some(running) = running_state.as_deref() {
         action_sections.insert(
             0,
             format!(
-                r#"<section class="panel primary-action"><h2>Processing</h2><p>{}</p><p class="muted">This page refreshes automatically while the workflow can continue.</p></section>"#,
-                h(&format!("{running} is running."))
+                r#"<section class="panel primary-action"><h2>処理中</h2><p>{}</p><p class="muted">ワークフローを続行できる間、このページは自動更新されます。</p></section>"#,
+                h(&format!("{running} を実行中です。"))
             ),
         );
     }
     let action_sections = if action_sections.is_empty() {
         if matches!(snapshot.completion.next_action.as_str(), "none" | "done") {
-            r#"<section class="panel primary-action"><h2>Next Action</h2><p class="muted">No action is currently required.</p></section>"#
+            r#"<section class="panel primary-action"><h2>次の操作</h2><p class="muted">現在必要な操作はありません。</p></section>"#
                 .to_string()
         } else {
             format!(
-                r#"<section class="panel primary-action"><h2>Next Action</h2><p>{}</p><p class="muted">Nagare can continue when the current step is available.</p></section>"#,
+                r#"<section class="panel primary-action"><h2>次の操作</h2><p>{}</p><p class="muted">現在のステップが実行可能になると、Nagare が続行できます。</p></section>"#,
                 h(&next_action_label(
                     &snapshot,
                     latest_question.as_deref(),
@@ -996,7 +1046,12 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
     } else {
         action_sections.join("\n")
     };
-    let workflow_panels = format!("{run_history_panel}{dispatch_panel}");
+    let technical_panel = format!(
+        r#"<details id="workflow" class="panel detail-disclosure technical-details">
+  <summary><span>詳細ログ</span><small>実行IDや内部イベントを確認できます</small></summary>
+  <div class="details-stack">{run_history_panel}{dispatch_panel}</div>
+</details>"#
+    );
     let summary_panel = render_summary_panel(
         &snapshot,
         &current_state,
@@ -1044,16 +1099,16 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
         </div>
         <div class="actions">
           <span class="badge blue">{}</span>
-          <span class="badge gray">next {}</span>
+          <span class="badge gray">次: {}</span>
         </div>
       </header>
       <div class="detail-layout">
         {}
-        {}
-        {}
-        {}
-        <section id="workflow" class="action-stack">{}</section>
         <section id="human-action" class="action-stack">{}</section>
+        {}
+        {}
+        {}
+        {}
       </div>
     </section>
   </main>
@@ -1066,14 +1121,18 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
         h(running_state.as_deref().unwrap_or("")),
         h(&snapshot.item.title),
         h(&snapshot.item.id),
-        h(&snapshot.item.status.to_string()),
-        h(&snapshot.completion.next_action),
+        h(&work_item_status_label(&snapshot.item.status)),
+        h(&next_action_label(
+            &snapshot,
+            latest_question.as_deref(),
+            running_state.as_deref()
+        )),
         summary_panel,
+        action_sections,
         progress_panel,
         answer_panel,
         candidate_panel,
-        workflow_panels,
-        action_sections,
+        technical_panel,
         serve_script()
     ))
 }

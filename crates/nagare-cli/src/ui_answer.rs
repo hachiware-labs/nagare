@@ -9,6 +9,7 @@ pub(crate) struct AnswerView {
     body: String,
     validation: Vec<String>,
     trace: Vec<String>,
+    needs_attention: bool,
 }
 
 pub(crate) fn answer_view(
@@ -22,11 +23,12 @@ pub(crate) fn answer_view(
         .find(|output| output.purpose == AgentRunPurpose::Work);
     let Some(output) = latest_work_output else {
         return AnswerView {
-            label: "No Answer",
+            label: "回答なし",
             class_name: "gray",
             body: "作業エージェントの回答はまだ記録されていません。".to_string(),
             validation: vec!["出力契約: 未記録".to_string()],
             trace: Vec::new(),
+            needs_attention: false,
         };
     };
     let latest_review = snapshot.review_results.iter().rev().next();
@@ -36,13 +38,13 @@ pub(crate) fn answer_view(
         latest_review.is_some_and(|review| review.verdict == nagare_core::ReviewVerdict::Unknown);
     let (label, class_name) =
         if snapshot.item.status == WorkItemStatus::Done || snapshot.approval_gate.ready {
-            ("Final Answer", "green")
+            ("最終結果", "green")
         } else if contract_invalid || review_invalid {
-            ("Needs Review", "red")
+            ("確認が必要", "red")
         } else if contract_warnings {
-            ("Draft Answer", "amber")
+            ("下書き", "amber")
         } else {
-            ("Current Answer", "blue")
+            ("現在の結果", "blue")
         };
     let body = answer_body_from_output(output);
     let mut validation = Vec::new();
@@ -88,6 +90,7 @@ pub(crate) fn answer_view(
         body,
         validation,
         trace,
+        needs_attention: contract_invalid || contract_warnings || review_invalid,
     }
 }
 
@@ -137,7 +140,7 @@ fn clean_answer_line(line: &str) -> Option<String> {
 
 pub(crate) fn render_answer_preview(answer: Option<&AnswerView>) -> String {
     let Some(answer) = answer else {
-        return "<span class=\"muted\">No Answer</span>".to_string();
+        return "<span class=\"muted\">回答なし</span>".to_string();
     };
     format!(
         r#"<div class="answer-preview"><span class="badge {}">{}</span><div>{}</div></div>"#,
@@ -148,16 +151,29 @@ pub(crate) fn render_answer_preview(answer: Option<&AnswerView>) -> String {
 }
 
 pub(crate) fn render_answer_panel(answer: &AnswerView) -> String {
+    let attention = if answer.needs_attention {
+        format!(
+            r#"<div class="detail-section answer-attention"><h3>確認が必要</h3><p>{}</p></div>"#,
+            list_or_dash(&answer.validation)
+        )
+    } else {
+        String::new()
+    };
     format!(
         r#"<section class="panel answer-panel">
-  <div class="panel-head"><h2>Answer</h2><span class="badge {}">{}</span></div>
+  <div class="panel-head"><h2>作業結果</h2><span class="badge {}">{}</span></div>
   <p class="answer-body">{}</p>
-  <div class="detail-section"><h3>Validation</h3><p>{}</p></div>
-  <div class="detail-section"><h3>Trace</h3><p>{}</p></div>
+  {}
+  <details class="detail-disclosure answer-details">
+    <summary><span>検証と実行情報</span><small>通常は確認不要です</small></summary>
+    <div class="detail-section"><h3>検証</h3><p>{}</p></div>
+    <div class="detail-section"><h3>実行情報</h3><p>{}</p></div>
+  </details>
 </section>"#,
         answer.class_name,
         h(answer.label),
         h(&answer.body),
+        attention,
         list_or_dash(&answer.validation),
         list_or_dash(&answer.trace)
     )
@@ -169,6 +185,6 @@ fn truncate_text(value: &str, max_chars: usize) -> String {
         return compact;
     }
     let mut truncated = compact.chars().take(max_chars).collect::<String>();
-    truncated.push_str("...");
+    truncated.push('…');
     truncated
 }
