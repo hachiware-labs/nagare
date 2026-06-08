@@ -316,6 +316,36 @@ fn agent_add_delete_targets_openclaw_external_agent() {
 }
 
 #[test]
+fn agent_add_openclaw_missing_cli_explains_install_requirement() {
+    let root = test_root("openclaw-missing-cli");
+    assert_success(nagare(&root, &["init"]));
+
+    let missing_command = root.join("missing-openclaw-command");
+    let mut add = Command::new(env!("CARGO_BIN_EXE_nagare"));
+    add.env("NAGARE_OPENCLAW_COMMAND", &missing_command)
+        .arg("agent")
+        .args([
+            "add",
+            "--id",
+            "missing-openclaw",
+            "--provider",
+            "openclaw",
+            "--external-agent-id",
+            "missing-openclaw",
+        ])
+        .arg("--root")
+        .arg(&root);
+    let output = add.output().expect("add should run");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("OpenClaw CLI is required"));
+    assert!(stderr.contains("was not found"));
+    assert!(stderr.contains("NAGARE_OPENCLAW_COMMAND"));
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
 fn agent_add_openclaw_can_use_default_model() {
     let root = test_root("openclaw-default-model");
     fs::create_dir_all(&root).expect("root should create");

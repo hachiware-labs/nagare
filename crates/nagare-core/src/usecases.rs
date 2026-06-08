@@ -820,7 +820,10 @@ fn openclaw_provider_config_json(model: &AgentModelSelection) -> Result<String, 
 }
 
 fn run_openclaw_command(command: &str, args: &[&str]) -> Result<(), NagareError> {
-    let output = Command::new(command).args(args).output()?;
+    let output = Command::new(command)
+        .args(args)
+        .output()
+        .map_err(|error| openclaw_command_error(command, args, error))?;
     if output.status.success() {
         return Ok(());
     }
@@ -831,6 +834,21 @@ fn run_openclaw_command(command: &str, args: &[&str]) -> Result<(), NagareError>
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     )))
+}
+
+fn openclaw_command_error(command: &str, args: &[&str], error: std::io::Error) -> NagareError {
+    if error.kind() == std::io::ErrorKind::NotFound {
+        return NagareError::InvalidState(format!(
+            "OpenClaw CLI is required to create or update an OpenClaw agent, but `{command}` was not found.\n\
+Install OpenClaw, make sure `{command}` is available on PATH, or set NAGARE_OPENCLAW_COMMAND to the OpenClaw executable path.\n\
+Command Nagare tried: {command} {}",
+            args.join(" ")
+        ));
+    }
+    NagareError::InvalidState(format!(
+        "OpenClaw CLI could not be started: {command} {}\nerror: {error}",
+        args.join(" ")
+    ))
 }
 
 fn managed_candidate_profiles(
