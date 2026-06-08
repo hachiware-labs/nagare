@@ -128,6 +128,234 @@ fn dispatch_status_class(status: DispatchPlanStatus) -> &'static str {
     }
 }
 
+fn work_item_match_text(item: &nagare_core::WorkItem) -> String {
+    format!(
+        "{}\n{}\n{}",
+        item.title,
+        item.description,
+        item.acceptance_criteria.join("\n")
+    )
+    .to_lowercase()
+}
+
+fn matched_terms(values: &[String], item_text: &str) -> Vec<String> {
+    values
+        .iter()
+        .filter_map(|value| {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                return None;
+            }
+            if item_text.contains(&trimmed.to_lowercase()) {
+                Some(trimmed.to_string())
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn domain_match_reason(
+    profile: &nagare_core::AgentProfile,
+    item: &nagare_core::WorkItem,
+) -> String {
+    if item.domain_id.is_none() && item.domain_group_id.is_none() {
+        if profile.domain_ids.is_empty() && profile.domain_group_ids.is_empty() {
+            return "ドメイン指定なし: 制約なしAgent".to_string();
+        }
+        if profile.domain_ids.iter().any(|domain| domain == "general")
+            || profile
+                .domain_group_ids
+                .iter()
+                .any(|group| group == "general")
+        {
+            return "ドメイン指定なし: 汎用Agent".to_string();
+        }
+        return "ドメイン指定なし: 専用ドメインAgent".to_string();
+    }
+    let domain_match = item.domain_id.as_deref().is_some_and(|domain| {
+        profile
+            .domain_ids
+            .iter()
+            .any(|profile_domain| profile_domain == domain)
+    });
+    let group_match = item.domain_group_id.as_deref().is_some_and(|group| {
+        profile
+            .domain_group_ids
+            .iter()
+            .any(|profile_group| profile_group == group)
+    });
+    if domain_match || group_match {
+        return "ドメイン一致".to_string();
+    }
+    if profile.domain_ids.is_empty() && profile.domain_group_ids.is_empty() {
+        return "ドメイン制約なし".to_string();
+    }
+    if profile.domain_ids.iter().any(|domain| domain == "general")
+        || profile
+            .domain_group_ids
+            .iter()
+            .any(|group| group == "general")
+    {
+        return "汎用Agentとして候補".to_string();
+    }
+    "ドメイン不一致".to_string()
+}
+
+fn candidate_score(
+    profile: &nagare_core::AgentProfile,
+    item: &nagare_core::WorkItem,
+    item_text: &str,
+) -> i32 {
+    if profile.role != "worker" {
+        return -1000;
+    }
+    let mut score = 10;
+    score += (matched_terms(&profile.specialties, item_text).len() as i32) * 40;
+    score += (matched_terms(&profile.skill_set_ids, item_text).len() as i32) * 20;
+    let domain_reason = domain_match_reason(profile, item);
+    if domain_reason == "ドメイン一致" {
+        score += 30;
+    } else if domain_reason == "ドメイン制約なし" || domain_reason == "汎用Agentとして候補"
+    {
+        score += 8;
+    }
+    score
+}
+
+fn candidate_reason_parts(
+    profile: &nagare_core::AgentProfile,
+    item: &nagare_core::WorkItem,
+    item_text: &str,
+) -> Vec<String> {
+    let mut parts = Vec::new();
+    if profile.role == "worker" {
+        parts.push("role=worker: 作業候補".to_string());
+    } else {
+        parts.push(format!("role={}: 作業実行候補ではありません", profile.role));
+    }
+    let specialties = matched_terms(&profile.specialties, item_text);
+    if specialties.is_empty() {
+        if profile.specialties.is_empty() {
+            parts.push("専門性: 未設定".to_string());
+        } else {
+            parts.push(format!(
+                "専門性: 一致なし ({})",
+                profile.specialties.join(", ")
+            ));
+        }
+    } else {
+        parts.push(format!("専門性一致: {}", specialties.join(", ")));
+    }
+    parts.push(domain_match_reason(profile, item));
+    let skills = matched_terms(&profile.skill_set_ids, item_text);
+    if skills.is_empty() {
+        if profile.skill_set_ids.is_empty() {
+            parts.push("スキル: 未設定".to_string());
+        } else {
+            parts.push(format!("保有スキル: {}", profile.skill_set_ids.join(", ")));
+        }
+    } else {
+        parts.push(format!("スキル一致: {}", skills.join(", ")));
+    }
+    parts
+}
+
+fn render_candidate_evaluation_panel(
+    snapshot: &nagare_core::WorkItemSnapshot,
+    latest_dispatch: Option<&DispatchPlan>,
+    profiles: &[nagare_core::AgentProfile],
+) -> String {
+    let selected_agent = latest_dispatch.map(|plan| plan.target_agent_profile_id.as_str());
+    let item_text = work_item_match_text(&snapshot.item);
+    let selected_score = selected_agent
+        .and_then(|selected| profiles.iter().find(|profile| profile.id == selected))
+        .map(|profile| candidate_score(profile, &snapshot.item, &item_text));
+    let mut rows = profiles
+        .iter()
+        .map(|profile| {
+            let score = candidate_score(profile, &snapshot.item, &item_text);
+            let selected = selected_agent == Some(profile.id.as_str());
+            let (status_class, status_label) = if selected {
+                ("green", "選定")
+            } else if profile.role != "worker" {
+                ("gray", "除外")
+            } else if selected_score.is_some_and(|selected_score| score < selected_score) {
+                ("gray", "未選定")
+            } else {
+                ("blue", "候補")
+            };
+            let reason = if selected {
+                format!(
+                    "選定理由: {}",
+                    candidate_reason_parts(profile, &snapshot.item, &item_text).join(" / ")
+                )
+            } else if profile.role != "worker" {
+                format!(
+                    "除外理由: {}",
+                    candidate_reason_parts(profile, &snapshot.item, &item_text).join(" / ")
+                )
+            } else {
+                format!(
+                    "未選定理由: {}",
+                    candidate_reason_parts(profile, &snapshot.item, &item_text).join(" / ")
+                )
+            };
+            (
+                selected,
+                score,
+                profile.id.clone(),
+                status_class,
+                status_label,
+                reason,
+            )
+        })
+        .collect::<Vec<_>>();
+    rows.sort_by(|left, right| {
+        right
+            .0
+            .cmp(&left.0)
+            .then_with(|| right.1.cmp(&left.1))
+            .then_with(|| left.2.cmp(&right.2))
+    });
+    let rows = rows
+        .into_iter()
+        .map(|(_, score, agent_id, status_class, status_label, reason)| {
+            format!(
+                r#"<article class="candidate-row">
+  <div class="candidate-head">
+    <b translate="no">{}</b>
+    <span class="badge {}">{}</span>
+  </div>
+  <p>{}</p>
+  <dl>
+    <dt>Score</dt><dd>{}</dd>
+    <dt>Agent</dt><dd>{}</dd>
+  </dl>
+</article>"#,
+                h(&agent_label_with_meta(profiles, &agent_id)),
+                h(status_class),
+                h(status_label),
+                h(&reason),
+                h(&score.to_string()),
+                h(&agent_id)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!(
+        r#"<section class="panel candidate-panel">
+  <div class="panel-head">
+    <div>
+      <h2>候補評価</h2>
+      <p class="muted">role、専門性、ドメイン、スキルから現在のAgent候補を評価しています。</p>
+    </div>
+  </div>
+  <div class="candidate-list">{rows}</div>
+</section>"#
+    )
+}
+
 fn first_output_field(output: &nagare_core::AgentOutputRecord, key: &str) -> Option<String> {
     output
         .fields
@@ -783,6 +1011,8 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
         running_state.as_deref(),
         &agent_profiles,
     );
+    let candidate_panel =
+        render_candidate_evaluation_panel(&snapshot, latest_dispatch, &agent_profiles);
     Ok(format!(
         r##"<!doctype html>
 <html lang="ja">
@@ -821,6 +1051,7 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
         {}
         {}
         {}
+        {}
         <section id="workflow" class="action-stack">{}</section>
         <section id="human-action" class="action-stack">{}</section>
       </div>
@@ -840,6 +1071,7 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
         summary_panel,
         progress_panel,
         answer_panel,
+        candidate_panel,
         workflow_panels,
         action_sections,
         serve_script()

@@ -81,6 +81,14 @@ pub(crate) fn serve_item_detail_stylesheet() -> &'static str {
 .flow-node span:not(.flow-marker){display:block;color:var(--muted);font-size:11px;font-weight:800}
 .flow-node b{display:block;margin-top:4px;font-size:15px;line-height:1.35;overflow-wrap:anywhere}
 .flow-node small{display:block;margin-top:6px;color:var(--muted);font-size:12px;line-height:1.45;overflow-wrap:anywhere}
+.candidate-panel .panel-head h2{margin-bottom:4px}
+.candidate-panel .panel-head p{margin:0}
+.candidate-list{display:grid;gap:10px;margin-top:14px}
+.candidate-row{border:1px solid var(--line);border-radius:8px;background:#fbfdff;padding:12px}
+.candidate-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.candidate-head b{overflow-wrap:anywhere}
+.candidate-row p{margin:8px 0 10px;line-height:1.5;overflow-wrap:anywhere}
+.candidate-row dl{grid-template-columns:88px 1fr}
 @media(max-width:1100px){.status-grid{grid-template-columns:1fr 1fr}.flow-list{grid-template-columns:1fr}.flow-node:not(:last-child)::after{left:28px;right:auto;top:auto;bottom:-13px;height:13px;width:0;border-top:0;border-left:2px solid var(--line)}}
 @media(max-width:760px){.status-grid{grid-template-columns:1fr}}
 "#
