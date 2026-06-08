@@ -1,14 +1,16 @@
+use crate::ui_agent::agent_label;
 use crate::ui_html::h;
 
 pub(crate) fn render_run_history_panel(
     snapshot: &nagare_core::WorkItemSnapshot,
     running: Option<&str>,
+    profiles: &[nagare_core::AgentProfile],
 ) -> String {
     let mut events = snapshot
         .history_steps
         .iter()
         .enumerate()
-        .map(|(index, step)| render_history_step(step, index + 1))
+        .map(|(index, step)| render_history_step(step, index + 1, profiles))
         .collect::<Vec<_>>();
 
     if let Some(running) = running {
@@ -41,9 +43,18 @@ pub(crate) fn render_run_history_panel(
     )
 }
 
-fn render_history_step(step: &nagare_core::WorkItemHistoryStep, sequence: usize) -> String {
-    let facts = render_step_facts(step);
+fn render_history_step(
+    step: &nagare_core::WorkItemHistoryStep,
+    sequence: usize,
+    profiles: &[nagare_core::AgentProfile],
+) -> String {
+    let facts = render_step_facts(step, profiles);
     let links = render_step_links(step);
+    let actor = step
+        .actor
+        .as_deref()
+        .map(|actor| agent_label(profiles, actor))
+        .unwrap_or_else(|| "-".to_string());
     let source_ids = if step.source_record_ids.is_empty() {
         "-".to_string()
     } else {
@@ -59,6 +70,7 @@ fn render_history_step(step: &nagare_core::WorkItemHistoryStep, sequence: usize)
         (Some(started), None) => started.to_string(),
         _ => "-".to_string(),
     };
+    let summary = history_step_summary(step, profiles);
 
     format!(
         r#"<article class="history-event" data-event-type="{}">
@@ -77,13 +89,13 @@ fn render_history_step(step: &nagare_core::WorkItemHistoryStep, sequence: usize)
         history_step_status_class(step),
         h(&history_step_status_label(&step.state)),
         h(&step.title),
-        h(step.actor.as_deref().unwrap_or("-")),
+        h(&actor),
         h(&timing),
-        h(&step.summary),
+        h(&summary),
         facts,
         h(&step.id),
         h(&step.kind),
-        h(step.actor.as_deref().unwrap_or("-")),
+        h(&actor),
         h(&timing),
         h(step.next_action.as_deref().unwrap_or("-")),
         source_ids,
@@ -91,7 +103,33 @@ fn render_history_step(step: &nagare_core::WorkItemHistoryStep, sequence: usize)
     )
 }
 
-fn render_step_facts(step: &nagare_core::WorkItemHistoryStep) -> String {
+fn history_step_summary(
+    step: &nagare_core::WorkItemHistoryStep,
+    profiles: &[nagare_core::AgentProfile],
+) -> String {
+    if step.kind == "dispatch" {
+        if let Some(target) = step.facts.iter().find(|fact| fact.label == "Target") {
+            let suffix = step
+                .summary
+                .split_once('。')
+                .map(|(_, suffix)| suffix.trim())
+                .filter(|suffix| !suffix.is_empty())
+                .map(|suffix| format!("。{suffix}"))
+                .unwrap_or_default();
+            return format!(
+                "{} を作業エージェントに選定{}",
+                agent_label(profiles, &target.value),
+                suffix
+            );
+        }
+    }
+    step.summary.clone()
+}
+
+fn render_step_facts(
+    step: &nagare_core::WorkItemHistoryStep,
+    profiles: &[nagare_core::AgentProfile],
+) -> String {
     if step.facts.is_empty() {
         return String::new();
     }
@@ -104,12 +142,22 @@ fn render_step_facts(step: &nagare_core::WorkItemHistoryStep) -> String {
             format!(
                 r#"<div><span>{}</span><b>{}</b></div>"#,
                 h(&fact.label),
-                h(&fact.value)
+                h(&history_fact_value(fact, profiles))
             )
         })
         .collect::<Vec<_>>()
         .join("");
     format!(r#"<div class="history-facts">{rows}</div>"#)
+}
+
+fn history_fact_value(
+    fact: &nagare_core::WorkItemHistoryFact,
+    profiles: &[nagare_core::AgentProfile],
+) -> String {
+    match fact.label.as_str() {
+        "Agent" | "Target" | "Dispatch agent" | "From" | "To" => agent_label(profiles, &fact.value),
+        _ => fact.value.clone(),
+    }
 }
 
 fn render_step_links(step: &nagare_core::WorkItemHistoryStep) -> String {

@@ -1,5 +1,6 @@
 use nagare_core::{AgentRunPurpose, WorkItemStatus};
 
+use crate::ui_agent::{agent_label, agent_meta};
 use crate::ui_html::{h, list_or_dash};
 
 pub(crate) struct AnswerView {
@@ -10,7 +11,10 @@ pub(crate) struct AnswerView {
     trace: Vec<String>,
 }
 
-pub(crate) fn answer_view(snapshot: &nagare_core::WorkItemSnapshot) -> AnswerView {
+pub(crate) fn answer_view(
+    snapshot: &nagare_core::WorkItemSnapshot,
+    profiles: &[nagare_core::AgentProfile],
+) -> AnswerView {
     let latest_work_output = snapshot
         .agent_outputs
         .iter()
@@ -61,7 +65,14 @@ pub(crate) fn answer_view(snapshot: &nagare_core::WorkItemSnapshot) -> AnswerVie
         "承認: 未到達".to_string()
     });
     let mut trace = vec![
-        format!("作業エージェント: {}", output.agent_profile_id),
+        format!(
+            "作業エージェント: {}",
+            agent_label(profiles, &output.agent_profile_id)
+        ),
+        format!(
+            "ツール/モデル: {}",
+            agent_meta(profiles, &output.agent_profile_id)
+        ),
         format!("実行: {}", output.agent_run_id),
         format!("実行記録: {}", output.execution_record_id),
     ];

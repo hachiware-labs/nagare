@@ -5,6 +5,7 @@ mod args;
 mod commands;
 mod output;
 mod ui;
+mod ui_agent;
 mod ui_answer;
 mod ui_assets;
 mod ui_detail;

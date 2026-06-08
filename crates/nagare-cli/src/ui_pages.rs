@@ -43,7 +43,9 @@ pub(crate) fn render_serve_home(root: &Path) -> Result<String, String> {
                     running.as_deref(),
                 );
                 queue_signals.observe(&state_label);
-                let answer = snapshot.as_ref().map(answer_view);
+                let answer = snapshot
+                    .as_ref()
+                    .map(|snapshot| answer_view(snapshot, &agents));
                 let filter_state = queue_filter_state(&state_label);
                 format!(
                     r#"<tr class="{}" data-queue-state="{}"><td><a href="/items/{}">{}</a><div class="muted">{}</div></td><td>{}</td><td>{}</td><td><span class="badge {}">{}</span><div class="muted">{}</div></td><td>{}</td><td>{}</td><td><form class="delete-work-form" data-work-id="{}" data-work-title="{}"><button class="danger" type="submit">{}</button></form></td></tr>"#,
