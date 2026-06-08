@@ -54,6 +54,23 @@ button:disabled{cursor:not-allowed;opacity:.65}
 "#
 }
 
+pub(crate) fn serve_item_detail_stylesheet() -> &'static str {
+    r#"
+.summary .panel-head{align-items:flex-start}
+.summary .panel-head h2{margin-bottom:4px}
+.summary .panel-head p{margin:0}
+.status-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}
+.status-card{display:grid;gap:6px;min-width:0;border:1px solid var(--line);border-radius:8px;background:#fbfdff;padding:12px}
+.status-card.primary{border-color:#a5b4fc;background:#eef2ff}
+.status-card span{color:var(--muted);font-size:11px;font-weight:800}
+.status-card b{display:block;font-size:16px;line-height:1.35;overflow-wrap:anywhere}
+.status-card small{display:block;color:var(--muted);font-size:12px;line-height:1.45;overflow-wrap:anywhere}
+.summary-meta{margin-top:12px}
+@media(max-width:1100px){.status-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:760px){.status-grid{grid-template-columns:1fr}}
+"#
+}
+
 pub(crate) fn serve_script() -> &'static str {
     r#"function notificationRegion(){
   let region=document.getElementById('app-notifications');

@@ -7,7 +7,7 @@ use nagare_core::{
 
 use crate::ui::read_ui_running_state;
 use crate::ui_answer::{answer_view, render_answer_panel};
-use crate::ui_assets::{serve_script, serve_stylesheet};
+use crate::ui_assets::{serve_item_detail_stylesheet, serve_script, serve_stylesheet};
 use crate::ui_history::render_run_history_panel;
 use crate::ui_html::{h, is_empty_display_value, list_or_dash};
 fn current_processing_state(
@@ -165,6 +165,32 @@ fn latest_agent_line(snapshot: &nagare_core::WorkItemSnapshot) -> String {
         .unwrap_or_else(|| "まだエージェントは実行されていません。".to_string())
 }
 
+fn assigned_agent_line(latest_dispatch: Option<&DispatchPlan>) -> String {
+    latest_dispatch
+        .map(|plan| plan.target_agent_profile_id.clone())
+        .unwrap_or_else(|| "未選定".to_string())
+}
+
+fn assigned_agent_context(latest_dispatch: Option<&DispatchPlan>, next_action: &str) -> String {
+    let Some(plan) = latest_dispatch else {
+        return "Dispatch plan はまだ作成されていません。".to_string();
+    };
+    let status = if plan.status == DispatchPlanStatus::Draft && next_action == "run_agent" {
+        "選定済み"
+    } else {
+        match plan.status {
+            DispatchPlanStatus::Draft => "承認待ち",
+            DispatchPlanStatus::Accepted => "承認済み",
+            DispatchPlanStatus::Superseded => "置き換え済み",
+        }
+    };
+    if plan.summary.trim().is_empty() {
+        format!("Dispatch plan は{status}です。選定理由は記録されていません。")
+    } else {
+        format!("Dispatch plan は{status}です。{}", plan.summary)
+    }
+}
+
 fn judgment_reason(
     snapshot: &nagare_core::WorkItemSnapshot,
     current_state: &str,
@@ -248,6 +274,7 @@ fn next_action_label(
 fn render_summary_panel(
     snapshot: &nagare_core::WorkItemSnapshot,
     current_state: &str,
+    latest_dispatch: Option<&DispatchPlan>,
     latest_question: Option<&str>,
     running: Option<&str>,
 ) -> String {
@@ -256,31 +283,56 @@ fn render_summary_panel(
     let next = next_action_label(snapshot, latest_question, running);
     let result = latest_agent_result(snapshot);
     let last_agent = latest_agent_line(snapshot);
+    let assigned_agent = assigned_agent_line(latest_dispatch);
+    let assigned_context =
+        assigned_agent_context(latest_dispatch, &snapshot.completion.next_action);
     format!(
         r#"<section id="detail" class="panel summary">
-    <div class="panel-head"><h2>Summary</h2><span class="badge blue">Current decision</span></div>
-  <dl>
-    <dt>Current</dt><dd>{}</dd>
-    <dt>Reason</dt><dd>{}</dd>
-    <dt>Last agent</dt><dd>{}</dd>
-    <dt>Latest result</dt><dd>{}</dd>
-    <dt>Next action</dt><dd>{}</dd>
-    <dt>System action</dt><dd>{}</dd>
+  <div class="panel-head">
+    <div>
+      <h2>状況</h2>
+      <p class="muted">このWork Itemが誰に割り振られ、次に何を待っているかを表示しています。</p>
+    </div>
+    <span class="badge blue">Current decision</span>
+  </div>
+  <div class="status-grid">
+    <div class="status-card primary">
+      <span>割り振り先</span>
+      <b translate="no">{}</b>
+      <small>{}</small>
+    </div>
+    <div class="status-card">
+      <span>現在の状態</span>
+      <b>{}</b>
+      <small>{}</small>
+    </div>
+    <div class="status-card">
+      <span>次に必要なこと</span>
+      <b>{}</b>
+      <small>System action: {}</small>
+    </div>
+    <div class="status-card">
+      <span>直近の実行</span>
+      <b translate="no">{}</b>
+      <small>{}</small>
+    </div>
+  </div>
+  <dl class="summary-meta">
     <dt>Status</dt><dd>{}</dd>
     <dt>Domain</dt><dd>{}</dd>
     <dt>Workflow mode</dt><dd>{}</dd>
     <dt>Final approval</dt><dd>{}</dd>
-    <dt>Run policy</dt><dd>single step</dd>
-    <dt>Continuation</dt><dd>manual</dd>
     <dt>ID</dt><dd>{}</dd>
   </dl>
 </section>"#,
+        h(&assigned_agent),
+        h(&assigned_context),
         h(&current),
         h(&reason),
-        h(&last_agent),
-        h(&result),
         h(&next),
         h(&snapshot.completion.next_action),
+        h(&last_agent),
+        h(&result),
         h(&snapshot.item.status.to_string()),
         h(snapshot
             .item
@@ -413,6 +465,17 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
             r#"<section class="panel primary-action"><h2>Answer</h2>{answer_form}</section>"#
         ));
     }
+    if snapshot.completion.next_action == "review" {
+        action_sections.push(
+            r#"<section class="panel primary-action"><h2>Review</h2>
+<form id="review-form">
+  <button type="submit">レビューを実行</button>
+  <p id="review-status" class="muted" role="status"></p>
+</form>
+</section>"#
+                .to_string(),
+        );
+    }
     if snapshot.approval_gate.ready {
         action_sections.push(format!(
             r#"<section class="panel primary-action"><h2>Approval</h2>{approve_form}</section>"#
@@ -433,8 +496,19 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
         );
     }
     let action_sections = if action_sections.is_empty() {
-        r#"<section class="panel primary-action"><h2>Next Action</h2><p class="muted">No action is currently required.</p></section>"#
-            .to_string()
+        if snapshot.completion.next_action == "none" {
+            r#"<section class="panel primary-action"><h2>Next Action</h2><p class="muted">No action is currently required.</p></section>"#
+                .to_string()
+        } else {
+            format!(
+                r#"<section class="panel primary-action"><h2>Next Action</h2><p>{}</p><p class="muted">Nagare can continue when the current step is available.</p></section>"#,
+                h(&next_action_label(
+                    &snapshot,
+                    latest_question.as_deref(),
+                    running_state.as_deref()
+                ))
+            )
+        }
     } else {
         action_sections.join("\n")
     };
@@ -442,6 +516,7 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
     let summary_panel = render_summary_panel(
         &snapshot,
         &current_state,
+        latest_dispatch,
         latest_question.as_deref(),
         running_state.as_deref(),
     );
@@ -491,7 +566,7 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
 </body>
 </html>"##,
         h(&snapshot.item.title),
-        serve_stylesheet(),
+        format!("{}{}", serve_stylesheet(), serve_item_detail_stylesheet()),
         h(&snapshot.completion.next_action),
         h(running_state.as_deref().unwrap_or("")),
         h(&snapshot.item.title),
