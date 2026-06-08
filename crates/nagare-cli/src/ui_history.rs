@@ -22,12 +22,18 @@ pub(crate) fn render_run_history_panel(
     }
 
     if events.is_empty() {
-        return r#"<section class="panel workflow-panel"><div class="panel-head"><h2>Processing History</h2><span class="badge gray">empty</span></div><p class="muted">No workflow event has been recorded yet.</p></section>"#.to_string();
+        return r#"<section class="panel workflow-panel"><div class="panel-head"><div><h2>詳細ログ</h2><p class="muted">Dispatcherや各エージェントの実行記録です。</p></div><span class="badge gray">empty</span></div><p class="muted">No workflow event has been recorded yet.</p></section>"#.to_string();
     }
 
     format!(
         r#"<section class="panel workflow-panel">
-  <div class="panel-head"><h2>Processing History</h2><span class="badge gray">{} events</span></div>
+  <div class="panel-head">
+    <div>
+      <h2>詳細ログ</h2>
+      <p class="muted">Dispatcherや各エージェントの実行記録です。全体の流れは上の進行フローを見てください。</p>
+    </div>
+    <span class="badge gray">{} events</span>
+  </div>
   <div class="history-list">{}</div>
 </section>"#,
         events.len(),

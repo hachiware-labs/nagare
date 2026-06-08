@@ -66,7 +66,22 @@ pub(crate) fn serve_item_detail_stylesheet() -> &'static str {
 .status-card b{display:block;font-size:16px;line-height:1.35;overflow-wrap:anywhere}
 .status-card small{display:block;color:var(--muted);font-size:12px;line-height:1.45;overflow-wrap:anywhere}
 .summary-meta{margin-top:12px}
-@media(max-width:1100px){.status-grid{grid-template-columns:1fr 1fr}}
+.progress-panel .panel-head h2{margin-bottom:4px}
+.progress-panel .panel-head p{margin:0}
+.flow-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;list-style:none;margin:14px 0 0;padding:0;counter-reset:none}
+.flow-node{position:relative;display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;min-width:0;border:1px solid var(--line);border-radius:8px;background:#fbfdff;padding:12px}
+.flow-node:not(:last-child)::after{content:"";position:absolute;right:-12px;top:50%;width:12px;border-top:2px solid var(--line)}
+.flow-node.done{border-color:#bbf7d0;background:#f0fdf4}
+.flow-node.active{border-color:#a5b4fc;background:#eef2ff}
+.flow-node.blocked{border-color:#fecaca;background:#fff7f7}
+.flow-marker{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--muted);font-size:12px;font-weight:800}
+.flow-node.done .flow-marker{border-color:#86efac;color:var(--green)}
+.flow-node.active .flow-marker{border-color:#a5b4fc;color:var(--blue)}
+.flow-node.blocked .flow-marker{border-color:#fecaca;color:var(--red)}
+.flow-node span:not(.flow-marker){display:block;color:var(--muted);font-size:11px;font-weight:800}
+.flow-node b{display:block;margin-top:4px;font-size:15px;line-height:1.35;overflow-wrap:anywhere}
+.flow-node small{display:block;margin-top:6px;color:var(--muted);font-size:12px;line-height:1.45;overflow-wrap:anywhere}
+@media(max-width:1100px){.status-grid{grid-template-columns:1fr 1fr}.flow-list{grid-template-columns:1fr}.flow-node:not(:last-child)::after{left:28px;right:auto;top:auto;bottom:-13px;height:13px;width:0;border-top:0;border-left:2px solid var(--line)}}
 @media(max-width:760px){.status-grid{grid-template-columns:1fr}}
 "#
 }

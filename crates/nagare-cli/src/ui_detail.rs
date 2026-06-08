@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use nagare_core::{
-    AgentRun, DispatchPlan, DispatchPlanStatus, RecoveryPlanStatus, WorkItemStatus,
-    get_work_item_snapshot,
+    AgentRun, AgentRunPurpose, DispatchPlan, DispatchPlanStatus, RecoveryPlanStatus,
+    WorkItemStatus, get_work_item_snapshot,
 };
 
 use crate::ui::read_ui_running_state;
@@ -189,6 +189,206 @@ fn assigned_agent_context(latest_dispatch: Option<&DispatchPlan>, next_action: &
     } else {
         format!("Dispatch plan は{status}です。{}", plan.summary)
     }
+}
+
+fn run_status_class(status: nagare_core::AgentRunStatus) -> &'static str {
+    match status {
+        nagare_core::AgentRunStatus::Succeeded => "done",
+        nagare_core::AgentRunStatus::Failed => "blocked",
+    }
+}
+
+fn dispatch_flow_state(plan: Option<&DispatchPlan>, next_action: &str) -> (&'static str, String) {
+    let Some(plan) = plan else {
+        return ("pending", "未実行".to_string());
+    };
+    if plan.status == DispatchPlanStatus::Draft && next_action == "accept_dispatch" {
+        return ("active", "承認待ち".to_string());
+    }
+    if plan.status == DispatchPlanStatus::Draft && next_action == "run_agent" {
+        return ("done", "選定済み".to_string());
+    }
+    match plan.status {
+        DispatchPlanStatus::Draft => ("active", "承認待ち".to_string()),
+        DispatchPlanStatus::Accepted => ("done", "割り振り済み".to_string()),
+        DispatchPlanStatus::Superseded => ("pending", "置き換え済み".to_string()),
+    }
+}
+
+fn output_summary_for_run(
+    snapshot: &nagare_core::WorkItemSnapshot,
+    run: &AgentRun,
+) -> Option<String> {
+    snapshot
+        .agent_outputs
+        .iter()
+        .find(|output| output.agent_run_id == run.id)
+        .and_then(|output| {
+            first_output_field(output, "summary")
+                .or_else(|| first_output_field(output, "completed"))
+        })
+}
+
+fn latest_run_for_purpose(
+    snapshot: &nagare_core::WorkItemSnapshot,
+    purpose: AgentRunPurpose,
+) -> Option<&AgentRun> {
+    snapshot
+        .runs
+        .iter()
+        .rev()
+        .find(|run| run.purpose == purpose)
+}
+
+fn render_flow_node(
+    marker: &str,
+    state_class: &str,
+    label: &str,
+    title: &str,
+    detail: &str,
+) -> String {
+    format!(
+        r#"<li class="flow-node {}">
+  <span class="flow-marker">{}</span>
+  <div>
+    <span>{}</span>
+    <b translate="no">{}</b>
+    <small>{}</small>
+  </div>
+</li>"#,
+        h(state_class),
+        h(marker),
+        h(label),
+        h(title),
+        h(detail)
+    )
+}
+
+fn render_progress_panel(
+    snapshot: &nagare_core::WorkItemSnapshot,
+    latest_dispatch: Option<&DispatchPlan>,
+    running: Option<&str>,
+) -> String {
+    let (dispatch_class, dispatch_state) =
+        dispatch_flow_state(latest_dispatch, &snapshot.completion.next_action);
+    let dispatch_title = latest_dispatch
+        .map(|plan| plan.dispatch_agent_profile_id.as_str())
+        .unwrap_or("Dispatcher");
+    let dispatch_detail = latest_dispatch
+        .map(|plan| {
+            format!(
+                "{} を作業エージェントに選定。{}",
+                plan.target_agent_profile_id, plan.summary
+            )
+        })
+        .unwrap_or_else(|| "まだ作業エージェントは選定されていません。".to_string());
+
+    let work_run = latest_run_for_purpose(snapshot, AgentRunPurpose::Work);
+    let work_target = latest_dispatch
+        .map(|plan| plan.target_agent_profile_id.as_str())
+        .unwrap_or("未選定");
+    let (work_class, work_title, work_detail) = if let Some(run) = work_run {
+        let detail = output_summary_for_run(snapshot, run).unwrap_or_else(|| {
+            format!(
+                "work run は {} で終了しました。exit {}",
+                run.status,
+                run.exit_code
+                    .map(|code| code.to_string())
+                    .unwrap_or_else(|| "-".to_string())
+            )
+        });
+        (
+            run_status_class(run.status),
+            run.agent_profile_id.as_str(),
+            detail,
+        )
+    } else if running == Some("run_agent") || snapshot.completion.next_action == "run_agent" {
+        (
+            "active",
+            work_target,
+            "選定済みエージェントの実行待ちです。".to_string(),
+        )
+    } else if latest_dispatch.is_some() {
+        (
+            "pending",
+            work_target,
+            "まだ作業実行は記録されていません。".to_string(),
+        )
+    } else {
+        (
+            "pending",
+            "未選定",
+            "Dispatcher の選定後に作業エージェントが表示されます。".to_string(),
+        )
+    };
+
+    let review_run = latest_run_for_purpose(snapshot, AgentRunPurpose::Review);
+    let latest_review = snapshot.review_results.iter().rev().next();
+    let (review_class, review_title, review_detail) = if let Some(review) = latest_review {
+        (
+            "done",
+            review.agent_profile_id.as_str(),
+            format!("レビュー結果: {}", review.verdict),
+        )
+    } else if let Some(run) = review_run {
+        (
+            run_status_class(run.status),
+            run.agent_profile_id.as_str(),
+            output_summary_for_run(snapshot, run)
+                .unwrap_or_else(|| format!("review run は {} で終了しました。", run.status)),
+        )
+    } else if snapshot.completion.next_action == "review" {
+        (
+            "active",
+            "レビュー待ち",
+            "作業エージェントの出力後、レビュー実行待ちです。".to_string(),
+        )
+    } else if snapshot.completion.next_action == "approve" {
+        (
+            "active",
+            "承認待ち",
+            "レビュー後、最終承認待ちです。".to_string(),
+        )
+    } else if snapshot.item.status == WorkItemStatus::Done {
+        ("done", "完了", "Work Item は完了しています。".to_string())
+    } else {
+        (
+            "pending",
+            "未実施",
+            "作業実行後にレビュー状態が表示されます。".to_string(),
+        )
+    };
+
+    format!(
+        r#"<section class="panel progress-panel">
+  <div class="panel-head">
+    <div>
+      <h2>進行フロー</h2>
+      <p class="muted">Dispatcher以降の受け渡しを、ユーザーが読む順番で表示しています。</p>
+    </div>
+  </div>
+  <ol class="flow-list">
+    {}
+    {}
+    {}
+  </ol>
+</section>"#,
+        render_flow_node(
+            "1",
+            dispatch_class,
+            &dispatch_state,
+            dispatch_title,
+            &dispatch_detail
+        ),
+        render_flow_node("2", work_class, "作業", work_title, &work_detail),
+        render_flow_node(
+            "3",
+            review_class,
+            "レビュー/承認",
+            review_title,
+            &review_detail
+        )
+    )
 }
 
 fn judgment_reason(
@@ -520,6 +720,8 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
         latest_question.as_deref(),
         running_state.as_deref(),
     );
+    let progress_panel =
+        render_progress_panel(&snapshot, latest_dispatch, running_state.as_deref());
     Ok(format!(
         r##"<!doctype html>
 <html lang="ja">
@@ -557,6 +759,7 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
       <div class="detail-layout">
         {}
         {}
+        {}
         <section id="workflow" class="action-stack">{}</section>
         <section id="human-action" class="action-stack">{}</section>
       </div>
@@ -574,6 +777,7 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
         h(&snapshot.item.status.to_string()),
         h(&snapshot.completion.next_action),
         summary_panel,
+        progress_panel,
         answer_panel,
         workflow_panels,
         action_sections,
