@@ -99,6 +99,14 @@ pub(crate) fn serve_item_detail_stylesheet() -> &'static str {
 .candidate-head b{overflow-wrap:anywhere}
 .candidate-row p{margin:8px 0 10px;line-height:1.5;overflow-wrap:anywhere}
 .candidate-row dl{grid-template-columns:88px 1fr}
+.step-detail-panel .panel-head h2{margin-bottom:4px}
+.step-detail-panel .panel-head p{margin:0}
+.step-result{border:1px solid var(--line);border-radius:8px;background:#fbfdff;padding:10px 12px;margin:10px 0}
+.step-result span{display:block;color:var(--muted);font-size:11px;font-weight:800;margin-bottom:4px}
+.step-result p{margin:0;line-height:1.55;overflow-wrap:anywhere}
+.step-candidate-detail{margin-top:0;margin-bottom:12px}
+.step-candidate-detail h3{margin-bottom:6px}
+.step-candidate-detail p{margin:0 0 8px}
 @media(max-width:1100px){.status-grid{grid-template-columns:1fr 1fr}.flow-list{grid-template-columns:1fr}.flow-node:not(:last-child)::after{left:28px;right:auto;top:auto;bottom:-13px;height:13px;width:0;border-top:0;border-left:2px solid var(--line)}}
 @media(max-width:760px){.status-grid{grid-template-columns:1fr}}
 "#

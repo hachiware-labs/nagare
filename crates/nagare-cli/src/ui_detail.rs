@@ -7,10 +7,9 @@ use nagare_core::{
 
 use crate::ui::read_ui_running_state;
 use crate::ui_agent::{agent_label, agent_label_with_meta};
-use crate::ui_answer::{answer_view, render_answer_panel};
 use crate::ui_assets::{serve_item_detail_stylesheet, serve_script, serve_stylesheet};
 use crate::ui_history::render_run_history_panel;
-use crate::ui_html::{h, is_empty_display_value, list_or_dash};
+use crate::ui_html::{h, is_empty_display_value};
 fn current_processing_state(
     status: &WorkItemStatus,
     next_action: &str,
@@ -65,78 +64,6 @@ fn current_processing_state(
         "done" => "完了しています".to_string(),
         "none" => "追加対応は不要です".to_string(),
         other => other.to_string(),
-    }
-}
-
-fn render_dispatch_panel(
-    plan: Option<&DispatchPlan>,
-    next_action: &str,
-    profiles: &[nagare_core::AgentProfile],
-) -> String {
-    let Some(plan) = plan else {
-        return r#"<section class="panel workflow-panel"><div class="panel-head"><h2>Dispatch Plan</h2><span class="badge gray">not run</span></div><p class="muted">No dispatch plan has been created yet.</p></section>"#.to_string();
-    };
-    let mut optional_rows = String::new();
-    if !plan.selection_warnings.is_empty() {
-        optional_rows.push_str(&format!(
-            "<dt>Warnings</dt><dd>{}</dd>",
-            list_or_dash(&plan.selection_warnings)
-        ));
-    }
-    if !plan.risks.is_empty() {
-        optional_rows.push_str(&format!(
-            "<dt>Risks</dt><dd>{}</dd>",
-            list_or_dash(&plan.risks)
-        ));
-    }
-    if !plan.missing_information.is_empty() {
-        optional_rows.push_str(&format!(
-            "<dt>Missing info</dt><dd>{}</dd>",
-            list_or_dash(&plan.missing_information)
-        ));
-    }
-    let display_status = if plan.status == DispatchPlanStatus::Draft && next_action == "run_agent" {
-        "selected".to_string()
-    } else {
-        plan.status.to_string()
-    };
-    let display_class = if display_status == "selected" {
-        "green"
-    } else {
-        dispatch_status_class(plan.status)
-    };
-    format!(
-        r#"<section class="panel workflow-panel">
-  <div class="panel-head"><h2>Dispatch Plan</h2><span class="badge {}">{}</span></div>
-  <dl>
-    <dt>Plan</dt><dd>{}</dd>
-    <dt>Selected agent</dt><dd><b>{}</b></dd>
-    <dt>Dispatch Agent</dt><dd>{}</dd>
-    <dt>Summary</dt><dd>{}</dd>
-    {}
-  </dl>
-</section>"#,
-        display_class,
-        h(&display_status),
-        h(&plan.id),
-        h(&agent_label_with_meta(
-            profiles,
-            &plan.target_agent_profile_id
-        )),
-        h(&agent_label_with_meta(
-            profiles,
-            &plan.dispatch_agent_profile_id
-        )),
-        h(&plan.summary),
-        optional_rows
-    )
-}
-
-fn dispatch_status_class(status: DispatchPlanStatus) -> &'static str {
-    match status {
-        DispatchPlanStatus::Draft => "amber",
-        DispatchPlanStatus::Accepted => "green",
-        DispatchPlanStatus::Superseded => "gray",
     }
 }
 
@@ -288,7 +215,7 @@ fn candidate_main_reason(
         .unwrap_or_else(|| "選定理由は詳細ログで確認できます".to_string())
 }
 
-fn render_candidate_evaluation_panel(
+fn render_candidate_evaluation_details(
     snapshot: &nagare_core::WorkItemSnapshot,
     latest_dispatch: Option<&DispatchPlan>,
     profiles: &[nagare_core::AgentProfile],
@@ -381,11 +308,12 @@ fn render_candidate_evaluation_panel(
         .collect::<Vec<_>>()
         .join("\n");
     format!(
-        r#"<details class="panel candidate-panel detail-disclosure">
-  <summary><span>なぜこのエージェント？</span><small>{}</small></summary>
+        r#"<div class="detail-section candidate-panel step-candidate-detail">
+  <h3>なぜこのエージェント？</h3>
+  <p><b>{}</b></p>
   <p class="muted">role、専門性、ドメイン、スキルから現在のAgent候補を評価しています。</p>
   <div class="candidate-list">{rows}</div>
-  </details>"#,
+  </div>"#,
         h(&selected_summary)
     )
 }
@@ -699,8 +627,8 @@ fn render_progress_panel(
         r#"<section class="panel progress-panel">
   <div class="panel-head">
     <div>
-      <h2>進行フロー</h2>
-      <p class="muted">Dispatcher以降の受け渡しを、ユーザーが読む順番で表示しています。</p>
+      <h2>ステップ概要</h2>
+      <p class="muted">どの順番で進み、各ステップがどの状態かを短く表示しています。</p>
     </div>
   </div>
   <ol class="flow-list">
@@ -877,15 +805,15 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
     let snapshot = get_work_item_snapshot(root, work_item_id).map_err(|error| error.to_string())?;
     let agent_profiles = list_agent_profiles(root).unwrap_or_default();
     let latest_dispatch = snapshot.dispatch_plans.iter().rev().next();
-    let dispatch_panel = render_dispatch_panel(
-        latest_dispatch,
-        &snapshot.completion.next_action,
-        &agent_profiles,
-    );
     let running_state = read_ui_running_state(root, work_item_id);
-    let run_history_panel =
-        render_run_history_panel(&snapshot, running_state.as_deref(), &agent_profiles);
-    let answer_panel = render_answer_panel(&answer_view(&snapshot, &agent_profiles));
+    let candidate_details =
+        render_candidate_evaluation_details(&snapshot, latest_dispatch, &agent_profiles);
+    let run_history_panel = render_run_history_panel(
+        &snapshot,
+        running_state.as_deref(),
+        &agent_profiles,
+        Some(&candidate_details),
+    );
     let current_state = current_processing_state(
         &snapshot.item.status,
         &snapshot.completion.next_action,
@@ -1046,12 +974,6 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
     } else {
         action_sections.join("\n")
     };
-    let technical_panel = format!(
-        r#"<details id="workflow" class="panel detail-disclosure technical-details">
-  <summary><span>詳細ログ</span><small>実行IDや内部イベントを確認できます</small></summary>
-  <div class="details-stack">{run_history_panel}{dispatch_panel}</div>
-</details>"#
-    );
     let summary_panel = render_summary_panel(
         &snapshot,
         &current_state,
@@ -1066,8 +988,6 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
         running_state.as_deref(),
         &agent_profiles,
     );
-    let candidate_panel =
-        render_candidate_evaluation_panel(&snapshot, latest_dispatch, &agent_profiles);
     Ok(format!(
         r##"<!doctype html>
 <html lang="ja">
@@ -1107,8 +1027,6 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
         <section id="human-action" class="action-stack">{}</section>
         {}
         {}
-        {}
-        {}
       </div>
     </section>
   </main>
@@ -1130,9 +1048,7 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
         summary_panel,
         action_sections,
         progress_panel,
-        answer_panel,
-        candidate_panel,
-        technical_panel,
+        run_history_panel,
         serve_script()
     ))
 }

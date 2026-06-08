@@ -1,14 +1,3 @@
-pub(crate) fn list_or_dash(values: &[String]) -> String {
-    if values.is_empty() {
-        return "-".to_string();
-    }
-    values
-        .iter()
-        .map(|value| h(value))
-        .collect::<Vec<_>>()
-        .join("<br>")
-}
-
 pub(crate) fn h(value: &str) -> String {
     value
         .replace('&', "&amp;")
