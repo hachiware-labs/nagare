@@ -1,4 +1,3 @@
-use std::fs;
 use std::path::Path;
 
 use nagare_core::{
@@ -716,8 +715,9 @@ fn domain_select_options(
             ""
         };
         format!(
-            r#"<option value="{}"{}>{}</option>"#,
+            r#"<option value="{}" data-domain-group="{}"{}>{}</option>"#,
             h(&domain.id),
+            h(domain.group_id.as_deref().unwrap_or("")),
             selected_attr,
             h(&domain.display_name)
         )
@@ -749,48 +749,18 @@ fn domain_group_select_options(
     options.join("")
 }
 
-fn domain_group_multi_options(groups: &[nagare_core::DomainGroup], selected: &[String]) -> String {
-    let mut groups = groups.iter().collect::<Vec<_>>();
-    groups.sort_by_key(|group| group.display_name.as_str());
-    groups
-        .into_iter()
-        .map(|group| {
-            let selected_attr = if selected.iter().any(|id| id == &group.id) {
-                " selected"
-            } else {
-                ""
-            };
-            format!(
-                r#"<option value="{}"{}>{}</option>"#,
-                h(&group.id),
-                selected_attr,
-                h(&group.display_name)
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("")
+fn agent_domain_select_options(
+    domains: &[nagare_core::DomainProfile],
+    selected: Option<&str>,
+) -> String {
+    domain_select_options(domains, selected, "-")
 }
 
-fn domain_multi_options(domains: &[nagare_core::DomainProfile], selected: &[String]) -> String {
-    let mut domains = domains.iter().collect::<Vec<_>>();
-    domains.sort_by_key(|domain| domain.display_name.as_str());
-    domains
-        .into_iter()
-        .map(|domain| {
-            let selected_attr = if selected.iter().any(|id| id == &domain.id) {
-                " selected"
-            } else {
-                ""
-            };
-            format!(
-                r#"<option value="{}"{}>{}</option>"#,
-                h(&domain.id),
-                selected_attr,
-                h(&domain.display_name)
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("")
+fn agent_domain_group_select_options(
+    groups: &[nagare_core::DomainGroup],
+    selected: Option<&str>,
+) -> String {
+    domain_group_select_options(groups, selected, "-")
 }
 
 fn workflow_mode_options(
@@ -971,7 +941,7 @@ fn agent_domain_filter_options(domains: &[nagare_core::DomainProfile], i18n: &I1
         .into_iter()
         .map(|domain| {
             format!(
-                r#"<label class="check-option" data-agent-filter-domain-option data-domain-group="{}"><input type="checkbox" data-agent-filter-domain value="{}"><span>{}</span></label>"#,
+                r#"<label class="check-option" data-agent-filter-domain-option data-domain-group="{}" hidden><input type="checkbox" data-agent-filter-domain value="{}" disabled><span>{}</span></label>"#,
                 h(domain.group_id.as_deref().unwrap_or("")),
                 h(&domain.id),
                 h(&domain.display_name)
@@ -1308,57 +1278,6 @@ fn compact_instruction(instruction: &str) -> String {
     compact
 }
 
-fn workdir_select_options(root: &Path, selected: &str) -> String {
-    let mut dirs = vec![".".to_string()];
-    collect_workdir_options(root, Path::new(""), 0, &mut dirs);
-    dirs.sort();
-    dirs.dedup();
-    if !dirs.iter().any(|dir| dir == selected) {
-        dirs.push(selected.to_string());
-    }
-    dirs.into_iter()
-        .map(|dir| {
-            let selected_attr = if dir == selected { " selected" } else { "" };
-            format!(
-                r#"<option value="{}"{}>{}</option>"#,
-                h(&dir),
-                selected_attr,
-                h(&dir)
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("")
-}
-
-fn collect_workdir_options(root: &Path, relative: &Path, depth: usize, dirs: &mut Vec<String>) {
-    if depth >= 2 {
-        return;
-    }
-    let base = root.join(relative);
-    let entries = match fs::read_dir(base) {
-        Ok(entries) => entries,
-        Err(_) => return,
-    };
-    for entry in entries.filter_map(Result::ok) {
-        let path = entry.path();
-        if !path.is_dir() {
-            continue;
-        }
-        let name = entry.file_name().to_string_lossy().to_string();
-        if matches!(
-            name.as_str(),
-            ".git" | ".nagare" | "target" | "node_modules"
-        ) {
-            continue;
-        }
-        let child = relative.join(&name);
-        if let Some(value) = child.to_str() {
-            dirs.push(value.replace('\\', "/"));
-        }
-        collect_workdir_options(root, &child, depth + 1, dirs);
-    }
-}
-
 pub(crate) fn render_serve_domain_form(
     root: &Path,
     domain_id: Option<&str>,
@@ -1660,7 +1579,6 @@ pub(crate) fn render_serve_agent_form(
     let display_name = agent.map(|agent| agent.display_name.as_str()).unwrap_or("");
     let role = agent.map(|agent| agent.role.as_str()).unwrap_or("");
     let working_dir = agent.map(|agent| agent.working_dir.as_str()).unwrap_or(".");
-    let workdir_options = workdir_select_options(root, working_dir);
     let description = agent.map(|agent| agent.description.as_str()).unwrap_or("");
     let specialties = agent
         .map(|agent| agent.specialties.join(", "))
@@ -1674,8 +1592,10 @@ pub(crate) fn render_serve_agent_form(
     let selected_domain_ids = agent
         .map(|agent| agent.domain_ids.clone())
         .unwrap_or_default();
-    let domain_group_options = domain_group_multi_options(&groups, &selected_domain_group_ids);
-    let domain_options = domain_multi_options(&domains, &selected_domain_ids);
+    let selected_domain_group_id = selected_domain_group_ids.first().map(String::as_str);
+    let selected_domain_id = selected_domain_ids.first().map(String::as_str);
+    let domain_group_options = agent_domain_group_select_options(&groups, selected_domain_group_id);
+    let domain_options = agent_domain_select_options(&domains, selected_domain_id);
     let skill_picker = skill_set_picker(&skill_sets, &selected_skill_set_ids, &i18n);
     let kind = agent
         .map(|agent| agent_kind_value(&agent.runtime, &agent.adapter))
@@ -1768,7 +1688,7 @@ pub(crate) fn render_serve_agent_form(
           <input type="hidden" name="api_key_env" value="">
           <label>{}<input name="display_name" required autocomplete="off" value="{}"></label>
           <label>{}<select name="role">{}</select></label>
-          <label>{}<select name="working_dir">{}</select></label>
+          <label>{}<input name="working_dir" value="{}" spellcheck="false" autocomplete="off" placeholder="., crates/nagare-cli, packages/app…"></label>
           <div data-model-section="model">
             <div class="form-grid">
               <label data-model-field="provider">{}<select name="model_provider" id="openclaw-model-provider">{}</select></label>
@@ -1781,8 +1701,8 @@ pub(crate) fn render_serve_agent_form(
             <option value="gpt-5.2-codex"></option>
             <option value="gpt-5.3"></option>
           </datalist>
-          <label>{}<select name="domain_group_ids" multiple size="4">{}</select></label>
-          <label>{}<select name="domain_ids" multiple size="5">{}</select></label>
+          <label>{}<select name="domain_group_ids" id="agent-domain-group">{}</select></label>
+          <label>{}<select name="domain_ids" id="agent-domain">{}</select></label>
           <section class="form-section" data-agent-skills>
             <div class="form-section-head">
               <div>
@@ -1830,7 +1750,7 @@ pub(crate) fn render_serve_agent_form(
         i18n.ui(UiTextKey::Role),
         role_options(role),
         i18n.ui(UiTextKey::Workdir),
-        workdir_options,
+        h(working_dir),
         i18n.ui(UiTextKey::ModelProvider),
         openclaw_provider_options(model_provider),
         i18n.ui(UiTextKey::Model),
@@ -1902,21 +1822,24 @@ pub(crate) fn render_serve_skill_form(root: &Path) -> Result<String, String> {
       <section class="composer">
         <form id="skill-package-form" data-action="/api/skills" data-redirect="/settings/agents/new" autocomplete="off">
           <div class="form-grid">
-            <label>{}<select name="source_kind">{}</select></label>
+            <label>{}<select name="source_kind" id="skill-source-kind">{}</select></label>
             <label>{}<input name="id" spellcheck="false" autocomplete="off" placeholder="react-review…"></label>
           </div>
-          <label>{}<input name="source" spellcheck="false" autocomplete="off" placeholder="vercel-labs/agent-skills or skill name…"></label>
-          <label>{}<input name="path" spellcheck="false" autocomplete="off" placeholder="./skills/react-review…"></label>
+          <label data-skill-source-field="source">{}<input name="source" spellcheck="false" autocomplete="off" placeholder="vercel-labs/agent-skills or skill name…"></label>
+          <label data-skill-source-field="path">{}<input name="path" spellcheck="false" autocomplete="off" placeholder="./skills/react-review…"></label>
           <div class="form-grid">
-            <label>{}<input name="reference" spellcheck="false" autocomplete="off" placeholder="main, v1.0.0, commit sha…"></label>
-            <label>{}<input name="checksum" spellcheck="false" autocomplete="off" placeholder="sha256:…"></label>
+            <label data-skill-source-field="reference">{}<input name="reference" spellcheck="false" autocomplete="off" placeholder="main, v1.0.0, commit sha…"></label>
+            <label data-skill-source-field="checksum">{}<input name="checksum" spellcheck="false" autocomplete="off" placeholder="sha256:…"></label>
           </div>
-          <label>{}<input name="skill_set_id" spellcheck="false" autocomplete="off" placeholder="react-review…"></label>
-          <label>{}<textarea name="skill_paths" rows="2" placeholder="src, tests…"></textarea></label>
-          <div class="form-grid">
-            <label>{}<textarea name="required_capabilities" rows="2" placeholder="repo_read, shell_command…"></textarea></label>
-            <label>{}<textarea name="optional_capabilities" rows="2" placeholder="event_stream…"></textarea></label>
-          </div>
+          <details class="advanced-form">
+            <summary>{}</summary>
+            <label>{}<input name="skill_set_id" spellcheck="false" autocomplete="off" placeholder="react-review…"></label>
+            <label>{}<textarea name="skill_paths" rows="2" placeholder="src, tests…"></textarea></label>
+            <div class="form-grid">
+              <label>{}<textarea name="required_capabilities" rows="2" placeholder="repo_read, shell_command…"></textarea></label>
+              <label>{}<textarea name="optional_capabilities" rows="2" placeholder="event_stream…"></textarea></label>
+            </div>
+          </details>
           <button type="submit">{}</button>
           <p id="skill-package-status" class="muted" role="status"></p>
         </form>
@@ -1940,11 +1863,12 @@ pub(crate) fn render_serve_skill_form(root: &Path) -> Result<String, String> {
         h(i18n.ui(UiTextKey::Agents)),
         h(localized(&i18n, "追加元", "Source")),
         skill_source_options(),
-        h(localized(&i18n, "Package ID", "Package ID")),
+        h(localized(&i18n, "スキルID", "Skill ID")),
         h(localized(&i18n, "Source", "Source")),
         h(localized(&i18n, "Path", "Path")),
         h(localized(&i18n, "Ref / Version", "Ref / Version")),
         h(localized(&i18n, "Checksum", "Checksum")),
+        h(localized(&i18n, "詳細設定", "Advanced Settings")),
         h(localized(&i18n, "Skill Set ID", "Skill Set ID")),
         h(localized(&i18n, "対象Path", "Target Paths")),
         h(localized(&i18n, "必須能力", "Required Capabilities")),
