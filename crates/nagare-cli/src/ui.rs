@@ -1284,6 +1284,7 @@ fn spawn_background_ui_workflow(
             return;
         }
         if let Err(error) = advance_ui_workflow(&root, &work_item_id, &fields) {
+            clear_ui_running_state(&root, &work_item_id);
             eprintln!("ui background workflow failed for {work_item_id}: {error}");
         }
     });
@@ -1400,6 +1401,10 @@ pub(crate) fn read_ui_running_state(root: &Path, work_item_id: &str) -> Option<S
 pub(crate) fn read_ui_running_status(root: &Path, work_item_id: &str) -> Option<UiRunningState> {
     let raw = fs::read_to_string(ui_running_state_path(root, work_item_id)).ok()?;
     if let Ok(state) = serde_json::from_str::<UiRunningState>(&raw) {
+        if running_state_is_stale(state.started_at_epoch) {
+            clear_ui_running_state(root, work_item_id);
+            return None;
+        }
         return Some(state);
     }
     let mut lines = raw.lines();
@@ -1412,6 +1417,10 @@ pub(crate) fn read_ui_running_status(root: &Path, work_item_id: &str) -> Option<
         .next()
         .and_then(|line| line.trim().parse::<u64>().ok())
         .unwrap_or_else(current_epoch_seconds);
+    if running_state_is_stale(started_at_epoch) {
+        clear_ui_running_state(root, work_item_id);
+        return None;
+    }
     Some(UiRunningState {
         kind: "workflow".to_string(),
         actor: "-".to_string(),
@@ -1420,6 +1429,10 @@ pub(crate) fn read_ui_running_status(root: &Path, work_item_id: &str) -> Option<
         related_action: "unknown".to_string(),
         started_at_epoch,
     })
+}
+
+fn running_state_is_stale(started_at_epoch: u64) -> bool {
+    current_epoch_seconds().saturating_sub(started_at_epoch) > 600
 }
 
 fn current_epoch_seconds() -> u64 {
