@@ -491,7 +491,6 @@ pub(crate) fn render_serve_settings(root: &Path) -> Result<String, String> {
       <section id="settings-panel-agents" class="panel settings-panel" role="tabpanel" aria-labelledby="settings-tab-agents" data-settings-panel="agents" hidden>
         <div class="panel-head">
           <h2>{}</h2>
-          <span class="badge gray">{}</span>
         </div>
         {}
         <table class="agent-table"><thead><tr><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th></tr></thead><tbody id="agent-profiles">{}</tbody></table>
@@ -546,12 +545,11 @@ pub(crate) fn render_serve_settings(root: &Path) -> Result<String, String> {
         i18n.ui(UiTextKey::Actions),
         domain_rows,
         i18n.ui(UiTextKey::Agents),
-        i18n.ui(UiTextKey::Registered),
         agent_filters(&domain_groups, &domains, &i18n),
         i18n.ui(UiTextKey::Agent),
-        localized(&i18n, "ツール / モデル", "Tool / Model"),
-        localized(&i18n, "スキル", "Skills"),
-        i18n.ui(UiTextKey::DomainScope),
+        i18n.ui(UiTextKey::Description),
+        i18n.ui(UiTextKey::Groups),
+        i18n.ui(UiTextKey::Domains),
         i18n.ui(UiTextKey::Actions),
         agent_rows,
         serve_script()
@@ -1190,7 +1188,7 @@ fn agent_profile_rows(
 ) -> String {
     if agents.is_empty() {
         return format!(
-            "<tr><td colspan=\"8\" class=\"muted\">{}.</td></tr>",
+            "<tr><td colspan=\"5\" class=\"muted\">{}.</td></tr>",
             h(i18n.ui(UiTextKey::Agents))
         );
     }
@@ -1211,13 +1209,8 @@ fn agent_profile_rows(
   <td data-label="{}">
     <a href="/settings/agents/{}">{}</a>
     <div class="muted" translate="no">{}</div>
-    <div class="agent-meta"><span>{}</span><span translate="no">{}</span><span>{}</span></div>
   </td>
-  <td data-label="{}">
-    <span class="badge gray" translate="no">{}</span>
-    <div class="muted agent-model" translate="no">{}</div>
-    <div class="muted">{}</div>
-  </td>
+  <td data-label="{}">{}</td>
   <td data-label="{}">{}</td>
   <td data-label="{}">{}</td>
   <td data-label="{}"><div class="row-actions"><a class="button-link secondary" href="/settings/agents/{}">{}</a></div></td>
@@ -1228,17 +1221,12 @@ fn agent_profile_rows(
                 h(&agent.id),
                 h(&agent.display_name),
                 h(&agent.id),
-                h(&agent.role),
-                h(&agent.working_dir),
+                h(i18n.ui(UiTextKey::Description)),
                 h(&compact_instruction(&agent.description)),
-                h(localized(i18n, "ツール / モデル", "Tool / Model")),
-                h(&agent.tool_kind.to_string()),
-                h(&agent_model_label(agent)),
-                h(&agent_source_label(agent)),
-                h(localized(i18n, "スキル", "Skills")),
-                agent_skill_chips(agent),
-                h(i18n.ui(UiTextKey::DomainScope)),
-                h(&agent_domain_scope_label(agent, groups, domains, i18n)),
+                h(i18n.ui(UiTextKey::Groups)),
+                h(&agent_domain_group_label(agent, groups, i18n)),
+                h(i18n.ui(UiTextKey::Domains)),
+                h(&agent_domain_label(agent, domains, i18n)),
                 h(i18n.ui(UiTextKey::Actions)),
                 h(&agent.id),
                 h(i18n.ui(UiTextKey::Edit))
@@ -1248,84 +1236,52 @@ fn agent_profile_rows(
         .join("\n")
 }
 
-fn agent_skill_chips(agent: &nagare_core::AgentProfile) -> String {
-    if agent.skill_set_ids.is_empty() {
-        return r#"<span class="muted">-</span>"#.to_string();
-    }
-    agent
-        .skill_set_ids
-        .iter()
-        .map(|skill| {
-            format!(
-                r#"<span class="skill-chip" translate="no">{}</span>"#,
-                h(skill)
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("")
-}
-
 fn localized(i18n: &I18n, ja: &'static str, en: &'static str) -> &'static str {
     if i18n.language().is_ja() { ja } else { en }
 }
 
-fn agent_model_label(agent: &nagare_core::AgentProfile) -> String {
-    let model = agent.model.model_ref().unwrap_or_else(|| "-".to_string());
-    let external = if agent.external.provider.is_empty() {
-        "-".to_string()
-    } else {
-        format!("{}/{}", agent.external.provider, agent.external.agent_id)
-    };
-    format!("{model} / {external}")
-}
-
-fn agent_source_label(agent: &nagare_core::AgentProfile) -> String {
-    let managed = if agent.external.is_nagare_managed(&agent.managed_by) {
-        "nagare"
-    } else {
-        "external"
-    };
-    format!("{} / {}", agent.source, managed)
-}
-
-fn agent_domain_scope_label(
+fn agent_domain_group_label(
     agent: &nagare_core::AgentProfile,
     groups: &[nagare_core::DomainGroup],
+    i18n: &I18n,
+) -> String {
+    if agent.domain_group_ids.is_empty() {
+        return any_scope_label(i18n);
+    }
+    agent
+        .domain_group_ids
+        .iter()
+        .map(|id| domain_group_label(groups, Some(id)))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn agent_domain_label(
+    agent: &nagare_core::AgentProfile,
     domains: &[nagare_core::DomainProfile],
     i18n: &I18n,
 ) -> String {
-    let mut parts = Vec::new();
-    if !agent.domain_group_ids.is_empty() {
-        let labels = agent
-            .domain_group_ids
-            .iter()
-            .map(|id| domain_group_label(groups, Some(id)))
-            .collect::<Vec<_>>()
-            .join(", ");
-        parts.push(format!("{}: {labels}", i18n.ui(UiTextKey::Groups)));
+    if agent.domain_ids.is_empty() {
+        return any_scope_label(i18n);
     }
-    if !agent.domain_ids.is_empty() {
-        let labels = agent
-            .domain_ids
-            .iter()
-            .map(|id| {
-                domains
-                    .iter()
-                    .find(|domain| &domain.id == id)
-                    .map(|domain| domain.display_name.clone())
-                    .unwrap_or_else(|| id.clone())
-            })
-            .collect::<Vec<_>>()
-            .join(", ");
-        parts.push(format!("{}: {labels}", i18n.ui(UiTextKey::Domains)));
-    }
-    if parts.is_empty() {
-        match i18n.language() {
-            nagare_core::NagareLanguage::Ja => "任意".to_string(),
-            nagare_core::NagareLanguage::En => "any".to_string(),
-        }
-    } else {
-        parts.join(" / ")
+    agent
+        .domain_ids
+        .iter()
+        .map(|id| {
+            domains
+                .iter()
+                .find(|domain| &domain.id == id)
+                .map(|domain| domain.display_name.clone())
+                .unwrap_or_else(|| id.clone())
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn any_scope_label(i18n: &I18n) -> String {
+    match i18n.language() {
+        nagare_core::NagareLanguage::Ja => "任意".to_string(),
+        nagare_core::NagareLanguage::En => "any".to_string(),
     }
 }
 
