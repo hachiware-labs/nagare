@@ -18,8 +18,9 @@ use nagare_core::{
     advance_work_item_until_blocked, answer_work_item, apply_recovery_plan, approve_work_item,
     create_recovery_plan, create_work_item_with_input, delete_agent_profile, delete_domain_group,
     delete_domain_profile, delete_work_item, export_static_ui, get_nagare_agent_settings,
-    get_work_item_snapshot, logo_png, reject_work_item, run_work_item_with_input,
-    set_workflow_settings, update_agent_profile, update_domain_group, update_domain_profile,
+    get_work_item_snapshot, list_agent_profiles, logo_png, reject_work_item,
+    run_work_item_with_input, set_workflow_settings, update_agent_profile, update_domain_group,
+    update_domain_profile,
 };
 
 use crate::args::ParsedArgs;
@@ -1434,14 +1435,24 @@ fn clear_ui_running_state(root: &Path, work_item_id: &str) {
 
 fn run_initial_ui_dispatch(root: &Path, work_item_id: &str) -> Result<Option<String>, String> {
     let defaults = get_nagare_agent_settings(root).map_err(|error| error.to_string())?;
+    let snapshot = get_work_item_snapshot(root, work_item_id).map_err(|error| error.to_string())?;
+    let target_agent = specialty_matched_work_agent(root, &snapshot.item)
+        .map_err(|error| error.to_string())?
+        .unwrap_or_else(|| defaults.work_agent.clone());
+    let summary = if target_agent == defaults.work_agent {
+        "UI selected the default work agent on item creation.".to_string()
+    } else {
+        format!("UI selected specialty-matched agent `{target_agent}` on item creation.")
+    };
     let state_dir = root.join(".nagare").join("state");
     fs::create_dir_all(&state_dir)
         .map_err(|error| format!("failed to create UI dispatch state directory: {error}"))?;
     let file_name = format!("{work_item_id}-initial-dispatch.json");
     let output_path = state_dir.join(&file_name);
     let output = format!(
-        r#"{{"target_agent_profile_id":"{}","summary":"UI selected the default work agent on item creation.","risks":[],"missing_information":[]}}"#,
-        json(&defaults.work_agent)
+        r#"{{"target_agent_profile_id":"{}","summary":"{}","risks":[],"missing_information":[]}}"#,
+        json(&target_agent),
+        json(&summary)
     );
     fs::write(&output_path, output)
         .map_err(|error| format!("failed to write UI dispatch output: {error}"))?;
@@ -1464,6 +1475,39 @@ fn run_initial_ui_dispatch(root: &Path, work_item_id: &str) -> Result<Option<Str
     )
     .map_err(|error| error.to_string())?;
     Ok(result.dispatch_plan_id)
+}
+
+fn specialty_matched_work_agent(
+    root: &Path,
+    item: &nagare_core::WorkItem,
+) -> Result<Option<String>, nagare_core::NagareError> {
+    let item_text = format!(
+        "{}\n{}\n{}",
+        item.title,
+        item.description,
+        item.acceptance_criteria.join("\n")
+    )
+    .to_lowercase();
+    if item_text.trim().is_empty() {
+        return Ok(None);
+    }
+
+    let mut matches = list_agent_profiles(root)?
+        .into_iter()
+        .filter(|profile| profile.role == "worker")
+        .filter_map(|profile| {
+            let longest_match = profile
+                .specialties
+                .iter()
+                .map(|specialty| specialty.trim().to_lowercase())
+                .filter(|specialty| !specialty.is_empty() && item_text.contains(specialty))
+                .map(|specialty| specialty.chars().count())
+                .max()?;
+            Some((longest_match, profile.id))
+        })
+        .collect::<Vec<_>>();
+    matches.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| left.1.cmp(&right.1)));
+    Ok(matches.into_iter().map(|(_, id)| id).next())
 }
 
 fn open_path(path: &Path) -> Result<(), String> {
