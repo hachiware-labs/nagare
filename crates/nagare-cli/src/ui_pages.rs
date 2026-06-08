@@ -450,13 +450,6 @@ pub(crate) fn render_serve_settings(root: &Path) -> Result<String, String> {
           <h1>{}</h1>
           <p class="muted">{}</p>
         </div>
-        <div class="actions">
-          <a class="button-link" href="/settings/agents/new">{}</a>
-          <span class="badge gray">{} {}</span>
-          <span class="badge gray">{} {}</span>
-          <span class="badge gray">{} {}</span>
-          <span class="badge blue">{}</span>
-        </div>
       </header>
       <div class="settings-tabs" role="tablist" aria-label="{}">
         <button id="settings-tab-workflow" class="settings-tab active" type="button" role="tab" aria-selected="true" aria-controls="settings-panel-workflow" data-settings-tab="workflow">{}</button>
@@ -491,6 +484,7 @@ pub(crate) fn render_serve_settings(root: &Path) -> Result<String, String> {
       <section id="settings-panel-agents" class="panel settings-panel" role="tabpanel" aria-labelledby="settings-tab-agents" data-settings-panel="agents" hidden>
         <div class="panel-head">
           <h2>{}</h2>
+          <a class="button-link secondary" href="/settings/agents/new">{}</a>
         </div>
         {}
         <table class="agent-table"><thead><tr><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th></tr></thead><tbody id="agent-profiles">{}</tbody></table>
@@ -507,14 +501,6 @@ pub(crate) fn render_serve_settings(root: &Path) -> Result<String, String> {
         i18n.ui(UiTextKey::Settings),
         i18n.ui(UiTextKey::Settings),
         i18n.ui(UiTextKey::SettingsLead),
-        i18n.ui(UiTextKey::CreateNewAgent),
-        i18n.ui(UiTextKey::Agents),
-        agents.len(),
-        i18n.ui(UiTextKey::Groups),
-        domain_groups.len(),
-        i18n.ui(UiTextKey::Domains),
-        domains.len(),
-        i18n.ui(UiTextKey::Profiles),
         i18n.ui(UiTextKey::Settings),
         i18n.ui(UiTextKey::Workflow),
         i18n.ui(UiTextKey::Domains),
@@ -545,6 +531,7 @@ pub(crate) fn render_serve_settings(root: &Path) -> Result<String, String> {
         i18n.ui(UiTextKey::Actions),
         domain_rows,
         i18n.ui(UiTextKey::Agents),
+        i18n.ui(UiTextKey::CreateNewAgent),
         agent_filters(&domain_groups, &domains, &i18n),
         i18n.ui(UiTextKey::Agent),
         i18n.ui(UiTextKey::Description),
@@ -928,7 +915,8 @@ fn agent_filters(
           </div>
           <div>
             <h3>{}</h3>
-            <div class="checkbox-grid">{}</div>
+            <div class="checkbox-grid" data-agent-domain-filter-options>{}</div>
+            <span class="muted" data-agent-domain-filter-empty>{}</span>
           </div>
           <div class="filter-actions">
             <button class="secondary-button" type="button" data-clear-agent-filters>{}</button>
@@ -939,6 +927,11 @@ fn agent_filters(
         group_filters,
         i18n.ui(UiTextKey::Domains),
         domain_filters,
+        localized(
+            i18n,
+            "ドメイングループを選択すると候補が表示されます。",
+            "Select a domain group to show domain choices."
+        ),
         i18n.ui(UiTextKey::ClearFilters)
     )
 }
@@ -978,7 +971,8 @@ fn agent_domain_filter_options(domains: &[nagare_core::DomainProfile], i18n: &I1
         .into_iter()
         .map(|domain| {
             format!(
-                r#"<label class="check-option"><input type="checkbox" data-agent-filter-domain value="{}"><span>{}</span></label>"#,
+                r#"<label class="check-option" data-agent-filter-domain-option data-domain-group="{}"><input type="checkbox" data-agent-filter-domain value="{}"><span>{}</span></label>"#,
+                h(domain.group_id.as_deref().unwrap_or("")),
                 h(&domain.id),
                 h(&domain.display_name)
             )

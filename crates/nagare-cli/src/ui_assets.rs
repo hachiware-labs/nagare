@@ -125,6 +125,8 @@ if(settingsTabs.length && settingsPanels.length){
 }
 const agentFilterGroups=[...document.querySelectorAll('[data-agent-filter-group]')];
 const agentFilterDomains=[...document.querySelectorAll('[data-agent-filter-domain]')];
+const agentFilterDomainOptions=[...document.querySelectorAll('[data-agent-filter-domain-option]')];
+const agentDomainFilterEmpty=document.querySelector('[data-agent-domain-filter-empty]');
 const agentRows=[...document.querySelectorAll('[data-agent-row]')];
 const agentFilterCount=document.querySelector('[data-agent-filter-count]');
 const clearAgentFilters=document.querySelector('[data-clear-agent-filters]');
@@ -136,8 +138,27 @@ function rowHasAny(row,attr,values){
   const rowValues=(row.dataset[attr]||'').split(/\s+/).filter(Boolean);
   return values.some((value)=>rowValues.includes(value));
 }
+function syncDomainFilterOptions(groups){
+  const hasGroupFilter=groups.length>0;
+  let visibleOptions=0;
+  agentFilterDomainOptions.forEach((option)=>{
+    const optionGroup=option.dataset.domainGroup || '';
+    const show=hasGroupFilter && groups.includes(optionGroup);
+    option.hidden=!show;
+    const input=option.querySelector('input[type="checkbox"]');
+    if(input){
+      input.disabled=!show;
+      if(!show){input.checked=false;}
+    }
+    if(show){visibleOptions+=1;}
+  });
+  if(agentDomainFilterEmpty){
+    agentDomainFilterEmpty.hidden=visibleOptions>0;
+  }
+}
 function applyAgentFilters(){
   const groups=selectedValues(agentFilterGroups);
+  syncDomainFilterOptions(groups);
   const domains=selectedValues(agentFilterDomains);
   let visible=0;
   agentRows.forEach((row)=>{
