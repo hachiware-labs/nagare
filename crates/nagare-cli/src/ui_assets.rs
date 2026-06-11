@@ -59,9 +59,11 @@ pub(crate) fn serve_item_detail_stylesheet() -> &'static str {
 .summary .panel-head{align-items:flex-start}
 .summary .panel-head h2{margin-bottom:4px}
 .summary .panel-head p{margin:0}
-.status-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}
+.status-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:14px 0}
 .status-card{display:grid;gap:6px;min-width:0;border:1px solid var(--line);border-radius:8px;background:#fbfdff;padding:12px}
 .status-card.primary{border-color:#a5b4fc;background:#eef2ff}
+.status-card.conclusion-card{grid-column:1/-1}
+.status-card.conclusion-card b{font-size:18px}
 .status-card span{color:var(--muted);font-size:11px;font-weight:800}
 .status-card b{display:block;font-size:16px;line-height:1.35;overflow-wrap:anywhere}
 .status-card small{display:block;color:var(--muted);font-size:12px;line-height:1.45;overflow-wrap:anywhere}

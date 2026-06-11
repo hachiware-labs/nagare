@@ -476,6 +476,9 @@ test("local UI server creates a work item from the browser", async ({ page }) =>
     await expect(page.getByRole("button", { name: "Run Workflow" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Run Agent" })).toHaveCount(0);
     await expect(page.locator("#detail")).toContainText("承認待ち");
+    await expect(page.locator("#detail .conclusion-card")).toContainText("結論");
+    await expect(page.locator("#detail .conclusion-card")).toContainText("workflow run completed");
+    await expect(page.locator("#detail")).toContainText("担当エージェント");
     await expect(page.getByRole("heading", { name: "ステップ概要" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "1ステップずつの内容" })).toBeVisible();
     await expect(page.locator(".progress-panel")).toContainText("中略");

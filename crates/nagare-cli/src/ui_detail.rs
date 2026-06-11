@@ -336,45 +336,56 @@ fn latest_valid_question(snapshot: &nagare_core::WorkItemSnapshot) -> Option<Str
         .cloned()
 }
 
-fn latest_agent_result(
+fn conclusion_view(
     snapshot: &nagare_core::WorkItemSnapshot,
     profiles: &[nagare_core::AgentProfile],
-) -> String {
-    snapshot
+) -> (String, String) {
+    if let Some(output) = snapshot
         .agent_outputs
         .iter()
         .rev()
-        .find_map(|output| {
-            first_output_field(output, "summary")
-                .or_else(|| first_output_field(output, "completed"))
-                .map(|summary| {
+        .find(|output| output.purpose == AgentRunPurpose::Work)
+    {
+        if let Some(summary) = first_output_field(output, "summary")
+            .or_else(|| first_output_field(output, "completed"))
+        {
+            let agent = agent_label(profiles, &output.agent_profile_id);
+            let detail = snapshot
+                .review_results
+                .iter()
+                .rev()
+                .next()
+                .map(|review| {
                     format!(
-                        "{} / {}: {}",
-                        agent_label(profiles, &output.agent_profile_id),
-                        purpose_label(output.purpose),
-                        summary
+                        "{} が回答し、{} がレビュー済みです。",
+                        agent,
+                        agent_label(profiles, &review.agent_profile_id)
                     )
                 })
-        })
-        .unwrap_or_else(|| "No agent output has been recorded yet.".to_string())
-}
+                .unwrap_or_else(|| format!("{agent} の作業結果です。"));
+            return (summary, detail);
+        }
+    }
 
-fn latest_agent_line(
-    snapshot: &nagare_core::WorkItemSnapshot,
-    profiles: &[nagare_core::AgentProfile],
-) -> String {
-    snapshot
-        .runs
-        .last()
-        .map(|run| {
+    if let Some((output, summary)) = snapshot.agent_outputs.iter().rev().find_map(|output| {
+        first_output_field(output, "summary")
+            .or_else(|| first_output_field(output, "completed"))
+            .map(|summary| (output, summary))
+    }) {
+        return (
+            summary,
             format!(
-                "{} / {} ({})",
-                agent_label(profiles, &run.agent_profile_id),
-                purpose_label(run.purpose),
-                run_status_label(run.status)
-            )
-        })
-        .unwrap_or_else(|| "まだエージェントは実行されていません。".to_string())
+                "{} / {} の出力です。",
+                agent_label(profiles, &output.agent_profile_id),
+                purpose_label(output.purpose)
+            ),
+        );
+    }
+
+    (
+        "まだ結論はありません".to_string(),
+        "作業エージェントの実行後、ここに依頼への回答を表示します。".to_string(),
+    )
 }
 
 fn purpose_label(purpose: AgentRunPurpose) -> &'static str {
@@ -776,8 +787,7 @@ fn render_summary_panel(
     let reason = judgment_reason(snapshot, current_state, latest_question, running);
     let current = judgment_label(snapshot, current_state, latest_question, running);
     let next = next_action_label(snapshot, latest_question, running);
-    let result = latest_agent_result(snapshot, profiles);
-    let last_agent = latest_agent_line(snapshot, profiles);
+    let (conclusion, conclusion_detail) = conclusion_view(snapshot, profiles);
     let assigned_agent = assigned_agent_line(latest_dispatch, profiles);
     let assigned_context =
         assigned_agent_context(latest_dispatch, &snapshot.completion.next_action, profiles);
@@ -786,14 +796,14 @@ fn render_summary_panel(
   <div class="panel-head">
     <div>
       <h2>状況</h2>
-      <p class="muted">このWork Itemが誰に割り振られ、次に何を待っているかを表示しています。</p>
+      <p class="muted">依頼への結論と、次に必要なことを表示しています。</p>
     </div>
     <span class="badge blue">現在</span>
   </div>
   <div class="status-grid">
-    <div class="status-card primary">
-      <span>割り振り先</span>
-      <b translate="no">{}</b>
+    <div class="status-card primary conclusion-card">
+      <span>結論</span>
+      <b>{}</b>
       <small>{}</small>
     </div>
     <div class="status-card">
@@ -807,19 +817,19 @@ fn render_summary_panel(
       <small>この画面で実行できる次の操作です</small>
     </div>
     <div class="status-card">
-      <span>直近の実行</span>
+      <span>担当エージェント</span>
       <b translate="no">{}</b>
       <small>{}</small>
     </div>
   </div>
 </section>"#,
-        h(&assigned_agent),
-        h(&assigned_context),
+        h(&conclusion),
+        h(&conclusion_detail),
         h(&current),
         h(&reason),
         h(&next),
-        h(&last_agent),
-        h(&result)
+        h(&assigned_agent),
+        h(&assigned_context)
     )
 }
 
