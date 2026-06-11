@@ -1,3 +1,4 @@
+use crate::snapshot::work_item_needs_synthesis;
 use crate::*;
 use std::path::PathBuf;
 
@@ -133,6 +134,31 @@ pub fn advance_work_item_once(
                 advanced: true,
                 item_status: run.item_status,
                 message: "review run completed".to_string(),
+                run_id: Some(run.run.id),
+                dispatch_plan_id: None,
+                recovery_plan_id: None,
+            })
+        }
+        WorkflowDecisionAction::RunSynthesis => {
+            let settings = get_nagare_agent_settings(&root)?;
+            let synthesis_prompt = synthesis_prompt_for_snapshot(&snapshot);
+            let run = run_work_item_with_input(
+                &root,
+                work_item_id,
+                RunWorkItemInput {
+                    agent_profile_id: settings.supervisor_agent.as_str(),
+                    dispatch_plan_id: None,
+                    path: input.path.or(snapshot.item.work_folder.as_deref()),
+                    prompt: Some(synthesis_prompt.as_str()),
+                    dev_command: input.synthesis_dev_command.or(input.dev_command),
+                    purpose: AgentRunPurpose::Synthesis,
+                },
+            )?;
+            Ok(AdvanceWorkItemResult {
+                decision,
+                advanced: true,
+                item_status: run.item_status,
+                message: "synthesis run completed".to_string(),
                 run_id: Some(run.run.id),
                 dispatch_plan_id: None,
                 recovery_plan_id: None,
@@ -406,6 +432,7 @@ fn parse_workflow_decision_action(value: &str) -> Option<WorkflowDecisionAction>
         "accept_dispatch" => Some(WorkflowDecisionAction::AcceptDispatch),
         "run_agent" => Some(WorkflowDecisionAction::RunAgent),
         "run_review" => Some(WorkflowDecisionAction::RunReview),
+        "run_synthesis" | "synthesize" => Some(WorkflowDecisionAction::RunSynthesis),
         "create_recovery_plan" => Some(WorkflowDecisionAction::CreateRecoveryPlan),
         "accept_recovery_plan" => Some(WorkflowDecisionAction::AcceptRecoveryPlan),
         "apply_recovery_plan" => Some(WorkflowDecisionAction::ApplyRecoveryPlan),
@@ -417,6 +444,80 @@ fn parse_workflow_decision_action(value: &str) -> Option<WorkflowDecisionAction>
         "stop" => Some(WorkflowDecisionAction::Stop),
         _ => None,
     }
+}
+
+fn synthesis_prompt_for_snapshot(snapshot: &WorkItemSnapshot) -> String {
+    let worker_sections = snapshot
+        .agent_outputs
+        .iter()
+        .filter(|output| output.purpose == AgentRunPurpose::Work)
+        .map(|output| {
+            let summary = output_field(output, "summary")
+                .or_else(|| output_field(output, "completed"))
+                .unwrap_or_else(|| "(summary unavailable)".to_string());
+            let completed = output_field(output, "completed")
+                .unwrap_or_else(|| "(completed unavailable)".to_string());
+            format!(
+                "- worker: {}\n  run: {}\n  summary: {}\n  completed: {}",
+                output.agent_profile_id, output.agent_run_id, summary, completed
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let review_sections = snapshot
+        .review_results
+        .iter()
+        .map(|review| {
+            let summary = review
+                .summary
+                .first()
+                .cloned()
+                .unwrap_or_else(|| review.verdict.to_string());
+            format!(
+                "- reviewer: {}\n  verdict: {}\n  summary: {}",
+                review.agent_profile_id, review.verdict, summary
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let criteria = if snapshot.item.acceptance_criteria.is_empty() {
+        "- none".to_string()
+    } else {
+        snapshot
+            .item
+            .acceptance_criteria
+            .iter()
+            .map(|criterion| format!("- {criterion}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    format!(
+        "複数のWorker結果とレビュー結果を、依頼者向けの最終結論として統合してください。\n\
+         個別の作業ログではなく、依頼に対する結論、完了したこと、注意点、次に必要なことを短くまとめてください。\n\n\
+         Work Item:\n- title: {}\n- description: {}\n\nAcceptance criteria:\n{}\n\nWorker outputs:\n{}\n\nReview results:\n{}\n\n\
+         必ず ## Nagare Result の契約で返し、summary には依頼者が最初に読む最終結論を書いてください。next_action は approve、answer_question、stop のいずれかにしてください。",
+        snapshot.item.title,
+        snapshot.item.description,
+        criteria,
+        if worker_sections.is_empty() {
+            "- none"
+        } else {
+            &worker_sections
+        },
+        if review_sections.is_empty() {
+            "- none"
+        } else {
+            &review_sections
+        }
+    )
+}
+
+fn output_field(output: &AgentOutputRecord, key: &str) -> Option<String> {
+    output
+        .fields
+        .get(key)
+        .and_then(|values| values.iter().find(|value| !value.trim().is_empty()))
+        .cloned()
 }
 
 fn blocked_advance(
@@ -554,7 +655,17 @@ pub(crate) fn workflow_decision_for_snapshot(
                     Some(format!("nagare item recover {}", snapshot.item.id)),
                 ),
                 WorkItemStatus::ReadyForReview if latest_review_pass => {
-                    if snapshot.item.approval_policy == ApprovalPolicy::AutoCompleteOnReviewPass {
+                    if work_item_needs_synthesis(snapshot) {
+                        (
+                            WorkflowDecisionAction::RunSynthesis,
+                            "multiple_workers_require_synthesis".to_string(),
+                            false,
+                            Some(settings.supervisor_agent.clone()),
+                            Some(format!("nagare item synthesize {}", snapshot.item.id)),
+                        )
+                    } else if snapshot.item.approval_policy
+                        == ApprovalPolicy::AutoCompleteOnReviewPass
+                    {
                         (
                             WorkflowDecisionAction::Done,
                             "review_passed_auto_complete".to_string(),

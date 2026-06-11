@@ -282,6 +282,147 @@ fn advance_until_blocked_runs_to_human_approval_gate() {
 }
 
 #[test]
+fn multiple_workers_require_synthesis_before_approval() {
+    let root = test_root("multi-worker-synthesis");
+    init_project(&root).expect("project should init");
+    add_agent_profile(
+        &root,
+        AddAgentProfileInput {
+            id: "researcher",
+            display_name: "Researcher",
+            runtime: "codex-local",
+            adapter: "process.codex-cli",
+            role: "worker",
+            working_dir: ".",
+            description: "Research worker",
+            specialties: vec!["research".to_string()],
+            skill_set_ids: Vec::new(),
+            domain_group_ids: Vec::new(),
+            domain_ids: Vec::new(),
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
+        },
+    )
+    .expect("researcher profile should be added");
+    fs::write(
+        root.join("worker.md"),
+        "## Nagare Result\nstatus: succeeded\nsummary:\n- implementation completed\ncompleted:\n- implemented the requested change\nnext_notes:\n- research result should be included\nnext_action: review\n",
+    )
+    .expect("worker output should write");
+    fs::write(
+        root.join("researcher.md"),
+        "## Nagare Result\nstatus: succeeded\nsummary:\n- research completed\ncompleted:\n- gathered supporting facts\nnext_notes:\n- combine implementation and research\nnext_action: review\n",
+    )
+    .expect("researcher output should write");
+    fs::write(
+        root.join("review.md"),
+        "## Nagare Review\nverdict: pass\nsummary:\n- both worker results pass\ncompleted:\n- reviewed implementation and research\nfindings:\n- no blockers\nquestions:\nnext_notes:\n- synthesize final answer\nnext_action: approve\n",
+    )
+    .expect("review output should write");
+    fs::write(
+        root.join("synthesis.md"),
+        "## Nagare Result\nstatus: succeeded\nsummary:\n- integrated final answer for the requester\ncompleted:\n- summarized implementation and research worker outputs\nnext_notes:\n- ready for approval\nnext_action: approve\n",
+    )
+    .expect("synthesis output should write");
+    let item = create_work_item_with_input(
+        &root,
+        CreateWorkItemInput {
+            title: "Combine multiple workers".to_string(),
+            ..CreateWorkItemInput::default()
+        },
+    )
+    .expect("item")
+    .item;
+
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "worker",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(cat_command("worker.md").as_str()),
+            purpose: AgentRunPurpose::Work,
+        },
+    )
+    .expect("worker should run");
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "researcher",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(cat_command("researcher.md").as_str()),
+            purpose: AgentRunPurpose::Work,
+        },
+    )
+    .expect("researcher should run");
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "reviewer",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(cat_command("review.md").as_str()),
+            purpose: AgentRunPurpose::Review,
+        },
+    )
+    .expect("review should run");
+
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
+    assert_eq!(snapshot.completion.next_action, "synthesize");
+    assert!(!snapshot.approval_gate.ready);
+    assert!(
+        snapshot
+            .approval_gate
+            .blockers
+            .contains(&"synthesis_required".to_string())
+    );
+
+    let result = advance_work_item_once(
+        &root,
+        &item.id,
+        AdvanceWorkItemInput {
+            synthesis_dev_command: Some(cat_command("synthesis.md").as_str()),
+            ..AdvanceWorkItemInput::default()
+        },
+    )
+    .expect("synthesis should advance");
+    assert_eq!(result.decision.action, WorkflowDecisionAction::RunSynthesis);
+    assert_eq!(result.item_status, WorkItemStatus::ReadyForReview);
+
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot after synthesis");
+    assert_eq!(snapshot.completion.next_action, "approve");
+    assert!(snapshot.approval_gate.ready);
+    assert!(
+        snapshot
+            .runs
+            .iter()
+            .any(|run| run.purpose == AgentRunPurpose::Synthesis)
+    );
+    assert!(snapshot.agent_outputs.iter().any(|output| {
+        output.purpose == AgentRunPurpose::Synthesis
+            && output.fields.get("summary").is_some_and(|values| {
+                values
+                    .iter()
+                    .any(|value| value.contains("integrated final answer"))
+            })
+    }));
+    assert!(
+        snapshot.history_steps.iter().any(
+            |step| step.kind == "synthesis" && step.summary.contains("integrated final answer")
+        )
+    );
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
 fn auto_complete_policy_finishes_after_passing_review() {
     let root = test_root("auto-complete-policy");
     init_project(&root).expect("project should init");

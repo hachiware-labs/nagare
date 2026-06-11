@@ -59,6 +59,7 @@ fn current_processing_state(
         "accept_dispatch" => "Dispatch plan の承認待ちです".to_string(),
         "run_agent" => "選択済みエージェントの実行待ちです".to_string(),
         "review" => "作業が完了し、レビュー待ちです".to_string(),
+        "synthesize" => "複数Workerの結果を統合しています".to_string(),
         "approve" => "承認待ちです".to_string(),
         "recover" => "復旧が必要です".to_string(),
         "done" => "完了しています".to_string(),
@@ -344,6 +345,22 @@ fn conclusion_view(
         .agent_outputs
         .iter()
         .rev()
+        .find(|output| output.purpose == AgentRunPurpose::Synthesis)
+    {
+        if let Some(summary) = first_output_field(output, "summary")
+            .or_else(|| first_output_field(output, "completed"))
+        {
+            return (
+                summary,
+                "複数Workerのレビュー済み結果を統合した結論です。".to_string(),
+            );
+        }
+    }
+
+    if let Some(output) = snapshot
+        .agent_outputs
+        .iter()
+        .rev()
         .find(|output| output.purpose == AgentRunPurpose::Work)
     {
         if let Some(summary) = first_output_field(output, "summary")
@@ -393,6 +410,7 @@ fn purpose_label(purpose: AgentRunPurpose) -> &'static str {
         AgentRunPurpose::Work => "作業",
         AgentRunPurpose::DispatchPreview => "割り振り",
         AgentRunPurpose::Review => "レビュー",
+        AgentRunPurpose::Synthesis => "統合サマリー",
         AgentRunPurpose::WorkflowSupervision => "進行管理",
     }
 }
@@ -767,6 +785,7 @@ fn next_action_label(
         "run_agent" => "作業エージェントを実行".to_string(),
         "answer_question" => "エージェントの質問に回答".to_string(),
         "review" => "レビューを実行".to_string(),
+        "synthesize" => "複数Workerの結果を統合".to_string(),
         "approve" => "最終結果を承認".to_string(),
         "recover" => "復旧を作成または適用".to_string(),
         "apply_recovery" => "復旧プランを適用".to_string(),
@@ -864,6 +883,7 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
   <input type="hidden" name="max_steps" value="8">
   <input type="hidden" name="command" value="">
   <input type="hidden" name="review_command" value="">
+  <input type="hidden" name="synthesis_command" value="">
   <label>質問<textarea readonly rows="3">{}</textarea></label>
   <label>回答<textarea name="answer" rows="4" required></textarea></label>
   <button type="submit">回答を送信</button>
@@ -965,6 +985,19 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
 <form id="review-form">
   <button type="submit">レビューを実行</button>
   <p id="review-status" class="muted" role="status"></p>
+</form>
+</section>"#
+                .to_string(),
+        );
+    }
+    if snapshot.completion.next_action == "synthesize" {
+        action_sections.push(
+            r#"<section class="panel primary-action"><h2>統合サマリー</h2>
+<form id="synthesis-form">
+  <input type="hidden" name="workflow_mode" value="finish_first">
+  <input type="hidden" name="max_steps" value="8">
+  <button type="submit">複数Workerの結果を統合</button>
+  <p id="synthesis-status" class="muted" role="status"></p>
 </form>
 </section>"#
                 .to_string(),

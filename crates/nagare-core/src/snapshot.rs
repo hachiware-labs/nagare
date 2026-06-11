@@ -255,7 +255,14 @@ fn completion_state(snapshot: &WorkItemSnapshot) -> WorkItemCompletion {
             Some(format!("nagare item run {}", snapshot.item.id)),
         ),
         WorkItemStatus::ReadyForReview => {
-            if latest_review_pass_after_latest_work(snapshot).is_some() {
+            if work_item_needs_synthesis(snapshot) {
+                completion(
+                    "ready_for_synthesis",
+                    None,
+                    "synthesize",
+                    Some(format!("nagare item synthesize {}", snapshot.item.id)),
+                )
+            } else if latest_review_pass_after_latest_work(snapshot).is_some() {
                 completion(
                     "ready_for_approval",
                     None,
@@ -347,6 +354,9 @@ fn approval_gate_state(snapshot: &WorkItemSnapshot) -> WorkItemApprovalGate {
     if !done && latest_review.is_none() {
         blockers.push("review_not_passed".to_string());
     }
+    if !done && work_item_needs_synthesis(snapshot) {
+        blockers.push("synthesis_required".to_string());
+    }
     if !done && criteria_total > 0 {
         if criteria_passed < criteria_total {
             blockers.push("criteria_not_satisfied".to_string());
@@ -420,6 +430,30 @@ fn latest_unparsed_output(snapshot: &WorkItemSnapshot) -> Option<&AgentOutputRec
 
 fn latest_review_pass_after_latest_work(snapshot: &WorkItemSnapshot) -> Option<&ReviewResult> {
     latest_review_pass_after(snapshot, latest_work_run_sequence(snapshot))
+}
+
+pub(crate) fn work_item_needs_synthesis(snapshot: &WorkItemSnapshot) -> bool {
+    let Some(latest_review) = latest_review_pass_after_latest_work(snapshot) else {
+        return false;
+    };
+    let distinct_workers = snapshot
+        .runs
+        .iter()
+        .filter(|run| {
+            run.purpose == AgentRunPurpose::Work && run.status == AgentRunStatus::Succeeded
+        })
+        .map(|run| run.agent_profile_id.as_str())
+        .collect::<std::collections::BTreeSet<_>>()
+        .len();
+    if distinct_workers < 2 {
+        return false;
+    }
+    let latest_review_sequence = id_sequence(&latest_review.id);
+    !snapshot.runs.iter().any(|run| {
+        run.purpose == AgentRunPurpose::Synthesis
+            && run.status == AgentRunStatus::Succeeded
+            && id_sequence(&run.id) > latest_review_sequence
+    })
 }
 
 fn latest_review_pass_after(snapshot: &WorkItemSnapshot, sequence: u64) -> Option<&ReviewResult> {
@@ -877,6 +911,88 @@ fn history_steps(snapshot: &WorkItemSnapshot) -> Vec<WorkItemHistoryStep> {
         });
     }
 
+    for run in snapshot
+        .runs
+        .iter()
+        .filter(|run| run.purpose == AgentRunPurpose::Synthesis)
+    {
+        let output = snapshot
+            .agent_outputs
+            .iter()
+            .find(|output| output.agent_run_id == run.id);
+        let state = if output
+            .is_some_and(|output| output.parse_status == AgentOutputParseStatus::Unparsed)
+        {
+            "contract_invalid".to_string()
+        } else {
+            run.status.to_string()
+        };
+        let summary = output
+            .and_then(|output| {
+                first_output_field(output, "summary")
+                    .or_else(|| first_output_field(output, "completed"))
+            })
+            .unwrap_or_else(|| "複数Workerの結果を統合しました。".to_string());
+        let decision = latest_workflow_decision(
+            snapshot,
+            &[WorkflowDecisionAction::RunSynthesis],
+            Some(&run.id),
+        );
+        let mut facts = history_facts([
+            ("Agent", run.agent_profile_id.clone()),
+            ("Status", state.replace('_', " ")),
+            ("Process status", run.status.to_string()),
+            ("Process exit", format_exit_code(run.exit_code)),
+            (
+                "Parse status",
+                output
+                    .map(|output| output.parse_status.to_string())
+                    .unwrap_or_else(|| "-".to_string()),
+            ),
+        ]);
+        let mut links = vec![
+            history_link("Run", &run.id, "run"),
+            history_link(
+                "Run log",
+                agent_run_execution_record_id(run),
+                "execution_record",
+            ),
+        ];
+        if let Some(output) = output {
+            links.push(history_link("Agent Output", &output.id, "agent_output"));
+            if let Some(completed) = first_output_field(output, "completed") {
+                facts.push(history_fact("completed", completed));
+            }
+            if let Some(next_notes) = first_output_field(output, "next_notes") {
+                facts.push(history_fact("next_notes", next_notes));
+            }
+            let record_id = agent_output_execution_record_id(output);
+            facts.push(history_fact("output record", record_id.to_string()));
+            links.push(history_link("output record", record_id, "execution_record"));
+        }
+        append_decision_context(&mut facts, &mut links, decision);
+        let mut source_record_ids = output
+            .map(|output| vec![run.id.clone(), output.id.clone()])
+            .unwrap_or_else(|| vec![run.id.clone()]);
+        if let Some(decision) = decision {
+            source_record_ids.push(decision.id.clone());
+        }
+        steps.push(WorkItemHistoryStep {
+            id: format!("step_{}", run.id),
+            kind: "synthesis".to_string(),
+            title: "統合サマリー".to_string(),
+            state,
+            actor: Some(run.agent_profile_id.clone()),
+            started_at: Some(run.started_at.clone()),
+            ended_at: Some(run.ended_at.clone()),
+            summary,
+            facts,
+            links,
+            source_record_ids,
+            next_action: output.and_then(output_history_next_action),
+        });
+    }
+
     for output in snapshot
         .agent_outputs
         .iter()
@@ -1071,6 +1187,8 @@ fn workflow_decision_for_run<'a>(
             || (decision.action == WorkflowDecisionAction::RunAgent
                 && decision.target_agent_profile_id.as_deref()
                     == Some(run.agent_profile_id.as_str()))
+            || (decision.action == WorkflowDecisionAction::RunSynthesis
+                && run.purpose == AgentRunPurpose::Synthesis)
     })
 }
 

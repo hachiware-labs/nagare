@@ -316,6 +316,7 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
             let command = nonempty_field(&fields, "command");
             let dispatch_command = nonempty_field(&fields, "dispatch_command");
             let review_command = nonempty_field(&fields, "review_command");
+            let synthesis_command = nonempty_field(&fields, "synthesis_command");
             let max_steps = fields
                 .get("max_steps")
                 .and_then(|value| value.parse::<usize>().ok())
@@ -335,6 +336,7 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                         dev_command: command,
                         dispatch_dev_command: dispatch_command,
                         review_dev_command: review_command,
+                        synthesis_dev_command: synthesis_command,
                         auto_recover: true,
                         workflow_mode,
                         ..AdvanceWorkItemInput::default()
@@ -1225,6 +1227,7 @@ fn advance_ui_workflow(
         dev_command: nonempty_field(fields, "command"),
         dispatch_dev_command: nonempty_field(fields, "dispatch_command"),
         review_dev_command: nonempty_field(fields, "review_command"),
+        synthesis_dev_command: nonempty_field(fields, "synthesis_command"),
         auto_recover: true,
         workflow_mode,
         ..AdvanceWorkItemInput::default()
@@ -1341,6 +1344,19 @@ fn running_state_for_snapshot(
                 &format!("{actor} review"),
                 "Review Agent が受入条件を確認しています。",
                 "review",
+            )
+        }
+        "synthesize" => {
+            let actor = settings
+                .as_ref()
+                .map(|settings| settings.supervisor_agent.clone())
+                .unwrap_or_else(|| "supervisor".to_string());
+            UiRunningState::new(
+                "synthesis",
+                &actor,
+                &format!("{actor} synthesis"),
+                "複数Workerの結果を統合しています。",
+                "synthesize",
             )
         }
         "recover" | "apply_recovery" => UiRunningState::new(

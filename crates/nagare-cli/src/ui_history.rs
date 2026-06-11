@@ -120,6 +120,7 @@ fn history_step_result_label(step: &nagare_core::WorkItemHistoryStep) -> &'stati
     match step.kind.as_str() {
         "dispatch" => "選定理由",
         "work" => "作業結果",
+        "synthesis" => "統合結果",
         "review" => "レビュー結果",
         "recovery" => "復旧内容",
         "answer" | "human_feedback" => "入力内容",
@@ -132,6 +133,7 @@ fn history_step_kind_label(step: &nagare_core::WorkItemHistoryStep) -> &'static 
         "request" => "依頼作成",
         "dispatch" => "Agent選定",
         "work" => "作業",
+        "synthesis" => "統合サマリー",
         "review" => "レビュー",
         "approval" => "承認",
         "recovery" => "復旧",
@@ -286,6 +288,7 @@ fn next_action_label(action: &str) -> &str {
         "recover" => "復旧",
         "review" => "レビュー",
         "run_agent" => "作業",
+        "synthesize" | "run_synthesis" => "統合サマリー",
         "needs_input" => "入力待ち",
         "stop" | "none" | "-" => "-",
         other => other,

@@ -178,7 +178,7 @@ document.querySelectorAll('.history-details').forEach((detail)=>{
   if(openKeys.has(detail.dataset.historyKey)){detail.open=true;}
   detail.addEventListener('toggle',saveOpenHistoryKeys);
 });
-const autoNextActions=new Set(['dispatch','accept_dispatch','run_agent','review','recover','apply_recovery']);
+const autoNextActions=new Set(['dispatch','accept_dispatch','run_agent','review','synthesize','recover','apply_recovery']);
 if((document.body.dataset.nextAction && autoNextActions.has(document.body.dataset.nextAction)) || document.body.dataset.running){
   setTimeout(()=>{
     if(document.querySelector('.history-details[open]')){return;}
@@ -622,6 +622,19 @@ if(reviewForm){
     const response=await fetch(`/api/items/${workId}/review`,{method:'POST',body:new URLSearchParams(new FormData(reviewForm))});
     if(!response.ok){await notifyResponseError(response,reviewStatus);return;}
     reviewStatus.textContent='レビューが完了しました。';
+    window.location.reload();
+  });
+}
+const synthesisForm=document.getElementById('synthesis-form');
+if(synthesisForm){
+  const synthesisStatus=document.getElementById('synthesis-status');
+  synthesisForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    synthesisStatus.textContent='統合サマリーを作成中…';
+    const workId=window.location.pathname.split('/').pop();
+    const response=await fetch(`/api/items/${workId}/advance`,{method:'POST',body:new URLSearchParams(new FormData(synthesisForm))});
+    if(!response.ok){await notifyResponseError(response,synthesisStatus);return;}
+    synthesisStatus.textContent='統合サマリーを作成しました。';
     window.location.reload();
   });
 }

@@ -660,6 +660,11 @@ pub(crate) fn localized_output_contract_instruction(
             contract_id = contract.contract,
             pack = contract.instruction_pack,
         ),
+        AgentRunPurpose::Synthesis => format!(
+            "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\n{common}\n\n## Nagare Result\nstatus: succeeded|blocked|failed\nsummary:\n- final user-facing conclusion across all reviewed workers\ncompleted:\n- worker-by-worker summary and what was completed\nartifacts:\n- referenced deliverable artifact path/id or none\nevidence:\n- evidence or reviewed source steps\nquestions:\n- question or none\nnext_notes:\n- approval note or remaining risk\nnext_action: approve|answer_question|stop",
+            contract_id = contract.contract,
+            pack = contract.instruction_pack,
+        ),
         AgentRunPurpose::WorkflowSupervision => format!(
             "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\n{common}\n\n## Nagare Workflow Decision\naction: dispatch|run_agent|run_review|recover|approve|stop\nreason: concise reason\ntarget_agent_profile_id: agent id or none\nrequires_human: true|false\nconfidence: 0.0-1.0\ncommand_hint: nagare command or none",
             contract_id = contract.contract,

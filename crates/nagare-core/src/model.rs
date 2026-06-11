@@ -231,6 +231,7 @@ pub enum AgentRunPurpose {
     Work,
     DispatchPreview,
     Review,
+    Synthesis,
     WorkflowSupervision,
 }
 
@@ -240,6 +241,7 @@ impl fmt::Display for AgentRunPurpose {
             Self::Work => f.write_str("work"),
             Self::DispatchPreview => f.write_str("dispatch_preview"),
             Self::Review => f.write_str("review"),
+            Self::Synthesis => f.write_str("synthesis"),
             Self::WorkflowSupervision => f.write_str("workflow_supervision"),
         }
     }
@@ -671,7 +673,7 @@ impl AgentOutputContracts {
         match purpose {
             AgentRunPurpose::Review => &self.review,
             AgentRunPurpose::DispatchPreview => &self.dispatch,
-            AgentRunPurpose::Work => &self.work,
+            AgentRunPurpose::Work | AgentRunPurpose::Synthesis => &self.work,
             AgentRunPurpose::WorkflowSupervision => &self.supervision,
         }
     }

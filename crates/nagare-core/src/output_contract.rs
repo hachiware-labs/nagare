@@ -18,7 +18,7 @@ pub(crate) struct AgentOutputRecordInput<'a> {
 pub(crate) fn parse_agent_output_record(input: AgentOutputRecordInput<'_>) -> AgentOutputRecord {
     let mut warnings = Vec::new();
     let section_name = match input.purpose {
-        AgentRunPurpose::Work => "nagare result",
+        AgentRunPurpose::Work | AgentRunPurpose::Synthesis => "nagare result",
         AgentRunPurpose::Review => "nagare review",
         AgentRunPurpose::DispatchPreview => "nagare dispatch",
         AgentRunPurpose::WorkflowSupervision => "nagare workflow decision",
@@ -54,7 +54,7 @@ pub(crate) fn parse_agent_output_record(input: AgentOutputRecordInput<'_>) -> Ag
     if section.is_some()
         && matches!(
             input.purpose,
-            AgentRunPurpose::Work | AgentRunPurpose::Review
+            AgentRunPurpose::Work | AgentRunPurpose::Review | AgentRunPurpose::Synthesis
         )
     {
         if has_nested_contract_keys(&fields) {

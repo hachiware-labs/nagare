@@ -1454,7 +1454,10 @@ pub fn run_work_item_with_input(
     let item = ledger.work_item(work_item_id)?.clone();
     let effective_path = input.path.or(item.work_folder.as_deref());
 
-    if input.purpose == AgentRunPurpose::Work {
+    if matches!(
+        input.purpose,
+        AgentRunPurpose::Work | AgentRunPurpose::Synthesis
+    ) {
         let item = ledger.work_item_mut(work_item_id)?;
         item.status = WorkItemStatus::AgentRunning;
         item.updated_at = timestamp();
@@ -1679,11 +1682,17 @@ pub fn run_work_item_with_input(
     let review_result = review_result_id
         .zip(agent_output.as_ref())
         .map(|(id, output)| review_result_from_agent_output(id, output, &item.acceptance_criteria));
-    let mut item_status = if input.purpose == AgentRunPurpose::Work {
+    let mut item_status = if matches!(
+        input.purpose,
+        AgentRunPurpose::Work | AgentRunPurpose::Synthesis
+    ) {
         if agent_output_requires_input(agent_output.as_ref()) {
             WorkItemStatus::NeedsInput
         } else if agent_output_requests_handoff(agent_output.as_ref()) {
             WorkItemStatus::NeedsHandoff
+        } else if input.purpose == AgentRunPurpose::Synthesis && status == AgentRunStatus::Succeeded
+        {
+            WorkItemStatus::ReadyForReview
         } else if status == AgentRunStatus::Succeeded {
             WorkItemStatus::ReadyForReview
         } else {
@@ -1862,7 +1871,10 @@ pub fn run_work_item_with_input(
     }
     if matches!(
         input.purpose,
-        AgentRunPurpose::Work | AgentRunPurpose::Review | AgentRunPurpose::DispatchPreview
+        AgentRunPurpose::Work
+            | AgentRunPurpose::Synthesis
+            | AgentRunPurpose::Review
+            | AgentRunPurpose::DispatchPreview
     ) {
         let item = ledger.work_item_mut(work_item_id)?;
         item.status = item_status;

@@ -919,6 +919,27 @@ fn multi_agent_question_handoff_review_and_approval_workflow_completes() {
     )
     .expect("review pass should parse");
 
+    fs::write(
+        root.join("synthesis.md"),
+        "## Nagare Result\nstatus: succeeded\nsummary:\n- Complex workflow final summary is ready.\ncompleted:\n- Combined original and repair agent outputs after review.\nnext_notes:\n- ready for approval\nnext_action: approve\n",
+    )
+    .expect("synthesis should write");
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot before synthesis");
+    assert_eq!(snapshot.completion.next_action, "synthesize");
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "supervisor",
+            dispatch_plan_id: None,
+            path: Some("docs/feature.md"),
+            prompt: None,
+            dev_command: Some(cat_command("synthesis.md").as_str()),
+            purpose: AgentRunPurpose::Synthesis,
+        },
+    )
+    .expect("synthesis should parse");
+
     approve_work_item(&root, &item.id, "complex workflow completed")
         .expect("approval should complete item");
 
@@ -936,8 +957,8 @@ fn multi_agent_question_handoff_review_and_approval_workflow_completes() {
         snapshot.dispatch_plans[1].status,
         DispatchPlanStatus::Accepted
     );
-    assert_eq!(snapshot.runs.len(), 7);
-    assert_eq!(snapshot.agent_outputs.len(), 5);
+    assert_eq!(snapshot.runs.len(), 8);
+    assert_eq!(snapshot.agent_outputs.len(), 6);
     assert_eq!(snapshot.human_feedback.len(), 2);
     assert_eq!(snapshot.handoffs.len(), 1);
     assert_eq!(snapshot.decisions.len(), 1);
@@ -945,6 +966,15 @@ fn multi_agent_question_handoff_review_and_approval_workflow_completes() {
     assert_eq!(event_count(&snapshot, "question"), 2);
     assert_eq!(event_count(&snapshot, "human_feedback"), 2);
     assert_eq!(event_count(&snapshot, "handoff"), 1);
+    assert!(
+        snapshot
+            .runs
+            .iter()
+            .any(|run| run.purpose == AgentRunPurpose::Synthesis)
+    );
+    assert!(snapshot.history_steps.iter().any(|step| {
+        step.kind == "synthesis" && step.summary.contains("Complex workflow final summary")
+    }));
     assert!(snapshot.resolved_run_packets.iter().any(|packet| {
         packet.dispatch_plan_id.as_deref() == Some(repair_plan_id.as_str())
             && packet.agent_profile_id == "repair-agent"

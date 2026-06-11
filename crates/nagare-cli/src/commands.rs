@@ -687,11 +687,12 @@ fn item_command(args: &[String]) -> Result<(), String> {
         Some("recover") => item_recover_command(&args[1..]),
         Some("run") => item_run_command(&args[1..]),
         Some("review") => item_review_command(&args[1..]),
+        Some("synthesize") => item_synthesize_command(&args[1..]),
         Some("advance") => item_advance_command(&args[1..]),
         Some("answer") => item_answer_command(&args[1..]),
         Some(command) => Err(format!("unknown item command `{command}`")),
         None => Err(
-            "item command required: create, list, show, preview, dispatch, recover, run, review, advance, answer"
+            "item command required: create, list, show, preview, dispatch, recover, run, review, synthesize, advance, answer"
                 .to_string(),
         ),
     }
@@ -965,6 +966,10 @@ fn item_review_command(args: &[String]) -> Result<(), String> {
     run_item_with_nagare_agent(args, AgentRunPurpose::Review, "review_agent")
 }
 
+fn item_synthesize_command(args: &[String]) -> Result<(), String> {
+    run_item_with_nagare_agent(args, AgentRunPurpose::Synthesis, "supervisor_agent")
+}
+
 fn item_advance_command(args: &[String]) -> Result<(), String> {
     let parsed = ParsedArgs::parse(args)?;
     let work_item_id = parsed
@@ -977,6 +982,7 @@ fn item_advance_command(args: &[String]) -> Result<(), String> {
         dev_command: parsed.optional("--command"),
         dispatch_dev_command: parsed.optional("--dispatch-command"),
         review_dev_command: parsed.optional("--review-command"),
+        synthesis_dev_command: parsed.optional("--synthesis-command"),
         use_supervisor: parsed
             .optional("--supervisor")
             .map(parse_bool)
@@ -1062,6 +1068,7 @@ fn run_item_with_nagare_agent(
     let default_agent = match default_agent_key {
         "dispatch_agent" => defaults.dispatch_agent.as_str(),
         "review_agent" => defaults.review_agent.as_str(),
+        "supervisor_agent" => defaults.supervisor_agent.as_str(),
         _ => defaults.work_agent.as_str(),
     };
     let agent = parsed.optional("--agent").unwrap_or(default_agent);
