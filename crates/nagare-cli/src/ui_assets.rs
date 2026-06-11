@@ -76,12 +76,13 @@ pub(crate) fn serve_item_detail_stylesheet() -> &'static str {
 .technical-details .workflow-panel+.workflow-panel{border-top:1px solid var(--line);padding-top:14px}
 .progress-panel .panel-head h2{margin-bottom:4px}
 .progress-panel .panel-head p{margin:0}
-.flow-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;list-style:none;margin:14px 0 0;padding:0;counter-reset:none}
+.flow-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;list-style:none;margin:14px 0 0;padding:0;counter-reset:none}
 .flow-node{position:relative;display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;min-width:0;border:1px solid var(--line);border-radius:8px;background:#fbfdff;padding:12px}
 .flow-node:not(:last-child)::after{content:"";position:absolute;right:-12px;top:50%;width:12px;border-top:2px solid var(--line)}
 .flow-node.done{border-color:#bbf7d0;background:#f0fdf4}
 .flow-node.active{border-color:#a5b4fc;background:#eef2ff}
 .flow-node.blocked{border-color:#fecaca;background:#fff7f7}
+.flow-node.omitted{border-style:dashed;background:#f8fafc}
 .flow-marker{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--muted);font-size:12px;font-weight:800}
 .flow-node.done .flow-marker{border-color:#86efac;color:var(--green)}
 .flow-node.active .flow-marker{border-color:#a5b4fc;color:var(--blue)}

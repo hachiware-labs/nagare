@@ -478,6 +478,10 @@ test("local UI server creates a work item from the browser", async ({ page }) =>
     await expect(page.locator("#detail")).toContainText("承認待ち");
     await expect(page.getByRole("heading", { name: "ステップ概要" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "1ステップずつの内容" })).toBeVisible();
+    await expect(page.locator(".progress-panel")).toContainText("中略");
+    await expect(page.locator(".progress-panel")).toContainText(
+      "下の「1ステップずつの内容」に全ステップを表示しています。",
+    );
     await expect(page.locator(".answer-panel")).toHaveCount(0);
     await expect(page.locator(".technical-details")).toHaveCount(0);
     const history = page.locator(".step-detail-panel");

@@ -507,6 +507,21 @@ fn render_flow_node(
     )
 }
 
+fn render_flow_omission_node(history_steps: usize) -> String {
+    let omitted_steps = history_steps.saturating_sub(3);
+    format!(
+        r#"<li class="flow-node omitted" aria-label="中略">
+  <span class="flow-marker">…</span>
+  <div>
+    <span>中略</span>
+    <b>{}ステップを省略</b>
+    <small>下の「1ステップずつの内容」に全ステップを表示しています。</small>
+  </div>
+</li>"#,
+        omitted_steps
+    )
+}
+
 fn render_progress_panel(
     snapshot: &nagare_core::WorkItemSnapshot,
     latest_dispatch: Option<&DispatchPlan>,
@@ -622,6 +637,11 @@ fn render_progress_panel(
             "作業実行後にレビュー状態が表示されます。".to_string(),
         )
     };
+    let omission_node = if snapshot.history_steps.len() > 3 {
+        render_flow_omission_node(snapshot.history_steps.len())
+    } else {
+        String::new()
+    };
 
     format!(
         r#"<section class="panel progress-panel">
@@ -635,6 +655,7 @@ fn render_progress_panel(
     {}
     {}
     {}
+    {}
   </ol>
 </section>"#,
         render_flow_node(
@@ -645,6 +666,7 @@ fn render_progress_panel(
             &dispatch_detail
         ),
         render_flow_node("2", work_class, "作業", &work_title, &work_detail),
+        omission_node,
         render_flow_node(
             "3",
             review_class,
