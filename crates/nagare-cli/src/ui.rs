@@ -11,16 +11,16 @@ use nagare_core::{
     AddAgentProfileInput, AddDomainGroupInput, AddDomainProfileInput, AddSkillPackageInput,
     AdvanceUntilBlockedInput, AdvanceWorkItemInput, AgentModelSelection, AgentRunPurpose,
     AnswerWorkItemInput, ApplyRecoveryPlanInput, ApprovalPolicy, CreateWorkItemInput,
-    DomainAgentPolicy, DomainWorkflowOverride, ExternalAgentBinding, RunWorkItemInput,
-    StaticUiExportInput, UpdateAgentProfileInput, UpdateDomainGroupInput, UpdateDomainProfileInput,
-    WorkflowMode, WorkflowSettings, accept_dispatch_plan, accept_recovery_plan, add_agent_profile,
-    add_domain_group, add_domain_profile, add_skill_package, advance_work_item_once,
-    advance_work_item_until_blocked, answer_work_item, apply_recovery_plan, approve_work_item,
-    create_recovery_plan, create_work_item_with_input, delete_agent_profile, delete_domain_group,
-    delete_domain_profile, delete_work_item, export_static_ui, get_nagare_agent_settings,
-    get_work_item_snapshot, list_agent_profiles, logo_png, reject_work_item,
-    run_work_item_with_input, set_workflow_settings, update_agent_profile, update_domain_group,
-    update_domain_profile,
+    DomainAgentPolicy, DomainWorkflowOverride, ExternalAgentBinding, ProjectLayout,
+    RunWorkItemInput, StaticUiExportInput, UpdateAgentProfileInput, UpdateDomainGroupInput,
+    UpdateDomainProfileInput, WorkflowMode, WorkflowSettings, accept_dispatch_plan,
+    accept_recovery_plan, add_agent_profile, add_domain_group, add_domain_profile,
+    add_skill_package, advance_work_item_once, advance_work_item_until_blocked, answer_work_item,
+    apply_recovery_plan, approve_work_item, create_recovery_plan, create_work_item_with_input,
+    delete_agent_profile, delete_domain_group, delete_domain_profile, delete_work_item,
+    export_static_ui, get_nagare_agent_settings, get_work_item_snapshot, list_agent_profiles,
+    logo_png, reject_work_item, run_work_item_with_input, set_workflow_settings,
+    update_agent_profile, update_domain_group, update_domain_profile,
 };
 
 use crate::args::ParsedArgs;
@@ -499,7 +499,8 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
         );
     }
     if request.method == "POST" && request.path == "/api/domains" {
-        let fields = parse_form_urlencoded(&request.body);
+        let form = parse_domain_profile_form(&request)?;
+        let fields = &form.fields;
         let id = fields.get("id").map(String::as_str).unwrap_or("").trim();
         if id.is_empty() {
             return write_response(
@@ -530,10 +531,12 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
             },
         )
         .map_err(|error| error.to_string())?;
+        let sample_count = save_domain_sample_files(root, &result.domain.id, &form)?;
         let body = format!(
-            r#"{{"id":"{}","rubric":{}}}"#,
+            r#"{{"id":"{}","rubric":{},"samples":{}}}"#,
             json(&result.domain.id),
-            result.domain.rubric.len()
+            result.domain.rubric.len(),
+            sample_count
         );
         return write_response(
             stream,
@@ -606,7 +609,8 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
     }
     if request.method == "POST" {
         if let Some(domain_profile_id) = request.path.strip_prefix("/api/domains/") {
-            let fields = parse_form_urlencoded(&request.body);
+            let form = parse_domain_profile_form(&request)?;
+            let fields = &form.fields;
             let result = update_domain_profile(
                 root,
                 domain_profile_id,
@@ -630,10 +634,12 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                 },
             )
             .map_err(|error| error.to_string())?;
+            let sample_count = save_domain_sample_files(root, &result.domain.id, &form)?;
             let body = format!(
-                r#"{{"id":"{}","rubric":{}}}"#,
+                r#"{{"id":"{}","rubric":{},"samples":{}}}"#,
                 json(&result.domain.id),
-                result.domain.rubric.len()
+                result.domain.rubric.len(),
+                sample_count
             );
             return write_response(stream, "200 OK", "application/json; charset=utf-8", &body);
         }
@@ -1031,7 +1037,9 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
 struct HttpRequest {
     method: String,
     path: String,
+    content_type: String,
     body: String,
+    body_bytes: Vec<u8>,
 }
 
 fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest, String> {
@@ -1057,8 +1065,11 @@ fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest, String> {
             }
         }
     }
-    let request_text = String::from_utf8_lossy(&buffer);
-    let mut lines = request_text.lines();
+    let header_end = find_subslice(&buffer, b"\r\n\r\n")
+        .map(|index| index + 4)
+        .unwrap_or(buffer.len());
+    let header_text = String::from_utf8_lossy(&buffer[..header_end]);
+    let mut lines = header_text.lines();
     let request_line = lines.next().ok_or_else(|| "empty request".to_string())?;
     let mut parts = request_line.split_whitespace();
     let method = parts.next().unwrap_or("").to_string();
@@ -1069,25 +1080,42 @@ fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest, String> {
         .next()
         .unwrap_or("/")
         .to_string();
-    let body = request_text
-        .split_once("\r\n\r\n")
-        .map(|(_, body)| body.to_string())
-        .unwrap_or_default();
-    Ok(HttpRequest { method, path, body })
+    let content_type = header_value(&header_text, "content-type").unwrap_or_default();
+    let body_bytes = buffer.get(header_end..).unwrap_or(&[]).to_vec();
+    let body = String::from_utf8_lossy(&body_bytes).to_string();
+    Ok(HttpRequest {
+        method,
+        path,
+        content_type,
+        body,
+        body_bytes,
+    })
 }
 
 fn content_length(request: &str) -> usize {
-    request
-        .lines()
-        .find_map(|line| {
-            let (name, value) = line.split_once(':')?;
-            if name.eq_ignore_ascii_case("content-length") {
-                value.trim().parse::<usize>().ok()
-            } else {
-                None
-            }
-        })
+    header_value(request, "content-length")
+        .and_then(|value| value.parse::<usize>().ok())
         .unwrap_or(0)
+}
+
+fn header_value(request: &str, header_name: &str) -> Option<String> {
+    request.lines().find_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        if name.eq_ignore_ascii_case(header_name) {
+            Some(value.trim().to_string())
+        } else {
+            None
+        }
+    })
+}
+
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() {
+        return Some(0);
+    }
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
 }
 
 fn write_response(
@@ -1119,6 +1147,239 @@ fn write_binary_response(
         .write_all(header.as_bytes())
         .and_then(|_| stream.write_all(body))
         .map_err(|error| format!("failed to write response: {error}"))
+}
+
+#[derive(Debug, Default)]
+struct DomainProfileForm {
+    fields: HashMap<String, String>,
+    files: Vec<UploadedFormFile>,
+}
+
+#[derive(Debug)]
+struct UploadedFormFile {
+    field_name: String,
+    filename: String,
+    content_type: String,
+    bytes: Vec<u8>,
+}
+
+fn parse_domain_profile_form(request: &HttpRequest) -> Result<DomainProfileForm, String> {
+    if request.content_type.starts_with("multipart/form-data") {
+        parse_multipart_form(&request.content_type, &request.body_bytes)
+    } else {
+        Ok(DomainProfileForm {
+            fields: parse_form_urlencoded(&request.body),
+            files: Vec::new(),
+        })
+    }
+}
+
+fn parse_multipart_form(content_type: &str, body: &[u8]) -> Result<DomainProfileForm, String> {
+    let boundary = multipart_boundary(content_type)
+        .ok_or_else(|| "multipart boundary is missing".to_string())?;
+    let marker = format!("--{boundary}");
+    let marker = marker.as_bytes();
+    let mut cursor = find_subslice(body, marker)
+        .ok_or_else(|| "multipart body does not contain boundary".to_string())?;
+    let mut form = DomainProfileForm::default();
+    loop {
+        cursor += marker.len();
+        if body.get(cursor..cursor + 2) == Some(b"--") {
+            break;
+        }
+        if body.get(cursor..cursor + 2) == Some(b"\r\n") {
+            cursor += 2;
+        }
+        let next_relative = find_subslice(&body[cursor..], marker)
+            .ok_or_else(|| "multipart body ended before closing boundary".to_string())?;
+        let mut part = &body[cursor..cursor + next_relative];
+        if part.ends_with(b"\r\n") {
+            part = &part[..part.len().saturating_sub(2)];
+        }
+        parse_multipart_part(part, &mut form)?;
+        cursor += next_relative;
+    }
+    Ok(form)
+}
+
+fn multipart_boundary(content_type: &str) -> Option<String> {
+    content_type.split(';').find_map(|part| {
+        let trimmed = part.trim();
+        let value = trimmed.strip_prefix("boundary=")?;
+        Some(value.trim_matches('"').to_string())
+    })
+}
+
+fn parse_multipart_part(part: &[u8], form: &mut DomainProfileForm) -> Result<(), String> {
+    let header_end = find_subslice(part, b"\r\n\r\n")
+        .ok_or_else(|| "multipart part missing headers".to_string())?;
+    let headers = String::from_utf8_lossy(&part[..header_end]);
+    let data = part.get(header_end + 4..).unwrap_or(&[]);
+    let disposition = headers
+        .lines()
+        .find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            if name.eq_ignore_ascii_case("content-disposition") {
+                Some(value.trim())
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| "multipart part missing content-disposition".to_string())?;
+    let field_name = disposition_param(disposition, "name")
+        .ok_or_else(|| "multipart part missing field name".to_string())?;
+    let filename = disposition_param(disposition, "filename").unwrap_or_default();
+    if filename.is_empty() {
+        let value = String::from_utf8_lossy(data).to_string();
+        form.fields
+            .entry(field_name)
+            .and_modify(|existing| {
+                if !existing.is_empty() {
+                    existing.push('\n');
+                }
+                existing.push_str(&value);
+            })
+            .or_insert(value);
+        return Ok(());
+    }
+    let content_type = headers
+        .lines()
+        .find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            if name.eq_ignore_ascii_case("content-type") {
+                Some(value.trim().to_string())
+            } else {
+                None
+            }
+        })
+        .unwrap_or_else(|| "application/octet-stream".to_string());
+    form.files.push(UploadedFormFile {
+        field_name,
+        filename,
+        content_type,
+        bytes: data.to_vec(),
+    });
+    Ok(())
+}
+
+fn disposition_param(disposition: &str, param_name: &str) -> Option<String> {
+    disposition.split(';').find_map(|part| {
+        let trimmed = part.trim();
+        let (name, value) = trimmed.split_once('=')?;
+        if name.eq_ignore_ascii_case(param_name) {
+            Some(value.trim_matches('"').to_string())
+        } else {
+            None
+        }
+    })
+}
+
+fn save_domain_sample_files(
+    root: &Path,
+    domain_id: &str,
+    form: &DomainProfileForm,
+) -> Result<usize, String> {
+    let files = form
+        .files
+        .iter()
+        .filter(|file| sample_kind_for_field(&file.field_name).is_some())
+        .collect::<Vec<_>>();
+    if files.is_empty() {
+        return Ok(0);
+    }
+    let layout = ProjectLayout::new(root.to_path_buf());
+    let domain_dir = layout.domain_samples_dir.join(domain_id);
+    let files_dir = domain_dir.join("files");
+    fs::create_dir_all(&files_dir)
+        .map_err(|error| format!("failed to create domain sample directory: {error}"))?;
+    let sample_note = form
+        .fields
+        .get("sample_note")
+        .map(String::as_str)
+        .unwrap_or("")
+        .trim();
+    let uploaded_at_epoch = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0);
+    let mut manifest_samples = existing_domain_sample_manifest(&domain_dir);
+    for (index, file) in files.iter().enumerate() {
+        let kind = sample_kind_for_field(&file.field_name).unwrap_or("reference");
+        let stored_name = format!(
+            "{}-{}-{}",
+            kind,
+            uploaded_at_epoch,
+            sanitize_filename(&file.filename, index + 1)
+        );
+        fs::write(files_dir.join(&stored_name), &file.bytes).map_err(|error| {
+            format!("failed to write domain sample `{}`: {error}", file.filename)
+        })?;
+        manifest_samples.push(serde_json::json!({
+            "id": format!("{kind}-{}-{}", uploaded_at_epoch, index + 1),
+            "kind": kind,
+            "original_name": file.filename,
+            "stored_name": stored_name,
+            "path": format!("files/{stored_name}"),
+            "content_type": file.content_type,
+            "size": file.bytes.len(),
+            "note": sample_note,
+            "uploaded_at_epoch": uploaded_at_epoch
+        }));
+    }
+    let manifest = serde_json::json!({
+        "domain_id": domain_id,
+        "updated_at_epoch": uploaded_at_epoch,
+        "samples": manifest_samples
+    });
+    let manifest_text = serde_json::to_string_pretty(&manifest)
+        .map_err(|error| format!("failed to serialize sample manifest: {error}"))?;
+    fs::write(domain_dir.join("manifest.json"), manifest_text)
+        .map_err(|error| format!("failed to write sample manifest: {error}"))?;
+    Ok(files.len())
+}
+
+fn existing_domain_sample_manifest(domain_dir: &Path) -> Vec<serde_json::Value> {
+    let manifest_path = domain_dir.join("manifest.json");
+    let Ok(raw) = fs::read_to_string(manifest_path) else {
+        return Vec::new();
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return Vec::new();
+    };
+    value
+        .get("samples")
+        .and_then(serde_json::Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn sample_kind_for_field(field_name: &str) -> Option<&'static str> {
+    match field_name {
+        "sample_good_files" => Some("good"),
+        "sample_bad_files" => Some("bad"),
+        "sample_reference_files" => Some("reference"),
+        _ => None,
+    }
+}
+
+fn sanitize_filename(filename: &str, fallback_index: usize) -> String {
+    let sanitized = filename
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_') {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .trim_matches('-')
+        .to_string();
+    if sanitized.is_empty() {
+        format!("sample-{fallback_index}")
+    } else {
+        sanitized
+    }
 }
 
 fn nonempty_field<'a>(fields: &'a HashMap<String, String>, name: &str) -> Option<&'a str> {

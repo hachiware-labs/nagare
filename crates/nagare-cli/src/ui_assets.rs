@@ -489,10 +489,54 @@ if(agentProfileForm){
 const domainProfileForm=document.getElementById('domain-profile-form');
 if(domainProfileForm){
   const domainProfileStatus=document.getElementById('domain-profile-status');
+  const generateDomainRubricButton=domainProfileForm.querySelector('[data-generate-domain-rubric]');
+  const domainRubricInput=domainProfileForm.querySelector('textarea[name="rubric"]');
+  function domainField(name){
+    const field=domainProfileForm.querySelector(`[name="${name}"]`);
+    return field ? field.value.trim() : '';
+  }
+  function compactLines(value,limit=3){
+    return value.split(/\r?\n|,/).map((line)=>line.trim()).filter(Boolean).slice(0,limit);
+  }
+  function selectedSampleNames(){
+    return [...domainProfileForm.querySelectorAll('input[type="file"]')]
+      .flatMap((input)=>[...input.files].map((file)=>file.name))
+      .filter(Boolean);
+  }
+  function joinedOrDefault(values, fallback){
+    return values.length ? values.join('、') : fallback;
+  }
+  function buildDomainRubricDraft(){
+    const domainName=domainField('display_name') || domainField('id') || 'このドメイン';
+    const description=domainField('description') || `${domainName}で扱う成果物`;
+    const artifactTypes=joinedOrDefault(compactLines(domainField('artifact_types'),4),'成果物タイプ');
+    const samples=joinedOrDefault(selectedSampleNames().slice(0,4),'登録サンプル');
+    const sampleNote=domainField('sample_note');
+    const general=joinedOrDefault(compactLines(domainField('general_points'),4),'一般的な品質、正確性、使いやすさ');
+    const project=joinedOrDefault(compactLines(domainField('project_points'),4),'プロジェクト固有の制約と優先順位');
+    const ng=joinedOrDefault(compactLines(domainField('ng_examples'),4),'目的不一致、根拠不足、検証不能な成果物');
+    const sampleBasis=sampleNote ? `${samples}。メモ: ${sampleNote}` : samples;
+    return [
+      `20点: 目的適合 - ${description}に対して、利用者の目的、判断場面、期待成果が明確に満たされている`,
+      `20点: 成果物品質 - ${artifactTypes}として、正確性、完成度、読みやすさ、扱いやすさが十分である`,
+      `20点: サンプル適合 - ${sampleBasis}から読み取れる良い特徴を反映し、悪い特徴を避けている`,
+      `15点: 一般評価観点 - ${general}を満たし、同種成果物として標準的に期待される品質に届いている`,
+      `15点: プロジェクト固有観点 - ${project}を優先し、Nagare上の作業文脈と制約に合っている`,
+      `10点: NG回避と検証可能性 - ${ng}を避け、レビュー時に根拠、差分、確認方法を追える`
+    ].join('\n');
+  }
+  if(generateDomainRubricButton && domainRubricInput){
+    generateDomainRubricButton.addEventListener('click',()=>{
+      if(domainRubricInput.value.trim() && !confirm('現在のRubricを生成結果で置き換えますか？')){return;}
+      domainRubricInput.value=buildDomainRubricDraft();
+      domainRubricInput.focus();
+      domainProfileStatus.textContent='100点満点のRubric案を生成しました。';
+    });
+  }
   domainProfileForm.addEventListener('submit',async(event)=>{
     event.preventDefault();
     domainProfileStatus.textContent='ドメインを保存しています…';
-    const response=await fetch(domainProfileForm.dataset.action,{method:'POST',body:new URLSearchParams(new FormData(domainProfileForm))});
+    const response=await fetch(domainProfileForm.dataset.action,{method:'POST',body:new FormData(domainProfileForm)});
     if(!response.ok){await notifyResponseError(response,domainProfileStatus);return;}
     domainProfileStatus.textContent='ドメインを保存しました。';
     window.location.href=domainProfileForm.dataset.redirect || '/settings';

@@ -1144,6 +1144,7 @@ fn domain_prompt_context(
         return Ok(String::new());
     }
     let mut lines = Vec::new();
+    let mut has_rubric = false;
     if let Some(group) = domain_group {
         lines.push(format!(
             "{}: {} ({})",
@@ -1165,6 +1166,7 @@ fn domain_prompt_context(
             &group.shared_knowledge,
         );
         append_context_list(&mut lines, "Common rubric", &group.common_rubric);
+        has_rubric |= !group.common_rubric.is_empty();
         append_context_list(
             &mut lines,
             &format!(
@@ -1200,6 +1202,7 @@ fn domain_prompt_context(
             ),
             &domain.rubric,
         );
+        has_rubric |= !domain.rubric.is_empty();
         append_context_list(
             &mut lines,
             &format!(
@@ -1209,6 +1212,9 @@ fn domain_prompt_context(
             ),
             &domain.dispatch_hints,
         );
+    }
+    if has_rubric {
+        lines.push("Review scoring policy: Evaluate against the domain rubric on a 100-point scale. Follow Nagare's common Review Policy for any next-agent handling; do not invent domain-specific follow-up rules.".to_string());
     }
     Ok(lines.join("\n"))
 }

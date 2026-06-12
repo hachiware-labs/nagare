@@ -15,6 +15,7 @@ pub struct ProjectLayout {
     pub agents_dir: PathBuf,
     pub domain_groups_dir: PathBuf,
     pub domains_dir: PathBuf,
+    pub domain_samples_dir: PathBuf,
     pub state_dir: PathBuf,
     pub ledger_path: PathBuf,
     pub artifacts_dir: PathBuf,
@@ -31,6 +32,7 @@ impl ProjectLayout {
             agents_dir: nagare_dir.join("agents"),
             domain_groups_dir: nagare_dir.join("domain-groups"),
             domains_dir: nagare_dir.join("domains"),
+            domain_samples_dir: nagare_dir.join("domain-samples"),
             ledger_path: state_dir.join("ledger.json"),
             state_dir,
             artifacts_dir: nagare_dir.join("artifacts"),
@@ -56,6 +58,7 @@ pub fn init_project(root: impl Into<PathBuf>) -> io::Result<InitResult> {
     fs::create_dir_all(&layout.agents_dir)?;
     fs::create_dir_all(&layout.domain_groups_dir)?;
     fs::create_dir_all(&layout.domains_dir)?;
+    fs::create_dir_all(&layout.domain_samples_dir)?;
     seed_default_domains(&layout)?;
 
     let created_config = if layout.config_path.exists() {

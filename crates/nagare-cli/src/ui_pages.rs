@@ -1377,6 +1377,29 @@ pub(crate) fn render_serve_domain_form(
           <label>{}<input name="display_name" required value="{}"></label>
           <label>{}<textarea name="description" rows="4" placeholder="このドメインが扱う作成物や判断対象">{}</textarea></label>
           <label>{}<textarea name="artifact_types" rows="3" placeholder="1行に1種類。例: html, ui screenshot, rust cli">{}</textarea></label>
+          <section class="form-section domain-rubric-builder">
+            <div class="field-group-head">
+              <h2>Rubric Builder</h2>
+              <p class="muted">ドメイン説明、サンプル、評価ポイントから100点満点の判断基準を作ります。</p>
+            </div>
+            <div class="form-grid">
+              <label>良いサンプル<input type="file" name="sample_good_files" multiple></label>
+              <label>悪いサンプル<input type="file" name="sample_bad_files" multiple></label>
+            </div>
+            <label>参考サンプル<input type="file" name="sample_reference_files" multiple></label>
+            <div class="form-grid">
+              <label>サンプルメモ<textarea name="sample_note" rows="4" placeholder="サンプルから読み取ってほしい品質、失敗例、比較観点"></textarea></label>
+              <label>一般的な評価ポイント<textarea name="general_points" rows="4" placeholder="世間一般で重視される評価観点"></textarea></label>
+            </div>
+            <div class="form-grid">
+              <label>プロジェクト固有の評価ポイント<textarea name="project_points" rows="4" placeholder="このプロジェクトで特に重視する判断基準"></textarea></label>
+              <label>NG例<textarea name="ng_examples" rows="4" placeholder="低評価にしたいパターン、避けたい成果物"></textarea></label>
+            </div>
+            <div class="rubric-builder-actions">
+              <button class="secondary-button" type="button" data-generate-domain-rubric>100点Rubricを生成</button>
+              <p class="muted">採点結果に応じた次のAgent処理は、Nagareの共通Review Policyに従います。</p>
+            </div>
+          </section>
           <label>{}<textarea name="rubric" rows="7" placeholder="1行に1基準。例: 主要導線が迷わず使える">{}</textarea></label>
           <label>{}<textarea name="dispatch_hints" rows="4" placeholder="1行に1ヒント。例: UI変更ならfrontend-ui domainを候補にする">{}</textarea></label>
           <div class="form-grid">
