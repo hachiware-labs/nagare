@@ -99,43 +99,43 @@ fn domain_match_reason(
     profile: &nagare_core::AgentProfile,
     item: &nagare_core::WorkItem,
 ) -> String {
-    if item.domain_id.is_none() && item.domain_group_id.is_none() {
-        if profile.domain_ids.is_empty() && profile.domain_group_ids.is_empty() {
+    if item.artifact_type_id.is_none() && item.domain_id.is_none() {
+        if profile.artifact_type_ids.is_empty() && profile.domain_ids.is_empty() {
             return "ドメイン指定なし: 制約なしAgent".to_string();
         }
-        if profile.domain_ids.iter().any(|domain| domain == "general")
-            || profile
-                .domain_group_ids
-                .iter()
-                .any(|group| group == "general")
+        if profile
+            .artifact_type_ids
+            .iter()
+            .any(|domain| domain == "general")
+            || profile.domain_ids.iter().any(|group| group == "general")
         {
             return "ドメイン指定なし: 汎用Agent".to_string();
         }
         return "ドメイン指定なし: 専用ドメインAgent".to_string();
     }
-    let domain_match = item.domain_id.as_deref().is_some_and(|domain| {
+    let domain_match = item.artifact_type_id.as_deref().is_some_and(|domain| {
         profile
-            .domain_ids
+            .artifact_type_ids
             .iter()
             .any(|profile_domain| profile_domain == domain)
     });
-    let group_match = item.domain_group_id.as_deref().is_some_and(|group| {
+    let group_match = item.domain_id.as_deref().is_some_and(|group| {
         profile
-            .domain_group_ids
+            .domain_ids
             .iter()
             .any(|profile_group| profile_group == group)
     });
     if domain_match || group_match {
         return "ドメイン一致".to_string();
     }
-    if profile.domain_ids.is_empty() && profile.domain_group_ids.is_empty() {
+    if profile.artifact_type_ids.is_empty() && profile.domain_ids.is_empty() {
         return "ドメイン制約なし".to_string();
     }
-    if profile.domain_ids.iter().any(|domain| domain == "general")
-        || profile
-            .domain_group_ids
-            .iter()
-            .any(|group| group == "general")
+    if profile
+        .artifact_type_ids
+        .iter()
+        .any(|domain| domain == "general")
+        || profile.domain_ids.iter().any(|group| group == "general")
     {
         return "汎用Agentとして候補".to_string();
     }

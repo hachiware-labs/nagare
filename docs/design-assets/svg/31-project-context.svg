@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024" role="img" aria-labelledby="-title -desc">
+  <title id="-title">プロジェクト文脈</title>
+  <desc id="-desc">プロジェクト定義、ルーブリック構成、実行準備、ドメイン別ポリシーを示すプロジェクト文脈画面。</desc>
+  <rect width="1440" height="1024" fill="#f7f8fb"/>
+  <style>
+    .title{font:700 25px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .kicker{font:700 10px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+    .h1{font:750 22px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h2{font:700 16px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h3{font:700 13px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .body{font:500 12px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .small{font:500 11px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .tiny{font:700 10px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .mono{font:500 11px Consolas,Menlo,monospace;fill:#111827}
+    .nav{font:650 13px Inter,"Segoe UI",Arial,sans-serif;fill:#526174}
+    .nav-on{font:750 13px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+  </style>
+
+    <g id="sidebar">
+      <rect x="0" y="0" width="204" height="1024" rx="0" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="28" y="43" class="title">Nagare</text>
+      <text x="30" y="64" class="kicker">制御プレーン</text>
+      <text x="30" y="82" class="small">プロジェクト対応ランタイム</text>
+      <g>
+
+        <text x="34" y="118" class="nav">ワーク</text>
+      </g><g>
+        <rect x="18" y="135" width="168" height="33" rx="7" fill="#eef2ff" stroke="#eef2ff" stroke-width="1"/>
+        <text x="34" y="157" class="nav-on">プロジェクト</text>
+      </g><g>
+
+        <text x="34" y="196" class="nav">ドメイン</text>
+      </g><g>
+
+        <text x="34" y="235" class="nav">エージェント</text>
+      </g><g>
+
+        <text x="34" y="274" class="nav">スキル</text>
+      </g><g>
+
+        <text x="34" y="313" class="nav">MCP</text>
+      </g><g>
+
+        <text x="34" y="352" class="nav">設定</text>
+      </g>
+    </g>
+    <g id="page-header">
+      <text x="232" y="48" class="title">プロジェクト文脈</text>
+      <text x="232" y="72" class="small">プロジェクトはフォルダではなく、目的・制約・ルーブリック・ポリシーを束ねる作業文脈</text>
+      <rect x="1246" y="28" width="132" height="34" rx="7" fill="#4f46e5" stroke="#4f46e5" stroke-width="1"/>
+  <text x="1260" y="50" class="body" style="fill:#ffffff">プロジェクト編集</text><rect x="1112" y="28" width="138" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1126" y="50" class="body" style="fill:#111827">ルーブリック確認</text>
+    </g>
+    <g id="content">
+
+    <rect x="232" y="96" width="1164" height="828" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <rect x="252" y="124" width="344" height="430" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="162" class="h2">プロジェクト定義</text>
+    <text x="276" y="198" class="h1">Nagare</text>
+    <text x="276" y="226" class="small">複数ランタイムをプロジェクト文脈で調停する</text>
+    <line x1="276" y1="258" x2="566" y2="258" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="294" class="h3">ルート</text>
+    <text x="276" y="318" class="mono">~/workspace/nagare</text>
+    <text x="276" y="362" class="h3">制約</text>
+    <rect x="276" y="386" width="250" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff" stroke-width="1"/>
+  <text x="286" y="402" class="tiny" style="fill:#4f46e5">ランタイム固有実装へ閉じない</text>
+    <rect x="276" y="420" width="204" height="24" rx="12" fill="#fee2e2" stroke="#fee2e2" stroke-width="1"/>
+  <text x="286" y="436" class="tiny" style="fill:#b91c1c">道具の範囲を混ぜない</text>
+    <rect x="276" y="454" width="190" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="286" y="470" class="tiny" style="fill:#15803d">トレースで説明できる</text>
+
+    <rect x="636" y="124" width="380" height="430" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="660" y="162" class="h2">ルーブリック構成</text>
+    <text x="660" y="188" class="small">置き換えではなく、継承と補正で評価する</text>
+    <rect x="690" y="238" width="260" height="70" rx="8" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="716" y="278" class="h3">共通ルーブリック</text>
+    <rect x="670" y="324" width="300" height="78" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1"/>
+    <text x="696" y="368" class="h3" style="fill:#2563eb">+ ドメインルーブリック</text>
+    <rect x="650" y="418" width="340" height="84" rx="8" fill="#f3e8ff" stroke="#7c3aed" stroke-width="1"/>
+    <text x="676" y="466" class="h3" style="fill:#7c3aed">+ プロジェクトルーブリック</text>
+    <line x1="596" y1="338" x2="636" y2="338" stroke="#b8c4d3" stroke-width="2"/><path d="M 628 333 L 636 338 L 628 343" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <line x1="1016" y1="338" x2="1060" y2="338" stroke="#b8c4d3" stroke-width="2"/><path d="M 1052 333 L 1060 338 L 1052 343" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+
+    <rect x="1060" y="124" width="316" height="430" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="1084" y="162" class="h2">実行準備</text>
+    <text x="1084" y="188" class="small">開始前に詰まる設定を先に出す</text>
+    <rect x="1084" y="230" width="184" height="24" rx="12" fill="#fef3c7" stroke="#fef3c7" stroke-width="1"/>
+  <text x="1094" y="246" class="tiny" style="fill:#b45309">未割り当て: テスト</text>
+    <rect x="1084" y="268" width="168" height="24" rx="12" fill="#fee2e2" stroke="#fee2e2" stroke-width="1"/>
+  <text x="1094" y="284" class="tiny" style="fill:#b91c1c">未接続: OpenClaw</text>
+    <rect x="1084" y="306" width="214" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="1094" y="322" class="tiny" style="fill:#15803d">機能範囲: hachi-search</text>
+    <rect x="1084" y="344" width="202" height="24" rx="12" fill="#fef3c7" stroke="#fef3c7" stroke-width="1"/>
+  <text x="1094" y="360" class="tiny" style="fill:#b45309">確認: ファイル書き込み</text>
+    <rect x="1084" y="424" width="124" height="34" rx="7" fill="#4f46e5" stroke="#4f46e5" stroke-width="1"/>
+  <text x="1098" y="446" class="body" style="fill:#ffffff">未設定を解消</text>
+    <rect x="1222" y="424" width="104" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1236" y="446" class="body" style="fill:#111827">詳細を見る</text>
+
+    <rect x="252" y="590" width="1124" height="286" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="626" class="h2">ドメイン別評価基準</text>
+    <text x="276" y="650" class="small">プロジェクトが使う観点を左に、合成後の評価基準を右に置く</text>
+    <rect x="274" y="650" width="150" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="284" y="666" class="tiny" style="fill:#15803d">設計</text><line x1="424" y1="662" x2="472" y2="662" stroke="#b8c4d3" stroke-width="2"/><rect x="274" y="688" width="150" height="24" rx="12" fill="#fee2e2" stroke="#fee2e2" stroke-width="1"/>
+  <text x="284" y="704" class="tiny" style="fill:#b91c1c">エージェント実行</text><line x1="424" y1="700" x2="472" y2="700" stroke="#b8c4d3" stroke-width="2"/><rect x="274" y="726" width="150" height="24" rx="12" fill="#fef3c7" stroke="#fef3c7" stroke-width="1"/>
+  <text x="284" y="742" class="tiny" style="fill:#b45309">ツール方針</text><line x1="424" y1="738" x2="472" y2="738" stroke="#b8c4d3" stroke-width="2"/><rect x="274" y="764" width="150" height="24" rx="12" fill="#dbeafe" stroke="#dbeafe" stroke-width="1"/>
+  <text x="284" y="780" class="tiny" style="fill:#2563eb">UX</text><line x1="424" y1="776" x2="472" y2="776" stroke="#b8c4d3" stroke-width="2"/><rect x="274" y="802" width="150" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="284" y="818" class="tiny" style="fill:#15803d">実装</text><line x1="424" y1="814" x2="472" y2="814" stroke="#b8c4d3" stroke-width="2"/><rect x="274" y="840" width="150" height="24" rx="12" fill="#fef3c7" stroke="#fef3c7" stroke-width="1"/>
+  <text x="284" y="856" class="tiny" style="fill:#b45309">テスト</text><line x1="424" y1="852" x2="472" y2="852" stroke="#b8c4d3" stroke-width="2"/>
+    <rect x="498" y="650" width="380" height="184" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="522" y="686" class="h2">有効な評価基準</text>
+    <text x="522" y="722" class="body">ランタイム抽象化</text>
+    <text x="522" y="752" class="body">セッション対応の追跡性</text>
+    <text x="522" y="782" class="body">ツール範囲分離</text>
+    <rect x="928" y="650" width="374" height="184" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="952" y="686" class="h2">プロジェクトポリシー</text>
+    <rect x="952" y="720" width="152" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="962" y="736" class="tiny" style="fill:#15803d">許可: github-mcp</text>
+    <rect x="952" y="754" width="194" height="24" rx="12" fill="#fef3c7" stroke="#fef3c7" stroke-width="1"/>
+  <text x="962" y="770" class="tiny" style="fill:#b45309">確認: ファイル書き込み</text>
+    <rect x="952" y="788" width="150" height="24" rx="12" fill="#fee2e2" stroke="#fee2e2" stroke-width="1"/>
+  <text x="962" y="804" class="tiny" style="fill:#b91c1c">禁止: figma-mcp</text>
+    <line x1="878" y1="742" x2="928" y2="742" stroke="#b8c4d3" stroke-width="2"/><path d="M 920 737 L 928 742 L 920 747" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+
+    </g>
+
+</svg>

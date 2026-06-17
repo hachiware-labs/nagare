@@ -101,9 +101,9 @@ pub struct WorkItem {
     #[serde(default)]
     pub constraints: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub domain_group_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub domain_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub artifact_type_id: Option<String>,
     #[serde(default = "default_domain_agent_policy")]
     pub domain_agent_policy: DomainAgentPolicy,
     #[serde(default, skip_serializing_if = "is_false")]
@@ -525,9 +525,9 @@ pub struct AgentProfile {
     #[serde(default)]
     pub skill_set_ids: Vec<String>,
     #[serde(default)]
-    pub domain_group_ids: Vec<String>,
-    #[serde(default)]
     pub domain_ids: Vec<String>,
+    #[serde(default)]
+    pub artifact_type_ids: Vec<String>,
     #[serde(default)]
     pub managed_by: String,
     #[serde(default)]
@@ -580,6 +580,75 @@ impl AgentToolKind {
             _ => Self::CodexCli,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RuntimeMcpScope {
+    Project,
+    Session,
+    NagareManaged,
+    GlobalOnly,
+    Unsupported,
+}
+
+impl fmt::Display for RuntimeMcpScope {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Project => f.write_str("project"),
+            Self::Session => f.write_str("session"),
+            Self::NagareManaged => f.write_str("nagare_managed"),
+            Self::GlobalOnly => f.write_str("global_only"),
+            Self::Unsupported => f.write_str("unsupported"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RuntimeMcpCapability {
+    pub tool_kind: AgentToolKind,
+    pub runtime_label: &'static str,
+    pub scope: RuntimeMcpScope,
+    pub agent_assignable: bool,
+    pub note: &'static str,
+}
+
+pub const RUNTIME_MCP_CAPABILITIES: &[RuntimeMcpCapability] = &[
+    RuntimeMcpCapability {
+        tool_kind: AgentToolKind::Codex,
+        runtime_label: "Codex",
+        scope: RuntimeMcpScope::Project,
+        agent_assignable: true,
+        note: "project-scoped MCP settings can be limited to the selected agent context",
+    },
+    RuntimeMcpCapability {
+        tool_kind: AgentToolKind::CodexCli,
+        runtime_label: "Codex CLI",
+        scope: RuntimeMcpScope::Project,
+        agent_assignable: true,
+        note: "project-scoped MCP settings can be materialized for the selected agent",
+    },
+    RuntimeMcpCapability {
+        tool_kind: AgentToolKind::OpenClaw,
+        runtime_label: "OpenClaw",
+        scope: RuntimeMcpScope::GlobalOnly,
+        agent_assignable: false,
+        note: "kept out of agent MCP choices until project or session scoped MCP control is available",
+    },
+];
+
+pub fn runtime_mcp_capability(tool_kind: AgentToolKind) -> RuntimeMcpCapability {
+    RUNTIME_MCP_CAPABILITIES
+        .iter()
+        .copied()
+        .find(|capability| capability.tool_kind == tool_kind)
+        .unwrap_or(RuntimeMcpCapability {
+            tool_kind,
+            runtime_label: "Unknown",
+            scope: RuntimeMcpScope::Unsupported,
+            agent_assignable: false,
+            note: "runtime MCP capability is not registered",
+        })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -778,20 +847,20 @@ impl fmt::Display for AgentProfileSource {
 }
 
 #[derive(Debug, Clone)]
-pub struct DomainProfile {
+pub struct ArtifactType {
     pub id: String,
-    pub group_id: Option<String>,
+    pub domain_id: Option<String>,
     pub display_name: String,
     pub description: String,
     pub artifact_types: Vec<String>,
     pub rubric: Vec<String>,
     pub dispatch_hints: Vec<String>,
     pub workflow: DomainWorkflowOverride,
-    pub source: DomainProfileSource,
+    pub source: ArtifactTypeSource,
 }
 
 #[derive(Debug, Clone)]
-pub struct DomainGroup {
+pub struct Domain {
     pub id: String,
     pub display_name: String,
     pub description: String,
@@ -799,30 +868,16 @@ pub struct DomainGroup {
     pub common_rubric: Vec<String>,
     pub dispatch_hints: Vec<String>,
     pub workflow: DomainWorkflowOverride,
-    pub source: DomainGroupSource,
+    pub source: DomainSource,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum DomainGroupSource {
-    #[default]
-    ProjectDomainGroupDirectory,
-}
-
-impl fmt::Display for DomainGroupSource {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::ProjectDomainGroupDirectory => f.write_str("project_domain_group_directory"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum DomainProfileSource {
+pub enum DomainSource {
     #[default]
     ProjectDomainDirectory,
 }
 
-impl fmt::Display for DomainProfileSource {
+impl fmt::Display for DomainSource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ProjectDomainDirectory => f.write_str("project_domain_directory"),
@@ -830,10 +885,24 @@ impl fmt::Display for DomainProfileSource {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ArtifactTypeSource {
+    #[default]
+    ProjectArtifactTypeDirectory,
+}
+
+impl fmt::Display for ArtifactTypeSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ProjectArtifactTypeDirectory => f.write_str("project_artifact_type_directory"),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
-pub struct AddDomainProfileInput<'a> {
+pub struct AddArtifactTypeInput<'a> {
     pub id: &'a str,
-    pub group_id: Option<&'a str>,
+    pub domain_id: Option<&'a str>,
     pub display_name: &'a str,
     pub description: &'a str,
     pub artifact_types: Vec<String>,
@@ -843,14 +912,14 @@ pub struct AddDomainProfileInput<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub struct AddDomainProfileResult {
-    pub domain: DomainProfile,
+pub struct AddArtifactTypeResult {
+    pub domain: ArtifactType,
     pub path: PathBuf,
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct UpdateDomainProfileInput<'a> {
-    pub group_id: Option<Option<&'a str>>,
+pub struct UpdateArtifactTypeInput<'a> {
+    pub domain_id: Option<Option<&'a str>>,
     pub display_name: Option<&'a str>,
     pub description: Option<&'a str>,
     pub artifact_types: Option<Vec<String>>,
@@ -860,13 +929,13 @@ pub struct UpdateDomainProfileInput<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub struct UpdateDomainProfileResult {
-    pub domain: DomainProfile,
+pub struct UpdateArtifactTypeResult {
+    pub domain: ArtifactType,
     pub path: PathBuf,
 }
 
 #[derive(Debug, Clone)]
-pub struct AddDomainGroupInput<'a> {
+pub struct AddDomainInput<'a> {
     pub id: &'a str,
     pub display_name: &'a str,
     pub description: &'a str,
@@ -877,13 +946,13 @@ pub struct AddDomainGroupInput<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub struct AddDomainGroupResult {
-    pub group: DomainGroup,
+pub struct AddDomainResult {
+    pub group: Domain,
     pub path: PathBuf,
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct UpdateDomainGroupInput<'a> {
+pub struct UpdateDomainInput<'a> {
     pub display_name: Option<&'a str>,
     pub description: Option<&'a str>,
     pub shared_knowledge: Option<Vec<String>>,
@@ -893,8 +962,8 @@ pub struct UpdateDomainGroupInput<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub struct UpdateDomainGroupResult {
-    pub group: DomainGroup,
+pub struct UpdateDomainResult {
+    pub group: Domain,
     pub path: PathBuf,
 }
 
@@ -909,8 +978,8 @@ pub struct AddAgentProfileInput<'a> {
     pub description: &'a str,
     pub specialties: Vec<String>,
     pub skill_set_ids: Vec<String>,
-    pub domain_group_ids: Vec<String>,
     pub domain_ids: Vec<String>,
+    pub artifact_type_ids: Vec<String>,
     pub managed_by: Option<&'a str>,
     pub model: AgentModelSelection,
     pub external: ExternalAgentBinding,
@@ -932,8 +1001,8 @@ pub struct UpdateAgentProfileInput<'a> {
     pub description: Option<&'a str>,
     pub specialties: Option<Vec<String>>,
     pub skill_set_ids: Option<Vec<String>>,
-    pub domain_group_ids: Option<Vec<String>>,
     pub domain_ids: Option<Vec<String>>,
+    pub artifact_type_ids: Option<Vec<String>>,
     pub managed_by: Option<&'a str>,
     pub model: Option<AgentModelSelection>,
     pub external: Option<ExternalAgentBinding>,
@@ -1081,6 +1150,12 @@ pub struct SkillPackageDeclaration {
     pub checksum: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub installed_path: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub installed_paths: Vec<String>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub install_scope: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub installed_targets: Vec<String>,
     #[serde(default)]
     pub provided_skill_sets: Vec<String>,
 }
@@ -1093,6 +1168,9 @@ pub struct SkillPackageCatalogEntry {
     pub reference: String,
     pub checksum: String,
     pub installed_path: String,
+    pub installed_paths: Vec<String>,
+    pub install_scope: String,
+    pub installed_targets: Vec<String>,
     pub provided_skill_sets: Vec<String>,
 }
 
@@ -1102,6 +1180,9 @@ pub struct AddSkillPackageInput<'a> {
     pub source_kind: &'a str,
     pub source: Option<&'a str>,
     pub path: Option<&'a str>,
+    pub install: bool,
+    pub install_scope: Option<&'a str>,
+    pub install_targets: Vec<String>,
     pub reference: Option<&'a str>,
     pub checksum: Option<&'a str>,
     pub skill_set_id: Option<&'a str>,
@@ -1114,6 +1195,24 @@ pub struct AddSkillPackageInput<'a> {
 pub struct SkillPackageInstallResult {
     pub package: SkillPackageCatalogEntry,
     pub skill_set: SkillSetCatalogEntry,
+}
+
+#[derive(Debug, Clone)]
+pub struct UninstallAgentSkillPackageInput<'a> {
+    pub agent_profile_id: &'a str,
+    pub skill_set_id: &'a str,
+    pub uninstall_package: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct UninstallAgentSkillPackageResult {
+    pub agent_profile_id: String,
+    pub skill_set_id: String,
+    pub package_id: Option<String>,
+    pub removed_from_agent: bool,
+    pub package_removed: bool,
+    pub installed_path_removed: bool,
+    pub warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

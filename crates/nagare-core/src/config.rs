@@ -26,19 +26,19 @@ pub(crate) struct AgentProfileFile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct DomainProfileFile {
+pub(crate) struct ArtifactTypeFile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(crate) domain_profile: Option<DomainProfileFileEntry>,
+    pub(crate) artifact_type: Option<ArtifactTypeFileEntry>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub(crate) domain_profiles: BTreeMap<String, DomainProfileFileEntry>,
+    pub(crate) artifact_types: BTreeMap<String, ArtifactTypeFileEntry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct DomainGroupFile {
+pub(crate) struct DomainFile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(crate) domain_group: Option<DomainGroupFileEntry>,
+    pub(crate) domain: Option<DomainFileEntry>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub(crate) domain_groups: BTreeMap<String, DomainGroupFileEntry>,
+    pub(crate) domains: BTreeMap<String, DomainFileEntry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -83,9 +83,9 @@ pub(crate) struct AgentProfileFileEntry {
     #[serde(default)]
     pub(crate) skill_set_ids: Vec<String>,
     #[serde(default)]
-    pub(crate) domain_group_ids: Vec<String>,
-    #[serde(default)]
     pub(crate) domain_ids: Vec<String>,
+    #[serde(default)]
+    pub(crate) artifact_type_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub(crate) managed_by: String,
     #[serde(default)]
@@ -99,11 +99,11 @@ pub(crate) struct AgentProfileFileEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct DomainProfileFileEntry {
+pub(crate) struct ArtifactTypeFileEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(crate) group_id: Option<String>,
+    pub(crate) domain_id: Option<String>,
     pub(crate) display_name: String,
     #[serde(default)]
     pub(crate) description: String,
@@ -118,7 +118,7 @@ pub(crate) struct DomainProfileFileEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct DomainGroupFileEntry {
+pub(crate) struct DomainFileEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) id: Option<String>,
     pub(crate) display_name: String,
@@ -189,10 +189,34 @@ pub(crate) fn merge_agent_profiles_from_toml(
     Ok(())
 }
 
-pub(crate) fn load_domain_profiles(
+pub(crate) fn load_artifact_types(
     layout: &ProjectLayout,
-) -> Result<BTreeMap<String, DomainProfile>, NagareError> {
+) -> Result<BTreeMap<String, ArtifactType>, NagareError> {
     let mut domains = BTreeMap::new();
+    if layout.artifact_types_dir.exists() {
+        let mut paths = fs::read_dir(&layout.artifact_types_dir)?
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("toml"))
+            .collect::<Vec<_>>();
+        paths.sort();
+        for path in paths {
+            let raw = fs::read_to_string(&path)?;
+            merge_artifact_types_from_toml(
+                &mut domains,
+                &raw,
+                ArtifactTypeSource::ProjectArtifactTypeDirectory,
+                &path.display().to_string(),
+            )?;
+        }
+    }
+    Ok(domains)
+}
+
+pub(crate) fn load_domains(
+    layout: &ProjectLayout,
+) -> Result<BTreeMap<String, Domain>, NagareError> {
+    let mut groups = BTreeMap::new();
     if layout.domains_dir.exists() {
         let mut paths = fs::read_dir(&layout.domains_dir)?
             .filter_map(Result::ok)
@@ -202,34 +226,10 @@ pub(crate) fn load_domain_profiles(
         paths.sort();
         for path in paths {
             let raw = fs::read_to_string(&path)?;
-            merge_domain_profiles_from_toml(
-                &mut domains,
-                &raw,
-                DomainProfileSource::ProjectDomainDirectory,
-                &path.display().to_string(),
-            )?;
-        }
-    }
-    Ok(domains)
-}
-
-pub(crate) fn load_domain_groups(
-    layout: &ProjectLayout,
-) -> Result<BTreeMap<String, DomainGroup>, NagareError> {
-    let mut groups = BTreeMap::new();
-    if layout.domain_groups_dir.exists() {
-        let mut paths = fs::read_dir(&layout.domain_groups_dir)?
-            .filter_map(Result::ok)
-            .map(|entry| entry.path())
-            .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("toml"))
-            .collect::<Vec<_>>();
-        paths.sort();
-        for path in paths {
-            let raw = fs::read_to_string(&path)?;
-            merge_domain_groups_from_toml(
+            merge_domains_from_toml(
                 &mut groups,
                 &raw,
-                DomainGroupSource::ProjectDomainGroupDirectory,
+                DomainSource::ProjectDomainDirectory,
                 &path.display().to_string(),
             )?;
         }
@@ -237,42 +237,45 @@ pub(crate) fn load_domain_groups(
     Ok(groups)
 }
 
-pub(crate) fn merge_domain_groups_from_toml(
-    groups: &mut BTreeMap<String, DomainGroup>,
+pub(crate) fn merge_domains_from_toml(
+    groups: &mut BTreeMap<String, Domain>,
     raw: &str,
-    source: DomainGroupSource,
+    source: DomainSource,
     source_name: &str,
 ) -> Result<(), NagareError> {
-    let document: DomainGroupFile = toml::from_str(raw)?;
-    if let Some(entry) = document.domain_group {
+    let document: DomainFile = toml::from_str(raw)?;
+    if let Some(entry) = document.domain {
         let id = entry.id.clone().ok_or_else(|| {
-            NagareError::InvalidState(format!("`domain_group.id` is required in {source_name}"))
+            NagareError::InvalidState(format!("`domain.id` is required in {source_name}"))
         })?;
         groups.insert(id.clone(), entry.into_group(id, source)?);
     }
-    for (id, entry) in document.domain_groups {
-        let group_id = entry.id.clone().unwrap_or(id);
-        groups.insert(group_id.clone(), entry.into_group(group_id, source)?);
+    for (id, entry) in document.domains {
+        let domain_id = entry.id.clone().unwrap_or(id);
+        groups.insert(domain_id.clone(), entry.into_group(domain_id, source)?);
     }
     Ok(())
 }
 
-pub(crate) fn merge_domain_profiles_from_toml(
-    domains: &mut BTreeMap<String, DomainProfile>,
+pub(crate) fn merge_artifact_types_from_toml(
+    domains: &mut BTreeMap<String, ArtifactType>,
     raw: &str,
-    source: DomainProfileSource,
+    source: ArtifactTypeSource,
     source_name: &str,
 ) -> Result<(), NagareError> {
-    let document: DomainProfileFile = toml::from_str(raw)?;
-    if let Some(entry) = document.domain_profile {
+    let document: ArtifactTypeFile = toml::from_str(raw)?;
+    if let Some(entry) = document.artifact_type {
         let id = entry.id.clone().ok_or_else(|| {
-            NagareError::InvalidState(format!("`domain_profile.id` is required in {source_name}"))
+            NagareError::InvalidState(format!("`artifact_type.id` is required in {source_name}"))
         })?;
         domains.insert(id.clone(), entry.into_domain(id, source)?);
     }
-    for (id, entry) in document.domain_profiles {
-        let domain_id = entry.id.clone().unwrap_or(id);
-        domains.insert(domain_id.clone(), entry.into_domain(domain_id, source)?);
+    for (id, entry) in document.artifact_types {
+        let artifact_type_id = entry.id.clone().unwrap_or(id);
+        domains.insert(
+            artifact_type_id.clone(),
+            entry.into_domain(artifact_type_id, source)?,
+        );
     }
     Ok(())
 }
@@ -306,8 +309,8 @@ impl AgentProfileFileEntry {
             description: self.description,
             specialties: normalize_specialties(self.specialties),
             skill_set_ids: normalize_skill_set_ids(self.skill_set_ids)?,
-            domain_group_ids: normalize_domain_group_ids(self.domain_group_ids)?,
-            domain_ids: normalize_domain_profile_ids(self.domain_ids)?,
+            domain_ids: normalize_domain_ids(self.domain_ids)?,
+            artifact_type_ids: normalize_artifact_type_ids(self.artifact_type_ids)?,
             managed_by: normalize_managed_by(&self.managed_by)?,
             model: normalize_agent_model_selection(self.model)?,
             external: normalize_external_agent_binding(self.external)?,
@@ -318,19 +321,19 @@ impl AgentProfileFileEntry {
     }
 }
 
-impl DomainProfileFileEntry {
+impl ArtifactTypeFileEntry {
     fn into_domain(
         self,
         id: String,
-        source: DomainProfileSource,
-    ) -> Result<DomainProfile, NagareError> {
-        validate_domain_profile_id(&id)?;
-        if let Some(group_id) = self.group_id.as_deref() {
-            validate_domain_group_id(group_id)?;
+        source: ArtifactTypeSource,
+    ) -> Result<ArtifactType, NagareError> {
+        validate_artifact_type_id(&id)?;
+        if let Some(domain_id) = self.domain_id.as_deref() {
+            validate_domain_id(domain_id)?;
         }
-        Ok(DomainProfile {
+        Ok(ArtifactType {
             id,
-            group_id: self.group_id.filter(|value| !value.trim().is_empty()),
+            domain_id: self.domain_id.filter(|value| !value.trim().is_empty()),
             display_name: self.display_name,
             description: self.description.trim().to_string(),
             artifact_types: normalize_specialties(self.artifact_types),
@@ -342,10 +345,10 @@ impl DomainProfileFileEntry {
     }
 }
 
-impl DomainGroupFileEntry {
-    fn into_group(self, id: String, source: DomainGroupSource) -> Result<DomainGroup, NagareError> {
-        validate_domain_group_id(&id)?;
-        Ok(DomainGroup {
+impl DomainFileEntry {
+    fn into_group(self, id: String, source: DomainSource) -> Result<Domain, NagareError> {
+        validate_domain_id(&id)?;
+        Ok(Domain {
             id,
             display_name: self.display_name,
             description: self.description.trim().to_string(),
@@ -448,8 +451,8 @@ fn ensure_default_agent_role(mut raw: String, agent_id: &str, role: &str) -> Str
 }
 
 fn ensure_default_agent_domain_scope(mut raw: String, agent_id: &str) -> String {
-    raw = ensure_default_agent_array_field(raw, agent_id, "domain_group_ids", "general");
-    ensure_default_agent_array_field(raw, agent_id, "domain_ids", "general")
+    raw = ensure_default_agent_array_field(raw, agent_id, "domain_ids", "general");
+    ensure_default_agent_array_field(raw, agent_id, "artifact_type_ids", "general")
 }
 
 fn ensure_default_agent_array_field(
@@ -805,40 +808,38 @@ pub(crate) fn validate_existing_agent_profile(
     get_agent_profile_from_layout(layout, agent_profile_id).map(|_| ())
 }
 
-pub(crate) fn validate_existing_domain_group(
+pub(crate) fn validate_existing_domain(
     layout: &ProjectLayout,
-    domain_group_id: &str,
+    domain_id: &str,
 ) -> Result<(), NagareError> {
-    load_domain_groups(layout)?
-        .get(domain_group_id)
+    load_domains(layout)?
+        .get(domain_id)
         .map(|_| ())
-        .ok_or_else(|| NagareError::NotFound(format!("domain group `{domain_group_id}`")))
+        .ok_or_else(|| NagareError::NotFound(format!("Domain `{domain_id}`")))
 }
 
-pub(crate) fn validate_existing_domain_group_ids(
+pub(crate) fn validate_existing_domain_ids(
     layout: &ProjectLayout,
-    domain_group_ids: &[String],
+    domain_ids: &[String],
 ) -> Result<(), NagareError> {
-    let groups = load_domain_groups(layout)?;
-    for domain_group_id in domain_group_ids {
-        if !groups.contains_key(domain_group_id) {
-            return Err(NagareError::NotFound(format!(
-                "domain group `{domain_group_id}`"
-            )));
+    let groups = load_domains(layout)?;
+    for domain_id in domain_ids {
+        if !groups.contains_key(domain_id) {
+            return Err(NagareError::NotFound(format!("Domain `{domain_id}`")));
         }
     }
     Ok(())
 }
 
-pub(crate) fn validate_existing_domain_profile_ids(
+pub(crate) fn validate_existing_artifact_type_ids(
     layout: &ProjectLayout,
-    domain_ids: &[String],
+    artifact_type_ids: &[String],
 ) -> Result<(), NagareError> {
-    let domains = load_domain_profiles(layout)?;
-    for domain_id in domain_ids {
-        if !domains.contains_key(domain_id) {
+    let domains = load_artifact_types(layout)?;
+    for artifact_type_id in artifact_type_ids {
+        if !domains.contains_key(artifact_type_id) {
             return Err(NagareError::NotFound(format!(
-                "domain profile `{domain_id}`"
+                "Artifact Type `{artifact_type_id}`"
             )));
         }
     }
@@ -897,6 +898,35 @@ pub(crate) fn resolve_skill_sets_for_run(
             ));
             continue;
         };
+        if let Some(package) = config.skill_packages.values().find(|package| {
+            package
+                .provided_skill_sets
+                .iter()
+                .any(|id| id == skill_set_id)
+        }) {
+            let source_kind = package.source_kind.trim();
+            let is_remote_reference = matches!(source_kind, "clawhub" | "vercel" | "git");
+            if is_remote_reference && package.installed_path.trim().is_empty() {
+                skipped_skill_set_ids.push(skill_set_id.clone());
+                warnings.push(format!(
+                    "skill set `{skill_set_id}` was skipped because package source `{source_kind}` is registered but not installed locally"
+                ));
+                continue;
+            }
+            if is_remote_reference
+                && !package.installed_path.trim().is_empty()
+                && !skill_package_path(layout, &package.installed_path)
+                    .join("SKILL.md")
+                    .is_file()
+            {
+                skipped_skill_set_ids.push(skill_set_id.clone());
+                warnings.push(format!(
+                    "skill set `{skill_set_id}` was skipped because installed path `{}` no longer contains SKILL.md",
+                    package.installed_path
+                ));
+                continue;
+            }
+        }
         let missing_required = skill_set
             .required_capabilities
             .iter()
@@ -920,6 +950,15 @@ pub(crate) fn resolve_skill_sets_for_run(
         skipped_skill_set_ids,
         warnings,
     })
+}
+
+fn skill_package_path(layout: &ProjectLayout, path: &str) -> PathBuf {
+    let path = Path::new(path.trim());
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        layout.root.join(path)
+    }
 }
 
 pub(crate) fn normalize_skill_set_ids(ids: Vec<String>) -> Result<Vec<String>, NagareError> {
@@ -1027,53 +1066,53 @@ pub(crate) fn validate_agent_profile_id(id: &str) -> Result<(), NagareError> {
     Ok(())
 }
 
-pub(crate) fn validate_domain_profile_id(id: &str) -> Result<(), NagareError> {
+pub(crate) fn validate_artifact_type_id(id: &str) -> Result<(), NagareError> {
     if id.is_empty()
         || !id
             .chars()
             .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
     {
         return Err(NagareError::InvalidState(format!(
-            "domain profile id `{id}` must use only ASCII letters, numbers, '-' or '_'"
+            "Artifact Type id `{id}` must use only ASCII letters, numbers, '-' or '_'"
         )));
     }
     Ok(())
 }
 
-pub(crate) fn validate_domain_group_id(id: &str) -> Result<(), NagareError> {
+pub(crate) fn validate_domain_id(id: &str) -> Result<(), NagareError> {
     if id.is_empty()
         || !id
             .chars()
             .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
     {
         return Err(NagareError::InvalidState(format!(
-            "domain group id `{id}` must use only ASCII letters, numbers, '-' or '_'"
+            "Domain id `{id}` must use only ASCII letters, numbers, '-' or '_'"
         )));
     }
     Ok(())
 }
 
-pub(crate) fn normalize_domain_group_ids(ids: Vec<String>) -> Result<Vec<String>, NagareError> {
+pub(crate) fn normalize_domain_ids(ids: Vec<String>) -> Result<Vec<String>, NagareError> {
     let mut normalized = Vec::new();
     for id in ids {
         let id = id.trim();
         if id.is_empty() || normalized.iter().any(|existing| existing == id) {
             continue;
         }
-        validate_domain_group_id(id)?;
+        validate_domain_id(id)?;
         normalized.push(id.to_string());
     }
     Ok(normalized)
 }
 
-pub(crate) fn normalize_domain_profile_ids(ids: Vec<String>) -> Result<Vec<String>, NagareError> {
+pub(crate) fn normalize_artifact_type_ids(ids: Vec<String>) -> Result<Vec<String>, NagareError> {
     let mut normalized = Vec::new();
     for id in ids {
         let id = id.trim();
         if id.is_empty() || normalized.iter().any(|existing| existing == id) {
             continue;
         }
-        validate_domain_profile_id(id)?;
+        validate_artifact_type_id(id)?;
         normalized.push(id.to_string());
     }
     Ok(normalized)

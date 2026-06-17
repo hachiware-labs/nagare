@@ -1,0 +1,176 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024" role="img" aria-labelledby="-title -desc">
+  <title id="-title">プロジェクト制御</title>
+  <desc id="-desc">プロジェクト文脈からランタイム実行とトレースまでの解決順序を示す制御プレーン概要。</desc>
+  <rect width="1440" height="1024" fill="#f7f8fb"/>
+  <style>
+    .title{font:700 25px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .kicker{font:700 10px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+    .h1{font:750 22px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h2{font:700 16px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h3{font:700 13px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .body{font:500 12px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .small{font:500 11px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .tiny{font:700 10px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .mono{font:500 11px Consolas,Menlo,monospace;fill:#111827}
+    .nav{font:650 13px Inter,"Segoe UI",Arial,sans-serif;fill:#526174}
+    .nav-on{font:750 13px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+  </style>
+
+    <g id="sidebar">
+      <rect x="0" y="0" width="204" height="1024" rx="0" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="28" y="43" class="title">Nagare</text>
+      <text x="30" y="64" class="kicker">制御プレーン</text>
+      <text x="30" y="82" class="small">プロジェクト対応ランタイム</text>
+      <g>
+
+        <text x="34" y="118" class="nav">ワーク</text>
+      </g><g>
+        <rect x="18" y="135" width="168" height="33" rx="7" fill="#eef2ff" stroke="#eef2ff" stroke-width="1"/>
+        <text x="34" y="157" class="nav-on">プロジェクト</text>
+      </g><g>
+
+        <text x="34" y="196" class="nav">ドメイン</text>
+      </g><g>
+
+        <text x="34" y="235" class="nav">エージェント</text>
+      </g><g>
+
+        <text x="34" y="274" class="nav">スキル</text>
+      </g><g>
+
+        <text x="34" y="313" class="nav">MCP</text>
+      </g><g>
+
+        <text x="34" y="352" class="nav">設定</text>
+      </g>
+    </g>
+    <g id="page-header">
+      <text x="232" y="48" class="title">プロジェクト制御</text>
+      <text x="232" y="72" class="small">プロジェクト文脈でドメイン、割り当て、ランタイム、機能、トレースを束ねる</text>
+      <rect x="1246" y="28" width="112" height="34" rx="7" fill="#4f46e5" stroke="#4f46e5" stroke-width="1"/>
+  <text x="1260" y="50" class="body" style="fill:#ffffff">依頼を開始</text><rect x="1110" y="28" width="132" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1124" y="50" class="body" style="fill:#111827">プロジェクト切替</text>
+    </g>
+    <g id="content">
+
+    <rect x="232" y="96" width="1164" height="828" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <rect x="252" y="118" width="296" height="188" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="274" y="154" class="h2">プロジェクト構成</text>
+    <text x="274" y="184" class="h1">Nagare</text>
+    <text x="274" y="210" class="small">ランタイム制御プレーン</text>
+    <rect x="274" y="236" width="210" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="284" y="252" class="tiny" style="fill:#526174">ルート: ~/workspace/nagare</text>
+    <rect x="274" y="268" width="154" height="24" rx="12" fill="#fef3c7" stroke="#fef3c7" stroke-width="1"/>
+  <text x="284" y="284" class="tiny" style="fill:#b45309">確認 2 / 禁止 1</text>
+
+    <path d="M 548 212 C 608 212, 608 212, 668 212" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 660 207 L 668 212 L 660 217" fill="none" stroke="#b8c4d3" stroke-width="2"/>
+    <rect x="668" y="118" width="452" height="188" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="690" y="154" class="h2">実行構成の解決</text>
+    <text x="690" y="180" class="small">依頼をランタイムへ送る前に、プロジェクト文脈で束を解決する</text>
+    <rect x="690" y="210" width="86" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff" stroke-width="1"/>
+  <text x="700" y="226" class="tiny" style="fill:#4f46e5">プロジェクト</text>
+    <rect x="802" y="210" width="64" height="24" rx="12" fill="#dbeafe" stroke="#dbeafe" stroke-width="1"/>
+  <text x="812" y="226" class="tiny" style="fill:#2563eb">ドメイン</text>
+    <rect x="892" y="210" width="108" height="24" rx="12" fill="#f3e8ff" stroke="#f3e8ff" stroke-width="1"/>
+  <text x="902" y="226" class="tiny" style="fill:#7c3aed">ルーブリック</text>
+    <rect x="1016" y="210" width="64" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="1026" y="226" class="tiny" style="fill:#15803d">割り当て</text>
+    <rect x="690" y="246" width="75" height="24" rx="12" fill="#fef3c7" stroke="#fef3c7" stroke-width="1"/>
+  <text x="700" y="262" class="tiny" style="fill:#b45309">セッション</text>
+    <rect x="790" y="246" width="54" height="24" rx="12" fill="#ccfbf1" stroke="#ccfbf1" stroke-width="1"/>
+  <text x="800" y="262" class="tiny" style="fill:#0f766e">機能</text>
+    <rect x="852" y="246" width="64" height="24" rx="12" fill="#fee2e2" stroke="#fee2e2" stroke-width="1"/>
+  <text x="862" y="262" class="tiny" style="fill:#b91c1c">ポリシー</text>
+    <rect x="946" y="246" width="64" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="956" y="262" class="tiny" style="fill:#15803d">トレース</text>
+
+    <rect x="1144" y="118" width="232" height="188" rx="8" fill="#fee2e2" stroke="#b91c1c" stroke-width="1"/>
+    <text x="1166" y="154" class="h2" style="fill:#b91c1c">現在</text>
+    <text x="1166" y="184" class="h3" style="fill:#b91c1c">OpenClaw が未接続</text>
+    <text x="1166" y="210" class="small">エージェント実行ドメインの</text>
+    <text x="1166" y="232" class="small">割り当てが実行不可</text>
+    <rect x="1166" y="258" width="126" height="34" rx="7" fill="#4f46e5" stroke="#4f46e5" stroke-width="1"/>
+  <text x="1180" y="280" class="body" style="fill:#ffffff">ランタイム切替</text>
+
+    <rect x="252" y="354" width="1124" height="196" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="274" y="390" class="h2">解決順序</text><text x="274" y="410" class="small">構図の主役は、エージェントではなくプロジェクトからランタイムへ流れる解決順序</text>
+    <g>
+      <rect x="274" y="426" width="134" height="94" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <circle cx="298" cy="453" r="14" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.5"/>
+      <text x="293" y="458" class="tiny" style="fill:#4f46e5">1</text>
+      <text x="322" y="456" class="h3">プロジェクト</text>
+      <text x="290" y="487" class="small">Nagare</text>
+    </g>
+    <line x1="408" y1="473" x2="430" y2="473" stroke="#b8c4d3" stroke-width="2"/><path d="M 422 468 L 430 473 L 422 478" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <g>
+      <rect x="430" y="426" width="134" height="94" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <circle cx="454" cy="453" r="14" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+      <text x="449" y="458" class="tiny" style="fill:#2563eb">2</text>
+      <text x="478" y="456" class="h3">ドメイン</text>
+      <text x="446" y="487" class="small">UX / 実行</text>
+    </g>
+    <line x1="564" y1="473" x2="586" y2="473" stroke="#b8c4d3" stroke-width="2"/><path d="M 578 468 L 586 473 L 578 478" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <g>
+      <rect x="586" y="426" width="134" height="94" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <circle cx="610" cy="453" r="14" fill="#f3e8ff" stroke="#7c3aed" stroke-width="1.5"/>
+      <text x="605" y="458" class="tiny" style="fill:#7c3aed">3</text>
+      <text x="634" y="456" class="h3">ルーブリック</text>
+      <text x="602" y="487" class="small">プロジェクト補正</text>
+    </g>
+    <line x1="720" y1="473" x2="742" y2="473" stroke="#b8c4d3" stroke-width="2"/><path d="M 734 468 L 742 473 L 734 478" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <g>
+      <rect x="742" y="426" width="134" height="94" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <circle cx="766" cy="453" r="14" fill="#dcfce7" stroke="#15803d" stroke-width="1.5"/>
+      <text x="761" y="458" class="tiny" style="fill:#15803d">4</text>
+      <text x="790" y="456" class="h3">割り当て</text>
+      <text x="758" y="487" class="small">エージェント+役割</text>
+    </g>
+    <line x1="876" y1="473" x2="898" y2="473" stroke="#b8c4d3" stroke-width="2"/><path d="M 890 468 L 898 473 L 890 478" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <g>
+      <rect x="898" y="426" width="134" height="94" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <circle cx="922" cy="453" r="14" fill="#fef3c7" stroke="#b45309" stroke-width="1.5"/>
+      <text x="917" y="458" class="tiny" style="fill:#b45309">5</text>
+      <text x="946" y="456" class="h3">セッション</text>
+      <text x="914" y="487" class="small">再利用 / 分岐</text>
+    </g>
+    <line x1="1032" y1="473" x2="1054" y2="473" stroke="#b8c4d3" stroke-width="2"/><path d="M 1046 468 L 1054 473 L 1046 478" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <g>
+      <rect x="1054" y="426" width="134" height="94" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <circle cx="1078" cy="453" r="14" fill="#ccfbf1" stroke="#0f766e" stroke-width="1.5"/>
+      <text x="1073" y="458" class="tiny" style="fill:#0f766e">6</text>
+      <text x="1102" y="456" class="h3">機能</text>
+      <text x="1070" y="487" class="small">実行可能な道具</text>
+    </g>
+    <line x1="1188" y1="473" x2="1210" y2="473" stroke="#b8c4d3" stroke-width="2"/><path d="M 1202 468 L 1210 473 L 1202 478" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <g>
+      <rect x="1210" y="426" width="134" height="94" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <circle cx="1234" cy="453" r="14" fill="#dcfce7" stroke="#15803d" stroke-width="1.5"/>
+      <text x="1229" y="458" class="tiny" style="fill:#15803d">7</text>
+      <text x="1258" y="456" class="h3">トレース</text>
+      <text x="1226" y="487" class="small">理由 + 結果</text>
+    </g>
+
+    <rect x="252" y="594" width="690" height="184" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="274" y="630" class="h2">ドメインカバー</text><text x="274" y="650" class="small">ドメインごとの担当・ランタイム・承認状態を一列で把握する</text>
+    <line x1="300" y1="704" x2="852" y2="704" stroke="#b8c4d3" stroke-width="2"/>
+    <circle cx="300" cy="704" r="7" fill="#dcfce7" stroke="#15803d" stroke-width="2"/><text x="260" y="730" class="tiny">設計</text><circle cx="392" cy="704" r="7" fill="#fee2e2" stroke="#b91c1c" stroke-width="2"/><text x="352" y="730" class="tiny">エージェント実行</text><circle cx="484" cy="704" r="7" fill="#fef3c7" stroke="#b45309" stroke-width="2"/><text x="444" y="730" class="tiny">ツール方針</text><circle cx="576" cy="704" r="7" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/><text x="536" y="730" class="tiny">UX</text><circle cx="668" cy="704" r="7" fill="#dcfce7" stroke="#15803d" stroke-width="2"/><text x="628" y="730" class="tiny">実装</text><circle cx="760" cy="704" r="7" fill="#fef3c7" stroke="#b45309" stroke-width="2"/><text x="720" y="730" class="tiny">テスト</text><circle cx="852" cy="704" r="7" fill="#ccfbf1" stroke="#0f766e" stroke-width="2"/><text x="812" y="730" class="tiny">ドキュメント</text>
+
+    <rect x="970" y="594" width="406" height="184" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="992" y="630" class="h2">要確認</text><text x="992" y="650" class="small">人間が見るべきものだけを上げる</text>
+    <rect x="992" y="666" width="152" height="24" rx="12" fill="#fee2e2" stroke="#fee2e2" stroke-width="1"/>
+  <text x="1002" y="682" class="tiny" style="fill:#b91c1c">OpenClaw未検出</text>
+    <rect x="992" y="700" width="190" height="24" rx="12" fill="#fef3c7" stroke="#fef3c7" stroke-width="1"/>
+  <text x="1002" y="716" class="tiny" style="fill:#b45309">ファイル書き込み確認</text>
+    <rect x="992" y="734" width="178" height="24" rx="12" fill="#fef3c7" stroke="#fef3c7" stroke-width="1"/>
+  <text x="1002" y="750" class="tiny" style="fill:#b45309">テスト割り当て不足</text>
+
+    <rect x="252" y="812" width="1124" height="70" rx="8" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="274" y="846" class="h3">最近のトレース</text>
+    <text x="410" y="846" class="body">trace_1048: UX -&gt; designer-agent -&gt; Codexスレッド -&gt; hachi-search -&gt; ルーブリック 6/7</text>
+    <rect x="1226" y="828" width="110" height="24" rx="12" fill="#fef3c7" stroke="#fef3c7" stroke-width="1"/>
+  <text x="1236" y="844" class="tiny" style="fill:#b45309">レビュー待ち</text>
+
+    </g>
+
+</svg>

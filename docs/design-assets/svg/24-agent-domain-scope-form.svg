@@ -31,7 +31,7 @@
   <rect x="626" y="358" width="312" height="44" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
   <text x="644" y="386" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="15">ui, accessibility, e2e</text>
 
-  <text x="282" y="438" fill="#475569" font-family="Segoe UI, Meiryo, sans-serif" font-size="12" font-weight="700">Domain Groups</text>
+  <text x="282" y="438" fill="#475569" font-family="Segoe UI, Meiryo, sans-serif" font-size="12" font-weight="700">Domains</text>
   <rect x="282" y="450" width="312" height="134" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
   <rect x="294" y="466" width="286" height="34" rx="6" fill="#eef2ff"/>
   <text x="310" y="488" fill="#4338ca" font-family="Segoe UI, Meiryo, sans-serif" font-size="14" font-weight="700">Software Development</text>

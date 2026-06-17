@@ -1,6 +1,6 @@
 use nagare_core::{
-    AgentOutputRecord, AgentProfile, DomainGroup, DomainProfile, LocaleSettings,
-    NagareAgentSettings, RuleResolution, VERSION, WorkItemSnapshot,
+    AgentOutputRecord, AgentProfile, ArtifactType, Domain, LocaleSettings, NagareAgentSettings,
+    RuleResolution, VERSION, WorkItemSnapshot,
 };
 
 pub(crate) fn print_scenario_result(label: &str, result: &nagare_core::ScenarioResult) {
@@ -37,7 +37,7 @@ pub(crate) fn print_snapshot(snapshot: &WorkItemSnapshot) {
     println!("constraints: {}", comma_list(&snapshot.item.constraints));
     println!(
         "domain: {}",
-        snapshot.item.domain_id.as_deref().unwrap_or("-")
+        snapshot.item.artifact_type_id.as_deref().unwrap_or("-")
     );
     println!("domain_agent_policy: {}", snapshot.item.domain_agent_policy);
     println!("workflow_mode: {}", snapshot.item.workflow_mode);
@@ -236,7 +236,7 @@ pub(crate) fn print_snapshot(snapshot: &WorkItemSnapshot) {
 
 pub(crate) fn print_agent_profile_row(profile: &AgentProfile) {
     println!(
-        "{}\trole={}\ttool={}\t{}\t{}\t{}\tmodel={}\texternal={}/{}\tmanaged={}\tspecialties={}\tskills={}\tdomain_groups={}\tdomains={}\twork_contract={}\treview_contract={}\tdispatch_contract={}\tsupervision_contract={}\t{}",
+        "{}\trole={}\ttool={}\t{}\t{}\t{}\tmodel={}\texternal={}/{}\tmanaged={}\tspecialties={}\tskills={}\tdomains={}\tdomains={}\twork_contract={}\treview_contract={}\tdispatch_contract={}\tsupervision_contract={}\t{}",
         profile.id,
         if profile.role.trim().is_empty() {
             "-"
@@ -253,8 +253,8 @@ pub(crate) fn print_agent_profile_row(profile: &AgentProfile) {
         profile.external.is_nagare_managed(&profile.managed_by),
         comma_list(&profile.specialties),
         comma_list(&profile.skill_set_ids),
-        comma_list(&profile.domain_group_ids),
         comma_list(&profile.domain_ids),
+        comma_list(&profile.artifact_type_ids),
         profile.output_contracts.work.contract,
         profile.output_contracts.review.contract,
         profile.output_contracts.dispatch.contract,
@@ -277,8 +277,8 @@ pub(crate) fn print_agent_defaults(settings: &NagareAgentSettings) {
 pub(crate) fn dispatch_prompt(
     resolution: Option<&RuleResolution>,
     candidates: &[AgentProfile],
-    domain_groups: &[DomainGroup],
-    domains: &[DomainProfile],
+    domains: &[Domain],
+    artifact_types: &[ArtifactType],
 ) -> String {
     let candidate_lines = if candidates.is_empty() {
         "- none".to_string()
@@ -298,12 +298,12 @@ pub(crate) fn dispatch_prompt(
             .collect::<Vec<_>>()
             .join("\n")
     };
-    let domain_group_lines = if domain_groups.is_empty() {
+    let artifact_type_lines = if artifact_types.is_empty() {
         "- none".to_string()
     } else {
-        domain_groups
+        artifact_types
             .iter()
-            .map(compact_domain_group_candidate)
+            .map(compact_artifact_type_candidate)
             .collect::<Vec<_>>()
             .join("\n")
     };
@@ -329,13 +329,13 @@ pub(crate) fn dispatch_prompt(
         })
         .unwrap_or(("-", "-", "-", "-", "-".to_string(), "-", "-"));
     format!(
-        "Prepare a dispatch preview for path `{path}`.\nMatched context: {matched_context}\nResolved target agent profile: {resolved_target_agent}\nReview agent profile: {review_agent}\nSkill sets: {skill_sets}\nPermission policy: {permission_policy}\nWorkspace policy: {workspace_policy}\n\nCandidate agent profiles are intentionally compact. Select only from this list:\n{candidate_lines}\n\nAvailable domain groups:\n{domain_group_lines}\n\nAvailable domain profiles and rubrics:\n{domain_lines}\n\nUse domain group defaults, domain rubrics, agent domain scope, and dispatch hints as selection context, but return only agent dispatch JSON. Required keys: target_agent_profile_id, summary. Optional keys: risks, missing_information. target_agent_profile_id must exactly match one candidate id. Keep summary concise and do not include full instruction-source contents.",
+        "Prepare a dispatch preview for path `{path}`.\nMatched context: {matched_context}\nResolved target agent profile: {resolved_target_agent}\nReview agent profile: {review_agent}\nSkill sets: {skill_sets}\nPermission policy: {permission_policy}\nWorkspace policy: {workspace_policy}\n\nCandidate agent profiles are intentionally compact. Select only from this list:\n{candidate_lines}\n\nAvailable Domains:\n{domain_lines}\n\nAvailable Artifact Types and rubrics:\n{artifact_type_lines}\n\nUse domain defaults, artifact type rubrics, agent domain/artifact type scope, and dispatch hints as selection context, but return only agent dispatch JSON. Required keys: target_agent_profile_id, summary. Optional keys: risks, missing_information. target_agent_profile_id must exactly match one candidate id. Keep summary concise and do not include full instruction-source contents.",
     )
 }
 
 fn compact_agent_candidate(profile: &AgentProfile) -> String {
     format!(
-        "- id: {} | role: {} | adapter: {} | working_dir: {} | model: {} | external: {}/{} | specialties: {} | domain_groups: {} | domains: {} | description: {}",
+        "- id: {} | role: {} | adapter: {} | working_dir: {} | model: {} | external: {}/{} | specialties: {} | domains: {} | artifact_types: {} | description: {}",
         profile.id,
         if profile.role.trim().is_empty() {
             "-"
@@ -348,13 +348,13 @@ fn compact_agent_candidate(profile: &AgentProfile) -> String {
         empty_display(&profile.external.provider),
         empty_display(&profile.external.agent_id),
         comma_list(&profile.specialties),
-        comma_list(&profile.domain_group_ids),
         comma_list(&profile.domain_ids),
+        comma_list(&profile.artifact_type_ids),
         compact_text(&profile.description, 160)
     )
 }
 
-fn compact_domain_group_candidate(group: &DomainGroup) -> String {
+fn compact_domain_candidate(group: &Domain) -> String {
     format!(
         "- id: {} | shared_knowledge: {} | common_rubric: {} | dispatch_hints: {} | description: {}",
         group.id,
@@ -365,11 +365,11 @@ fn compact_domain_group_candidate(group: &DomainGroup) -> String {
     )
 }
 
-fn compact_domain_candidate(domain: &DomainProfile) -> String {
+fn compact_artifact_type_candidate(domain: &ArtifactType) -> String {
     format!(
-        "- id: {} | group: {} | artifacts: {} | rubric: {} | dispatch_hints: {} | description: {}",
+        "- id: {} | domain: {} | artifacts: {} | rubric: {} | dispatch_hints: {} | description: {}",
         domain.id,
-        domain.group_id.as_deref().unwrap_or("-"),
+        domain.domain_id.as_deref().unwrap_or("-"),
         comma_list(&domain.artifact_types),
         compact_text(&domain.rubric.join("; "), 180),
         compact_text(&domain.dispatch_hints.join("; "), 140),
@@ -437,18 +437,19 @@ Usage:
   nagare doctor [--root <path>]
   nagare locale show [--root <path>]
   nagare locale use [--language <locale>] [--timezone <timezone>] [--root <path>]
-  nagare skill add --from local|git|clawhub|vercel|skill-creator [--id <package_id>] [--source <name-or-url>] [--path <path>] [--ref <ref>] [--checksum <sha>] [--skill-id <skill_set_id>] [--paths <csv>] [--requires <csv>] [--optional <csv>] [--root <path>]
+  nagare skill add --from local|git|clawhub|vercel|skill-creator [--id <package_id>] [--source <name-or-url>] [--path <path>] [--install true|false] [--scope project|global] [--targets codex,openclaw] [--ref <ref>] [--checksum <sha>] [--skill-id <skill_set_id>] [--paths <csv>] [--requires <csv>] [--optional <csv>] [--root <path>]
   nagare skill install ... (alias of skill add)
+  nagare skill uninstall --agent <agent_profile_id> --skill <skill_set_id> [--package true|false] [--root <path>]
   nagare skill list [--root <path>]
-  nagare agent add --id <agent_profile_id> --runtime <runtime_id> --adapter <adapter_id> [--display-name <text>] [--role <planner|worker|reviewer>] [--working-dir <relative_path>] [--description <text>] [--specialties <csv>] [--domain-groups <csv>] [--domains <csv>] [--root <path>]
-  nagare agent update <agent_profile_id> [--display-name <text>] [--role <planner|worker|reviewer>] [--working-dir <relative_path>] [--description <text>] [--specialties <csv>] [--domain-groups <csv>] [--domains <csv>] [--output-purpose work|review|dispatch|supervision] [--output-contract <id>] [--instruction-pack <id>] [--output-required true|false] [--output-injection prompt_suffix] [--root <path>]
+  nagare agent add --id <agent_profile_id> --runtime <runtime_id> --adapter <adapter_id> [--display-name <text>] [--role <planner|worker|reviewer>] [--working-dir <relative_path>] [--description <text>] [--specialties <csv>] [--domains <csv>] [--artifact-types <csv>] [--root <path>]
+  nagare agent update <agent_profile_id> [--display-name <text>] [--role <planner|worker|reviewer>] [--working-dir <relative_path>] [--description <text>] [--specialties <csv>] [--domains <csv>] [--artifact-types <csv>] [--output-purpose work|review|dispatch|supervision] [--output-contract <id>] [--instruction-pack <id>] [--output-required true|false] [--output-injection prompt_suffix] [--root <path>]
   nagare agent list [--root <path>]
   nagare agent show <agent_profile_id> [--root <path>]
   nagare agent defaults [--root <path>]
   nagare agent use [--work-agent <agent_profile_id>] [--review-agent <agent_profile_id>] [--dispatch-agent <agent_profile_id>] [--supervisor-agent <agent_profile_id>] [--root <path>]
   nagare agent doctor <agent_profile_id> [--root <path>]
   nagare agent probe <agent_profile_id> [--root <path>]
-  nagare item create --title <title> [--description <text>] [--acceptance <csv>] [--artifact <csv>] [--work-folder <relative_path>] [--constraint <csv>] [--domain-group <group_id>] [--domain <domain_id>] [--domain-agent-policy auto_general_fallback|confirm_general_fallback|require_domain_agent] [--workflow-mode confirm_first|finish_first] [--approval-policy manual_final_approval|auto_complete_on_review_pass] [--root <path>]
+  nagare item create --title <title> [--description <text>] [--acceptance <csv>] [--artifact <csv>] [--work-folder <relative_path>] [--constraint <csv>] [--domain <domain_id>] [--artifact-type <artifact_type_id>] [--domain-agent-policy auto_general_fallback|confirm_general_fallback|require_domain_agent] [--workflow-mode confirm_first|finish_first] [--approval-policy manual_final_approval|auto_complete_on_review_pass] [--root <path>]
   nagare item list [--root <path>]
   nagare item show <work_id> [--root <path>]
   nagare item answer <work_id> --answer <text> [--question <text>] [--root <path>]

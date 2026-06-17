@@ -11,17 +11,17 @@
     .nav{font:650 13px Inter,Segoe UI,Arial,sans-serif;fill:#334155}
     .nav-on{font:700 13px Inter,Segoe UI,Arial,sans-serif;fill:#4338ca}
   </style>
-  
+
     <rect x="0" y="0" width="200" height="960" rx="0" fill="#ffffff" stroke="#e2e8f0"/>
     <text x="28" y="42" class="title">Nagare</text>
     <text x="30" y="64" class="tiny" style="fill:#4338ca">HACHIWARE LABS</text>
     <text x="30" y="82" class="small">Agent work control</text>
-    
+
       <text x="34" y="118" class="nav">Work Items</text><rect x="18" y="134" width="164" height="32" rx="7" fill="#eef2ff" stroke="#eef2ff"/>
       <text x="34" y="156" class="nav-on">Agents</text>
       <text x="34" y="194" class="nav">Settings</text>
     <line x1="200" y1="0" x2="200" y2="960" stroke="#e2e8f0"/>
-    
+
     <text x="232" y="48" class="title">research-agent</text>
     <rect x="430" y="27" width="88" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
   <text x="439" y="43" class="tiny" style="fill:#4338ca">researcher</text>
@@ -45,13 +45,27 @@
     <text x="622" y="210" class="small">repo_read / file_edit / shell_command</text>
     <text x="622" y="254" class="small">instruction_sources: AGENTS.md</text>
     <rect x="602" y="414" width="366" height="298" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
-    <text x="622" y="450" class="h2">Dispatch Usage</text><text x="622" y="470" class="small">Recent target selections</text>
-    <text x="622" y="500" class="small">dispatch_0007 accepted -&gt; work_0042</text>
-    <text x="622" y="532" class="small">dispatch_0011 draft -&gt; work_0048</text>
+    <text x="622" y="450" class="h2">Skills / MCP</text><text x="622" y="470" class="small">This agent can use only these tools</text>
+    <rect x="806" y="430" width="62" height="28" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="820" y="449" class="small">Skill</text>
+    <rect x="878" y="430" width="62" height="28" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="894" y="449" class="small">MCP</text>
+    <text x="622" y="510" class="tiny">Skills</text>
+    <rect x="622" y="526" width="316" height="44" rx="7" fill="#eef2ff" stroke="#c7d2fe"/>
+    <text x="640" y="553" class="body">hachiware-labs/hachi-search</text>
+    <text x="862" y="553" class="small" style="fill:#4338ca">ON</text>
+    <rect x="622" y="582" width="316" height="44" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="640" y="609" class="body">domain-review-checks</text>
+    <text x="862" y="609" class="small">OFF</text>
+    <text x="622" y="664" class="tiny">MCP</text>
+    <rect x="622" y="680" width="316" height="44" rx="7" fill="#eef2ff" stroke="#c7d2fe"/>
+    <text x="640" y="707" class="body">filesystem-read</text>
+    <text x="798" y="707" class="small">docs/, crates/</text>
+    <text x="890" y="707" class="small" style="fill:#4338ca">ON</text>
     <rect x="998" y="92" width="398" height="620" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
     <text x="1018" y="128" class="h2">Recent Runs</text><text x="1018" y="148" class="small">Debug activity</text>
     <rect x="1018" y="166" width="358" height="54" rx="0" fill="#ffffff" stroke="#e2e8f0"/><text x="1032" y="187" class="body">run_0009</text><text x="1032" y="205" class="small">work</text><text x="1142" y="187" class="small">succeeded</text><text x="1142" y="205" class="small">exit 0</text><text x="1252" y="187" class="small">12m</text><text x="1252" y="205" class="small">ago</text>
     <rect x="1018" y="236" width="358" height="54" rx="0" fill="#ffffff" stroke="#e2e8f0"/><text x="1032" y="257" class="body">run_0004</text><text x="1032" y="275" class="small">dispatch_preview</text><text x="1142" y="257" class="small">succeeded</text><text x="1142" y="275" class="small">exit 0</text><text x="1252" y="257" class="small">1h</text><text x="1252" y="275" class="small">ago</text>
-  
-  
+
+
 </svg>

@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024" role="img" aria-labelledby="-title -desc">
+  <title id="-title">ランタイムセッション対応</title>
+  <desc id="-desc">各ランタイム固有のセッションを共通のプロジェクト、ドメイン、エージェント、タスク対応で示す画面。</desc>
+  <rect width="1440" height="1024" fill="#f7f8fb"/>
+  <style>
+    .title{font:700 25px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .kicker{font:700 10px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+    .h1{font:750 22px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h2{font:700 16px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h3{font:700 13px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .body{font:500 12px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .small{font:500 11px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .tiny{font:700 10px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .mono{font:500 11px Consolas,Menlo,monospace;fill:#111827}
+    .nav{font:650 13px Inter,"Segoe UI",Arial,sans-serif;fill:#526174}
+    .nav-on{font:750 13px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+  </style>
+
+    <g id="sidebar">
+      <rect x="0" y="0" width="204" height="1024" rx="0" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="28" y="43" class="title">Nagare</text>
+      <text x="30" y="64" class="kicker">制御プレーン</text>
+      <text x="30" y="82" class="small">プロジェクト対応ランタイム</text>
+      <g>
+
+        <text x="34" y="118" class="nav">ワーク</text>
+      </g><g>
+        <rect x="18" y="135" width="168" height="33" rx="7" fill="#eef2ff" stroke="#eef2ff" stroke-width="1"/>
+        <text x="34" y="157" class="nav-on">プロジェクト</text>
+      </g><g>
+
+        <text x="34" y="196" class="nav">ドメイン</text>
+      </g><g>
+
+        <text x="34" y="235" class="nav">エージェント</text>
+      </g><g>
+
+        <text x="34" y="274" class="nav">スキル</text>
+      </g><g>
+
+        <text x="34" y="313" class="nav">MCP</text>
+      </g><g>
+
+        <text x="34" y="352" class="nav">設定</text>
+      </g>
+    </g>
+    <g id="page-header">
+      <text x="232" y="48" class="title">ランタイムセッション対応</text>
+      <text x="232" y="72" class="small">Codexスレッド / OpenCodeセッション / Claude Codeセッション / OpenClawチャネルを共通対応で扱う</text>
+      <rect x="1264" y="28" width="126" height="34" rx="7" fill="#4f46e5" stroke="#4f46e5" stroke-width="1"/>
+  <text x="1278" y="50" class="body" style="fill:#ffffff">セッション作成</text><rect x="1128" y="28" width="104" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1142" y="50" class="body" style="fill:#111827">接続確認</text>
+    </g>
+    <g id="content">
+
+    <rect x="232" y="96" width="1164" height="828" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <rect x="252" y="124" width="1124" height="70" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="166" class="h2">ランタイムセッション対応表</text>
+    <text x="520" y="166" class="body">各ランタイムの固有名を、プロジェクト / ドメイン / エージェント / タスクの共通対応で読む</text>
+    <rect x="1116" y="146" width="116" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="1126" y="162" class="tiny" style="fill:#15803d">再利用優先</text>
+    <rect x="1248" y="146" width="86" height="24" rx="12" fill="#dbeafe" stroke="#dbeafe" stroke-width="1"/>
+  <text x="1258" y="162" class="tiny" style="fill:#2563eb">分岐可</text>
+
+    <rect x="252" y="228" width="250" height="470" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="270" y="264" class="h2">Codex</text>
+    <rect x="270" y="296" width="214" height="62" rx="7" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="286" y="320" class="h3">スレッド_8cc2</text>
+      <text x="286" y="340" class="small">Nagare / UX</text>
+      <rect x="390" y="316" width="80" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="400" y="332" class="tiny" style="fill:#15803d">実行中</text><rect x="270" y="378" width="214" height="62" rx="7" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="286" y="402" class="h3">run_51e0</text>
+      <text x="286" y="422" class="small">実装 / worker</text>
+      <rect x="390" y="398" width="80" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="400" y="414" class="tiny" style="fill:#526174">待機</text>
+    <line x1="377" y1="196" x2="377" y2="228" stroke="#4f46e5" stroke-width="3"/>
+    <rect x="532" y="228" width="250" height="470" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="550" y="264" class="h2">Claude Code</text>
+    <rect x="550" y="296" width="214" height="62" rx="7" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="566" y="320" class="h3">session_12</text>
+      <text x="566" y="340" class="small">ツール方針</text>
+      <rect x="670" y="316" width="80" height="24" rx="12" fill="#fef3c7" stroke="#fef3c7" stroke-width="1"/>
+  <text x="680" y="332" class="tiny" style="fill:#b45309">承認待ち</text><rect x="550" y="378" width="214" height="62" rx="7" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="566" y="402" class="h3">session_09</text>
+      <text x="566" y="422" class="small">ドキュメント / writer</text>
+      <rect x="670" y="398" width="80" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="680" y="414" class="tiny" style="fill:#526174">待機</text>
+    <line x1="657" y1="196" x2="657" y2="228" stroke="#7c3aed" stroke-width="3"/>
+    <rect x="812" y="228" width="250" height="470" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="830" y="264" class="h2">OpenCode</text>
+    <rect x="830" y="296" width="214" height="62" rx="7" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="846" y="320" class="h3">session_204</text>
+      <text x="846" y="340" class="small">ドキュメント / writer</text>
+      <rect x="950" y="316" width="80" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="960" y="332" class="tiny" style="fill:#15803d">実行中</text><rect x="830" y="378" width="214" height="62" rx="7" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="846" y="402" class="h3">session_188</text>
+      <text x="846" y="422" class="small">設計 / architect</text>
+      <rect x="950" y="398" width="80" height="24" rx="12" fill="#dbeafe" stroke="#dbeafe" stroke-width="1"/>
+  <text x="960" y="414" class="tiny" style="fill:#2563eb">分岐</text>
+    <line x1="937" y1="196" x2="937" y2="228" stroke="#0f766e" stroke-width="3"/>
+    <rect x="1092" y="228" width="250" height="470" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="1110" y="264" class="h2">OpenClaw</text>
+    <rect x="1110" y="296" width="214" height="62" rx="7" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="1126" y="320" class="h3">チャネル未検出</text>
+      <text x="1126" y="340" class="small">エージェント実行</text>
+      <rect x="1230" y="316" width="80" height="24" rx="12" fill="#fee2e2" stroke="#fee2e2" stroke-width="1"/>
+  <text x="1240" y="332" class="tiny" style="fill:#b91c1c">未検出</text>
+    <line x1="1217" y1="196" x2="1217" y2="228" stroke="#b91c1c" stroke-width="3"/>
+
+    <rect x="252" y="738" width="784" height="110" rx="8" fill="#fee2e2" stroke="#b91c1c" stroke-width="1"/>
+    <text x="276" y="776" class="h2" style="fill:#b91c1c">OpenClaw 接続エラー</text>
+    <text x="276" y="806" class="body">OpenClawエージェントの割り当てが実行不可。</text>
+    <text x="276" y="830" class="body">インストール、またはランタイム切替が必要。</text>
+    <rect x="806" y="796" width="130" height="34" rx="7" fill="#4f46e5" stroke="#4f46e5" stroke-width="1"/>
+  <text x="820" y="818" class="body" style="fill:#ffffff">ランタイム切替</text>
+    <rect x="950" y="796" width="100" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="964" y="818" class="body" style="fill:#111827">手順を見る</text>
+
+    <rect x="1064" y="738" width="312" height="110" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="1088" y="776" class="h2">選択中の対応</text>
+    <text x="1088" y="806" class="body">Codexスレッド_8cc2 / Nagare / UX</text>
+    <rect x="1088" y="824" width="76" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="1098" y="840" class="tiny" style="fill:#15803d">再開</text>
+    <rect x="1178" y="824" width="86" height="24" rx="12" fill="#dbeafe" stroke="#dbeafe" stroke-width="1"/>
+  <text x="1188" y="840" class="tiny" style="fill:#2563eb">分岐可</text>
+
+    </g>
+
+</svg>

@@ -2,8 +2,8 @@ use std::path::Path;
 
 use nagare_core::{
     ApprovalPolicy, I18n, UiTextKey, WorkItemStatus, WorkflowMode, WorkflowSettings,
-    get_domain_group, get_domain_profile, get_locale_settings, get_work_item_snapshot,
-    get_workflow_settings, list_agent_profiles, list_domain_groups, list_domain_profiles,
+    get_artifact_type, get_domain, get_locale_settings, get_work_item_snapshot,
+    get_workflow_settings, list_agent_profiles, list_artifact_types, list_domains,
     list_skill_set_catalog, list_work_items,
 };
 
@@ -22,52 +22,104 @@ pub(crate) fn render_serve_home(root: &Path) -> Result<String, String> {
     let items = list_work_items(root).map_err(|error| error.to_string())?;
     let agents = list_agent_profiles(root).map_err(|error| error.to_string())?;
     let mut queue_signals = QueueSignals::default();
-    let rows = if items.is_empty() {
-        format!(
-            "<tr><td colspan=\"8\" class=\"muted\">{}</td></tr>",
-            h(i18n.ui(UiTextKey::NoWorkItemsYet))
+    let (rows, cards) = if items.is_empty() {
+        (
+            format!(
+                "<tr><td colspan=\"8\" class=\"muted\">{}</td></tr>",
+                h(i18n.ui(UiTextKey::NoWorkItemsYet))
+            ),
+            format!(
+                r#"<div class="queue-card empty"><p class="muted">{}</p></div>"#,
+                h(i18n.ui(UiTextKey::NoWorkItemsYet))
+            ),
         )
     } else {
-        items
-            .iter()
-            .map(|item| {
-                let snapshot = get_work_item_snapshot(root, &item.id).ok();
-                let running = read_ui_running_state(root, &item.id);
-                let next_action = snapshot
-                    .as_ref()
-                    .map(|snapshot| snapshot.completion.next_action.as_str())
-                    .unwrap_or("-");
-                let (state_label, state_class, state_detail) = work_item_list_state(
-                    item,
-                    snapshot.as_ref(),
-                    running.as_deref(),
-                );
-                queue_signals.observe(&state_label);
-                let answer = snapshot
-                    .as_ref()
-                    .map(|snapshot| answer_view(snapshot, &agents));
-                let filter_state = queue_filter_state(&state_label);
-                format!(
-                    r#"<tr class="{}" data-queue-state="{}"><td><a href="/items/{}">{}</a><div class="muted">{}</div></td><td>{}</td><td>{}</td><td><span class="badge {}">{}</span><div class="muted">{}</div></td><td>{}</td><td>{}</td><td><form class="delete-work-form" data-work-id="{}" data-work-title="{}"><button class="danger" type="submit">{}</button></form></td></tr>"#,
-                    h(&format!("state-{}", state_label.to_ascii_lowercase().replace(' ', "-"))),
-                    h(filter_state),
-                    h(&item.id),
-                    h(&item.id),
-                    h(item.work_folder.as_deref().unwrap_or(".")),
-                    h(&item.title),
-                    render_answer_preview(answer.as_ref()),
-                    state_class,
-                    h(&localized_queue_state(&i18n, &state_label)),
-                    h(&localized_queue_detail(&i18n, &state_detail)),
-                    h(next_action),
-                    h(&item.workflow_mode.to_string()),
-                    h(&item.id),
-                    h(&item.title),
-                    h(i18n.ui(UiTextKey::Delete))
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
+        let mut row_entries = Vec::new();
+        let mut card_entries = Vec::new();
+        for item in &items {
+            let snapshot = get_work_item_snapshot(root, &item.id).ok();
+            let running = read_ui_running_state(root, &item.id);
+            let next_action = snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.completion.next_action.as_str())
+                .unwrap_or("-");
+            let (state_label, state_class, state_detail) =
+                work_item_list_state(item, snapshot.as_ref(), running.as_deref());
+            queue_signals.observe(&state_label);
+            let answer = snapshot
+                .as_ref()
+                .map(|snapshot| answer_view(snapshot, &agents));
+            let answer_preview = render_answer_preview(answer.as_ref());
+            let filter_state = queue_filter_state(&state_label);
+            let row_class = format!(
+                "state-{}",
+                state_label.to_ascii_lowercase().replace(' ', "-")
+            );
+            let state_text = localized_queue_state(&i18n, &state_label);
+            let state_detail_text = localized_queue_detail(&i18n, &state_detail);
+            let delete_form = format!(
+                r#"<form class="delete-work-form" data-work-id="{}" data-work-title="{}"><button class="danger" type="submit">{}</button></form>"#,
+                h(&item.id),
+                h(&item.title),
+                h(i18n.ui(UiTextKey::Delete))
+            );
+            row_entries.push(format!(
+                r#"<tr class="{}" data-work-record="{}" data-queue-state="{}"><td data-label="{}"><a href="/items/{}">{}</a><div class="muted">{}</div></td><td data-label="{}">{}</td><td data-label="Answer">{}</td><td data-label="{}"><span class="badge {}">{}</span><div class="muted">{}</div></td><td data-label="{}">{}</td><td data-label="{}">{}</td><td data-label="">{}</td></tr>"#,
+                h(&row_class),
+                h(&item.id),
+                h(filter_state),
+                h(i18n.ui(UiTextKey::IdFolder)),
+                h(&item.id),
+                h(&item.id),
+                h(item.work_folder.as_deref().unwrap_or(".")),
+                h(i18n.ui(UiTextKey::Title)),
+                h(&item.title),
+                answer_preview,
+                h(i18n.ui(UiTextKey::State)),
+                state_class,
+                h(&state_text),
+                h(&state_detail_text),
+                h(i18n.ui(UiTextKey::Next)),
+                h(next_action),
+                h(i18n.ui(UiTextKey::Mode)),
+                h(&item.workflow_mode.to_string()),
+                delete_form
+            ));
+            card_entries.push(format!(
+                r#"<article class="queue-card {}" data-work-record="{}" data-queue-state="{}">
+  <div class="queue-card-head">
+    <div>
+      <a href="/items/{}">{}</a>
+      <p class="muted">{}</p>
+    </div>
+    <span class="badge {}">{}</span>
+  </div>
+  <h3>{}</h3>
+  <div class="queue-card-answer">{}</div>
+  <dl class="queue-card-meta">
+    <div><dt>{}</dt><dd>{}</dd></div>
+    <div><dt>{}</dt><dd>{}</dd></div>
+  </dl>
+  <div class="queue-card-actions">{}</div>
+</article>"#,
+                h(&row_class),
+                h(&item.id),
+                h(filter_state),
+                h(&item.id),
+                h(&item.id),
+                h(item.work_folder.as_deref().unwrap_or(".")),
+                state_class,
+                h(&state_text),
+                h(&item.title),
+                answer_preview,
+                h(i18n.ui(UiTextKey::Next)),
+                h(next_action),
+                h(i18n.ui(UiTextKey::Mode)),
+                h(&item.workflow_mode.to_string()),
+                delete_form
+            ));
+        }
+        (row_entries.join("\n"), card_entries.join("\n"))
     };
     Ok(format!(
         r##"<!doctype html>
@@ -76,7 +128,7 @@ pub(crate) fn render_serve_home(root: &Path) -> Result<String, String> {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Nagare UI Server</title>
-  <style>{}</style>
+  <style>{}{}</style>
 </head>
 <body>
   <main class="app">
@@ -112,7 +164,8 @@ pub(crate) fn render_serve_home(root: &Path) -> Result<String, String> {
             <button class="queue-chip approval" type="button" data-filter-state="approval">{} <b>{}</b></button>
             <button class="queue-chip running" type="button" data-filter-state="running">{} <b>{}</b></button>
           </div>
-          <table><thead><tr><th>{}</th><th>{}</th><th>Answer</th><th>{}</th><th>{}</th><th>{}</th><th></th></tr></thead><tbody id="work-items">{}</tbody></table>
+          <table class="queue-table"><thead><tr><th>{}</th><th>{}</th><th>Answer</th><th>{}</th><th>{}</th><th>{}</th><th></th></tr></thead><tbody id="work-items">{}</tbody></table>
+          <div class="queue-card-list" aria-label="{}">{}</div>
         </section>
       </section>
     </section>
@@ -121,6 +174,7 @@ pub(crate) fn render_serve_home(root: &Path) -> Result<String, String> {
 </body>
 </html>"##,
         serve_stylesheet(),
+        serve_responsive_stylesheet(),
         i18n.ui(UiTextKey::WorkQueue),
         i18n.ui(UiTextKey::Settings),
         i18n.ui(UiTextKey::WorkQueue),
@@ -148,6 +202,8 @@ pub(crate) fn render_serve_home(root: &Path) -> Result<String, String> {
         i18n.ui(UiTextKey::Next),
         i18n.ui(UiTextKey::Mode),
         rows,
+        i18n.ui(UiTextKey::WorkQueue),
+        cards,
         serve_script()
     ))
 }
@@ -319,12 +375,12 @@ fn work_item_list_state(
 pub(crate) fn render_serve_new_item(root: &Path) -> Result<String, String> {
     let i18n = i18n_for_root(root)?;
     let items = list_work_items(root).map_err(|error| error.to_string())?;
-    let domain_groups = list_domain_groups(root).map_err(|error| error.to_string())?;
-    let domains = list_domain_profiles(root).map_err(|error| error.to_string())?;
+    let domains = list_domains(root).map_err(|error| error.to_string())?;
+    let artifact_types = list_artifact_types(root).map_err(|error| error.to_string())?;
     let settings = get_workflow_settings(root).map_err(|error| error.to_string())?;
-    let domain_group_options =
-        domain_group_select_options(&domain_groups, None, i18n.ui(UiTextKey::ProjectDefault));
     let domain_options = domain_select_options(&domains, None, i18n.ui(UiTextKey::ProjectDefault));
+    let artifact_type_options =
+        artifact_type_select_options(&artifact_types, None, i18n.ui(UiTextKey::ProjectDefault));
     let workflow_options =
         workflow_mode_options(Some(settings.default_progress_mode), false, &i18n);
     let approval_options = approval_policy_options(Some(settings.approval_policy), false, &i18n);
@@ -336,7 +392,7 @@ pub(crate) fn render_serve_new_item(root: &Path) -> Result<String, String> {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>{}</title>
-  <style>{}</style>
+  <style>{}{}</style>
 </head>
 <body>
   <main class="app">
@@ -368,11 +424,21 @@ pub(crate) fn render_serve_new_item(root: &Path) -> Result<String, String> {
             <summary>{}</summary>
             <label>{}<textarea name="artifacts" rows="2" placeholder="README, tests, screenshots"></textarea></label>
             <label>{}<textarea name="constraints" rows="2" placeholder="破壊的操作を避ける、既存APIを維持する"></textarea></label>
-            <label>{}<select name="domain_group_id">{}</select></label>
-            <label>{}<select name="domain_id">{}</select></label>
+            <div class="form-grid">
+              <label>{}<select name="domain_id" id="work-domain-group">{}</select></label>
+              <label>{}<select name="artifact_type_id" id="work-domain">{}</select></label>
+            </div>
             <label>{}<select name="domain_agent_policy">{}</select></label>
             <label>{}<select name="workflow_mode">{}</select></label>
             <label>{}<select name="approval_policy">{}</select></label>
+            <aside class="routing-preview" data-routing-preview>
+              <div>
+                <span>{}</span>
+                <b data-routing-domain>{}</b>
+              </div>
+              <p data-routing-policy>{}</p>
+              <small>{}</small>
+            </aside>
           </details>
           <input type="hidden" name="max_steps" value="8">
           <input type="hidden" name="command" value="">
@@ -388,6 +454,7 @@ pub(crate) fn render_serve_new_item(root: &Path) -> Result<String, String> {
 </html>"#,
         i18n.ui(UiTextKey::CreateNewItem),
         serve_stylesheet(),
+        serve_responsive_stylesheet(),
         i18n.ui(UiTextKey::WorkQueue),
         i18n.ui(UiTextKey::Settings),
         i18n.ui(UiTextKey::CreateNewItem),
@@ -402,8 +469,8 @@ pub(crate) fn render_serve_new_item(root: &Path) -> Result<String, String> {
         i18n.ui(UiTextKey::MoreContext),
         i18n.ui(UiTextKey::ExpectedArtifacts),
         i18n.ui(UiTextKey::Constraints),
-        i18n.ui(UiTextKey::DomainGroup),
-        domain_group_options,
+        i18n.ui(UiTextKey::Domain),
+        artifact_type_options,
         i18n.ui(UiTextKey::Domain),
         domain_options,
         i18n.ui(UiTextKey::DomainAgentPolicy),
@@ -412,6 +479,22 @@ pub(crate) fn render_serve_new_item(root: &Path) -> Result<String, String> {
         workflow_options,
         i18n.ui(UiTextKey::FinalApproval),
         approval_options,
+        localized(&i18n, "処理の見通し", "Routing Preview"),
+        localized(
+            &i18n,
+            "プロジェクト既定で判定します",
+            "Project default routing"
+        ),
+        localized(
+            &i18n,
+            "作成後、Dispatcherが依頼内容とドメイン設定から担当候補を確認します。",
+            "After creation, the dispatcher checks the request and domain settings for a target agent."
+        ),
+        localized(
+            &i18n,
+            "実際の担当と理由は詳細画面のステップで確認できます。",
+            "The chosen target and reason appear in the item detail steps."
+        ),
         i18n.ui(UiTextKey::CreateNewItem),
         serve_script()
     ))
@@ -420,12 +503,12 @@ pub(crate) fn render_serve_new_item(root: &Path) -> Result<String, String> {
 pub(crate) fn render_serve_settings(root: &Path) -> Result<String, String> {
     let i18n = i18n_for_root(root)?;
     let agents = list_agent_profiles(root).map_err(|error| error.to_string())?;
-    let domain_groups = list_domain_groups(root).map_err(|error| error.to_string())?;
-    let domains = list_domain_profiles(root).map_err(|error| error.to_string())?;
+    let domains = list_domains(root).map_err(|error| error.to_string())?;
+    let artifact_types = list_artifact_types(root).map_err(|error| error.to_string())?;
     let workflow_settings = get_workflow_settings(root).map_err(|error| error.to_string())?;
-    let agent_rows = agent_profile_rows(&agents, &domain_groups, &domains, &i18n);
-    let group_rows = domain_group_rows(&domain_groups, &i18n);
-    let domain_rows = domain_profile_rows(&domains, &domain_groups, &i18n);
+    let agent_rows = agent_profile_rows(&agents, &domains, &artifact_types, &i18n);
+    let group_rows = domain_rows(&domains, &i18n);
+    let domain_rows = artifact_type_rows(&artifact_types, &domains, &i18n);
     let workflow_form = render_workflow_settings_form(workflow_settings, &i18n);
     Ok(format!(
         r##"<!doctype html>
@@ -467,9 +550,9 @@ pub(crate) fn render_serve_settings(root: &Path) -> Result<String, String> {
               <h2>{}</h2>
               <p class="muted">{}</p>
             </div>
-            <a class="button-link secondary" href="/settings/domain-groups/new">{}</a>
+            <a class="button-link secondary" href="/settings/domains/new">{}</a>
           </div>
-          <table class="domain-table"><thead><tr><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th></tr></thead><tbody id="domain-groups">{}</tbody></table>
+          <table class="domain-table"><thead><tr><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th></tr></thead><tbody id="domains">{}</tbody></table>
         </section>
         <section class="panel">
           <div class="panel-head">
@@ -477,7 +560,7 @@ pub(crate) fn render_serve_settings(root: &Path) -> Result<String, String> {
               <h2>{}</h2>
               <p class="muted">{}</p>
             </div>
-            <a class="button-link secondary" href="/settings/domains/new">{}</a>
+            <a class="button-link secondary" href="/settings/artifact-types/new">{}</a>
           </div>
           <table class="domain-table"><thead><tr><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th></tr></thead><tbody id="domain-profiles">{}</tbody></table>
         </section>
@@ -507,10 +590,10 @@ pub(crate) fn render_serve_settings(root: &Path) -> Result<String, String> {
         i18n.ui(UiTextKey::Domains),
         i18n.ui(UiTextKey::Agents),
         workflow_form,
-        i18n.ui(UiTextKey::DomainGroups),
-        i18n.ui(UiTextKey::DomainGroupsLead),
-        i18n.ui(UiTextKey::CreateNewDomainGroup),
-        i18n.ui(UiTextKey::Group),
+        i18n.ui(UiTextKey::Domains),
+        i18n.ui(UiTextKey::DomainsLead),
+        i18n.ui(UiTextKey::CreateNewDomain),
+        i18n.ui(UiTextKey::Domain),
         i18n.ui(UiTextKey::Description),
         i18n.ui(UiTextKey::SharedKnowledge),
         i18n.ui(UiTextKey::Rubric),
@@ -519,11 +602,11 @@ pub(crate) fn render_serve_settings(root: &Path) -> Result<String, String> {
         i18n.ui(UiTextKey::Source),
         i18n.ui(UiTextKey::Actions),
         group_rows,
-        i18n.ui(UiTextKey::Domains),
-        i18n.ui(UiTextKey::DomainsLead),
-        i18n.ui(UiTextKey::CreateNewDomain),
+        i18n.ui(UiTextKey::ArtifactTypes),
+        i18n.ui(UiTextKey::ArtifactTypesLead),
+        i18n.ui(UiTextKey::CreateNewArtifactType),
+        i18n.ui(UiTextKey::ArtifactType),
         i18n.ui(UiTextKey::Domain),
-        i18n.ui(UiTextKey::Group),
         i18n.ui(UiTextKey::Description),
         i18n.ui(UiTextKey::Rubric),
         i18n.ui(UiTextKey::DispatchHints),
@@ -533,22 +616,22 @@ pub(crate) fn render_serve_settings(root: &Path) -> Result<String, String> {
         domain_rows,
         i18n.ui(UiTextKey::Agents),
         i18n.ui(UiTextKey::CreateNewAgent),
-        agent_filters(&domain_groups, &domains, &i18n),
+        agent_filters(&domains, &artifact_types, &i18n),
         i18n.ui(UiTextKey::Agent),
         i18n.ui(UiTextKey::Description),
-        i18n.ui(UiTextKey::Groups),
         i18n.ui(UiTextKey::Domains),
+        i18n.ui(UiTextKey::ArtifactTypes),
         i18n.ui(UiTextKey::Actions),
         agent_rows,
         serve_script()
     ))
 }
 
-fn domain_group_rows(groups: &[nagare_core::DomainGroup], i18n: &I18n) -> String {
+fn domain_rows(groups: &[nagare_core::Domain], i18n: &I18n) -> String {
     if groups.is_empty() {
         return format!(
             "<tr><td colspan=\"5\" class=\"muted\">{}.</td></tr>",
-            h(i18n.ui(UiTextKey::DomainGroups))
+            h(i18n.ui(UiTextKey::Domains))
         );
     }
     let mut sorted_groups = groups.iter().collect::<Vec<_>>();
@@ -558,16 +641,16 @@ fn domain_group_rows(groups: &[nagare_core::DomainGroup], i18n: &I18n) -> String
         .map(|group| {
             format!(
             r#"<tr>
-  <td data-label="{}"><a href="/settings/domain-groups/{}">{}</a><div class="muted">{}</div></td>
+  <td data-label="{}"><a href="/settings/domains/{}">{}</a><div class="muted">{}</div></td>
   <td data-label="{}">{}</td>
   <td data-label="{}">{}</td>
   <td data-label="{}">{}</td>
   <td data-label="{}">{}</td>
   <td data-label="{}">{}</td>
   <td data-label="{}">{}</td>
-  <td data-label="{}"><div class="row-actions"><a class="button-link secondary" href="/settings/domain-groups/{}">{}</a><form class="delete-domain-group-form" data-domain-group-id="{}" data-domain-group-name="{}"><button class="danger" type="submit">{}</button></form></div></td>
+  <td data-label="{}"><div class="row-actions"><a class="button-link secondary" href="/settings/domains/{}">{}</a><form class="delete-domain-group-form" data-domain-group-id="{}" data-domain-group-name="{}"><button class="danger" type="submit">{}</button></form></div></td>
 </tr>"#,
-                h(i18n.ui(UiTextKey::Group)),
+                h(i18n.ui(UiTextKey::Domain)),
                 h(&group.id),
                 h(&group.display_name),
                 h(&group.id),
@@ -580,7 +663,7 @@ fn domain_group_rows(groups: &[nagare_core::DomainGroup], i18n: &I18n) -> String
                 h(i18n.ui(UiTextKey::DispatchHints)),
                 h(&group.dispatch_hints.len().to_string()),
                 h(i18n.ui(UiTextKey::Workflow)),
-                h(&domain_group_workflow_label(group, i18n)),
+                h(&domain_workflow_label(group, i18n)),
                 h(i18n.ui(UiTextKey::Source)),
                 h(&source_label(&group.source.to_string(), i18n)),
                 h(i18n.ui(UiTextKey::Actions)),
@@ -595,9 +678,9 @@ fn domain_group_rows(groups: &[nagare_core::DomainGroup], i18n: &I18n) -> String
         .join("\n")
 }
 
-fn domain_profile_rows(
-    domains: &[nagare_core::DomainProfile],
-    groups: &[nagare_core::DomainGroup],
+fn artifact_type_rows(
+    domains: &[nagare_core::ArtifactType],
+    groups: &[nagare_core::Domain],
     i18n: &I18n,
 ) -> String {
     if domains.is_empty() {
@@ -613,21 +696,21 @@ fn domain_profile_rows(
         .map(|domain| {
             format!(
             r#"<tr>
-  <td data-label="{}"><a href="/settings/domains/{}">{}</a><div class="muted">{}</div></td>
+  <td data-label="{}"><a href="/settings/artifact-types/{}">{}</a><div class="muted">{}</div></td>
   <td data-label="{}">{}</td>
   <td data-label="{}">{}</td>
   <td data-label="{}">{}</td>
   <td data-label="{}">{}</td>
   <td data-label="{}">{}</td>
   <td data-label="{}">{}</td>
-  <td data-label="{}"><div class="row-actions"><a class="button-link secondary" href="/settings/domains/{}">{}</a><form class="delete-domain-form" data-domain-id="{}" data-domain-name="{}"><button class="danger" type="submit">{}</button></form></div></td>
+  <td data-label="{}"><div class="row-actions"><a class="button-link secondary" href="/settings/artifact-types/{}">{}</a><form class="delete-domain-form" data-domain-id="{}" data-domain-name="{}"><button class="danger" type="submit">{}</button></form></div></td>
 </tr>"#,
                 h(i18n.ui(UiTextKey::Domain)),
                 h(&domain.id),
                 h(&domain.display_name),
                 h(&domain.id),
                 h(i18n.ui(UiTextKey::Group)),
-                h(&domain_group_label(groups, domain.group_id.as_deref())),
+                h(&domain_label(groups, domain.domain_id.as_deref())),
                 h(i18n.ui(UiTextKey::Description)),
                 h(&compact_instruction(&domain.description)),
                 h(i18n.ui(UiTextKey::Rubric)),
@@ -635,7 +718,7 @@ fn domain_profile_rows(
                 h(i18n.ui(UiTextKey::DispatchHints)),
                 h(&domain.dispatch_hints.len().to_string()),
                 h(i18n.ui(UiTextKey::Workflow)),
-                h(&domain_workflow_label(domain, i18n)),
+                h(&artifact_type_workflow_label(domain, i18n)),
                 h(i18n.ui(UiTextKey::Source)),
                 h(&source_label(&domain.source.to_string(), i18n)),
                 h(i18n.ui(UiTextKey::Actions)),
@@ -650,7 +733,7 @@ fn domain_profile_rows(
         .join("\n")
 }
 
-fn domain_group_label(groups: &[nagare_core::DomainGroup], id: Option<&str>) -> String {
+fn domain_label(groups: &[nagare_core::Domain], id: Option<&str>) -> String {
     let Some(id) = id else {
         return "-".to_string();
     };
@@ -664,8 +747,8 @@ fn domain_group_label(groups: &[nagare_core::DomainGroup], id: Option<&str>) -> 
 fn source_label(source: &str, i18n: &I18n) -> String {
     if i18n.language().is_ja() {
         match source {
-            "project_domain_group_directory" => "プロジェクトのドメイングループ定義",
             "project_domain_directory" => "プロジェクトのドメイン定義",
+            "project_artifact_type_directory" => "プロジェクトの成果物種別定義",
             "project_config" => "プロジェクト設定",
             "default_config" => "既定設定",
             other => other,
@@ -702,8 +785,8 @@ fn render_workflow_settings_form(settings: WorkflowSettings, i18n: &I18n) -> Str
     )
 }
 
-fn domain_select_options(
-    domains: &[nagare_core::DomainProfile],
+fn artifact_type_select_options(
+    domains: &[nagare_core::ArtifactType],
     selected: Option<&str>,
     empty_label: &str,
 ) -> String {
@@ -719,7 +802,7 @@ fn domain_select_options(
         format!(
             r#"<option value="{}" data-domain-group="{}"{}>{}</option>"#,
             h(&domain.id),
-            h(domain.group_id.as_deref().unwrap_or("")),
+            h(domain.domain_id.as_deref().unwrap_or("")),
             selected_attr,
             h(&domain.display_name)
         )
@@ -727,8 +810,8 @@ fn domain_select_options(
     options.join("")
 }
 
-fn domain_group_select_options(
-    groups: &[nagare_core::DomainGroup],
+fn domain_select_options(
+    groups: &[nagare_core::Domain],
     selected: Option<&str>,
     empty_label: &str,
 ) -> String {
@@ -751,18 +834,15 @@ fn domain_group_select_options(
     options.join("")
 }
 
-fn agent_domain_select_options(
-    domains: &[nagare_core::DomainProfile],
+fn agent_artifact_type_select_options(
+    domains: &[nagare_core::ArtifactType],
     selected: Option<&str>,
 ) -> String {
-    domain_select_options(domains, selected, "-")
+    artifact_type_select_options(domains, selected, "-")
 }
 
-fn agent_domain_group_select_options(
-    groups: &[nagare_core::DomainGroup],
-    selected: Option<&str>,
-) -> String {
-    domain_group_select_options(groups, selected, "-")
+fn agent_domain_select_options(groups: &[nagare_core::Domain], selected: Option<&str>) -> String {
+    domain_select_options(groups, selected, "-")
 }
 
 fn workflow_mode_options(
@@ -873,12 +953,12 @@ fn domain_agent_policy_options(i18n: &I18n) -> String {
 }
 
 fn agent_filters(
-    groups: &[nagare_core::DomainGroup],
-    domains: &[nagare_core::DomainProfile],
+    groups: &[nagare_core::Domain],
+    domains: &[nagare_core::ArtifactType],
     i18n: &I18n,
 ) -> String {
-    let group_filters = agent_domain_group_filter_options(groups, i18n);
-    let domain_filters = agent_domain_filter_options(domains, i18n);
+    let group_filters = agent_domain_filter_options(groups, i18n);
+    let domain_filters = agent_artifact_type_filter_options(domains, i18n);
     format!(
         r#"<div class="filter-panel" data-agent-filters>
           <div>
@@ -895,24 +975,24 @@ fn agent_filters(
             <span class="muted" data-agent-filter-count></span>
           </div>
         </div>"#,
-        i18n.ui(UiTextKey::DomainGroups),
+        i18n.ui(UiTextKey::ArtifactTypes),
         group_filters,
         i18n.ui(UiTextKey::Domains),
         domain_filters,
         localized(
             i18n,
-            "ドメイングループを選択すると候補が表示されます。",
-            "Select a domain group to show domain choices."
+            "ドメインを選択すると成果物種別の候補が表示されます。",
+            "Select a domain to show artifact type choices."
         ),
         i18n.ui(UiTextKey::ClearFilters)
     )
 }
 
-fn agent_domain_group_filter_options(groups: &[nagare_core::DomainGroup], i18n: &I18n) -> String {
+fn agent_domain_filter_options(groups: &[nagare_core::Domain], i18n: &I18n) -> String {
     if groups.is_empty() {
         return format!(
             r#"<span class="muted">{}.</span>"#,
-            h(i18n.ui(UiTextKey::DomainGroups))
+            h(i18n.ui(UiTextKey::Domains))
         );
     }
     let mut groups = groups.iter().collect::<Vec<_>>();
@@ -930,11 +1010,14 @@ fn agent_domain_group_filter_options(groups: &[nagare_core::DomainGroup], i18n: 
         .join("")
 }
 
-fn agent_domain_filter_options(domains: &[nagare_core::DomainProfile], i18n: &I18n) -> String {
+fn agent_artifact_type_filter_options(
+    domains: &[nagare_core::ArtifactType],
+    i18n: &I18n,
+) -> String {
     if domains.is_empty() {
         return format!(
             r#"<span class="muted">{}.</span>"#,
-            h(i18n.ui(UiTextKey::Domains))
+            h(i18n.ui(UiTextKey::ArtifactTypes))
         );
     }
     let mut domains = domains.iter().collect::<Vec<_>>();
@@ -944,7 +1027,7 @@ fn agent_domain_filter_options(domains: &[nagare_core::DomainProfile], i18n: &I1
         .map(|domain| {
             format!(
                 r#"<label class="check-option" data-agent-filter-domain-option data-domain-group="{}" hidden><input type="checkbox" data-agent-filter-domain value="{}" disabled><span>{}</span></label>"#,
-                h(domain.group_id.as_deref().unwrap_or("")),
+                h(domain.domain_id.as_deref().unwrap_or("")),
                 h(&domain.id),
                 h(&domain.display_name)
             )
@@ -957,6 +1040,7 @@ fn skill_set_picker(
     skill_sets: &[nagare_core::SkillSetCatalogEntry],
     selected: &[String],
     i18n: &I18n,
+    agent_id: Option<&str>,
 ) -> String {
     if skill_sets.is_empty() {
         return format!(
@@ -977,12 +1061,19 @@ fn skill_set_picker(
         .join("");
     let selected_summary = selected_skill_set_summary(&skill_sets, selected, i18n);
     format!(
-        r#"<div class="skill-picker" data-skill-picker data-empty-label="{}">
+        r#"<div class="skill-picker" data-skill-picker data-empty-label="{}" data-agent-id="{}" data-uninstall-label="{}" data-uninstall-confirm="{}">
   <label class="skill-search">{}<input type="search" data-skill-search autocomplete="off" placeholder="{}"></label>
   <div class="skill-selected" data-skill-selected aria-live="polite">{}</div>
   <div class="skill-picker-list">{}</div>
 </div>"#,
         h(localized(i18n, "スキル未選択", "No skills selected")),
+        h(agent_id.unwrap_or("")),
+        h(localized(i18n, "アンインストール", "Uninstall")),
+        h(localized(
+            i18n,
+            "このエージェントから外し、他で未使用ならこのツール向けのスキル本体も削除します。実行しますか？",
+            "Remove this skill from the agent and uninstall the package for this tool if unused elsewhere?"
+        )),
         h(localized(i18n, "スキルを検索", "Search Skills")),
         h(localized(
             i18n,
@@ -1118,7 +1209,7 @@ fn role_options(selected: &str) -> String {
     options.join("")
 }
 
-fn domain_workflow_label(domain: &nagare_core::DomainProfile, i18n: &I18n) -> String {
+fn artifact_type_workflow_label(domain: &nagare_core::ArtifactType, i18n: &I18n) -> String {
     let mode = domain
         .workflow
         .progress_mode
@@ -1132,7 +1223,7 @@ fn domain_workflow_label(domain: &nagare_core::DomainProfile, i18n: &I18n) -> St
     format!("{mode} / {approval}")
 }
 
-fn domain_group_workflow_label(group: &nagare_core::DomainGroup, i18n: &I18n) -> String {
+fn domain_workflow_label(group: &nagare_core::Domain, i18n: &I18n) -> String {
     let mode = group
         .workflow
         .progress_mode
@@ -1148,8 +1239,8 @@ fn domain_group_workflow_label(group: &nagare_core::DomainGroup, i18n: &I18n) ->
 
 fn agent_profile_rows(
     agents: &[nagare_core::AgentProfile],
-    groups: &[nagare_core::DomainGroup],
-    domains: &[nagare_core::DomainProfile],
+    groups: &[nagare_core::Domain],
+    domains: &[nagare_core::ArtifactType],
     i18n: &I18n,
 ) -> String {
     if agents.is_empty() {
@@ -1168,10 +1259,10 @@ fn agent_profile_rows(
     agents
         .into_iter()
         .map(|agent| {
-            let group_ids = agent.domain_group_ids.join(" ");
             let domain_ids = agent.domain_ids.join(" ");
+            let artifact_type_ids = agent.artifact_type_ids.join(" ");
             format!(
-                r#"<tr data-agent-row data-agent-domain-groups="{}" data-agent-domains="{}">
+                r#"<tr data-agent-row data-agent-domains="{}" data-agent-artifact-types="{}">
   <td data-label="{}">
     <a href="/settings/agents/{}">{}</a>
     <div class="muted" translate="no">{}</div>
@@ -1181,18 +1272,18 @@ fn agent_profile_rows(
   <td data-label="{}">{}</td>
   <td data-label="{}"><div class="row-actions"><a class="button-link secondary" href="/settings/agents/{}">{}</a></div></td>
 </tr>"#,
-                h(&group_ids),
                 h(&domain_ids),
+                h(&artifact_type_ids),
                 h(i18n.ui(UiTextKey::Agent)),
                 h(&agent.id),
                 h(&agent.display_name),
                 h(&agent.id),
                 h(i18n.ui(UiTextKey::Description)),
                 h(&compact_instruction(&agent.description)),
-                h(i18n.ui(UiTextKey::Groups)),
-                h(&agent_domain_group_label(agent, groups, i18n)),
                 h(i18n.ui(UiTextKey::Domains)),
-                h(&agent_domain_label(agent, domains, i18n)),
+                h(&agent_domain_label(agent, groups, i18n)),
+                h(i18n.ui(UiTextKey::ArtifactTypes)),
+                h(&agent_artifact_type_label(agent, domains, i18n)),
                 h(i18n.ui(UiTextKey::Actions)),
                 h(&agent.id),
                 h(i18n.ui(UiTextKey::Edit))
@@ -1206,25 +1297,9 @@ fn localized(i18n: &I18n, ja: &'static str, en: &'static str) -> &'static str {
     if i18n.language().is_ja() { ja } else { en }
 }
 
-fn agent_domain_group_label(
-    agent: &nagare_core::AgentProfile,
-    groups: &[nagare_core::DomainGroup],
-    i18n: &I18n,
-) -> String {
-    if agent.domain_group_ids.is_empty() {
-        return any_scope_label(i18n);
-    }
-    agent
-        .domain_group_ids
-        .iter()
-        .map(|id| domain_group_label(groups, Some(id)))
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
 fn agent_domain_label(
     agent: &nagare_core::AgentProfile,
-    domains: &[nagare_core::DomainProfile],
+    groups: &[nagare_core::Domain],
     i18n: &I18n,
 ) -> String {
     if agent.domain_ids.is_empty() {
@@ -1232,6 +1307,22 @@ fn agent_domain_label(
     }
     agent
         .domain_ids
+        .iter()
+        .map(|id| domain_label(groups, Some(id)))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn agent_artifact_type_label(
+    agent: &nagare_core::AgentProfile,
+    domains: &[nagare_core::ArtifactType],
+    i18n: &I18n,
+) -> String {
+    if agent.artifact_type_ids.is_empty() {
+        return any_scope_label(i18n);
+    }
+    agent
+        .artifact_type_ids
         .iter()
         .map(|id| {
             domains
@@ -1280,20 +1371,20 @@ fn compact_instruction(instruction: &str) -> String {
     compact
 }
 
-pub(crate) fn render_serve_domain_form(
+pub(crate) fn render_serve_artifact_type_form(
     root: &Path,
-    domain_id: Option<&str>,
+    artifact_type_id: Option<&str>,
 ) -> Result<String, String> {
     let i18n = i18n_for_root(root)?;
-    let groups = list_domain_groups(root).map_err(|error| error.to_string())?;
-    let domain = match domain_id {
-        Some(id) => Some(get_domain_profile(root, id).map_err(|error| error.to_string())?),
+    let groups = list_domains(root).map_err(|error| error.to_string())?;
+    let domain = match artifact_type_id {
+        Some(id) => Some(get_artifact_type(root, id).map_err(|error| error.to_string())?),
         None => None,
     };
     let is_new = domain.is_none();
     let domain = domain.as_ref();
     let title = if is_new {
-        i18n.ui(UiTextKey::CreateNewDomain).to_string()
+        i18n.ui(UiTextKey::CreateNewArtifactType).to_string()
     } else {
         format!(
             "{}: {}",
@@ -1310,9 +1401,9 @@ pub(crate) fn render_serve_domain_form(
     let description = domain
         .map(|domain| domain.description.as_str())
         .unwrap_or("");
-    let group_options = domain_group_select_options(
+    let group_options = domain_select_options(
         &groups,
-        domain.and_then(|domain| domain.group_id.as_deref()),
+        domain.and_then(|domain| domain.domain_id.as_deref()),
         i18n.ui(UiTextKey::NoGroup),
     );
     let artifact_types = domain
@@ -1327,9 +1418,9 @@ pub(crate) fn render_serve_domain_form(
     let progress_mode = domain.and_then(|domain| domain.workflow.progress_mode);
     let approval_policy = domain.and_then(|domain| domain.workflow.approval_policy);
     let action = if is_new {
-        "/api/domains".to_string()
+        "/api/artifact-types".to_string()
     } else {
-        format!("/api/domains/{}", h(id_value))
+        format!("/api/artifact-types/{}", h(id_value))
     };
     let id_field = if is_new {
         format!(
@@ -1373,10 +1464,33 @@ pub(crate) fn render_serve_domain_form(
       <section class="composer">
         <form id="domain-profile-form" data-action="{}" data-redirect="/settings#domains">
           {}
-          <label>{}<select name="group_id">{}</select></label>
+          <label>{}<select name="domain_id">{}</select></label>
           <label>{}<input name="display_name" required value="{}"></label>
           <label>{}<textarea name="description" rows="4" placeholder="このドメインが扱う作成物や判断対象">{}</textarea></label>
           <label>{}<textarea name="artifact_types" rows="3" placeholder="1行に1種類。例: html, ui screenshot, rust cli">{}</textarea></label>
+          <section class="form-section domain-rubric-builder">
+            <div class="field-group-head">
+              <h2>Rubric Builder</h2>
+              <p class="muted">ドメイン説明、サンプル、評価ポイントから100点満点の判断基準を作ります。</p>
+            </div>
+            <div class="form-grid">
+              <label>良いサンプル<input type="file" name="sample_good_files" multiple></label>
+              <label>悪いサンプル<input type="file" name="sample_bad_files" multiple></label>
+            </div>
+            <label>参考サンプル<input type="file" name="sample_reference_files" multiple></label>
+            <div class="form-grid">
+              <label>サンプルメモ<textarea name="sample_note" rows="4" placeholder="サンプルから読み取ってほしい品質、失敗例、比較観点"></textarea></label>
+              <label>一般的な評価ポイント<textarea name="general_points" rows="4" placeholder="世間一般で重視される評価観点"></textarea></label>
+            </div>
+            <div class="form-grid">
+              <label>プロジェクト固有の評価ポイント<textarea name="project_points" rows="4" placeholder="このプロジェクトで特に重視する判断基準"></textarea></label>
+              <label>NG例<textarea name="ng_examples" rows="4" placeholder="低評価にしたいパターン、避けたい成果物"></textarea></label>
+            </div>
+            <div class="rubric-builder-actions">
+              <button class="secondary-button" type="button" data-generate-domain-rubric>100点Rubricを生成</button>
+              <p class="muted">採点結果に応じた次のAgent処理は、Nagareの共通Review Policyに従います。</p>
+            </div>
+          </section>
           <label>{}<textarea name="rubric" rows="7" placeholder="1行に1基準。例: 主要導線が迷わず使える">{}</textarea></label>
           <label>{}<textarea name="dispatch_hints" rows="4" placeholder="1行に1ヒント。例: UI変更ならfrontend-ui domainを候補にする">{}</textarea></label>
           <div class="form-grid">
@@ -1397,11 +1511,11 @@ pub(crate) fn render_serve_domain_form(
         i18n.ui(UiTextKey::WorkQueue),
         i18n.ui(UiTextKey::Settings),
         h(&title),
-        i18n.ui(UiTextKey::DomainFormLead),
+        i18n.ui(UiTextKey::ArtifactTypeFormLead),
         i18n.ui(UiTextKey::Settings),
         h(&action),
         id_field,
-        i18n.ui(UiTextKey::DomainGroup),
+        i18n.ui(UiTextKey::Domain),
         group_options,
         i18n.ui(UiTextKey::Name),
         h(display_name),
@@ -1418,27 +1532,27 @@ pub(crate) fn render_serve_domain_form(
         i18n.ui(UiTextKey::FinalApprovalOverride),
         approval_policy_options(approval_policy, true, &i18n),
         if is_new {
-            i18n.ui(UiTextKey::CreateDomain)
+            i18n.ui(UiTextKey::CreateArtifactType)
         } else {
-            i18n.ui(UiTextKey::SaveDomain)
+            i18n.ui(UiTextKey::SaveArtifactType)
         },
         serve_script()
     ))
 }
 
-pub(crate) fn render_serve_domain_group_form(
+pub(crate) fn render_serve_domain_form(
     root: &Path,
-    group_id: Option<&str>,
+    domain_id: Option<&str>,
 ) -> Result<String, String> {
     let i18n = i18n_for_root(root)?;
-    let group = match group_id {
-        Some(id) => Some(get_domain_group(root, id).map_err(|error| error.to_string())?),
+    let group = match domain_id {
+        Some(id) => Some(get_domain(root, id).map_err(|error| error.to_string())?),
         None => None,
     };
     let is_new = group.is_none();
     let group = group.as_ref();
     let title = if is_new {
-        i18n.ui(UiTextKey::CreateNewDomainGroup).to_string()
+        i18n.ui(UiTextKey::CreateNewDomain).to_string()
     } else {
         format!(
             "{}: {}",
@@ -1461,9 +1575,9 @@ pub(crate) fn render_serve_domain_group_form(
     let progress_mode = group.and_then(|group| group.workflow.progress_mode);
     let approval_policy = group.and_then(|group| group.workflow.approval_policy);
     let action = if is_new {
-        "/api/domain-groups".to_string()
+        "/api/domains".to_string()
     } else {
-        format!("/api/domain-groups/{}", h(id_value))
+        format!("/api/domains/{}", h(id_value))
     };
     let id_field = if is_new {
         format!(
@@ -1530,7 +1644,7 @@ pub(crate) fn render_serve_domain_group_form(
         i18n.ui(UiTextKey::WorkQueue),
         i18n.ui(UiTextKey::Settings),
         h(&title),
-        i18n.ui(UiTextKey::DomainGroupFormLead),
+        i18n.ui(UiTextKey::DomainFormLead),
         i18n.ui(UiTextKey::Settings),
         h(&action),
         id_field,
@@ -1549,9 +1663,9 @@ pub(crate) fn render_serve_domain_group_form(
         i18n.ui(UiTextKey::FinalApprovalDefault),
         approval_policy_options(approval_policy, true, &i18n),
         if is_new {
-            i18n.ui(UiTextKey::CreateDomainGroup)
+            i18n.ui(UiTextKey::CreateDomain)
         } else {
-            i18n.ui(UiTextKey::SaveDomainGroup)
+            i18n.ui(UiTextKey::SaveDomain)
         },
         serve_script()
     ))
@@ -1563,8 +1677,8 @@ pub(crate) fn render_serve_agent_form(
 ) -> Result<String, String> {
     let i18n = i18n_for_root(root)?;
     let agents = list_agent_profiles(root).map_err(|error| error.to_string())?;
-    let groups = list_domain_groups(root).map_err(|error| error.to_string())?;
-    let domains = list_domain_profiles(root).map_err(|error| error.to_string())?;
+    let groups = list_domains(root).map_err(|error| error.to_string())?;
+    let domains = list_artifact_types(root).map_err(|error| error.to_string())?;
     let skill_sets = list_skill_set_catalog(root).map_err(|error| error.to_string())?;
     let agent = agent_id.and_then(|id| agents.iter().find(|agent| agent.id == id));
     let is_new = agent.is_none();
@@ -1588,17 +1702,18 @@ pub(crate) fn render_serve_agent_form(
     let selected_skill_set_ids = agent
         .map(|agent| agent.skill_set_ids.clone())
         .unwrap_or_default();
-    let selected_domain_group_ids = agent
-        .map(|agent| agent.domain_group_ids.clone())
-        .unwrap_or_default();
     let selected_domain_ids = agent
         .map(|agent| agent.domain_ids.clone())
         .unwrap_or_default();
-    let selected_domain_group_id = selected_domain_group_ids.first().map(String::as_str);
+    let selected_artifact_type_ids = agent
+        .map(|agent| agent.artifact_type_ids.clone())
+        .unwrap_or_default();
     let selected_domain_id = selected_domain_ids.first().map(String::as_str);
-    let domain_group_options = agent_domain_group_select_options(&groups, selected_domain_group_id);
-    let domain_options = agent_domain_select_options(&domains, selected_domain_id);
-    let skill_picker = skill_set_picker(&skill_sets, &selected_skill_set_ids, &i18n);
+    let selected_artifact_type_id = selected_artifact_type_ids.first().map(String::as_str);
+    let domain_options = agent_domain_select_options(&groups, selected_domain_id);
+    let artifact_type_options =
+        agent_artifact_type_select_options(&domains, selected_artifact_type_id);
+    let skill_picker = skill_set_picker(&skill_sets, &selected_skill_set_ids, &i18n, agent_id);
     let kind = agent
         .map(|agent| agent_kind_value(&agent.runtime, &agent.adapter))
         .unwrap_or("codex_cli");
@@ -1681,6 +1796,13 @@ pub(crate) fn render_serve_agent_form(
               <option value="openclaw"{}>OpenClaw</option>
             </select>
           </label>
+          <aside class="routing-preview compact" data-agent-kind-hint>
+            <div>
+              <span>{}</span>
+              <b data-agent-kind-title></b>
+            </div>
+            <p data-agent-kind-copy></p>
+          </aside>
           <input type="hidden" name="runtime" value="">
           <input type="hidden" name="adapter" value="">
           <input type="hidden" name="external_provider" value="">
@@ -1692,6 +1814,10 @@ pub(crate) fn render_serve_agent_form(
           <label>{}<select name="role">{}</select></label>
           <label>{}<input name="working_dir" value="{}" spellcheck="false" autocomplete="off" placeholder="., crates/nagare-cli, packages/app…"></label>
           <div data-model-section="model">
+            <div class="field-group-head">
+              <h2>{}</h2>
+              <p class="muted" data-model-help>{}</p>
+            </div>
             <div class="form-grid">
               <label data-model-field="provider">{}<select name="model_provider" id="openclaw-model-provider">{}</select></label>
               <label>{}<input name="model_id" value="{}" spellcheck="false" autocomplete="off" placeholder="gpt-5.3-codex…" list="openai-model-options"></label>
@@ -1703,8 +1829,8 @@ pub(crate) fn render_serve_agent_form(
             <option value="gpt-5.2-codex"></option>
             <option value="gpt-5.3"></option>
           </datalist>
-          <label>{}<select name="domain_group_ids" id="agent-domain-group">{}</select></label>
-          <label>{}<select name="domain_ids" id="agent-domain">{}</select></label>
+          <label>{}<select name="domain_ids" id="agent-domain-group">{}</select></label>
+          <label>{}<select name="artifact_type_ids" id="agent-domain">{}</select></label>
           <section class="form-section" data-agent-skills>
             <div class="form-section-head">
               <div>
@@ -1745,6 +1871,7 @@ pub(crate) fn render_serve_agent_form(
             ""
         },
         if kind == "openclaw" { " selected" } else { "" },
+        localized(&i18n, "ツール設定", "Tool Settings"),
         h(external_agent_id),
         h(external_source),
         i18n.ui(UiTextKey::DisplayName),
@@ -1753,14 +1880,20 @@ pub(crate) fn render_serve_agent_form(
         role_options(role),
         i18n.ui(UiTextKey::Workdir),
         h(working_dir),
+        localized(&i18n, "モデル", "Model"),
+        localized(
+            &i18n,
+            "選んだ外部エージェント種別に応じて必要なモデル設定だけを表示します。",
+            "Only model fields needed for the selected external agent type are shown."
+        ),
         i18n.ui(UiTextKey::ModelProvider),
         openclaw_provider_options(model_provider),
         i18n.ui(UiTextKey::Model),
         h(model_id),
         i18n.ui(UiTextKey::BaseUrl),
         h(base_url),
-        i18n.ui(UiTextKey::DomainGroups),
-        domain_group_options,
+        i18n.ui(UiTextKey::Domains),
+        artifact_type_options,
         i18n.ui(UiTextKey::Domains),
         domain_options,
         localized(&i18n, "スキル", "Skills"),
@@ -1769,7 +1902,7 @@ pub(crate) fn render_serve_agent_form(
             "このエージェントで使う能力",
             "Capabilities used by this agent"
         ),
-        localized(&i18n, "インストール済み", "Installed"),
+        localized(&i18n, "登録済みスキル", "Registered Skills"),
         localized(&i18n, "スキルを追加", "Add Skill"),
         skill_picker,
         i18n.ui(UiTextKey::Instructions),
@@ -1823,23 +1956,49 @@ pub(crate) fn render_serve_skill_form(root: &Path) -> Result<String, String> {
       </header>
       <section class="composer">
         <form id="skill-package-form" data-action="/api/skills" data-redirect="/settings/agents/new" autocomplete="off">
-          <div class="form-grid">
-            <label>{}<select name="source_kind" id="skill-source-kind">{}</select></label>
-            <label>{}<input name="id" spellcheck="false" autocomplete="off" placeholder="react-review…"></label>
-          </div>
-          <label data-skill-source-field="source">{}<input name="source" spellcheck="false" autocomplete="off" placeholder="vercel-labs/agent-skills or skill name…"></label>
-          <label data-skill-source-field="path">{}<input name="path" spellcheck="false" autocomplete="off" placeholder="./skills/react-review…"></label>
-          <div class="form-grid">
-            <label data-skill-source-field="reference">{}<input name="reference" spellcheck="false" autocomplete="off" placeholder="main, v1.0.0, commit sha…"></label>
-            <label data-skill-source-field="checksum">{}<input name="checksum" spellcheck="false" autocomplete="off" placeholder="sha256:…"></label>
+          <input type="hidden" name="install" value="true">
+          <section class="source-choice-section">
+            <div class="field-group-head">
+              <h2>{}</h2>
+              <p class="muted">{}</p>
+            </div>
+            <div class="source-choice-grid" data-skill-source-choices>
+              {}
+            </div>
+            <label class="visually-hidden">{}<select name="source_kind" id="skill-source-kind">{}</select></label>
+          </section>
+          <aside class="routing-preview compact" data-skill-source-summary>
+            <div>
+              <span>{}</span>
+              <b data-skill-source-title></b>
+            </div>
+            <p data-skill-source-copy></p>
+            <small data-skill-source-fields></small>
+          </aside>
+          <label data-skill-primary-field><span data-skill-primary-label>{}</span><input name="id" spellcheck="false" autocomplete="off" placeholder="react-review…"></label>
+          <label data-skill-source-field="source"><span data-skill-source-label>{}</span><input name="source" spellcheck="false" autocomplete="off" placeholder="https://github.com/owner/repo…"></label>
+          <label data-skill-source-field="path"><span data-skill-path-label>{}</span><input name="path" spellcheck="false" autocomplete="off" placeholder="./skills/react-review…"></label>
+          <div class="form-section" data-skill-source-field="vercel_options">
+            <div class="field-group-head">
+              <h2>{}</h2>
+              <p class="muted">{}</p>
+            </div>
+            <div class="form-grid">
+              <label>{}<select name="install_scope"><option value="project" selected>{}</option><option value="global">{}</option></select></label>
+              <label>{}<span class="checkbox-grid"><span class="check-option"><input type="checkbox" name="install_targets" value="codex" checked><span>{}</span></span><span class="check-option"><input type="checkbox" name="install_targets" value="openclaw"><span>{}</span></span></span></label>
+            </div>
           </div>
           <details class="advanced-form">
             <summary>{}</summary>
-            <label>{}<input name="skill_set_id" spellcheck="false" autocomplete="off" placeholder="react-review…"></label>
-            <label>{}<textarea name="skill_paths" rows="2" placeholder="src, tests…"></textarea></label>
             <div class="form-grid">
-              <label>{}<textarea name="required_capabilities" rows="2" placeholder="repo_read, shell_command…"></textarea></label>
-              <label>{}<textarea name="optional_capabilities" rows="2" placeholder="event_stream…"></textarea></label>
+              <label>{}<input name="reference" spellcheck="false" autocomplete="off" placeholder="main, v1.0.0, commit sha…"></label>
+              <label>{}<input name="checksum" spellcheck="false" autocomplete="off" placeholder="sha256:…"></label>
+            </div>
+            <label>{}<input name="skill_set_id" spellcheck="false" autocomplete="off" placeholder="通常はスキル名と同じ…"></label>
+            <label>{}<textarea name="skill_paths" rows="2" placeholder="必要な場合だけ。例: src, tests…"></textarea></label>
+            <div class="form-grid">
+              <label>{}<textarea name="required_capabilities" rows="2" placeholder="カタログにない場合だけ。例: repo_read…"></textarea></label>
+              <label>{}<textarea name="optional_capabilities" rows="2" placeholder="必要な場合だけ。例: shell_command…"></textarea></label>
             </div>
           </details>
           <button type="submit">{}</button>
@@ -1859,23 +2018,47 @@ pub(crate) fn render_serve_skill_form(root: &Path) -> Result<String, String> {
         h(localized(&i18n, "スキルを追加", "Add Skill")),
         h(localized(
             &i18n,
-            "ClawHub / Vercel Skills / skill-creator 由来の skill package をProjectに登録します。",
-            "Register a skill package from ClawHub, Vercel Skills, skill-creator, local, or git."
+            "skill package をProjectに取り込み、スキルカタログへ登録します。",
+            "Import a skill package into the project and register it in the skill catalog."
         )),
         h(i18n.ui(UiTextKey::Agents)),
+        h(localized(&i18n, "追加方法", "Add Method")),
+        h(localized(
+            &i18n,
+            "探す、作る、持ち込むのどれかを選ぶと、必要な入力だけを表示します。",
+            "Choose discover, create, or import; only the required fields are shown."
+        )),
+        skill_source_choice_cards(),
         h(localized(&i18n, "追加元", "Source")),
         skill_source_options(),
-        h(localized(&i18n, "スキルID", "Skill ID")),
-        h(localized(&i18n, "Source", "Source")),
-        h(localized(&i18n, "Path", "Path")),
+        h(localized(&i18n, "次に必要な入力", "Required Next Inputs")),
+        h(localized(&i18n, "スキル名", "Skill Name")),
+        h(localized(&i18n, "Repo URL", "Repo URL")),
+        h(localized(&i18n, "フォルダPath", "Folder Path")),
+        h(localized(
+            &i18n,
+            "Vercelインストール先",
+            "Vercel Install Target"
+        )),
+        h(localized(
+            &i18n,
+            "Project範囲を既定にし、必要なツールだけにインストールします。",
+            "Project scope is the default; install only to the tools you need."
+        )),
+        h(localized(&i18n, "範囲", "Scope")),
+        h(localized(&i18n, "Project", "Project")),
+        h(localized(&i18n, "Global", "Global")),
+        h(localized(&i18n, "対象ツール", "Target Tools")),
+        h(localized(&i18n, "Codex", "Codex")),
+        h(localized(&i18n, "OpenClaw", "OpenClaw")),
+        h(localized(&i18n, "詳細設定", "Advanced Settings")),
         h(localized(&i18n, "Ref / Version", "Ref / Version")),
         h(localized(&i18n, "Checksum", "Checksum")),
-        h(localized(&i18n, "詳細設定", "Advanced Settings")),
         h(localized(&i18n, "Skill Set ID", "Skill Set ID")),
         h(localized(&i18n, "対象Path", "Target Paths")),
         h(localized(&i18n, "必須能力", "Required Capabilities")),
         h(localized(&i18n, "追加能力", "Optional Capabilities")),
-        h(localized(&i18n, "スキルを登録", "Register Skill")),
+        h(localized(&i18n, "取り込んで登録", "Import and Register")),
         serve_script()
     ))
 }
@@ -1890,6 +2073,39 @@ fn skill_source_options() -> String {
     ]
     .into_iter()
     .map(|(value, label)| format!(r#"<option value="{}">{}</option>"#, h(value), h(label)))
+    .collect::<Vec<_>>()
+    .join("")
+}
+
+fn skill_source_choice_cards() -> String {
+    [
+        (
+            "skill-creator",
+            "Skill Creator",
+            "Skill Creatorで作成したスキルフォルダを登録する",
+        ),
+        (
+            "clawhub",
+            "ClawHub",
+            "公開カタログのスキルIDを取り込む",
+        ),
+        (
+            "vercel",
+            "Vercel Skills",
+            "Vercel Skillsのpackage IDを取り込む",
+        ),
+        ("local", "Local", "手元のスキルフォルダを登録する"),
+        ("git", "Git", "Gitリポジトリ上のスキルを参照して登録する"),
+    ]
+    .into_iter()
+    .map(|(value, title, copy)| {
+        format!(
+            r#"<button class="source-choice" type="button" data-skill-source-choice="{}" aria-pressed="false"><b>{}</b><span>{}</span></button>"#,
+            h(value),
+            h(title),
+            h(copy)
+        )
+    })
     .collect::<Vec<_>>()
     .join("")
 }

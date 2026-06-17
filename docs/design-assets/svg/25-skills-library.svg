@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960">
+  <rect width="1440" height="960" fill="#f8fafc"/>
+  <style>
+    .title{font:700 24px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h2{font:700 17px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h3{font:700 14px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .body{font:500 13px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .small{font:500 11px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .tiny{font:600 10px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .nav{font:650 13px Inter,Segoe UI,Arial,sans-serif;fill:#334155}
+    .nav-on{font:700 13px Inter,Segoe UI,Arial,sans-serif;fill:#4338ca}
+  </style>
+
+  <rect x="0" y="0" width="200" height="960" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="28" y="42" class="title">Nagare</text>
+  <text x="30" y="64" class="tiny" style="fill:#4338ca">HACHIWARE LABS</text>
+  <text x="30" y="82" class="small">Quality agent platform</text>
+  <text x="34" y="118" class="nav">Work Items</text>
+  <rect x="18" y="134" width="164" height="32" rx="7" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="34" y="156" class="nav-on">Skills</text>
+  <text x="34" y="194" class="nav">MCP</text>
+  <text x="34" y="232" class="nav">Agents</text>
+  <text x="34" y="270" class="nav">Quality Records</text>
+  <text x="34" y="308" class="nav">Settings</text>
+  <line x1="200" y1="0" x2="200" y2="960" stroke="#e2e8f0"/>
+
+  <text x="232" y="48" class="title">Skills</text>
+  <text x="232" y="72" class="small">スキルを登録し、使用中のAgentを一覧で確認する</text>
+  <rect x="1338" y="26" width="58" height="34" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1352" y="48" class="body">同期</text>
+
+  <rect x="232" y="96" width="1164" height="46" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="260" y="124" class="small">検索: hachi-search, review, docs, repo</text>
+  <rect x="1204" y="107" width="74" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="1218" y="123" class="tiny" style="fill:#4338ca">登録済み</text>
+  <rect x="1288" y="107" width="78" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="1302" y="123" class="tiny" style="fill:#475569">未使用</text>
+
+  <rect x="232" y="164" width="1164" height="704" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="260" y="202" class="h2">Skill カタログ</text>
+  <text x="260" y="222" class="small">Agentへの割り当てはAgent詳細で編集する。ここでは登録物の編集・削除と使用状況を見る。</text>
+  <rect x="1226" y="184" width="142" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
+  <text x="1245" y="206" class="body" style="fill:#ffffff">Skillを追加</text>
+
+  <rect x="260" y="246" width="1108" height="92" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="280" y="276" class="h3">hachiware-labs/hachi-search</text>
+  <text x="280" y="298" class="small">ローカル資料、Wiki、Webを横断検索する Skill</text>
+  <rect x="280" y="312" width="96" height="22" rx="11" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="290" y="327" class="tiny" style="fill:#047857">登録済み</text>
+  <rect x="386" y="312" width="122" height="22" rx="11" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="396" y="327" class="tiny" style="fill:#475569">v0.4.2 locked</text>
+  <text x="870" y="276" class="small">使用中Agent</text>
+  <text x="870" y="304" class="body" style="fill:#4338ca">researcher ↗</text>
+  <rect x="1210" y="278" width="62" height="30" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1225" y="298" class="small">編集</text>
+  <rect x="1282" y="278" width="62" height="30" rx="7" fill="#ffffff" stroke="#fecaca"/>
+  <text x="1297" y="298" class="small" style="fill:#b91c1c">削除</text>
+
+  <rect x="260" y="358" width="1108" height="92" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="280" y="388" class="h3">domain-review-checks</text>
+  <text x="280" y="410" class="small">レビュー観点をチェックリスト化する Skill</text>
+  <rect x="280" y="424" width="96" height="22" rx="11" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="290" y="439" class="tiny" style="fill:#047857">登録済み</text>
+  <rect x="386" y="424" width="90" height="22" rx="11" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="396" y="439" class="tiny" style="fill:#475569">built-in</text>
+  <text x="870" y="388" class="small">使用中Agent</text>
+  <text x="870" y="416" class="body" style="fill:#4338ca">reviewer ↗</text>
+  <rect x="1210" y="390" width="62" height="30" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1225" y="410" class="small">編集</text>
+  <rect x="1282" y="390" width="62" height="30" rx="7" fill="#ffffff" stroke="#fecaca"/>
+  <text x="1297" y="410" class="small" style="fill:#b91c1c">削除</text>
+
+  <rect x="260" y="470" width="1108" height="92" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="280" y="500" class="h3">repo-summary</text>
+  <text x="280" y="522" class="small">変更差分と関連ファイルを要約する Skill</text>
+  <rect x="280" y="536" width="82" height="22" rx="11" fill="#fffbeb" stroke="#fffbeb"/>
+  <text x="290" y="551" class="tiny" style="fill:#b45309">未使用</text>
+  <rect x="372" y="536" width="112" height="22" rx="11" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="382" y="551" class="tiny" style="fill:#475569">local folder</text>
+  <text x="870" y="500" class="small">使用中Agent</text>
+  <text x="870" y="528" class="body">なし</text>
+  <rect x="1210" y="502" width="62" height="30" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1225" y="522" class="small">編集</text>
+  <rect x="1282" y="502" width="62" height="30" rx="7" fill="#ffffff" stroke="#fecaca"/>
+  <text x="1297" y="522" class="small" style="fill:#b91c1c">削除</text>
+
+  <rect x="260" y="604" width="1108" height="176" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="280" y="636" class="h3">Skill追加時の最小入力</text>
+  <text x="280" y="666" class="small">1. 追加元: GitHub URL、ローカルフォルダ、または組み込み候補</text>
+  <text x="280" y="696" class="small">2. 用途とドメインは自動推定、必要時だけ修正</text>
+  <text x="280" y="726" class="small">3. checksum と version を記録し、実行中runには影響させない</text>
+  <text x="280" y="756" class="small">4. Agentへの割り当てはAgent詳細の Skills / MCP で設定</text>
+</svg>

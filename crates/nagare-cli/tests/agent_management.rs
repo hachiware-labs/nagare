@@ -165,6 +165,8 @@ fn skill_add_records_clawhub_and_vercel_sources() {
             "add",
             "--from",
             "clawhub",
+            "--install",
+            "false",
             "--id",
             "skill-provenance",
             "--source",
@@ -184,14 +186,20 @@ fn skill_add_records_clawhub_and_vercel_sources() {
             "add",
             "--from",
             "vercel",
+            "--install",
+            "false",
             "--id",
-            "vercel-react",
+            "hachiware-labs/hachi-search",
             "--source",
-            "vercel-labs/agent-skills",
+            "hachiware-labs/hachi-search",
             "--skill-id",
-            "vercel-react",
+            "hachiware-labs/hachi-search",
             "--paths",
             "src",
+            "--scope",
+            "project",
+            "--targets",
+            "openclaw",
             "--requires",
             "repo_read",
         ],
@@ -201,8 +209,104 @@ fn skill_add_records_clawhub_and_vercel_sources() {
     assert_success(list);
     let stdout = String::from_utf8_lossy(&nagare(&root, &["skill", "list"]).stdout).to_string();
     assert!(stdout.contains("skill-provenance source_kind=clawhub"));
-    assert!(stdout.contains("vercel-react source_kind=vercel"));
+    assert!(stdout.contains("hachiware-labs/hachi-search source_kind=vercel"));
+    assert!(stdout.contains("targets=openclaw"));
     assert!(stdout.contains("skill_sets:"));
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn skill_uninstall_removes_local_package_after_agent_detach() {
+    let root = test_root("skill-uninstall");
+    assert_success(nagare(&root, &["init"]));
+    let skill_dir = root.join(".agents").join("skills").join("search-tools");
+    let openclaw_skill_dir = root.join("skills").join("search-tools");
+    fs::create_dir_all(&skill_dir).expect("skill dir should create");
+    fs::create_dir_all(&openclaw_skill_dir).expect("openclaw skill dir should create");
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        r#"---
+name: search-tools
+description: Project search helpers.
+---
+
+# Search Tools
+"#,
+    )
+    .expect("skill should write");
+    fs::write(
+        openclaw_skill_dir.join("SKILL.md"),
+        r#"---
+name: search-tools
+description: Project search helpers for OpenClaw.
+---
+
+# Search Tools
+"#,
+    )
+    .expect("openclaw skill should write");
+    let config_path = root.join(".nagare").join("project.toml");
+    let mut config = fs::read_to_string(&config_path).expect("config should read");
+    config.push_str(
+        r#"
+
+[skill_packages.search-tools]
+source_kind = "local"
+source = ".agents/skills/search-tools"
+installed_path = ".agents/skills/search-tools"
+installed_paths = [".agents/skills/search-tools", "skills/search-tools"]
+install_scope = "project"
+installed_targets = ["codex", "openclaw"]
+provided_skill_sets = ["search-tools"]
+
+[skill_sets.search-tools]
+paths = [".agents/skills/search-tools", "skills/search-tools"]
+required_capabilities = []
+optional_capabilities = []
+"#,
+    );
+    fs::write(&config_path, config).expect("config should write");
+    assert_success(nagare(
+        &root,
+        &[
+            "agent",
+            "add",
+            "--id",
+            "search-agent",
+            "--provider",
+            "codex-cli",
+            "--model-provider",
+            "openai",
+            "--model",
+            "gpt-5.3-codex",
+            "--skills",
+            "search-tools",
+        ],
+    ));
+
+    let uninstall = nagare(
+        &root,
+        &[
+            "skill",
+            "uninstall",
+            "--agent",
+            "search-agent",
+            "--skill",
+            "search-tools",
+        ],
+    );
+    assert!(uninstall.status.success());
+    let stdout = String::from_utf8_lossy(&uninstall.stdout).to_string();
+    assert!(stdout.contains("package_removed=false"));
+    assert!(stdout.contains("path_removed=true"));
+    assert!(!skill_dir.exists());
+    assert!(openclaw_skill_dir.exists());
+    let config = fs::read_to_string(&config_path).expect("config should read");
+    assert!(config.contains("[skill_packages.search-tools]"));
+    assert!(config.contains("installed_targets = [\"openclaw\"]"));
+    assert!(config.contains("installed_path = \"skills/search-tools\""));
+    assert!(config.contains("installed_paths = [\"skills/search-tools\"]"));
+    assert!(config.contains("paths = [\"skills/search-tools\"]"));
     fs::remove_dir_all(root).ok();
 }
 

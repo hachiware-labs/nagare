@@ -1,0 +1,146 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024" role="img" aria-labelledby="-title -desc">
+  <title id="-title">スキル管理</title>
+  <desc id="-desc">スキルをMCPとは別に管理し、プロジェクトやエージェントへの提供範囲を確認する画面。</desc>
+  <rect width="1440" height="1024" fill="#f7f8fb"/>
+  <style>
+    .title{font:700 25px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .kicker{font:700 10px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+    .h1{font:750 22px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h2{font:700 16px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h3{font:700 13px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .body{font:500 12px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .small{font:500 11px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .tiny{font:700 10px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .mono{font:500 11px Consolas,Menlo,monospace;fill:#111827}
+    .nav{font:650 13px Inter,"Segoe UI",Arial,sans-serif;fill:#526174}
+    .nav-on{font:750 13px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+  </style>
+
+    <g id="sidebar">
+      <rect x="0" y="0" width="204" height="1024" rx="0" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="28" y="43" class="title">Nagare</text>
+      <text x="30" y="64" class="kicker">制御プレーン</text>
+      <text x="30" y="82" class="small">プロジェクト対応ランタイム</text>
+      <g>
+
+        <text x="34" y="118" class="nav">ワーク</text>
+      </g><g>
+
+        <text x="34" y="157" class="nav">プロジェクト</text>
+      </g><g>
+
+        <text x="34" y="196" class="nav">ドメイン</text>
+      </g><g>
+
+        <text x="34" y="235" class="nav">エージェント</text>
+      </g><g>
+        <rect x="18" y="252" width="168" height="33" rx="7" fill="#eef2ff" stroke="#eef2ff" stroke-width="1"/>
+        <text x="34" y="274" class="nav-on">スキル</text>
+      </g><g>
+
+        <text x="34" y="313" class="nav">MCP</text>
+      </g><g>
+
+        <text x="34" y="352" class="nav">設定</text>
+      </g>
+    </g>
+    <g id="page-header">
+      <text x="232" y="48" class="title">スキル管理</text>
+      <text x="232" y="72" class="small">スキルを登録し、必要な範囲だけ提供する</text>
+
+    </g>
+    <g id="content">
+
+    <rect x="232" y="96" width="1164" height="828" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <rect x="252" y="124" width="1124" height="86" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="190" class="body">スキルを登録し、プロジェクトやエージェントへ必要な範囲だけ提供します。</text>
+    <rect x="1162" y="150" width="112" height="34" rx="7" fill="#4f46e5" stroke="#4f46e5" stroke-width="1"/>
+  <text x="1176" y="172" class="body" style="fill:#ffffff">スキルを追加</text>
+    <rect x="1274" y="150" width="74" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1288" y="172" class="body" style="fill:#111827">同期</text>
+
+    <rect x="276" y="144" width="92" height="34" rx="7" fill="#eef2ff" stroke="#eef2ff" stroke-width="1"/>
+    <text x="294" y="166" class="nav-on">スキル</text>
+    <rect x="378" y="144" width="104" height="34" rx="7" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="396" y="166" class="nav">更新あり</text>
+    <rect x="492" y="144" width="96" height="34" rx="7" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="510" y="166" class="nav">未提供</text>
+    <rect x="598" y="144" width="104" height="34" rx="7" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="616" y="166" class="nav">問題あり</text>
+
+    <rect x="252" y="238" width="1124" height="76" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="270" class="h2">追加後の設定</text>
+    <text x="276" y="296" class="body">追加したスキルを使うには、エージェント画面で利用するスキルとして選択します。</text>
+    <rect x="1160" y="260" width="150" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1174" y="282" class="body" style="fill:#111827">エージェント設定へ</text>
+
+    <rect x="252" y="340" width="1124" height="504" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="380" class="h1">登録済みスキル</text>
+    <text x="276" y="416" class="h3">提供元</text>
+    <rect x="276" y="430" width="180" height="38" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+    <text x="290" y="455" class="body">すべて</text>
+    <path d="M 428 445 L 436 453 L 444 445" fill="none" stroke="#526174" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="478" y="416" class="h3">提供先</text>
+    <rect x="478" y="430" width="180" height="38" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+    <text x="492" y="455" class="body">すべて</text>
+    <path d="M 630 445 L 638 453 L 646 445" fill="none" stroke="#526174" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="680" y="416" class="h3">状態</text>
+    <rect x="680" y="430" width="160" height="38" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+    <text x="694" y="455" class="body">すべて</text>
+    <path d="M 812 445 L 820 453 L 828 445" fill="none" stroke="#526174" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="832" y="430" width="250" height="38" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+    <text x="850" y="455" class="small" style="fill:#526174">名前で検索</text>
+    <rect x="1102" y="430" width="92" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1116" y="452" class="body" style="fill:#111827">絞り込み</text>
+    <rect x="1206" y="430" width="78" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1220" y="452" class="body" style="fill:#111827">クリア</text>
+
+    <line x1="276" y1="496" x2="1332" y2="496" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="300" y="526" class="tiny">名前</text>
+    <text x="704" y="526" class="tiny">提供元</text>
+    <text x="840" y="526" class="tiny">状態</text>
+    <text x="982" y="526" class="tiny">提供状況</text>
+    <line x1="276" y1="544" x2="1332" y2="544" stroke="#d8e0ea" stroke-width="1"/>
+    <g>
+      <rect x="276" y="544" width="1056" height="82" rx="0" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <rect x="276" y="544" width="4" height="82" rx="2" fill="#0f766e"/>
+      <text x="300" y="572" class="h3">hachiware-labs/hachi-search</text>
+      <text x="300" y="594" class="small">ローカル資料、Wiki、Web検索を横断する</text>
+      <text x="704" y="580" class="body">Vercel Skills</text>
+      <rect x="840" y="567" width="92" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="850" y="583" class="tiny" style="fill:#15803d">登録済み</text>
+      <text x="982" y="572" class="small">Project: nagare で許可</text>
+      <text x="982" y="596" class="small">Agent: researcher に提供</text>
+      <rect x="1230" y="568" width="72" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1244" y="590" class="body" style="fill:#111827">詳細</text>
+    </g>
+    <g>
+      <rect x="276" y="626" width="1056" height="82" rx="0" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <rect x="276" y="626" width="4" height="82" rx="2" fill="#0f766e"/>
+      <text x="300" y="654" class="h3">hachiware-labs/hachi-ui</text>
+      <text x="300" y="676" class="small">SVG UI試作と自己評価を支援する</text>
+      <text x="704" y="662" class="body">Clawhub</text>
+      <rect x="840" y="649" width="92" height="24" rx="12" fill="#fef3c7" stroke="#fef3c7" stroke-width="1"/>
+  <text x="850" y="665" class="tiny" style="fill:#b45309">更新あり</text>
+      <text x="982" y="654" class="small">全体登録のみ</text>
+      <text x="982" y="678" class="small">まだ提供なし</text>
+      <rect x="1230" y="650" width="72" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1244" y="672" class="body" style="fill:#111827">詳細</text>
+    </g>
+    <g>
+      <rect x="276" y="708" width="1056" height="82" rx="0" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <rect x="276" y="708" width="4" height="82" rx="2" fill="#0f766e"/>
+      <text x="300" y="736" class="h3">local/docs-review-skill</text>
+      <text x="300" y="758" class="small">ドキュメント変更のレビュー観点を提供する</text>
+      <text x="704" y="744" class="body">ローカル</text>
+      <rect x="840" y="731" width="92" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="850" y="747" class="tiny" style="fill:#15803d">登録済み</text>
+      <text x="982" y="736" class="small">Project: nagare で許可</text>
+      <text x="982" y="760" class="small">Agent: review-agent に提供</text>
+      <rect x="1230" y="732" width="72" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1244" y="754" class="body" style="fill:#111827">詳細</text>
+    </g>
+
+    </g>
+
+</svg>

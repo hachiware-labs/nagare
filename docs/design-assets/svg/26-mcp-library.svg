@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960">
+  <rect width="1440" height="960" fill="#f8fafc"/>
+  <style>
+    .title{font:700 24px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h2{font:700 17px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h3{font:700 14px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .body{font:500 13px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .small{font:500 11px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .tiny{font:600 10px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .nav{font:650 13px Inter,Segoe UI,Arial,sans-serif;fill:#334155}
+    .nav-on{font:700 13px Inter,Segoe UI,Arial,sans-serif;fill:#4338ca}
+  </style>
+
+  <rect x="0" y="0" width="200" height="960" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="28" y="42" class="title">Nagare</text>
+  <text x="30" y="64" class="tiny" style="fill:#4338ca">HACHIWARE LABS</text>
+  <text x="30" y="82" class="small">Quality agent platform</text>
+  <text x="34" y="118" class="nav">Work Items</text>
+  <text x="34" y="156" class="nav">Skills</text>
+  <rect x="18" y="172" width="164" height="32" rx="7" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="34" y="194" class="nav-on">MCP</text>
+  <text x="34" y="232" class="nav">Agents</text>
+  <text x="34" y="270" class="nav">Quality Records</text>
+  <text x="34" y="308" class="nav">Settings</text>
+  <line x1="200" y1="0" x2="200" y2="960" stroke="#e2e8f0"/>
+
+  <text x="232" y="48" class="title">MCP</text>
+  <text x="232" y="72" class="small">外部ツール接続を登録し、使用中のAgentを一覧で確認する</text>
+  <rect x="1338" y="26" width="58" height="34" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1352" y="48" class="body">同期</text>
+
+  <rect x="232" y="96" width="1164" height="46" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="260" y="124" class="small">検索: filesystem, browser, database, github</text>
+  <rect x="1180" y="107" width="102" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="1194" y="123" class="tiny" style="fill:#4338ca">接続確認済み</text>
+  <rect x="1292" y="107" width="78" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="1306" y="123" class="tiny" style="fill:#475569">認可待ち</text>
+
+  <rect x="232" y="164" width="1164" height="704" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="260" y="202" class="h2">MCP 接続一覧</text>
+  <text x="260" y="222" class="small">接続定義を管理する。Agent別の許可範囲はAgent詳細で編集する。</text>
+  <rect x="1226" y="184" width="142" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
+  <text x="1245" y="206" class="body" style="fill:#ffffff">MCPを追加</text>
+
+  <rect x="260" y="246" width="1108" height="92" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="280" y="276" class="h3">filesystem-read</text>
+  <text x="280" y="298" class="small">指定フォルダだけを読み取る MCP</text>
+  <rect x="280" y="312" width="96" height="22" rx="11" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="290" y="327" class="tiny" style="fill:#047857">接続確認済み</text>
+  <rect x="386" y="312" width="112" height="22" rx="11" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="396" y="327" class="tiny" style="fill:#475569">read only</text>
+  <text x="870" y="276" class="small">使用中Agent</text>
+  <text x="870" y="304" class="body" style="fill:#4338ca">researcher, reviewer ↗</text>
+  <rect x="1210" y="278" width="62" height="30" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1225" y="298" class="small">編集</text>
+  <rect x="1282" y="278" width="62" height="30" rx="7" fill="#ffffff" stroke="#fecaca"/>
+  <text x="1297" y="298" class="small" style="fill:#b91c1c">削除</text>
+
+  <rect x="260" y="358" width="1108" height="92" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="280" y="388" class="h3">browser-control</text>
+  <text x="280" y="410" class="small">ブラウザ操作を行う MCP。外部送信を含むため確認が必要</text>
+  <rect x="280" y="424" width="82" height="22" rx="11" fill="#fffbeb" stroke="#fffbeb"/>
+  <text x="290" y="439" class="tiny" style="fill:#b45309">認可待ち</text>
+  <rect x="372" y="424" width="100" height="22" rx="11" fill="#fef2f2" stroke="#fef2f2"/>
+  <text x="382" y="439" class="tiny" style="fill:#b91c1c">外部操作</text>
+  <text x="870" y="388" class="small">使用中Agent</text>
+  <text x="870" y="416" class="body">なし</text>
+  <rect x="1210" y="390" width="62" height="30" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1225" y="410" class="small">編集</text>
+  <rect x="1282" y="390" width="62" height="30" rx="7" fill="#ffffff" stroke="#fecaca"/>
+  <text x="1297" y="410" class="small" style="fill:#b91c1c">削除</text>
+
+  <rect x="260" y="470" width="1108" height="92" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="280" y="500" class="h3">github-repo</text>
+  <text x="280" y="522" class="small">Issue、PR、Actionsを参照する MCP</text>
+  <rect x="280" y="536" width="96" height="22" rx="11" fill="#ecfdf5" stroke="#ecfdf5"/>
+  <text x="290" y="551" class="tiny" style="fill:#047857">接続確認済み</text>
+  <rect x="386" y="536" width="128" height="22" rx="11" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="396" y="551" class="tiny" style="fill:#475569">read issues/pr</text>
+  <text x="870" y="500" class="small">使用中Agent</text>
+  <text x="870" y="528" class="body" style="fill:#4338ca">reviewer ↗</text>
+  <rect x="1210" y="502" width="62" height="30" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1225" y="522" class="small">編集</text>
+  <rect x="1282" y="502" width="62" height="30" rx="7" fill="#ffffff" stroke="#fecaca"/>
+  <text x="1297" y="522" class="small" style="fill:#b91c1c">削除</text>
+
+  <rect x="260" y="604" width="1108" height="176" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="280" y="636" class="h3">MCP追加時の最小入力</text>
+  <text x="280" y="666" class="small">1. 接続種別: 組み込み、command、stdio、HTTP/SSE</text>
+  <text x="280" y="696" class="small">2. 接続先、共通権限、対象範囲、認証参照を設定</text>
+  <text x="280" y="726" class="small">3. 接続テストが成功するまで利用候補には入れない</text>
+  <text x="280" y="756" class="small">4. Agent別の割り当てと範囲調整はAgent詳細で設定</text>
+</svg>

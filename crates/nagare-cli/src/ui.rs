@@ -8,29 +8,30 @@ use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use nagare_core::{
-    AddAgentProfileInput, AddDomainGroupInput, AddDomainProfileInput, AddSkillPackageInput,
+    AddAgentProfileInput, AddArtifactTypeInput, AddDomainInput, AddSkillPackageInput,
     AdvanceUntilBlockedInput, AdvanceWorkItemInput, AgentModelSelection, AgentRunPurpose,
     AnswerWorkItemInput, ApplyRecoveryPlanInput, ApprovalPolicy, CreateWorkItemInput,
-    DomainAgentPolicy, DomainWorkflowOverride, ExternalAgentBinding, RunWorkItemInput,
-    StaticUiExportInput, UpdateAgentProfileInput, UpdateDomainGroupInput, UpdateDomainProfileInput,
-    WorkflowMode, WorkflowSettings, accept_dispatch_plan, accept_recovery_plan, add_agent_profile,
-    add_domain_group, add_domain_profile, add_skill_package, advance_work_item_once,
+    DomainAgentPolicy, DomainWorkflowOverride, ExternalAgentBinding, ProjectLayout,
+    RunWorkItemInput, StaticUiExportInput, UninstallAgentSkillPackageInput,
+    UpdateAgentProfileInput, UpdateArtifactTypeInput, UpdateDomainInput, WorkflowMode,
+    WorkflowSettings, accept_dispatch_plan, accept_recovery_plan, add_agent_profile,
+    add_artifact_type, add_domain, add_skill_package, advance_work_item_once,
     advance_work_item_until_blocked, answer_work_item, apply_recovery_plan, approve_work_item,
-    create_recovery_plan, create_work_item_with_input, delete_agent_profile, delete_domain_group,
-    delete_domain_profile, delete_work_item, export_static_ui, get_nagare_agent_settings,
+    create_recovery_plan, create_work_item_with_input, delete_agent_profile, delete_artifact_type,
+    delete_domain, delete_work_item, export_static_ui, get_nagare_agent_settings,
     get_work_item_snapshot, list_agent_profiles, logo_png, reject_work_item,
-    run_work_item_with_input, set_workflow_settings, update_agent_profile, update_domain_group,
-    update_domain_profile,
+    run_work_item_with_input, set_workflow_settings, uninstall_agent_skill_package,
+    update_agent_profile, update_artifact_type, update_domain,
 };
 
 use crate::args::ParsedArgs;
 use crate::ui_detail::render_serve_item_detail;
 use crate::ui_form::{
     agent_description_from_fields, derive_work_item_title, json, parse_form_urlencoded,
-    split_lines, split_list,
+    split_lines, split_list, url_decode,
 };
 use crate::ui_pages::{
-    render_serve_agent_form, render_serve_domain_form, render_serve_domain_group_form,
+    render_serve_agent_form, render_serve_artifact_type_form, render_serve_domain_form,
     render_serve_home, render_serve_new_item, render_serve_settings, render_serve_skill_form,
 };
 
@@ -181,23 +182,23 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
         let html = render_serve_skill_form(root)?;
         return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
     }
-    if request.method == "GET" && request.path == "/settings/domain-groups/new" {
-        let html = render_serve_domain_group_form(root, None)?;
-        return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
-    }
     if request.method == "GET" && request.path == "/settings/domains/new" {
         let html = render_serve_domain_form(root, None)?;
         return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
     }
+    if request.method == "GET" && request.path == "/settings/artifact-types/new" {
+        let html = render_serve_artifact_type_form(root, None)?;
+        return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
+    }
     if request.method == "GET" {
-        if let Some(domain_group_id) = request.path.strip_prefix("/settings/domain-groups/") {
-            let html = render_serve_domain_group_form(root, Some(domain_group_id))?;
+        if let Some(domain_id) = request.path.strip_prefix("/settings/domains/") {
+            let html = render_serve_domain_form(root, Some(domain_id))?;
             return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
         }
     }
     if request.method == "GET" {
-        if let Some(domain_profile_id) = request.path.strip_prefix("/settings/domains/") {
-            let html = render_serve_domain_form(root, Some(domain_profile_id))?;
+        if let Some(artifact_type_id) = request.path.strip_prefix("/settings/artifact-types/") {
+            let html = render_serve_artifact_type_form(root, Some(artifact_type_id))?;
             return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
         }
     }
@@ -255,12 +256,12 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                     .map(|value| value.trim().to_string())
                     .filter(|value| !value.is_empty()),
                 constraints: split_lines(fields.get("constraints").map(String::as_str)),
-                domain_group_id: fields
-                    .get("domain_group_id")
-                    .map(|value| value.trim().to_string())
-                    .filter(|value| !value.is_empty()),
                 domain_id: fields
                     .get("domain_id")
+                    .map(|value| value.trim().to_string())
+                    .filter(|value| !value.is_empty()),
+                artifact_type_id: fields
+                    .get("artifact_type_id")
                     .map(|value| value.trim().to_string())
                     .filter(|value| !value.is_empty()),
                 domain_agent_policy: fields
@@ -400,8 +401,8 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                 description: &description,
                 specialties: split_list(fields.get("specialties").map(String::as_str)),
                 skill_set_ids: split_list(fields.get("skill_set_ids").map(String::as_str)),
-                domain_group_ids: split_list(fields.get("domain_group_ids").map(String::as_str)),
                 domain_ids: split_list(fields.get("domain_ids").map(String::as_str)),
+                artifact_type_ids: split_list(fields.get("artifact_type_ids").map(String::as_str)),
                 managed_by: Some("nagare"),
                 model: agent_model_from_fields(&fields),
                 external,
@@ -433,6 +434,13 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                     .unwrap_or("local"),
                 source: fields.get("source").map(String::as_str),
                 path: fields.get("path").map(String::as_str),
+                install: fields
+                    .get("install")
+                    .map(String::as_str)
+                    .map(|value| matches!(value.trim(), "true" | "yes" | "1"))
+                    .unwrap_or(true),
+                install_scope: fields.get("install_scope").map(String::as_str),
+                install_targets: split_list(fields.get("install_targets").map(String::as_str)),
                 reference: fields.get("reference").map(String::as_str),
                 checksum: fields.get("checksum").map(String::as_str),
                 skill_set_id: fields.get("skill_set_id").map(String::as_str),
@@ -458,7 +466,7 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
             &body,
         );
     }
-    if request.method == "POST" && request.path == "/api/domain-groups" {
+    if request.method == "POST" && request.path == "/api/domains" {
         let fields = parse_form_urlencoded(&request.body);
         let id = fields.get("id").map(String::as_str).unwrap_or("").trim();
         if id.is_empty() {
@@ -469,9 +477,9 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                 r#"{"error":"id is required"}"#,
             );
         }
-        let result = add_domain_group(
+        let result = add_domain(
             root,
-            AddDomainGroupInput {
+            AddDomainInput {
                 id,
                 display_name: fields
                     .get("display_name")
@@ -498,8 +506,9 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
             &body,
         );
     }
-    if request.method == "POST" && request.path == "/api/domains" {
-        let fields = parse_form_urlencoded(&request.body);
+    if request.method == "POST" && request.path == "/api/artifact-types" {
+        let form = parse_artifact_type_form(&request)?;
+        let fields = &form.fields;
         let id = fields.get("id").map(String::as_str).unwrap_or("").trim();
         if id.is_empty() {
             return write_response(
@@ -509,12 +518,12 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                 r#"{"error":"id is required"}"#,
             );
         }
-        let result = add_domain_profile(
+        let result = add_artifact_type(
             root,
-            AddDomainProfileInput {
+            AddArtifactTypeInput {
                 id,
-                group_id: fields
-                    .get("group_id")
+                domain_id: fields
+                    .get("domain_id")
                     .map(String::as_str)
                     .filter(|value| !value.trim().is_empty()),
                 display_name: fields
@@ -530,10 +539,12 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
             },
         )
         .map_err(|error| error.to_string())?;
+        let sample_count = save_domain_sample_files(root, &result.domain.id, &form)?;
         let body = format!(
-            r#"{{"id":"{}","rubric":{}}}"#,
+            r#"{{"id":"{}","rubric":{},"samples":{}}}"#,
             json(&result.domain.id),
-            result.domain.rubric.len()
+            result.domain.rubric.len(),
+            sample_count
         );
         return write_response(
             stream,
@@ -543,13 +554,12 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
         );
     }
     if request.method == "POST" {
-        if let Some(domain_group_id) = request
+        if let Some(domain_id) = request
             .path
-            .strip_prefix("/api/domain-groups/")
+            .strip_prefix("/api/domains/")
             .and_then(|path| path.strip_suffix("/delete"))
         {
-            let group =
-                delete_domain_group(root, domain_group_id).map_err(|error| error.to_string())?;
+            let group = delete_domain(root, domain_id).map_err(|error| error.to_string())?;
             let body = format!(
                 r#"{{"id":"{}","display_name":"{}"}}"#,
                 json(&group.id),
@@ -559,13 +569,13 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
         }
     }
     if request.method == "POST" {
-        if let Some(domain_profile_id) = request
+        if let Some(artifact_type_id) = request
             .path
-            .strip_prefix("/api/domains/")
+            .strip_prefix("/api/artifact-types/")
             .and_then(|path| path.strip_suffix("/delete"))
         {
-            let domain = delete_domain_profile(root, domain_profile_id)
-                .map_err(|error| error.to_string())?;
+            let domain =
+                delete_artifact_type(root, artifact_type_id).map_err(|error| error.to_string())?;
             let body = format!(
                 r#"{{"id":"{}","display_name":"{}"}}"#,
                 json(&domain.id),
@@ -575,12 +585,12 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
         }
     }
     if request.method == "POST" {
-        if let Some(domain_group_id) = request.path.strip_prefix("/api/domain-groups/") {
+        if let Some(domain_id) = request.path.strip_prefix("/api/domains/") {
             let fields = parse_form_urlencoded(&request.body);
-            let result = update_domain_group(
+            let result = update_domain(
                 root,
-                domain_group_id,
-                UpdateDomainGroupInput {
+                domain_id,
+                UpdateDomainInput {
                     display_name: fields.get("display_name").map(String::as_str),
                     description: fields.get("description").map(String::as_str),
                     shared_knowledge: Some(split_lines(
@@ -605,15 +615,16 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
         }
     }
     if request.method == "POST" {
-        if let Some(domain_profile_id) = request.path.strip_prefix("/api/domains/") {
-            let fields = parse_form_urlencoded(&request.body);
-            let result = update_domain_profile(
+        if let Some(artifact_type_id) = request.path.strip_prefix("/api/artifact-types/") {
+            let form = parse_artifact_type_form(&request)?;
+            let fields = &form.fields;
+            let result = update_artifact_type(
                 root,
-                domain_profile_id,
-                UpdateDomainProfileInput {
-                    group_id: Some(
+                artifact_type_id,
+                UpdateArtifactTypeInput {
+                    domain_id: Some(
                         fields
-                            .get("group_id")
+                            .get("domain_id")
                             .map(String::as_str)
                             .filter(|value| !value.trim().is_empty()),
                     ),
@@ -630,10 +641,12 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                 },
             )
             .map_err(|error| error.to_string())?;
+            let sample_count = save_domain_sample_files(root, &result.domain.id, &form)?;
             let body = format!(
-                r#"{{"id":"{}","rubric":{}}}"#,
+                r#"{{"id":"{}","rubric":{},"samples":{}}}"#,
                 json(&result.domain.id),
-                result.domain.rubric.len()
+                result.domain.rubric.len(),
+                sample_count
             );
             return write_response(stream, "200 OK", "application/json; charset=utf-8", &body);
         }
@@ -670,6 +683,49 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
         return write_response(stream, "200 OK", "application/json; charset=utf-8", &body);
     }
     if request.method == "POST" {
+        if let Some(rest) = request.path.strip_prefix("/api/agents/") {
+            if let Some((agent_profile_id, skill_rest)) = rest.split_once("/skills/") {
+                if let Some(skill_part) = skill_rest.strip_suffix("/uninstall") {
+                    let agent_profile_id = url_decode(agent_profile_id)
+                        .ok_or_else(|| "invalid agent id encoding".to_string())?;
+                    let skill_set_id = url_decode(skill_part)
+                        .ok_or_else(|| "invalid skill id encoding".to_string())?;
+                    let result = uninstall_agent_skill_package(
+                        root,
+                        UninstallAgentSkillPackageInput {
+                            agent_profile_id: &agent_profile_id,
+                            skill_set_id: &skill_set_id,
+                            uninstall_package: true,
+                        },
+                    )
+                    .map_err(|error| error.to_string())?;
+                    let warnings = result
+                        .warnings
+                        .iter()
+                        .map(|warning| format!(r#""{}""#, json(warning)))
+                        .collect::<Vec<_>>()
+                        .join(",");
+                    let body = format!(
+                        r#"{{"agent_profile_id":"{}","skill_set_id":"{}","package_id":"{}","removed_from_agent":{},"package_removed":{},"installed_path_removed":{},"warnings":[{}]}}"#,
+                        json(&result.agent_profile_id),
+                        json(&result.skill_set_id),
+                        json(result.package_id.as_deref().unwrap_or("")),
+                        result.removed_from_agent,
+                        result.package_removed,
+                        result.installed_path_removed,
+                        warnings
+                    );
+                    return write_response(
+                        stream,
+                        "200 OK",
+                        "application/json; charset=utf-8",
+                        &body,
+                    );
+                }
+            }
+        }
+    }
+    if request.method == "POST" {
         if let Some(agent_profile_id) = request
             .path
             .strip_prefix("/api/agents/")
@@ -703,10 +759,10 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                     skill_set_ids: Some(split_list(
                         fields.get("skill_set_ids").map(String::as_str),
                     )),
-                    domain_group_ids: Some(split_list(
-                        fields.get("domain_group_ids").map(String::as_str),
-                    )),
                     domain_ids: Some(split_list(fields.get("domain_ids").map(String::as_str))),
+                    artifact_type_ids: Some(split_list(
+                        fields.get("artifact_type_ids").map(String::as_str),
+                    )),
                     output_contract: None,
                     managed_by: Some("nagare"),
                     model: Some(agent_model_from_fields(&fields)),
@@ -1031,7 +1087,9 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
 struct HttpRequest {
     method: String,
     path: String,
+    content_type: String,
     body: String,
+    body_bytes: Vec<u8>,
 }
 
 fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest, String> {
@@ -1057,8 +1115,11 @@ fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest, String> {
             }
         }
     }
-    let request_text = String::from_utf8_lossy(&buffer);
-    let mut lines = request_text.lines();
+    let header_end = find_subslice(&buffer, b"\r\n\r\n")
+        .map(|index| index + 4)
+        .unwrap_or(buffer.len());
+    let header_text = String::from_utf8_lossy(&buffer[..header_end]);
+    let mut lines = header_text.lines();
     let request_line = lines.next().ok_or_else(|| "empty request".to_string())?;
     let mut parts = request_line.split_whitespace();
     let method = parts.next().unwrap_or("").to_string();
@@ -1069,25 +1130,42 @@ fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest, String> {
         .next()
         .unwrap_or("/")
         .to_string();
-    let body = request_text
-        .split_once("\r\n\r\n")
-        .map(|(_, body)| body.to_string())
-        .unwrap_or_default();
-    Ok(HttpRequest { method, path, body })
+    let content_type = header_value(&header_text, "content-type").unwrap_or_default();
+    let body_bytes = buffer.get(header_end..).unwrap_or(&[]).to_vec();
+    let body = String::from_utf8_lossy(&body_bytes).to_string();
+    Ok(HttpRequest {
+        method,
+        path,
+        content_type,
+        body,
+        body_bytes,
+    })
 }
 
 fn content_length(request: &str) -> usize {
-    request
-        .lines()
-        .find_map(|line| {
-            let (name, value) = line.split_once(':')?;
-            if name.eq_ignore_ascii_case("content-length") {
-                value.trim().parse::<usize>().ok()
-            } else {
-                None
-            }
-        })
+    header_value(request, "content-length")
+        .and_then(|value| value.parse::<usize>().ok())
         .unwrap_or(0)
+}
+
+fn header_value(request: &str, header_name: &str) -> Option<String> {
+    request.lines().find_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        if name.eq_ignore_ascii_case(header_name) {
+            Some(value.trim().to_string())
+        } else {
+            None
+        }
+    })
+}
+
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() {
+        return Some(0);
+    }
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
 }
 
 fn write_response(
@@ -1119,6 +1197,239 @@ fn write_binary_response(
         .write_all(header.as_bytes())
         .and_then(|_| stream.write_all(body))
         .map_err(|error| format!("failed to write response: {error}"))
+}
+
+#[derive(Debug, Default)]
+struct ArtifactTypeForm {
+    fields: HashMap<String, String>,
+    files: Vec<UploadedFormFile>,
+}
+
+#[derive(Debug)]
+struct UploadedFormFile {
+    field_name: String,
+    filename: String,
+    content_type: String,
+    bytes: Vec<u8>,
+}
+
+fn parse_artifact_type_form(request: &HttpRequest) -> Result<ArtifactTypeForm, String> {
+    if request.content_type.starts_with("multipart/form-data") {
+        parse_multipart_form(&request.content_type, &request.body_bytes)
+    } else {
+        Ok(ArtifactTypeForm {
+            fields: parse_form_urlencoded(&request.body),
+            files: Vec::new(),
+        })
+    }
+}
+
+fn parse_multipart_form(content_type: &str, body: &[u8]) -> Result<ArtifactTypeForm, String> {
+    let boundary = multipart_boundary(content_type)
+        .ok_or_else(|| "multipart boundary is missing".to_string())?;
+    let marker = format!("--{boundary}");
+    let marker = marker.as_bytes();
+    let mut cursor = find_subslice(body, marker)
+        .ok_or_else(|| "multipart body does not contain boundary".to_string())?;
+    let mut form = ArtifactTypeForm::default();
+    loop {
+        cursor += marker.len();
+        if body.get(cursor..cursor + 2) == Some(b"--") {
+            break;
+        }
+        if body.get(cursor..cursor + 2) == Some(b"\r\n") {
+            cursor += 2;
+        }
+        let next_relative = find_subslice(&body[cursor..], marker)
+            .ok_or_else(|| "multipart body ended before closing boundary".to_string())?;
+        let mut part = &body[cursor..cursor + next_relative];
+        if part.ends_with(b"\r\n") {
+            part = &part[..part.len().saturating_sub(2)];
+        }
+        parse_multipart_part(part, &mut form)?;
+        cursor += next_relative;
+    }
+    Ok(form)
+}
+
+fn multipart_boundary(content_type: &str) -> Option<String> {
+    content_type.split(';').find_map(|part| {
+        let trimmed = part.trim();
+        let value = trimmed.strip_prefix("boundary=")?;
+        Some(value.trim_matches('"').to_string())
+    })
+}
+
+fn parse_multipart_part(part: &[u8], form: &mut ArtifactTypeForm) -> Result<(), String> {
+    let header_end = find_subslice(part, b"\r\n\r\n")
+        .ok_or_else(|| "multipart part missing headers".to_string())?;
+    let headers = String::from_utf8_lossy(&part[..header_end]);
+    let data = part.get(header_end + 4..).unwrap_or(&[]);
+    let disposition = headers
+        .lines()
+        .find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            if name.eq_ignore_ascii_case("content-disposition") {
+                Some(value.trim())
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| "multipart part missing content-disposition".to_string())?;
+    let field_name = disposition_param(disposition, "name")
+        .ok_or_else(|| "multipart part missing field name".to_string())?;
+    let filename = disposition_param(disposition, "filename").unwrap_or_default();
+    if filename.is_empty() {
+        let value = String::from_utf8_lossy(data).to_string();
+        form.fields
+            .entry(field_name)
+            .and_modify(|existing| {
+                if !existing.is_empty() {
+                    existing.push('\n');
+                }
+                existing.push_str(&value);
+            })
+            .or_insert(value);
+        return Ok(());
+    }
+    let content_type = headers
+        .lines()
+        .find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            if name.eq_ignore_ascii_case("content-type") {
+                Some(value.trim().to_string())
+            } else {
+                None
+            }
+        })
+        .unwrap_or_else(|| "application/octet-stream".to_string());
+    form.files.push(UploadedFormFile {
+        field_name,
+        filename,
+        content_type,
+        bytes: data.to_vec(),
+    });
+    Ok(())
+}
+
+fn disposition_param(disposition: &str, param_name: &str) -> Option<String> {
+    disposition.split(';').find_map(|part| {
+        let trimmed = part.trim();
+        let (name, value) = trimmed.split_once('=')?;
+        if name.eq_ignore_ascii_case(param_name) {
+            Some(value.trim_matches('"').to_string())
+        } else {
+            None
+        }
+    })
+}
+
+fn save_domain_sample_files(
+    root: &Path,
+    artifact_type_id: &str,
+    form: &ArtifactTypeForm,
+) -> Result<usize, String> {
+    let files = form
+        .files
+        .iter()
+        .filter(|file| sample_kind_for_field(&file.field_name).is_some())
+        .collect::<Vec<_>>();
+    if files.is_empty() {
+        return Ok(0);
+    }
+    let layout = ProjectLayout::new(root.to_path_buf());
+    let domain_dir = layout.artifact_type_samples_dir.join(artifact_type_id);
+    let files_dir = domain_dir.join("files");
+    fs::create_dir_all(&files_dir)
+        .map_err(|error| format!("failed to create domain sample directory: {error}"))?;
+    let sample_note = form
+        .fields
+        .get("sample_note")
+        .map(String::as_str)
+        .unwrap_or("")
+        .trim();
+    let uploaded_at_epoch = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0);
+    let mut manifest_samples = existing_domain_sample_manifest(&domain_dir);
+    for (index, file) in files.iter().enumerate() {
+        let kind = sample_kind_for_field(&file.field_name).unwrap_or("reference");
+        let stored_name = format!(
+            "{}-{}-{}",
+            kind,
+            uploaded_at_epoch,
+            sanitize_filename(&file.filename, index + 1)
+        );
+        fs::write(files_dir.join(&stored_name), &file.bytes).map_err(|error| {
+            format!("failed to write domain sample `{}`: {error}", file.filename)
+        })?;
+        manifest_samples.push(serde_json::json!({
+            "id": format!("{kind}-{}-{}", uploaded_at_epoch, index + 1),
+            "kind": kind,
+            "original_name": file.filename,
+            "stored_name": stored_name,
+            "path": format!("files/{stored_name}"),
+            "content_type": file.content_type,
+            "size": file.bytes.len(),
+            "note": sample_note,
+            "uploaded_at_epoch": uploaded_at_epoch
+        }));
+    }
+    let manifest = serde_json::json!({
+        "artifact_type_id": artifact_type_id,
+        "updated_at_epoch": uploaded_at_epoch,
+        "samples": manifest_samples
+    });
+    let manifest_text = serde_json::to_string_pretty(&manifest)
+        .map_err(|error| format!("failed to serialize sample manifest: {error}"))?;
+    fs::write(domain_dir.join("manifest.json"), manifest_text)
+        .map_err(|error| format!("failed to write sample manifest: {error}"))?;
+    Ok(files.len())
+}
+
+fn existing_domain_sample_manifest(domain_dir: &Path) -> Vec<serde_json::Value> {
+    let manifest_path = domain_dir.join("manifest.json");
+    let Ok(raw) = fs::read_to_string(manifest_path) else {
+        return Vec::new();
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return Vec::new();
+    };
+    value
+        .get("samples")
+        .and_then(serde_json::Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn sample_kind_for_field(field_name: &str) -> Option<&'static str> {
+    match field_name {
+        "sample_good_files" => Some("good"),
+        "sample_bad_files" => Some("bad"),
+        "sample_reference_files" => Some("reference"),
+        _ => None,
+    }
+}
+
+fn sanitize_filename(filename: &str, fallback_index: usize) -> String {
+    let sanitized = filename
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_') {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .trim_matches('-')
+        .to_string();
+    if sanitized.is_empty() {
+        format!("sample-{fallback_index}")
+    } else {
+        sanitized
+    }
 }
 
 fn nonempty_field<'a>(fields: &'a HashMap<String, String>, name: &str) -> Option<&'a str> {

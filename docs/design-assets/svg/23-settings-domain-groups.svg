@@ -9,7 +9,7 @@
   <text x="250" y="60" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="28" font-weight="700">Settings</text>
   <text x="250" y="86" fill="#475569" font-family="Segoe UI, Meiryo, sans-serif" font-size="14">Workflow policy, domain groups, domains, and agent profiles</text>
   <rect x="940" y="42" width="172" height="36" rx="7" fill="#f1f5f9" stroke="#e2e8f0"/>
-  <text x="958" y="65" fill="#4338ca" font-family="Segoe UI, Meiryo, sans-serif" font-size="13" font-weight="700">Create Domain Group</text>
+  <text x="958" y="65" fill="#4338ca" font-family="Segoe UI, Meiryo, sans-serif" font-size="13" font-weight="700">Create Domain</text>
   <rect x="1122" y="42" width="150" height="36" rx="7" fill="#f1f5f9" stroke="#e2e8f0"/>
   <text x="1142" y="65" fill="#4338ca" font-family="Segoe UI, Meiryo, sans-serif" font-size="13" font-weight="700">Create Domain</text>
   <rect x="1282" y="42" width="122" height="36" rx="7" fill="#4338ca"/>
@@ -25,7 +25,7 @@
   <text x="796" y="221" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="15">manual_final_approval</text>
 
   <rect x="250" y="292" width="1090" height="190" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
-  <text x="274" y="326" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="18" font-weight="700">Domain Groups</text>
+  <text x="274" y="326" fill="#020617" font-family="Segoe UI, Meiryo, sans-serif" font-size="18" font-weight="700">Domains</text>
   <text x="1196" y="326" fill="#475569" font-family="Segoe UI, Meiryo, sans-serif" font-size="12" font-weight="700">shared rubric</text>
   <line x1="274" y1="354" x2="1316" y2="354" stroke="#e2e8f0"/>
   <text x="274" y="382" fill="#475569" font-family="Segoe UI, Meiryo, sans-serif" font-size="12" font-weight="700">Group</text>

@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024" role="img" aria-labelledby="-title -desc">
+  <title id="-title">ワーク</title>
+  <desc id="-desc">新規ワークの依頼フォームと、既存ワークの一覧を同じ画面で扱うワーク画面。</desc>
+  <rect width="1440" height="1024" fill="#f7f8fb"/>
+  <style>
+    .title{font:700 25px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .kicker{font:700 10px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+    .h1{font:750 22px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h2{font:700 16px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h3{font:700 13px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .body{font:500 12px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .small{font:500 11px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .tiny{font:700 10px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .mono{font:500 11px Consolas,Menlo,monospace;fill:#111827}
+    .nav{font:650 13px Inter,"Segoe UI",Arial,sans-serif;fill:#526174}
+    .nav-on{font:750 13px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+  </style>
+
+    <g id="sidebar">
+      <rect x="0" y="0" width="204" height="1024" rx="0" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="28" y="43" class="title">Nagare</text>
+      <text x="30" y="64" class="kicker">制御プレーン</text>
+      <text x="30" y="82" class="small">プロジェクト対応ランタイム</text>
+      <g>
+        <rect x="18" y="96" width="168" height="33" rx="7" fill="#eef2ff" stroke="#eef2ff" stroke-width="1"/>
+        <text x="34" y="118" class="nav-on">ワーク</text>
+      </g><g>
+
+        <text x="34" y="157" class="nav">プロジェクト</text>
+      </g><g>
+
+        <text x="34" y="196" class="nav">ドメイン</text>
+      </g><g>
+
+        <text x="34" y="235" class="nav">エージェント</text>
+      </g><g>
+
+        <text x="34" y="274" class="nav">スキル</text>
+      </g><g>
+
+        <text x="34" y="313" class="nav">MCP</text>
+      </g><g>
+
+        <text x="34" y="352" class="nav">設定</text>
+      </g>
+    </g>
+    <g id="page-header">
+      <text x="232" y="48" class="title">ワーク</text>
+      <text x="232" y="72" class="small">新しい依頼を実行し、これまでのワークを一覧で確認する</text>
+
+    </g>
+    <g id="content">
+
+    <rect x="232" y="96" width="1164" height="828" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <rect x="252" y="124" width="1124" height="316" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="162" class="h1">新規ワーク</text>
+    <text x="276" y="190" class="body">依頼内容を入力して実行します。プロジェクトは任意で選べます。</text>
+    <text x="276" y="238" class="h2">依頼内容</text>
+    <rect x="276" y="260" width="1056" height="82" rx="8" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+    <text x="300" y="298" class="body">READMEを新構想に合わせて更新してください</text>
+    <text x="276" y="374" class="h3">プロジェクト（任意）</text>
+    <rect x="276" y="388" width="320" height="40" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+    <text x="292" y="414" class="body">未選択</text>
+    <path d="M 568 405 L 576 413 L 584 405" fill="none" stroke="#526174" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="620" y="414" class="small">未選択でも実行できます</text>
+    <rect x="1164" y="388" width="92" height="34" rx="7" fill="#4f46e5" stroke="#4f46e5" stroke-width="1"/>
+  <text x="1178" y="410" class="body" style="fill:#ffffff">実行</text>
+
+    <rect x="252" y="480" width="1124" height="362" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="520" class="h1">ワーク一覧</text>
+    <text x="276" y="548" class="body">これまでの依頼と現在の状態を確認します。</text>
+    <text x="276" y="578" class="h3">プロジェクト</text>
+    <rect x="276" y="592" width="220" height="40" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+    <text x="292" y="618" class="body">すべて</text>
+    <path d="M 468 609 L 476 617 L 484 609" fill="none" stroke="#526174" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="520" y="578" class="h3">処理状態</text>
+    <rect x="520" y="592" width="220" height="40" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+    <text x="536" y="618" class="body">すべて</text>
+    <path d="M 712 609 L 720 617 L 728 609" fill="none" stroke="#526174" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="764" y="592" width="220" height="40" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+    <text x="782" y="618" class="small" style="fill:#526174">キーワードで検索</text>
+    <rect x="1008" y="592" width="92" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1022" y="614" class="body" style="fill:#111827">絞り込み</text>
+    <rect x="1112" y="592" width="78" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1126" y="614" class="body" style="fill:#111827">クリア</text>
+    <line x1="276" y1="654" x2="1332" y2="654" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="300" y="686" class="tiny">ワーク</text>
+    <text x="716" y="686" class="tiny">状態</text>
+    <text x="854" y="686" class="tiny">回答サマリ</text>
+    <text x="1118" y="686" class="tiny">更新</text>
+    <line x1="276" y1="704" x2="1332" y2="704" stroke="#d8e0ea" stroke-width="1"/>
+    <g>
+      <rect x="276" y="704" width="1056" height="64" rx="0" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="300" y="730" class="h3">READMEを新構想に合わせて更新</text>
+      <text x="300" y="752" class="small">nagare</text>
+      <rect x="716" y="724" width="92" height="24" rx="12" fill="#dbeafe" stroke="#dbeafe" stroke-width="1"/>
+  <text x="726" y="740" class="tiny" style="fill:#2563eb">実行中</text>
+      <text x="854" y="742" class="body">READMEを確認中</text>
+      <text x="1118" y="742" class="small">2分前</text>
+      <rect x="1234" y="720" width="70" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1248" y="742" class="body" style="fill:#111827">詳細</text>
+    </g>
+    <g>
+      <rect x="276" y="768" width="1056" height="64" rx="0" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="300" y="794" class="h3">ランタイム設定画面を整理</text>
+      <text x="300" y="816" class="small">nagare</text>
+      <rect x="716" y="788" width="92" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="726" y="804" class="tiny" style="fill:#15803d">完了</text>
+      <text x="854" y="806" class="body">不要なラベルを削除</text>
+      <text x="1118" y="806" class="small">18分前</text>
+      <rect x="1234" y="784" width="70" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1248" y="806" class="body" style="fill:#111827">詳細</text>
+    </g>
+
+    </g>
+
+</svg>

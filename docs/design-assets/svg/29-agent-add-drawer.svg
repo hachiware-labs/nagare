@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960">
+  <rect width="1440" height="960" fill="#f8fafc"/>
+  <style>
+    .title{font:700 24px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h2{font:700 17px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h3{font:700 14px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .body{font:500 13px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .small{font:500 11px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .tiny{font:600 10px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .nav{font:650 13px Inter,Segoe UI,Arial,sans-serif;fill:#334155}
+    .nav-on{font:700 13px Inter,Segoe UI,Arial,sans-serif;fill:#4338ca}
+  </style>
+
+  <rect x="0" y="0" width="200" height="960" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="28" y="42" class="title">Nagare</text>
+  <text x="30" y="64" class="tiny" style="fill:#4338ca">HACHIWARE LABS</text>
+  <text x="34" y="118" class="nav">Work Items</text>
+  <text x="34" y="156" class="nav">Skills</text>
+  <text x="34" y="194" class="nav">MCP</text>
+  <rect x="18" y="210" width="164" height="32" rx="7" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="34" y="232" class="nav-on">Agents</text>
+  <line x1="200" y1="0" x2="200" y2="960" stroke="#e2e8f0"/>
+
+  <text x="232" y="48" class="title">Agents</text>
+  <text x="232" y="72" class="small">Agentの接続先、モデル、ドメイン、プロンプト、Skill/MCPを設定する</text>
+  <rect x="232" y="96" width="760" height="772" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="260" y="134" class="h2">Agent Profiles</text>
+  <rect x="260" y="170" width="704" height="74" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="280" y="198" class="h3">research-agent</text>
+  <text x="280" y="220" class="small">OpenAI / planning model / 汎用調査 / hachi-search</text>
+  <rect x="260" y="262" width="704" height="74" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="280" y="290" class="h3">review-agent</text>
+  <text x="280" y="312" class="small">Local model / review / 開発品質 / domain-review-checks</text>
+
+  <rect x="1028" y="0" width="412" height="960" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1058" y="48" class="title">Agentを追加</text>
+  <text x="1058" y="72" class="small">テンプレートから作り、必要な箇所だけ修正する</text>
+
+  <text x="1058" y="112" class="tiny">テンプレート / Agent名</text>
+  <rect x="1058" y="130" width="158" height="38" rx="7" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="1076" y="155" class="body">Research Agent</text>
+  <rect x="1230" y="130" width="158" height="38" rx="7" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="1248" y="155" class="body">research-agent</text>
+
+  <text x="1058" y="204" class="tiny">接続先 / モデル</text>
+  <rect x="1058" y="222" width="158" height="38" rx="7" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="1076" y="247" class="body">OpenAI</text>
+  <rect x="1230" y="222" width="158" height="38" rx="7" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="1248" y="247" class="body">planning model</text>
+
+  <text x="1058" y="296" class="tiny">ドメイン品質</text>
+  <rect x="1058" y="314" width="330" height="38" rx="7" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="1076" y="339" class="body">ビルドイン汎用 / 調査</text>
+
+  <text x="1058" y="386" class="tiny">役割 / 期待する動き</text>
+  <rect x="1058" y="404" width="330" height="74" rx="7" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="1076" y="432" class="small">根拠を集め、要点を整理し、</text>
+  <text x="1076" y="458" class="small">レビュー可能な形で渡す。</text>
+
+  <text x="1058" y="522" class="tiny">システムプロンプト</text>
+  <rect x="1058" y="540" width="330" height="106" rx="7" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="1076" y="568" class="small">ドメイン品質基準を守り、根拠を明示する。</text>
+  <text x="1076" y="594" class="small">不明点は推測せず、確認待ちにする。</text>
+  <text x="1076" y="620" class="small">成果物には参照元と未確認点を添える。</text>
+
+  <text x="1058" y="686" class="tiny">Skills / MCP</text>
+  <rect x="1058" y="704" width="330" height="88" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="1076" y="734" class="small">Skill: hachi-search</text>
+  <text x="1076" y="762" class="small">MCP: filesystem-read / docs, crates / read</text>
+
+  <rect x="1058" y="828" width="142" height="34" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1072" y="850" class="body">キャンセル</text>
+  <rect x="1214" y="828" width="142" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
+  <text x="1232" y="850" class="body" style="fill:#ffffff">Agentを追加</text>
+</svg>

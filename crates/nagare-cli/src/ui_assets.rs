@@ -10,12 +10,46 @@ button:hover:not(:disabled),.settings-tab:hover,.queue-chip:hover,.check-option:
 a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #a5b4fc;outline-offset:2px}
 input:focus-visible,textarea:focus-visible,select:focus-visible{border-color:var(--blue)}
 button:disabled{cursor:not-allowed;opacity:.65}
+.visually-hidden{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.field-group-head{display:grid;gap:4px;margin:2px 0 8px}
+.field-group-head h2{font-size:15px;margin:0}
+.field-group-head p{margin:0}
+.routing-preview{display:grid;gap:8px;border:1px solid #c7d2fe;border-radius:8px;background:#eef2ff;padding:12px;color:var(--text)}
+.routing-preview.compact{background:#fbfdff;border-color:var(--line)}
+.routing-preview div{display:grid;gap:3px}
+.routing-preview span{color:var(--muted);font-size:11px;font-weight:800}
+.routing-preview b{font-size:15px;line-height:1.35;overflow-wrap:anywhere}
+.routing-preview p{margin:0;line-height:1.5;overflow-wrap:anywhere}
+.routing-preview small{color:var(--muted);line-height:1.45;overflow-wrap:anywhere}
+.queue-card-list{display:none}
+.queue-card{border:1px solid var(--line);border-radius:8px;background:#fff;padding:12px}
+.queue-card+.queue-card{margin-top:10px}
+.queue-card.empty{padding:16px}
+.queue-card-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.queue-card-head p{margin:4px 0 0}
+.queue-card h3{font-size:15px;margin:10px 0;line-height:1.35;overflow-wrap:anywhere}
+.queue-card-answer{margin:0 0 10px}
+.queue-card-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.queue-card-meta div{border:1px solid var(--line);border-radius:7px;background:#f8fafc;padding:8px;min-width:0}
+.queue-card-meta dt{font-size:11px}
+.queue-card-actions{display:flex;justify-content:flex-end;margin-top:8px}
+.source-choice-section{display:grid;gap:10px}
+.source-choice-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.source-choice{display:grid!important;gap:5px;align-content:start;min-height:86px;border:1px solid var(--line)!important;border-radius:8px!important;background:#fff!important;color:var(--text)!important;text-align:left;padding:10px!important}
+.source-choice b{font-size:13px;line-height:1.3}
+.source-choice span{color:var(--muted);font-size:12px;line-height:1.4;font-weight:600}
+.source-choice.active,.source-choice[aria-pressed="true"]{border-color:#a5b4fc!important;background:#eef2ff!important;color:var(--blue)!important}
+.source-choice.active span,.source-choice[aria-pressed="true"] span{color:var(--text)}
 .form-section{border-top:1px solid var(--line);padding-top:14px;display:grid;gap:12px}
 .form-section-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
 .skill-picker{display:grid;gap:10px}
 .skill-search{max-width:420px}
 .skill-selected{display:flex;gap:6px;flex-wrap:wrap;min-height:30px;align-items:center}
+.skill-chip-group{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap}
 .skill-chip{display:inline-flex;align-items:center;min-height:24px;border-radius:12px;background:#eef2ff;color:var(--blue);border:1px solid #c7d2fe;padding:4px 9px;font-size:11px;font-weight:800;overflow-wrap:anywhere}
+.skill-selected button.skill-chip{gap:6px;background:#eef2ff!important;color:var(--blue)!important;border:1px solid #c7d2fe!important;padding:4px 8px!important;min-height:24px;border-radius:12px!important;font-size:11px!important}
+.skill-selected button.skill-chip span{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#dbeafe;color:var(--blue);font-size:11px;line-height:1}
+.skill-selected button.skill-chip-uninstall{background:#fff7f7!important;color:var(--red)!important;border-color:#fecaca!important}
 .skill-picker-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .skill-option{display:grid;grid-template-columns:20px minmax(0,1fr);gap:10px;align-items:start;border:1px solid var(--line);border-radius:7px;background:#fff;padding:10px;color:var(--text);font-weight:700}
 .skill-option:hover,.skill-option:focus-within{border-color:#a5b4fc;background:#f8faff}
@@ -35,11 +69,17 @@ button:disabled{cursor:not-allowed;opacity:.65}
 @media(max-width:760px){
   .sidebar{display:flex;border-right:0;border-bottom:1px solid var(--line);padding:14px 18px;align-items:center;justify-content:space-between;gap:12px}
   .brand{margin:0}
-  .brand-logo{width:112px}
+  .brand-logo{width:88px}
   nav{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
   nav a{padding:8px 10px}
   .panel-head,.form-section-head{display:grid;grid-template-columns:1fr;align-items:start}
   .panel-head .button-link{justify-self:start}
+  .panel-head .badge{justify-self:start}
+  .queue-panel{overflow-x:visible}
+  .queue-table{display:none}
+  .queue-card-list{display:block}
+  .queue-card-meta{grid-template-columns:1fr}
+  .source-choice-grid{grid-template-columns:1fr}
   .skill-picker-list{grid-template-columns:1fr}
   .domain-table{display:table;overflow:visible;white-space:normal}
   .domain-table thead,.agent-table thead{display:none}
@@ -154,6 +194,54 @@ async function notifyResponseError(response,statusEl){
 const form=document.getElementById('create-work-form');
 const statusEl=document.getElementById('form-status');
 if(form){
+  const workDomainselect=document.getElementById('work-domain-group');
+  const workDomainSelect=document.getElementById('work-domain');
+  const workPolicySelect=form.querySelector('select[name="domain_agent_policy"]');
+  const routingDomain=form.querySelector('[data-routing-domain]');
+  const routingPolicy=form.querySelector('[data-routing-policy]');
+  function selectedText(select){
+    if(!select || select.disabled){return '';}
+    return select.selectedOptions && select.selectedOptions[0] ? select.selectedOptions[0].textContent.trim() : '';
+  }
+  function syncWorkDomainOptions(){
+    if(!workDomainselect || !workDomainSelect){return;}
+    const group=workDomainselect.value;
+    let selectedStillVisible=false;
+    [...workDomainSelect.options].forEach((option)=>{
+      if(!option.value){
+        option.hidden=false;
+        option.disabled=false;
+        return;
+      }
+      const show=Boolean(group) && option.dataset.domainGroup===group;
+      option.hidden=!show;
+      option.disabled=!show;
+      if(show && option.selected){selectedStillVisible=true;}
+    });
+    workDomainSelect.disabled=!group;
+    if(!selectedStillVisible){workDomainSelect.value='';}
+  }
+  function syncRoutingPreview(){
+    syncWorkDomainOptions();
+    if(routingDomain){
+      const groupText=selectedText(workDomainselect) || 'プロジェクト既定';
+      const domainText=selectedText(workDomainSelect) || (workDomainSelect && workDomainSelect.disabled ? 'ドメインはグループ選択後に指定' : 'プロジェクト既定');
+      routingDomain.textContent=`${groupText} / ${domainText}`;
+    }
+    if(routingPolicy){
+      const policy=workPolicySelect ? workPolicySelect.value : 'auto_general_fallback';
+      const messages={
+        auto_general_fallback:'専門エージェントが見つかれば優先し、見つからない場合は汎用エージェントで進めます。',
+        confirm_general_fallback:'専門エージェントが見つからない場合は、汎用エージェントへ進める前に確認します。',
+        require_domain_agent:'指定ドメインに対応するエージェントが必要です。見つからない場合は確認が必要になります。'
+      };
+      routingPolicy.textContent=messages[policy] || '作成後にDispatcherが担当候補を確認します。';
+    }
+  }
+  if(workDomainselect){workDomainselect.addEventListener('change',syncRoutingPreview);}
+  if(workDomainSelect){workDomainSelect.addEventListener('change',syncRoutingPreview);}
+  if(workPolicySelect){workPolicySelect.addEventListener('change',syncRoutingPreview);}
+  syncRoutingPreview();
   form.addEventListener('submit',async(event)=>{
     event.preventDefault();
     statusEl.textContent='Work Itemを追加しています…';
@@ -191,9 +279,9 @@ if(queueFilters.length){
     filterButton.addEventListener('click',()=>{
       const state=filterButton.dataset.filterState;
       queueFilters.forEach((button)=>button.classList.toggle('active',button===filterButton));
-      document.querySelectorAll('#work-items tr[data-queue-state]').forEach((row)=>{
-        const states=(row.dataset.queueState||'').split(/\s+/);
-        row.hidden=state!=='all' && !states.includes(state);
+      document.querySelectorAll('[data-work-record][data-queue-state]').forEach((entry)=>{
+        const states=(entry.dataset.queueState||'').split(/\s+/);
+        entry.hidden=state!=='all' && !states.includes(state);
       });
     });
   });
@@ -264,7 +352,7 @@ function applyAgentFilters(){
   const domains=selectedValues(agentFilterDomains);
   let visible=0;
   agentRows.forEach((row)=>{
-    const show=rowHasAny(row,'agentDomainGroups',groups) && rowHasAny(row,'agentDomains',domains);
+    const show=rowHasAny(row,'agentDomains',groups) && rowHasAny(row,'agentArtifactTypes',domains);
     row.hidden=!show;
     if(show){visible+=1;}
   });
@@ -294,7 +382,9 @@ document.querySelectorAll('.delete-work-form').forEach((deleteForm)=>{
     button.textContent='削除中…';
     const response=await fetch(`/api/items/${workId}/delete`,{method:'POST'});
     if(!response.ok){button.disabled=false;button.textContent='削除';await notifyResponseError(response);return;}
-    deleteForm.closest('tr').remove();
+    document.querySelectorAll('[data-work-record]').forEach((entry)=>{
+      if(entry.dataset.workRecord===workId){entry.remove();}
+    });
   });
 });
 document.querySelectorAll('.delete-domain-group-form').forEach((deleteForm)=>{
@@ -302,11 +392,11 @@ document.querySelectorAll('.delete-domain-group-form').forEach((deleteForm)=>{
     event.preventDefault();
     const groupId=deleteForm.dataset.domainGroupId;
     const name=deleteForm.dataset.domainGroupName || groupId;
-    if(!confirm(`ドメイングループ「${name}」を削除しますか？`)){return;}
+    if(!confirm(`ドメイン「${name}」を削除しますか？`)){return;}
     const button=deleteForm.querySelector('button');
     button.disabled=true;
     button.textContent='削除中…';
-    const response=await fetch(`/api/domain-groups/${groupId}/delete`,{method:'POST'});
+    const response=await fetch(`/api/domains/${groupId}/delete`,{method:'POST'});
     if(!response.ok){button.disabled=false;button.textContent='削除';await notifyResponseError(response);return;}
     deleteForm.closest('tr').remove();
   });
@@ -320,7 +410,7 @@ document.querySelectorAll('.delete-domain-form').forEach((deleteForm)=>{
     const button=deleteForm.querySelector('button');
     button.disabled=true;
     button.textContent='削除中…';
-    const response=await fetch(`/api/domains/${domainId}/delete`,{method:'POST'});
+    const response=await fetch(`/api/artifact-types/${domainId}/delete`,{method:'POST'});
     if(!response.ok){button.disabled=false;button.textContent='削除';await notifyResponseError(response);return;}
     deleteForm.closest('tr').remove();
   });
@@ -337,11 +427,14 @@ if(agentProfileForm){
   const modelSection=agentProfileForm.querySelector('[data-model-section="model"]');
   const providerField=agentProfileForm.querySelector('[data-model-field="provider"]');
   const baseUrlField=agentProfileForm.querySelector('[data-model-field="base-url"]');
+  const agentKindTitle=agentProfileForm.querySelector('[data-agent-kind-title]');
+  const agentKindCopy=agentProfileForm.querySelector('[data-agent-kind-copy]');
+  const modelHelp=agentProfileForm.querySelector('[data-model-help]');
   const providerInput=document.getElementById('openclaw-model-provider');
   const modelInput=agentProfileForm.querySelector('input[name="model_id"]');
   const baseUrlInput=agentProfileForm.querySelector('input[name="base_url"]');
   const apiKeyEnvInput=agentProfileForm.querySelector('input[name="api_key_env"]');
-  const agentDomainGroupSelect=document.getElementById('agent-domain-group');
+  const agentDomainselect=document.getElementById('agent-domain-group');
   const agentDomainSelect=document.getElementById('agent-domain');
   function isOpenClawAgent(){
     return kindSelect.value==='openclaw';
@@ -365,6 +458,7 @@ if(agentProfileForm){
       apiKeyEnvInput.value='';
       modelInput.removeAttribute('list');
       modelInput.placeholder='gpt-5.3-codex';
+      if(modelHelp){modelHelp.textContent='Codex系のエージェントではOpenAIモデル名だけを指定します。';}
       return;
     }
     if(!providerInput.value){providerInput.value='openai-codex';}
@@ -375,6 +469,7 @@ if(agentProfileForm){
       if(!modelInput.value){modelInput.value='gpt-5.3-codex';}
       baseUrlInput.value='';
       apiKeyEnvInput.value='';
+      if(modelHelp){modelHelp.textContent='OpenClawでOpenAI系Providerを使う設定です。Base URLは不要です。';}
     }else{
       modelInput.removeAttribute('list');
       modelInput.placeholder=providerInput.value==='ollama' ? 'llama3.2' : 'loaded-model-name';
@@ -382,6 +477,7 @@ if(agentProfileForm){
       if(providerInput.value==='lmstudio' && !baseUrlInput.value){baseUrlInput.value='http://127.0.0.1:1234/v1';}
       baseUrlInput.required=true;
       apiKeyEnvInput.value='';
+      if(modelHelp){modelHelp.textContent='ローカルProviderを使うため、モデル名とBase URLを指定します。';}
     }
   }
   function scrubModelFieldsForSubmit(){
@@ -402,21 +498,27 @@ if(agentProfileForm){
       runtimeInput.value='codex-app-local';
       adapterInput.value='stdio.codex-app-server';
       externalProviderInput.value='codex';
+      if(agentKindTitle){agentKindTitle.textContent='Codex App Server';}
+      if(agentKindCopy){agentKindCopy.textContent='Codex App Server経由で実行します。モデル名はCodex側のOpenAIモデルとして扱います。';}
     }else if(kindSelect.value==='openclaw'){
       runtimeInput.value='openclaw-local';
       adapterInput.value='process.openclaw-agent';
       externalProviderInput.value='openclaw';
+      if(agentKindTitle){agentKindTitle.textContent='OpenClaw';}
+      if(agentKindCopy){agentKindCopy.textContent='Providerに応じてOpenAI、Ollama、LM Studioのモデル設定を切り替えます。';}
     }else{
       runtimeInput.value='codex-local';
       adapterInput.value='process.codex-cli';
       externalProviderInput.value='codex-cli';
+      if(agentKindTitle){agentKindTitle.textContent='Codex CLI';}
+      if(agentKindCopy){agentKindCopy.textContent='Codex CLIをローカルプロセスとして実行します。OpenAIモデル名を指定します。';}
     }
     syncExternalAgentId();
     syncModelFields();
   }
   function syncAgentDomainOptions(){
-    if(!agentDomainGroupSelect || !agentDomainSelect){return;}
-    const group=agentDomainGroupSelect.value;
+    if(!agentDomainselect || !agentDomainSelect){return;}
+    const group=agentDomainselect.value;
     let selectedStillVisible=false;
     [...agentDomainSelect.options].forEach((option)=>{
       if(!option.value){
@@ -435,7 +537,7 @@ if(agentProfileForm){
   kindSelect.addEventListener('change',syncAgentKind);
   if(idInput){idInput.addEventListener('input',syncExternalAgentId);}
   if(providerInput){providerInput.addEventListener('change',syncModelFields);}
-  if(agentDomainGroupSelect){agentDomainGroupSelect.addEventListener('change',syncAgentDomainOptions);}
+  if(agentDomainselect){agentDomainselect.addEventListener('change',syncAgentDomainOptions);}
   syncAgentKind();
   syncAgentDomainOptions();
   function escapeHtml(value){
@@ -445,12 +547,19 @@ if(agentProfileForm){
     const searchInput=picker.querySelector('[data-skill-search]');
     const selectedEl=picker.querySelector('[data-skill-selected]');
     const options=[...picker.querySelectorAll('[data-skill-option]')];
+    const agentId=picker.dataset.agentId || '';
+    const uninstallLabel=picker.dataset.uninstallLabel || 'Uninstall';
+    const uninstallConfirm=picker.dataset.uninstallConfirm || 'Remove this skill package?';
     function renderSelectedSkills(){
       const selected=options
-        .filter((option)=>option.querySelector('input[type="checkbox"]').checked)
-        .map((option)=>option.querySelector('.skill-option-title span').textContent.trim());
+        .map((option)=>({option,input:option.querySelector('input[type="checkbox"]'),name:option.querySelector('.skill-option-title span').textContent.trim()}))
+        .filter((item)=>item.input && item.input.checked);
       selectedEl.innerHTML=selected.length
-        ? selected.map((name)=>`<span class="skill-chip" translate="no">${escapeHtml(name)}</span>`).join('')
+        ? selected.map((item)=>{
+          const removeButton=`<button class="skill-chip" type="button" data-remove-skill="${escapeHtml(item.input.value)}" aria-label="${escapeHtml(item.name)} を外す"><span aria-hidden="true">x</span><b translate="no">${escapeHtml(item.name)}</b></button>`;
+          const uninstallButton=agentId ? `<button class="skill-chip skill-chip-uninstall" type="button" data-uninstall-skill="${escapeHtml(item.input.value)}">${escapeHtml(uninstallLabel)}</button>` : '';
+          return `<span class="skill-chip-group">${removeButton}${uninstallButton}</span>`;
+        }).join('')
         : `<span class="muted">${escapeHtml(picker.dataset.emptyLabel || 'No skills selected')}</span>`;
     }
     function filterSkills(){
@@ -460,6 +569,41 @@ if(agentProfileForm){
       });
     }
     options.forEach((option)=>option.querySelector('input[type="checkbox"]').addEventListener('change',renderSelectedSkills));
+    selectedEl.addEventListener('click',(event)=>{
+      const uninstallButton=event.target.closest('[data-uninstall-skill]');
+      if(uninstallButton){
+        const skillId=uninstallButton.dataset.uninstallSkill || '';
+        if(!agentId || !skillId){return;}
+        if(!confirm(uninstallConfirm)){return;}
+        uninstallButton.disabled=true;
+        if(agentProfileStatus){agentProfileStatus.textContent='スキル本体を削除しています…';}
+        fetch(`/api/agents/${encodeURIComponent(agentId)}/skills/${encodeURIComponent(skillId)}/uninstall`,{method:'POST'})
+          .then(async(response)=>{
+            if(!response.ok){uninstallButton.disabled=false;await notifyResponseError(response,agentProfileStatus);return;}
+            const data=await response.json();
+            const warnings=Array.isArray(data.warnings) ? data.warnings.filter(Boolean) : [];
+            notify(data.package_removed ? 'スキルをアンインストールしました。' : 'スキルをエージェントから外しました。', warnings.length ? 'info' : 'success');
+            warnings.forEach((warning)=>notify(warning,'info'));
+            window.location.reload();
+          })
+          .catch((error)=>{
+            uninstallButton.disabled=false;
+            if(agentProfileStatus){agentProfileStatus.textContent='';}
+            notify(String(error),'error');
+          });
+        return;
+      }
+      const button=event.target.closest('[data-remove-skill]');
+      if(!button){return;}
+      const checkbox=options
+        .map((option)=>option.querySelector('input[type="checkbox"]'))
+        .find((input)=>input && input.value===button.dataset.removeSkill);
+      if(!checkbox){return;}
+      checkbox.checked=false;
+      checkbox.dispatchEvent(new Event('change',{bubbles:true}));
+      if(agentProfileStatus){agentProfileStatus.textContent='スキルを外しました。保存すると反映されます。';}
+      checkbox.closest('[data-skill-option]')?.focus?.();
+    });
     if(searchInput){searchInput.addEventListener('input',filterSkills);}
     renderSelectedSkills();
   });
@@ -486,28 +630,72 @@ if(agentProfileForm){
     });
   }
 }
-const domainProfileForm=document.getElementById('domain-profile-form');
-if(domainProfileForm){
-  const domainProfileStatus=document.getElementById('domain-profile-status');
-  domainProfileForm.addEventListener('submit',async(event)=>{
+const ArtifactTypeForm=document.getElementById('domain-profile-form');
+if(ArtifactTypeForm){
+  const ArtifactTypestatus=document.getElementById('domain-profile-status');
+  const generateDomainRubricButton=ArtifactTypeForm.querySelector('[data-generate-domain-rubric]');
+  const domainRubricInput=ArtifactTypeForm.querySelector('textarea[name="rubric"]');
+  function domainField(name){
+    const field=ArtifactTypeForm.querySelector(`[name="${name}"]`);
+    return field ? field.value.trim() : '';
+  }
+  function compactLines(value,limit=3){
+    return value.split(/\r?\n|,/).map((line)=>line.trim()).filter(Boolean).slice(0,limit);
+  }
+  function selectedSampleNames(){
+    return [...ArtifactTypeForm.querySelectorAll('input[type="file"]')]
+      .flatMap((input)=>[...input.files].map((file)=>file.name))
+      .filter(Boolean);
+  }
+  function joinedOrDefault(values, fallback){
+    return values.length ? values.join('、') : fallback;
+  }
+  function buildDomainRubricDraft(){
+    const domainName=domainField('display_name') || domainField('id') || 'このドメイン';
+    const description=domainField('description') || `${domainName}で扱う成果物`;
+    const artifactTypes=joinedOrDefault(compactLines(domainField('artifact_types'),4),'成果物タイプ');
+    const samples=joinedOrDefault(selectedSampleNames().slice(0,4),'登録サンプル');
+    const sampleNote=domainField('sample_note');
+    const general=joinedOrDefault(compactLines(domainField('general_points'),4),'一般的な品質、正確性、使いやすさ');
+    const project=joinedOrDefault(compactLines(domainField('project_points'),4),'プロジェクト固有の制約と優先順位');
+    const ng=joinedOrDefault(compactLines(domainField('ng_examples'),4),'目的不一致、根拠不足、検証不能な成果物');
+    const sampleBasis=sampleNote ? `${samples}。メモ: ${sampleNote}` : samples;
+    return [
+      `20点: 目的適合 - ${description}に対して、利用者の目的、判断場面、期待成果が明確に満たされている`,
+      `20点: 成果物品質 - ${artifactTypes}として、正確性、完成度、読みやすさ、扱いやすさが十分である`,
+      `20点: サンプル適合 - ${sampleBasis}から読み取れる良い特徴を反映し、悪い特徴を避けている`,
+      `15点: 一般評価観点 - ${general}を満たし、同種成果物として標準的に期待される品質に届いている`,
+      `15点: プロジェクト固有観点 - ${project}を優先し、Nagare上の作業文脈と制約に合っている`,
+      `10点: NG回避と検証可能性 - ${ng}を避け、レビュー時に根拠、差分、確認方法を追える`
+    ].join('\n');
+  }
+  if(generateDomainRubricButton && domainRubricInput){
+    generateDomainRubricButton.addEventListener('click',()=>{
+      if(domainRubricInput.value.trim() && !confirm('現在のRubricを生成結果で置き換えますか？')){return;}
+      domainRubricInput.value=buildDomainRubricDraft();
+      domainRubricInput.focus();
+      ArtifactTypestatus.textContent='100点満点のRubric案を生成しました。';
+    });
+  }
+  ArtifactTypeForm.addEventListener('submit',async(event)=>{
     event.preventDefault();
-    domainProfileStatus.textContent='ドメインを保存しています…';
-    const response=await fetch(domainProfileForm.dataset.action,{method:'POST',body:new URLSearchParams(new FormData(domainProfileForm))});
-    if(!response.ok){await notifyResponseError(response,domainProfileStatus);return;}
-    domainProfileStatus.textContent='ドメインを保存しました。';
-    window.location.href=domainProfileForm.dataset.redirect || '/settings';
+    ArtifactTypestatus.textContent='成果物種別を保存しています…';
+    const response=await fetch(ArtifactTypeForm.dataset.action,{method:'POST',body:new FormData(ArtifactTypeForm)});
+    if(!response.ok){await notifyResponseError(response,ArtifactTypestatus);return;}
+    ArtifactTypestatus.textContent='成果物種別を保存しました。';
+    window.location.href=ArtifactTypeForm.dataset.redirect || '/settings';
   });
 }
-const domainGroupForm=document.getElementById('domain-group-form');
-if(domainGroupForm){
-  const domainGroupStatus=document.getElementById('domain-group-status');
-  domainGroupForm.addEventListener('submit',async(event)=>{
+const DomainForm=document.getElementById('domain-group-form');
+if(DomainForm){
+  const Domainstatus=document.getElementById('domain-group-status');
+  DomainForm.addEventListener('submit',async(event)=>{
     event.preventDefault();
-    domainGroupStatus.textContent='ドメイングループを保存しています…';
-    const response=await fetch(domainGroupForm.dataset.action,{method:'POST',body:new URLSearchParams(new FormData(domainGroupForm))});
-    if(!response.ok){await notifyResponseError(response,domainGroupStatus);return;}
-    domainGroupStatus.textContent='ドメイングループを保存しました。';
-    window.location.href=domainGroupForm.dataset.redirect || '/settings';
+    Domainstatus.textContent='ドメインを保存しています…';
+    const response=await fetch(DomainForm.dataset.action,{method:'POST',body:new URLSearchParams(new FormData(DomainForm))});
+    if(!response.ok){await notifyResponseError(response,Domainstatus);return;}
+    Domainstatus.textContent='ドメインを保存しました。';
+    window.location.href=DomainForm.dataset.redirect || '/settings';
   });
 }
 const workflowSettingsForm=document.getElementById('workflow-settings-form');
@@ -525,7 +713,42 @@ const skillPackageForm=document.getElementById('skill-package-form');
 if(skillPackageForm){
   const skillPackageStatus=document.getElementById('skill-package-status');
   const skillSourceKind=document.getElementById('skill-source-kind');
+  const skillSourceChoices=[...skillPackageForm.querySelectorAll('[data-skill-source-choice]')];
+  const skillSourceTitle=skillPackageForm.querySelector('[data-skill-source-title]');
+  const skillSourceCopy=skillPackageForm.querySelector('[data-skill-source-copy]');
+  const skillSourceFieldsCopy=skillPackageForm.querySelector('[data-skill-source-fields]');
   const skillSourceFields=[...skillPackageForm.querySelectorAll('[data-skill-source-field]')];
+  const skillIdInput=skillPackageForm.querySelector('input[name="id"]');
+  const skillPrimaryLabel=skillPackageForm.querySelector('[data-skill-primary-label]');
+  const skillSourceLabel=skillPackageForm.querySelector('[data-skill-source-label]');
+  const skillPathLabel=skillPackageForm.querySelector('[data-skill-path-label]');
+  const skillSourceGuidance={
+    'skill-creator':{
+      title:'Skill Creator',
+      copy:'作成済みのスキルフォルダを登録します。SKILL.mdのnameを使えるため、通常はPathだけで足ります。',
+      fields:'必要: フォルダPath。スキル名はSKILL.mdにnameがない場合だけ。'
+    },
+    'clawhub':{
+      title:'ClawHub',
+      copy:'ClawHubのカタログIDを取り込みます。OpenClawまたはClawHub CLIがなければnpx clawhub@latestを使います。',
+      fields:'必要: スキル名。取り込み後、実体Pathを登録します。'
+    },
+    'vercel':{
+      title:'Vercel Skills',
+      copy:'Vercel Skillsをnpx skills addで選択した範囲とツールだけへ取り込みます。複数スキルrepoでは owner/repo@skill を指定できます。',
+      fields:'必要: package ID、対象ツール。Project範囲が既定です。'
+    },
+    'local':{
+      title:'Local',
+      copy:'手元のスキルフォルダを登録します。SKILL.mdのnameを使えるため、通常はPathだけで足ります。',
+      fields:'必要: フォルダPath。スキル名はSKILL.mdにnameがない場合だけ。'
+    },
+    'git':{
+      title:'Git',
+      copy:'Gitリポジトリ上のスキルを登録します。VersionやサブPathの固定は詳細設定で行います。',
+      fields:'必要: Repo URL、スキル名'
+    }
+  };
   function setFieldVisible(field, visible){
     field.hidden=!visible;
     field.querySelectorAll('input,textarea,select').forEach((input)=>{
@@ -538,25 +761,74 @@ if(skillPackageForm){
     const visibleByKind={
       'skill-creator':['path'],
       'local':['path'],
-      'clawhub':['source','reference','checksum'],
-      'vercel':['source','reference','checksum'],
-      'git':['source','path','reference','checksum'],
+      'clawhub':[],
+      'vercel':['vercel_options'],
+      'git':['source'],
     };
     const visible=new Set(visibleByKind[kind] || ['source']);
     skillSourceFields.forEach((field)=>setFieldVisible(field,visible.has(field.dataset.skillSourceField)));
     const sourceInput=skillPackageForm.querySelector('input[name="source"]');
     const pathInput=skillPackageForm.querySelector('input[name="path"]');
-    if(sourceInput){sourceInput.required=visible.has('source');}
+    if(skillIdInput){
+      const idRequired=kind==='clawhub' || kind==='vercel' || kind==='git';
+      skillIdInput.required=idRequired;
+      if(kind==='local' || kind==='skill-creator'){
+        skillIdInput.placeholder='SKILL.mdから自動取得…';
+      }else if(kind==='vercel'){
+        skillIdInput.placeholder='hachiware-labs/hachi-search…';
+      }else{
+        skillIdInput.placeholder='react-review…';
+      }
+    }
+    if(sourceInput){sourceInput.required=kind==='git';}
     if(pathInput){pathInput.required=visible.has('path') && (kind==='skill-creator' || kind==='local');}
+    if(skillPrimaryLabel){
+      if(kind==='local' || kind==='skill-creator'){
+        skillPrimaryLabel.textContent='スキル名（任意）';
+      }else if(kind==='vercel'){
+        skillPrimaryLabel.textContent='Package ID';
+      }else{
+        skillPrimaryLabel.textContent='スキル名';
+      }
+    }
+    if(skillSourceLabel){
+      skillSourceLabel.textContent=kind==='git' ? 'Repo URL' : 'Source';
+    }
+    if(skillPathLabel){
+      skillPathLabel.textContent=(kind==='local' || kind==='skill-creator') ? 'フォルダPath' : 'Path';
+    }
+    skillSourceChoices.forEach((button)=>{
+      const selected=button.dataset.skillSourceChoice===kind;
+      button.classList.toggle('active',selected);
+      button.setAttribute('aria-pressed',selected ? 'true' : 'false');
+    });
+    const guidance=skillSourceGuidance[kind] || skillSourceGuidance['skill-creator'];
+    if(skillSourceTitle){skillSourceTitle.textContent=guidance.title;}
+    if(skillSourceCopy){skillSourceCopy.textContent=guidance.copy;}
+    if(skillSourceFieldsCopy){skillSourceFieldsCopy.textContent=guidance.fields;}
   }
+  skillSourceChoices.forEach((button)=>{
+    button.addEventListener('click',()=>{
+      if(skillSourceKind){skillSourceKind.value=button.dataset.skillSourceChoice;}
+      syncSkillSourceFields();
+    });
+  });
   if(skillSourceKind){skillSourceKind.addEventListener('change',syncSkillSourceFields);}
   syncSkillSourceFields();
   skillPackageForm.addEventListener('submit',async(event)=>{
     event.preventDefault();
-    skillPackageStatus.textContent='スキルを登録しています…';
+    if(skillSourceKind && skillSourceKind.value==='vercel'){
+      const checkedTargets=[...skillPackageForm.querySelectorAll('input[name="install_targets"]:checked:not(:disabled)')];
+      if(!checkedTargets.length){
+        skillPackageStatus.textContent='';
+        notify('Vercel Skillsは対象ツールを1つ以上選んでください。','error');
+        return;
+      }
+    }
+    skillPackageStatus.textContent='スキルを取り込んで登録しています…';
     const response=await fetch(skillPackageForm.dataset.action,{method:'POST',body:new URLSearchParams(new FormData(skillPackageForm))});
     if(!response.ok){await notifyResponseError(response,skillPackageStatus);return;}
-    skillPackageStatus.textContent='スキルを登録しました。';
+    skillPackageStatus.textContent='スキルを取り込んで登録しました。';
     window.location.href=skillPackageForm.dataset.redirect || '/settings#agents';
   });
 }

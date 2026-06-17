@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024" role="img" aria-labelledby="-title -desc">
+  <title id="-title">ランタイム設定</title>
+  <desc id="-desc">OpenCodeを最初に使うランタイムとして選び、必要なモデル指定と接続確認を行う画面。</desc>
+  <rect width="1440" height="1024" fill="#f7f8fb"/>
+  <style>
+    .title{font:700 25px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .kicker{font:700 10px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+    .h1{font:750 22px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h2{font:700 16px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h3{font:700 13px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .body{font:500 12px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .small{font:500 11px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .tiny{font:700 10px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .mono{font:500 11px Consolas,Menlo,monospace;fill:#111827}
+    .nav{font:650 13px Inter,"Segoe UI",Arial,sans-serif;fill:#526174}
+    .nav-on{font:750 13px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+  </style>
+
+    <g id="sidebar">
+      <rect x="0" y="0" width="204" height="1024" rx="0" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="28" y="43" class="title">Nagare</text>
+      <text x="30" y="64" class="kicker">制御プレーン</text>
+      <text x="30" y="82" class="small">プロジェクト対応ランタイム</text>
+      <g>
+        <rect x="18" y="96" width="168" height="33" rx="7" fill="#eef2ff" stroke="#eef2ff" stroke-width="1"/>
+        <text x="34" y="118" class="nav-on">ワーク</text>
+      </g><g>
+
+        <text x="34" y="157" class="nav">プロジェクト</text>
+      </g><g>
+
+        <text x="34" y="196" class="nav">ドメイン</text>
+      </g><g>
+
+        <text x="34" y="235" class="nav">エージェント</text>
+      </g><g>
+
+        <text x="34" y="274" class="nav">スキル</text>
+      </g><g>
+
+        <text x="34" y="313" class="nav">MCP</text>
+      </g><g>
+
+        <text x="34" y="352" class="nav">設定</text>
+      </g>
+    </g>
+    <g id="page-header">
+      <text x="232" y="48" class="title">ランタイム設定</text>
+      <text x="232" y="72" class="small">セットアップ中です。最初に使うランタイムを接続します</text>
+
+    </g>
+    <g id="content">
+
+    <rect x="232" y="96" width="1164" height="828" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <rect x="252" y="124" width="1124" height="92" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="162" class="h1">ワーク</text>
+    <text x="276" y="190" class="body">セットアップ中です。ランタイムを1つ選ぶとワークを作成できます。</text>
+    <rect x="1120" y="150" width="126" height="24" rx="12" fill="#dbeafe" stroke="#dbeafe" stroke-width="1"/>
+  <text x="1130" y="166" class="tiny" style="fill:#2563eb">セットアップ中</text>
+    <rect x="1260" y="150" width="108" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="1270" y="166" class="tiny" style="fill:#15803d">ランタイム 1</text>
+
+    <rect x="252" y="256" width="1124" height="252" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="292" class="h2">ワークの流れ</text>
+    <text x="276" y="318" class="small">ランタイム接続が終わるまで、作成・実行は保留されます。</text>
+    <rect x="276" y="354" width="192" height="98" rx="8" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="300" y="390" class="h3">依頼</text>
+    <text x="300" y="418" class="small" style="fill:#b45309">セットアップ待ち</text>
+    <line x1="468" y1="403" x2="500" y2="403" stroke="#b8c4d3" stroke-width="2"/><path d="M 492 398 L 500 403 L 492 408" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <rect x="500" y="354" width="192" height="98" rx="8" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="524" y="390" class="h3">実行前確認</text>
+    <text x="524" y="418" class="small">待機中</text>
+    <line x1="692" y1="403" x2="724" y2="403" stroke="#b8c4d3" stroke-width="2"/><path d="M 716 398 L 724 403 L 716 408" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <rect x="724" y="354" width="192" height="98" rx="8" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="748" y="390" class="h3">実行中</text>
+    <text x="748" y="418" class="small">待機中</text>
+    <line x1="916" y1="403" x2="948" y2="403" stroke="#b8c4d3" stroke-width="2"/><path d="M 940 398 L 948 403 L 940 408" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <rect x="948" y="354" width="192" height="98" rx="8" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="972" y="390" class="h3">レビュー</text>
+    <text x="972" y="418" class="small">待機中</text>
+    <line x1="1140" y1="403" x2="1172" y2="403" stroke="#b8c4d3" stroke-width="2"/><path d="M 1164 398 L 1172 403 L 1164 408" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <rect x="1172" y="354" width="180" height="98" rx="8" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="1196" y="390" class="h3">完了</text>
+    <text x="1196" y="418" class="small">待機中</text>
+
+    <rect x="204" y="0" width="1236" height="1024" fill="#111827" opacity="0.18"/>
+    <rect x="344" y="116" width="752" height="792" rx="8" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+    <text x="386" y="164" class="h1">ランタイムを設定</text>
+    <text x="386" y="194" class="body">このプロジェクトで最初に使う実行先を1つ選びます。詳細設定は選択したものだけ表示します。</text>
+    <rect x="386" y="232" width="166" height="58" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <circle cx="410" cy="261" r="14" fill="#dcfce7" stroke="#15803d" stroke-width="2"/>
+    <text x="405" y="266" class="tiny" style="fill:#15803d">1</text>
+    <text x="434" y="257" class="h3">プロジェクト</text>
+    <text x="434" y="277" class="small">完了</text>
+    <line x1="552" y1="261" x2="580" y2="261" stroke="#b8c4d3" stroke-width="2"/><path d="M 572 256 L 580 261 L 572 266" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <rect x="580" y="232" width="166" height="58" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <circle cx="604" cy="261" r="14" fill="#eef2ff" stroke="#4f46e5" stroke-width="2"/>
+    <text x="599" y="266" class="tiny" style="fill:#4f46e5">2</text>
+    <text x="628" y="257" class="h3">ランタイム</text>
+    <text x="628" y="277" class="small">選択中</text>
+    <line x1="746" y1="261" x2="774" y2="261" stroke="#b8c4d3" stroke-width="2"/><path d="M 766 256 L 774 261 L 766 266" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <rect x="774" y="232" width="166" height="58" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <circle cx="798" cy="261" r="14" fill="#f1f5f9" stroke="#526174" stroke-width="2"/>
+    <text x="793" y="266" class="tiny" style="fill:#526174">3</text>
+    <text x="822" y="257" class="h3">準備完了</text>
+    <text x="822" y="277" class="small">次</text>
+
+    <rect x="386" y="326" width="668" height="136" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="412" y="362" class="h2">ランタイム候補</text>
+    <text x="412" y="392" class="h3">ランタイム</text>
+    <rect x="412" y="406" width="356" height="40" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+    <text x="428" y="432" class="body">OpenCode（検出済み）</text>
+    <path d="M 740 423 L 748 431 L 756 423" fill="none" stroke="#526174" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <rect x="386" y="494" width="668" height="236" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="412" y="530" class="h2">選択中の設定</text>
+    <text x="412" y="558" class="h1">OpenCode</text>
+
+        <text x="412" y="592" class="h3">Provider</text>
+    <rect x="412" y="606" width="220" height="40" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+    <text x="428" y="632" class="body">OpenAI</text>
+    <path d="M 604 623 L 612 631 L 620 623" fill="none" stroke="#526174" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="656" y="592" class="h3">モデル</text>
+    <rect x="656" y="606" width="330" height="40" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+    <text x="672" y="632" class="body">gpt-5.5</text>
+    <path d="M 958 623 L 966 631 L 974 623" fill="none" stroke="#526174" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="412" y="664" width="104" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="426" y="686" class="body" style="fill:#111827">接続テスト</text>
+        <rect x="532" y="670" width="84" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="542" y="686" class="tiny" style="fill:#526174">未実行</text>
+
+
+    <rect x="386" y="858" width="82" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="400" y="880" class="body" style="fill:#111827">戻る</text>
+    <rect x="962" y="858" width="92" height="34" rx="7" fill="#4f46e5" stroke="#4f46e5" stroke-width="1"/>
+  <text x="976" y="880" class="body" style="fill:#ffffff">次へ</text>
+
+    </g>
+
+</svg>

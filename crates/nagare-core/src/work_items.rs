@@ -24,56 +24,56 @@ pub fn create_work_item_with_input(
     let layout = ensure_project(root)?;
     let config = load_project_config(&layout)?;
     let locale = config.locale.language.clone();
-    let domain_groups = load_domain_groups(&layout)?;
-    let domain = input
-        .domain_id
+    let domains = load_domains(&layout)?;
+    let artifact_type = input
+        .artifact_type_id
         .as_deref()
-        .map(|domain_id| {
-            load_domain_profiles(&layout)?
-                .remove(domain_id)
-                .ok_or_else(|| NagareError::NotFound(format!("domain profile `{domain_id}`")))
+        .map(|artifact_type_id| {
+            load_artifact_types(&layout)?
+                .remove(artifact_type_id)
+                .ok_or_else(|| NagareError::NotFound(format!("Artifact Type `{artifact_type_id}`")))
         })
         .transpose()?;
-    let domain_group_id = match (input.domain_group_id.as_deref(), domain.as_ref()) {
-        (Some(input_group_id), Some(domain)) => {
-            validate_existing_domain_group(&layout, input_group_id)?;
-            if let Some(domain_group_id) = domain.group_id.as_deref() {
-                if domain_group_id != input_group_id {
+    let domain_id = match (input.domain_id.as_deref(), artifact_type.as_ref()) {
+        (Some(input_domain_id), Some(artifact_type)) => {
+            validate_existing_domain(&layout, input_domain_id)?;
+            if let Some(domain_id) = artifact_type.domain_id.as_deref() {
+                if domain_id != input_domain_id {
                     return Err(NagareError::InvalidState(format!(
-                        "domain profile `{}` belongs to group `{domain_group_id}`, not `{input_group_id}`",
-                        domain.id
+                        "Artifact Type `{}` belongs to domain `{domain_id}`, not `{input_domain_id}`",
+                        artifact_type.id
                     )));
                 }
             }
-            Some(input_group_id.to_string())
+            Some(input_domain_id.to_string())
         }
-        (Some(input_group_id), None) => {
-            validate_existing_domain_group(&layout, input_group_id)?;
-            Some(input_group_id.to_string())
+        (Some(input_domain_id), None) => {
+            validate_existing_domain(&layout, input_domain_id)?;
+            Some(input_domain_id.to_string())
         }
-        (None, Some(domain)) => domain.group_id.clone(),
+        (None, Some(artifact_type)) => artifact_type.domain_id.clone(),
         (None, None) => None,
     };
-    let domain_group = domain_group_id
+    let domain = domain_id
         .as_deref()
-        .and_then(|group_id| domain_groups.get(group_id));
+        .and_then(|domain_id| domains.get(domain_id));
     let workflow_mode = input
         .workflow_mode
         .or_else(|| {
-            domain
+            artifact_type
                 .as_ref()
-                .and_then(|domain| domain.workflow.progress_mode)
+                .and_then(|artifact_type| artifact_type.workflow.progress_mode)
         })
-        .or_else(|| domain_group.and_then(|group| group.workflow.progress_mode))
+        .or_else(|| domain.and_then(|domain| domain.workflow.progress_mode))
         .unwrap_or(config.workflow.default_progress_mode);
     let approval_policy = input
         .approval_policy
         .or_else(|| {
-            domain
+            artifact_type
                 .as_ref()
-                .and_then(|domain| domain.workflow.approval_policy)
+                .and_then(|artifact_type| artifact_type.workflow.approval_policy)
         })
-        .or_else(|| domain_group.and_then(|group| group.workflow.approval_policy))
+        .or_else(|| domain.and_then(|domain| domain.workflow.approval_policy))
         .unwrap_or(config.workflow.approval_policy);
     let mut ledger = load_ledger(&layout)?;
     let work_folder = input
@@ -91,8 +91,8 @@ pub fn create_work_item_with_input(
         expected_artifacts: normalize_text_list(input.expected_artifacts),
         work_folder,
         constraints: normalize_text_list(input.constraints),
-        domain_group_id,
-        domain_id: input.domain_id,
+        domain_id,
+        artifact_type_id: input.artifact_type_id,
         domain_agent_policy: input.domain_agent_policy,
         require_domain_agent: false,
         workflow_mode,

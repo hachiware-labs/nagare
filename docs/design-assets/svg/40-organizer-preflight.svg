@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024" role="img" aria-labelledby="-title -desc">
+  <title id="-title">実行前確認</title>
+  <desc id="-desc">ワーク実行前に、解決済みの実行構成とポリシー状態を確認する画面。</desc>
+  <rect width="1440" height="1024" fill="#f7f8fb"/>
+  <style>
+    .title{font:700 25px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .kicker{font:700 10px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+    .h1{font:750 22px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h2{font:700 16px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h3{font:700 13px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .body{font:500 12px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .small{font:500 11px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .tiny{font:700 10px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .mono{font:500 11px Consolas,Menlo,monospace;fill:#111827}
+    .nav{font:650 13px Inter,"Segoe UI",Arial,sans-serif;fill:#526174}
+    .nav-on{font:750 13px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+  </style>
+
+    <g id="sidebar">
+      <rect x="0" y="0" width="204" height="1024" rx="0" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="28" y="43" class="title">Nagare</text>
+      <text x="30" y="64" class="kicker">制御プレーン</text>
+      <text x="30" y="82" class="small">プロジェクト対応ランタイム</text>
+      <g>
+        <rect x="18" y="96" width="168" height="33" rx="7" fill="#eef2ff" stroke="#eef2ff" stroke-width="1"/>
+        <text x="34" y="118" class="nav-on">ワーク</text>
+      </g><g>
+
+        <text x="34" y="157" class="nav">プロジェクト</text>
+      </g><g>
+
+        <text x="34" y="196" class="nav">ドメイン</text>
+      </g><g>
+
+        <text x="34" y="235" class="nav">エージェント</text>
+      </g><g>
+
+        <text x="34" y="274" class="nav">スキル</text>
+      </g><g>
+
+        <text x="34" y="313" class="nav">MCP</text>
+      </g><g>
+
+        <text x="34" y="352" class="nav">設定</text>
+      </g>
+    </g>
+    <g id="page-header">
+      <text x="232" y="48" class="title">実行前確認</text>
+      <text x="232" y="72" class="small">ワーク実行前に、プロジェクト / ドメイン / エージェント / ランタイム / セッション / ポリシーの解決結果を確認する</text>
+      <rect x="1218" y="28" width="130" height="34" rx="7" fill="#4f46e5" stroke="#4f46e5" stroke-width="1"/>
+  <text x="1232" y="50" class="body" style="fill:#ffffff">ワークを実行</text>
+    </g>
+    <g id="content">
+
+    <rect x="232" y="96" width="1164" height="828" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <rect x="252" y="124" width="1124" height="92" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="162" class="h1">実行前確認</text>
+    <text x="276" y="190" class="body">実行前に、自動作成された構成と解決結果だけを確認する。拒否がなければワークを実行できる。</text>
+    <rect x="1172" y="150" width="100" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="1182" y="166" class="tiny" style="fill:#15803d">実行可能</text>
+
+    <rect x="252" y="258" width="1124" height="178" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="294" class="h2">解決された実行構成</text>
+    <rect x="276" y="326" width="150" height="88" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <circle cx="301" cy="352" r="14" fill="#eef2ff" stroke="#4f46e5" stroke-width="2"/>
+    <text x="296" y="357" class="tiny" style="fill:#4f46e5">1</text>
+    <text x="326" y="355" class="h3">プロジェクト</text>
+    <text x="292" y="386" class="small">nagare</text>
+    <line x1="426" y1="370" x2="448" y2="370" stroke="#b8c4d3" stroke-width="2"/><path d="M 440 365 L 448 370 L 440 375" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <rect x="448" y="326" width="150" height="88" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <circle cx="473" cy="352" r="14" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+    <text x="468" y="357" class="tiny" style="fill:#2563eb">2</text>
+    <text x="498" y="355" class="h3">ドメイン</text>
+    <text x="464" y="386" class="small">general</text>
+    <line x1="598" y1="370" x2="620" y2="370" stroke="#b8c4d3" stroke-width="2"/><path d="M 612 365 L 620 370 L 612 375" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <rect x="620" y="326" width="150" height="88" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <circle cx="645" cy="352" r="14" fill="#dcfce7" stroke="#15803d" stroke-width="2"/>
+    <text x="640" y="357" class="tiny" style="fill:#15803d">3</text>
+    <text x="670" y="355" class="h3">エージェント</text>
+    <text x="636" y="386" class="small">default-worker</text>
+    <line x1="770" y1="370" x2="792" y2="370" stroke="#b8c4d3" stroke-width="2"/><path d="M 784 365 L 792 370 L 784 375" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <rect x="792" y="326" width="150" height="88" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <circle cx="817" cy="352" r="14" fill="#ccfbf1" stroke="#0f766e" stroke-width="2"/>
+    <text x="812" y="357" class="tiny" style="fill:#0f766e">4</text>
+    <text x="842" y="355" class="h3">ランタイム</text>
+    <text x="808" y="386" class="small">Codex CLI</text>
+    <line x1="942" y1="370" x2="964" y2="370" stroke="#b8c4d3" stroke-width="2"/><path d="M 956 365 L 964 370 L 956 375" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <rect x="964" y="326" width="150" height="88" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <circle cx="989" cy="352" r="14" fill="#fef3c7" stroke="#b45309" stroke-width="2"/>
+    <text x="984" y="357" class="tiny" style="fill:#b45309">5</text>
+    <text x="1014" y="355" class="h3">セッション</text>
+    <text x="980" y="386" class="small">新規</text>
+    <line x1="1114" y1="370" x2="1136" y2="370" stroke="#b8c4d3" stroke-width="2"/><path d="M 1128 365 L 1136 370 L 1128 375" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <rect x="1136" y="326" width="150" height="88" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <circle cx="1161" cy="352" r="14" fill="#f3e8ff" stroke="#7c3aed" stroke-width="2"/>
+    <text x="1156" y="357" class="tiny" style="fill:#7c3aed">6</text>
+    <text x="1186" y="355" class="h3">トレース</text>
+    <text x="1152" y="386" class="small">自動構成を記録</text>
+
+    <rect x="252" y="486" width="352" height="286" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="522" class="h2">ポリシー</text>
+    <rect x="276" y="560" width="96" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="286" y="576" class="tiny" style="fill:#15803d">拒否: 0</text>
+    <rect x="276" y="598" width="156" height="24" rx="12" fill="#fef3c7" stroke="#fef3c7" stroke-width="1"/>
+  <text x="286" y="614" class="tiny" style="fill:#b45309">確認: 書き込み時</text>
+    <rect x="276" y="636" width="210" height="24" rx="12" fill="#f1f5f9" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="286" y="652" class="tiny" style="fill:#526174">外部送信: ランタイム既定</text>
+    <text x="276" y="700" class="small">初回は危険操作を自動承認しない。</text>
+
+    <rect x="636" y="486" width="352" height="286" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="660" y="522" class="h2">自動セットアップ</text>
+    <rect x="660" y="560" width="154" height="24" rx="12" fill="#dbeafe" stroke="#dbeafe" stroke-width="1"/>
+  <text x="670" y="576" class="tiny" style="fill:#2563eb">ドメイン: general</text>
+    <rect x="660" y="598" width="194" height="24" rx="12" fill="#f3e8ff" stroke="#f3e8ff" stroke-width="1"/>
+  <text x="670" y="614" class="tiny" style="fill:#7c3aed">ルーブリック: 一般品質</text>
+    <rect x="660" y="636" width="224" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="670" y="652" class="tiny" style="fill:#15803d">エージェント: default-worker</text>
+    <rect x="660" y="674" width="150" height="24" rx="12" fill="#ccfbf1" stroke="#ccfbf1" stroke-width="1"/>
+  <text x="670" y="690" class="tiny" style="fill:#0f766e">割り当てを作成</text>
+    <text x="660" y="728" class="small">自動作成としてトレースに残す。</text>
+
+    <rect x="1020" y="486" width="356" height="286" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="1044" y="522" class="h2">実行可能</text>
+    <text x="1044" y="556" class="body">ワークを実行できます。</text>
+    <text x="1044" y="586" class="small">実行後は実行トレースへ移動します。</text>
+    <rect x="1044" y="640" width="130" height="34" rx="7" fill="#4f46e5" stroke="#4f46e5" stroke-width="1"/>
+  <text x="1058" y="662" class="body" style="fill:#ffffff">ワークを実行</text>
+    <rect x="1214" y="640" width="86" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1228" y="662" class="body" style="fill:#111827">戻る</text>
+
+    </g>
+
+</svg>

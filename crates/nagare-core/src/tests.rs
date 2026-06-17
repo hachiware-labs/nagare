@@ -44,12 +44,27 @@ fn default_config_declares_initial_adapters() {
 }
 
 #[test]
+fn runtime_mcp_capability_table_drives_agent_choices() {
+    let codex = runtime_mcp_capability(AgentToolKind::Codex);
+    assert_eq!(codex.scope, RuntimeMcpScope::Project);
+    assert!(codex.agent_assignable);
+
+    let codex_cli = runtime_mcp_capability(AgentToolKind::CodexCli);
+    assert_eq!(codex_cli.scope, RuntimeMcpScope::Project);
+    assert!(codex_cli.agent_assignable);
+
+    let openclaw = runtime_mcp_capability(AgentToolKind::OpenClaw);
+    assert_eq!(openclaw.scope, RuntimeMcpScope::GlobalOnly);
+    assert!(!openclaw.agent_assignable);
+}
+
+#[test]
 fn init_project_seeds_general_domain_context() {
     let root = test_root("default-domains");
     init_project(&root).expect("project should init");
 
-    let groups = list_domain_groups(&root).expect("domain groups should load");
-    let domains = list_domain_profiles(&root).expect("domains should load");
+    let groups = list_domains(&root).expect("Domains should load");
+    let domains = list_artifact_types(&root).expect("domains should load");
     let general_group = groups
         .iter()
         .find(|group| group.id == "general")
@@ -63,22 +78,22 @@ fn init_project_seeds_general_domain_context() {
         general_group.display_name,
         I18n::environment().ui(UiTextKey::General)
     );
-    assert_eq!(general_domain.group_id.as_deref(), Some("general"));
+    assert_eq!(general_domain.domain_id.as_deref(), Some("general"));
     assert!(general_domain.artifact_types.contains(&"code".to_string()));
     for agent_id in ["worker", "reviewer", "dispatcher", "supervisor"] {
         let profile = get_agent_profile(&root, agent_id).expect("default profile should load");
-        assert_eq!(profile.domain_group_ids, vec!["general"]);
         assert_eq!(profile.domain_ids, vec!["general"]);
+        assert_eq!(profile.artifact_type_ids, vec!["general"]);
     }
     assert!(
         root.join(".nagare")
-            .join("domain-groups")
+            .join("domains")
             .join("general.toml")
             .exists()
     );
     assert!(
         root.join(".nagare")
-            .join("domains")
+            .join("artifact-types")
             .join("general.toml")
             .exists()
     );
@@ -89,17 +104,17 @@ fn init_project_seeds_general_domain_context() {
 fn ensure_project_repairs_missing_general_domain_context() {
     let root = test_root("repair-default-domains");
     init_project(&root).expect("project should init");
+    fs::remove_file(root.join(".nagare").join("domains").join("general.toml"))
+        .expect("general group should be removable");
     fs::remove_file(
         root.join(".nagare")
-            .join("domain-groups")
+            .join("artifact-types")
             .join("general.toml"),
     )
-    .expect("general group should be removable");
-    fs::remove_file(root.join(".nagare").join("domains").join("general.toml"))
-        .expect("general domain should be removable");
+    .expect("general domain should be removable");
 
-    let groups = list_domain_groups(&root).expect("domain groups should reload");
-    let domains = list_domain_profiles(&root).expect("domains should reload");
+    let groups = list_domains(&root).expect("Domains should reload");
+    let domains = list_artifact_types(&root).expect("domains should reload");
 
     assert!(groups.iter().any(|group| group.id == "general"));
     assert!(domains.iter().any(|domain| domain.id == "general"));
@@ -260,8 +275,8 @@ fn agent_profile_working_dir_is_used_for_runs() {
             description: "",
             specialties: Vec::new(),
             skill_set_ids: Vec::new(),
-            domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -304,8 +319,8 @@ fn agent_profile_routing_hints_are_persisted() {
             description: "Handles source gathering and synthesis.",
             specialties: vec!["research".to_string(), "synthesis".to_string()],
             skill_set_ids: Vec::new(),
-            domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -338,8 +353,8 @@ fn agent_profile_can_be_updated_as_project_local_override() {
             description: "Initial profile.",
             specialties: vec!["drafting".to_string()],
             skill_set_ids: Vec::new(),
-            domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -359,8 +374,8 @@ fn agent_profile_can_be_updated_as_project_local_override() {
             description: Some("Research and writing profile."),
             specialties: Some(vec!["research".to_string(), "writing".to_string()]),
             skill_set_ids: None,
-            domain_group_ids: None,
             domain_ids: None,
+            artifact_type_ids: None,
             output_contract: None,
             managed_by: None,
             model: None,
@@ -391,11 +406,11 @@ fn workflow_settings_and_domain_override_resolve_for_new_items() {
         },
     )
     .expect("workflow settings should save");
-    add_domain_profile(
+    add_artifact_type(
         &root,
-        AddDomainProfileInput {
+        AddArtifactTypeInput {
             id: "docs",
-            group_id: None,
+            domain_id: None,
             display_name: "Docs",
             description: "Documentation work",
             artifact_types: vec!["markdown".to_string()],
@@ -422,7 +437,7 @@ fn workflow_settings_and_domain_override_resolve_for_new_items() {
         &root,
         CreateWorkItemInput {
             title: "Domain override".to_string(),
-            domain_id: Some("docs".to_string()),
+            artifact_type_id: Some("docs".to_string()),
             ..CreateWorkItemInput::default()
         },
     )
@@ -442,12 +457,12 @@ fn workflow_settings_and_domain_override_resolve_for_new_items() {
         domain_item.approval_policy,
         ApprovalPolicy::ManualFinalApproval
     );
-    assert_eq!(domain_item.domain_id.as_deref(), Some("docs"));
+    assert_eq!(domain_item.artifact_type_id.as_deref(), Some("docs"));
     fs::remove_dir_all(root).ok();
 }
 
 #[test]
-fn domain_group_defaults_domain_override_and_agent_scope_are_persisted() {
+fn domain_defaults_domain_override_and_agent_scope_are_persisted() {
     let root = test_root("domain-group-scope");
     init_project(&root).expect("project should init");
     set_workflow_settings(
@@ -458,9 +473,9 @@ fn domain_group_defaults_domain_override_and_agent_scope_are_persisted() {
         },
     )
     .expect("workflow settings should save");
-    add_domain_group(
+    add_domain(
         &root,
-        AddDomainGroupInput {
+        AddDomainInput {
             id: "software-development",
             display_name: "Software Development",
             description: "Software changes",
@@ -473,12 +488,12 @@ fn domain_group_defaults_domain_override_and_agent_scope_are_persisted() {
             },
         },
     )
-    .expect("domain group should be added");
-    add_domain_profile(
+    .expect("Domain should be added");
+    add_artifact_type(
         &root,
-        AddDomainProfileInput {
+        AddArtifactTypeInput {
             id: "frontend-ui",
-            group_id: Some("software-development"),
+            domain_id: Some("software-development"),
             display_name: "Frontend UI",
             description: "UI work",
             artifact_types: vec!["html".to_string()],
@@ -503,8 +518,8 @@ fn domain_group_defaults_domain_override_and_agent_scope_are_persisted() {
             description: "Reviews frontend UI.",
             specialties: vec!["ui".to_string(), "review".to_string()],
             skill_set_ids: Vec::new(),
-            domain_group_ids: vec!["software-development".to_string()],
-            domain_ids: vec!["frontend-ui".to_string()],
+            domain_ids: vec!["software-development".to_string()],
+            artifact_type_ids: vec!["frontend-ui".to_string()],
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -516,30 +531,27 @@ fn domain_group_defaults_domain_override_and_agent_scope_are_persisted() {
         &root,
         CreateWorkItemInput {
             title: "Polish settings UI".to_string(),
-            domain_id: Some("frontend-ui".to_string()),
+            artifact_type_id: Some("frontend-ui".to_string()),
             ..CreateWorkItemInput::default()
         },
     )
     .expect("item should create")
     .item;
-    assert_eq!(
-        item.domain_group_id.as_deref(),
-        Some("software-development")
-    );
-    assert_eq!(item.domain_id.as_deref(), Some("frontend-ui"));
+    assert_eq!(item.domain_id.as_deref(), Some("software-development"));
+    assert_eq!(item.artifact_type_id.as_deref(), Some("frontend-ui"));
     assert_eq!(item.workflow_mode, WorkflowMode::FinishFirst);
     assert_eq!(item.approval_policy, ApprovalPolicy::ManualFinalApproval);
 
     let profile = get_agent_profile(&root, "ui-reviewer").expect("profile should load");
-    assert_eq!(profile.domain_group_ids, vec!["software-development"]);
-    assert_eq!(profile.domain_ids, vec!["frontend-ui"]);
+    assert_eq!(profile.domain_ids, vec!["software-development"]);
+    assert_eq!(profile.artifact_type_ids, vec!["frontend-ui"]);
 
     let mismatch = create_work_item_with_input(
         &root,
         CreateWorkItemInput {
             title: "Mismatched domain".to_string(),
-            domain_group_id: Some("other".to_string()),
-            domain_id: Some("frontend-ui".to_string()),
+            domain_id: Some("other".to_string()),
+            artifact_type_id: Some("frontend-ui".to_string()),
             ..CreateWorkItemInput::default()
         },
     );
@@ -563,8 +575,8 @@ fn agent_profile_output_contracts_can_be_updated() {
             description: "",
             specialties: Vec::new(),
             skill_set_ids: Vec::new(),
-            domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -617,8 +629,8 @@ fn nagare_agent_settings_can_select_default_work_agent() {
             description: "",
             specialties: Vec::new(),
             skill_set_ids: Vec::new(),
-            domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -716,8 +728,8 @@ fn handoff_dispatch_uses_same_plan_lifecycle() {
             description: "Handles repair work.",
             specialties: vec!["repair".to_string()],
             skill_set_ids: Vec::new(),
-            domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -798,8 +810,8 @@ fn accepted_dispatch_plan_selects_target_for_work_run() {
             description: "Research and source synthesis.",
             specialties: vec!["research".to_string()],
             skill_set_ids: Vec::new(),
-            domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -902,8 +914,8 @@ fn dispatch_agent_json_can_choose_between_writing_and_research_agents() {
             description: "Drafts and edits user-facing prose.",
             specialties: vec!["writing".to_string(), "editing".to_string()],
             skill_set_ids: Vec::new(),
-            domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -922,8 +934,8 @@ fn dispatch_agent_json_can_choose_between_writing_and_research_agents() {
             description: "Collects sources and synthesizes findings.",
             specialties: vec!["research".to_string(), "synthesis".to_string()],
             skill_set_ids: Vec::new(),
-            domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -1050,9 +1062,9 @@ fn dispatch_contract_fallback_records_selection_warnings() {
 fn dispatch_preview_requires_human_confirmation_when_domain_agent_is_missing() {
     let root = test_root("dispatch-missing-domain-agent");
     init_project(&root).expect("project should init");
-    add_domain_group(
+    add_domain(
         &root,
-        AddDomainGroupInput {
+        AddDomainInput {
             id: "software-development",
             display_name: "Software Development",
             description: "Software changes",
@@ -1062,12 +1074,12 @@ fn dispatch_preview_requires_human_confirmation_when_domain_agent_is_missing() {
             workflow: DomainWorkflowOverride::default(),
         },
     )
-    .expect("domain group should be added");
-    add_domain_profile(
+    .expect("Domain should be added");
+    add_artifact_type(
         &root,
-        AddDomainProfileInput {
+        AddArtifactTypeInput {
             id: "frontend-ui",
-            group_id: Some("software-development"),
+            domain_id: Some("software-development"),
             display_name: "Frontend UI",
             description: "UI work",
             artifact_types: Vec::new(),
@@ -1089,8 +1101,8 @@ fn dispatch_preview_requires_human_confirmation_when_domain_agent_is_missing() {
             description: "Handles research work.",
             specialties: vec!["research".to_string()],
             skill_set_ids: Vec::new(),
-            domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -1101,7 +1113,7 @@ fn dispatch_preview_requires_human_confirmation_when_domain_agent_is_missing() {
         &root,
         CreateWorkItemInput {
             title: "Frontend dispatch".to_string(),
-            domain_id: Some("frontend-ui".to_string()),
+            artifact_type_id: Some("frontend-ui".to_string()),
             domain_agent_policy: DomainAgentPolicy::ConfirmGeneralFallback,
             ..CreateWorkItemInput::default()
         },
@@ -1149,9 +1161,9 @@ fn dispatch_preview_requires_human_confirmation_when_domain_agent_is_missing() {
 fn dispatch_preview_blocks_when_domain_agent_is_required_and_missing() {
     let root = test_root("dispatch-require-domain-agent");
     init_project(&root).expect("project should init");
-    add_domain_group(
+    add_domain(
         &root,
-        AddDomainGroupInput {
+        AddDomainInput {
             id: "software-development",
             display_name: "Software Development",
             description: "Software changes",
@@ -1161,12 +1173,12 @@ fn dispatch_preview_blocks_when_domain_agent_is_required_and_missing() {
             workflow: DomainWorkflowOverride::default(),
         },
     )
-    .expect("domain group should be added");
-    add_domain_profile(
+    .expect("Domain should be added");
+    add_artifact_type(
         &root,
-        AddDomainProfileInput {
+        AddArtifactTypeInput {
             id: "frontend-ui",
-            group_id: Some("software-development"),
+            domain_id: Some("software-development"),
             display_name: "Frontend UI",
             description: "UI work",
             artifact_types: Vec::new(),
@@ -1180,7 +1192,7 @@ fn dispatch_preview_blocks_when_domain_agent_is_required_and_missing() {
         &root,
         CreateWorkItemInput {
             title: "Frontend dispatch".to_string(),
-            domain_id: Some("frontend-ui".to_string()),
+            artifact_type_id: Some("frontend-ui".to_string()),
             domain_agent_policy: DomainAgentPolicy::RequireDomainAgent,
             ..CreateWorkItemInput::default()
         },
@@ -1230,9 +1242,9 @@ fn dispatch_preview_blocks_when_domain_agent_is_required_and_missing() {
 fn dispatch_preview_uses_general_fallback_without_confirmation_by_default() {
     let root = test_root("dispatch-general-fallback");
     init_project(&root).expect("project should init");
-    add_domain_group(
+    add_domain(
         &root,
-        AddDomainGroupInput {
+        AddDomainInput {
             id: "software-development",
             display_name: "Software Development",
             description: "Software changes",
@@ -1242,12 +1254,12 @@ fn dispatch_preview_uses_general_fallback_without_confirmation_by_default() {
             workflow: DomainWorkflowOverride::default(),
         },
     )
-    .expect("domain group should be added");
-    add_domain_profile(
+    .expect("Domain should be added");
+    add_artifact_type(
         &root,
-        AddDomainProfileInput {
+        AddArtifactTypeInput {
             id: "frontend-ui",
-            group_id: Some("software-development"),
+            domain_id: Some("software-development"),
             display_name: "Frontend UI",
             description: "UI work",
             artifact_types: Vec::new(),
@@ -1269,8 +1281,8 @@ fn dispatch_preview_uses_general_fallback_without_confirmation_by_default() {
             description: "Handles research work.",
             specialties: vec!["research".to_string()],
             skill_set_ids: Vec::new(),
-            domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -1281,7 +1293,7 @@ fn dispatch_preview_uses_general_fallback_without_confirmation_by_default() {
         &root,
         CreateWorkItemInput {
             title: "Frontend dispatch".to_string(),
-            domain_id: Some("frontend-ui".to_string()),
+            artifact_type_id: Some("frontend-ui".to_string()),
             ..CreateWorkItemInput::default()
         },
     )
@@ -1329,9 +1341,9 @@ fn dispatch_preview_uses_general_fallback_without_confirmation_by_default() {
 fn dispatch_preview_does_not_block_when_domain_agent_exists() {
     let root = test_root("dispatch-domain-agent");
     init_project(&root).expect("project should init");
-    add_domain_group(
+    add_domain(
         &root,
-        AddDomainGroupInput {
+        AddDomainInput {
             id: "software-development",
             display_name: "Software Development",
             description: "Software changes",
@@ -1341,12 +1353,12 @@ fn dispatch_preview_does_not_block_when_domain_agent_exists() {
             workflow: DomainWorkflowOverride::default(),
         },
     )
-    .expect("domain group should be added");
-    add_domain_profile(
+    .expect("Domain should be added");
+    add_artifact_type(
         &root,
-        AddDomainProfileInput {
+        AddArtifactTypeInput {
             id: "frontend-ui",
-            group_id: Some("software-development"),
+            domain_id: Some("software-development"),
             display_name: "Frontend UI",
             description: "UI work",
             artifact_types: Vec::new(),
@@ -1368,8 +1380,8 @@ fn dispatch_preview_does_not_block_when_domain_agent_exists() {
             description: "Handles frontend UI work.",
             specialties: vec!["ui".to_string()],
             skill_set_ids: Vec::new(),
-            domain_group_ids: vec!["software-development".to_string()],
-            domain_ids: vec!["frontend-ui".to_string()],
+            domain_ids: vec!["software-development".to_string()],
+            artifact_type_ids: vec!["frontend-ui".to_string()],
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -1380,7 +1392,7 @@ fn dispatch_preview_does_not_block_when_domain_agent_exists() {
         &root,
         CreateWorkItemInput {
             title: "Frontend dispatch".to_string(),
-            domain_id: Some("frontend-ui".to_string()),
+            artifact_type_id: Some("frontend-ui".to_string()),
             ..CreateWorkItemInput::default()
         },
     )
@@ -1497,8 +1509,8 @@ fn project_rule_resolution_selects_most_specific_rule() {
             description: "",
             specialties: Vec::new(),
             skill_set_ids: Vec::new(),
-            domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -1699,8 +1711,8 @@ skill_sets = ["rule-rust"]
             description: "Uses an agent-specific review skill.",
             specialties: Vec::new(),
             skill_set_ids: vec!["agent-review".to_string()],
-            domain_group_ids: Vec::new(),
             domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
             managed_by: Some("nagare"),
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -1736,6 +1748,217 @@ skill_sets = ["rule-rust"]
         vec!["rule-rust".to_string(), "agent-review".to_string()]
     );
     assert!(context.skipped_skill_set_ids.is_empty());
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn run_skips_remote_skill_package_without_local_install() {
+    let root = test_root("remote-skill-not-installed");
+    init_project(&root).expect("project should init");
+    let layout = ProjectLayout::new(&root);
+    let mut config = fs::read_to_string(&layout.config_path).expect("config should read");
+    config.push_str(
+        r#"
+
+[skill_packages."hachiware-labs/hachi-search"]
+source_kind = "vercel"
+source = "hachiware-labs/hachi-search"
+provided_skill_sets = ["hachiware-labs/hachi-search"]
+
+[skill_sets."hachiware-labs/hachi-search"]
+paths = ["."]
+required_capabilities = []
+optional_capabilities = []
+"#,
+    );
+    fs::write(&layout.config_path, config).expect("config should write");
+    add_agent_profile(
+        &root,
+        AddAgentProfileInput {
+            id: "search-agent",
+            display_name: "Search Agent",
+            runtime: "codex-local",
+            adapter: "process.codex-cli",
+            role: "worker",
+            working_dir: ".",
+            description: "Uses search skills.",
+            specialties: Vec::new(),
+            skill_set_ids: vec!["hachiware-labs/hachi-search".to_string()],
+            domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
+            managed_by: Some("nagare"),
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
+        },
+    )
+    .expect("profile should be added");
+
+    let item = create_work_item(&root, "Use hachi-search", "")
+        .expect("item should create")
+        .item;
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "search-agent",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(scenario_command("remote skill missing", true).as_str()),
+            purpose: AgentRunPurpose::DispatchPreview,
+        },
+    )
+    .expect("run should succeed with remote skill skipped");
+
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot should load");
+    let context = &snapshot.resolved_skill_contexts[0];
+    assert_eq!(
+        context.declared_skill_set_ids,
+        vec!["hachiware-labs/hachi-search".to_string()]
+    );
+    assert!(context.applied_skill_set_ids.is_empty());
+    assert_eq!(
+        context.skipped_skill_set_ids,
+        vec!["hachiware-labs/hachi-search".to_string()]
+    );
+    assert!(
+        snapshot.resolved_run_packets[0]
+            .constraints
+            .iter()
+            .any(|constraint| constraint.contains("registered but not installed locally"))
+    );
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn uninstall_agent_skill_package_limits_body_removal_to_selected_tool() {
+    let root = test_root("uninstall-skill-package");
+    init_project(&root).expect("project should init");
+    let layout = ProjectLayout::new(&root);
+    let skill_dir = root.join(".agents").join("skills").join("search-tools");
+    let openclaw_skill_dir = root.join("skills").join("search-tools");
+    fs::create_dir_all(&skill_dir).expect("skill dir should create");
+    fs::create_dir_all(&openclaw_skill_dir).expect("openclaw skill dir should create");
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        r#"---
+name: search-tools
+description: Project search helpers.
+---
+
+# Search Tools
+"#,
+    )
+    .expect("skill should write");
+    fs::write(
+        openclaw_skill_dir.join("SKILL.md"),
+        r#"---
+name: search-tools
+description: Project search helpers for OpenClaw.
+---
+
+# Search Tools
+"#,
+    )
+    .expect("openclaw skill should write");
+    let mut config = fs::read_to_string(&layout.config_path).expect("config should read");
+    config.push_str(
+        r#"
+
+[skill_packages.search-tools]
+source_kind = "local"
+source = ".agents/skills/search-tools"
+installed_path = ".agents/skills/search-tools"
+installed_paths = [".agents/skills/search-tools", "skills/search-tools"]
+install_scope = "project"
+installed_targets = ["codex", "openclaw"]
+provided_skill_sets = ["search-tools"]
+
+[skill_sets.search-tools]
+paths = [".agents/skills/search-tools", "skills/search-tools"]
+required_capabilities = []
+optional_capabilities = []
+"#,
+    );
+    fs::write(&layout.config_path, config).expect("config should write");
+    fs::write(
+        root.join("skills-lock.json"),
+        r#"{
+  "version": 1,
+  "skills": {
+    "search-tools": {
+      "source": ".agents/skills/search-tools"
+    }
+  }
+}
+"#,
+    )
+    .expect("lock file should write");
+    for agent_id in ["search-a", "search-b"] {
+        add_agent_profile(
+            &root,
+            AddAgentProfileInput {
+                id: agent_id,
+                display_name: agent_id,
+                runtime: "codex-local",
+                adapter: "process.codex-cli",
+                role: "worker",
+                working_dir: ".",
+                description: "Uses search skills.",
+                specialties: Vec::new(),
+                skill_set_ids: vec!["search-tools".to_string()],
+                domain_ids: Vec::new(),
+                artifact_type_ids: Vec::new(),
+                managed_by: Some("nagare"),
+                model: AgentModelSelection::default(),
+                external: ExternalAgentBinding::default(),
+            },
+        )
+        .expect("profile should be added");
+    }
+
+    let first = uninstall_agent_skill_package(
+        &root,
+        UninstallAgentSkillPackageInput {
+            agent_profile_id: "search-a",
+            skill_set_id: "search-tools",
+            uninstall_package: true,
+        },
+    )
+    .expect("first uninstall should succeed");
+    assert!(first.removed_from_agent);
+    assert!(!first.package_removed);
+    assert!(skill_dir.exists());
+    assert!(
+        fs::read_to_string(&layout.config_path)
+            .expect("config should read")
+            .contains("[skill_packages.search-tools]")
+    );
+
+    let second = uninstall_agent_skill_package(
+        &root,
+        UninstallAgentSkillPackageInput {
+            agent_profile_id: "search-b",
+            skill_set_id: "search-tools",
+            uninstall_package: true,
+        },
+    )
+    .expect("second uninstall should succeed");
+    assert!(second.removed_from_agent);
+    assert!(!second.package_removed);
+    assert!(second.installed_path_removed);
+    assert!(!skill_dir.exists());
+    assert!(openclaw_skill_dir.exists());
+    let config = fs::read_to_string(&layout.config_path).expect("config should read");
+    assert!(config.contains("[skill_packages.search-tools]"));
+    assert!(config.contains("installed_targets = [\"openclaw\"]"));
+    assert!(config.contains("installed_path = \"skills/search-tools\""));
+    assert!(config.contains("installed_paths = [\"skills/search-tools\"]"));
+    assert!(config.contains("paths = [\"skills/search-tools\"]"));
+    let lock = fs::read_to_string(root.join("skills-lock.json")).expect("lock should read");
+    assert!(lock.contains("search-tools"));
+    let agent = get_agent_profile(&root, "search-b").expect("agent should load");
+    assert!(agent.skill_set_ids.is_empty());
     fs::remove_dir_all(root).ok();
 }
 

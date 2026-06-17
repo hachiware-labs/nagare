@@ -27,7 +27,7 @@ Prompt Config
   How this agent should behave.
 
 Routing Scope
-  Which domains or domain groups this agent should be selected for.
+  Which domains or Domains this agent should be selected for.
 ```
 
 ツール非依存にする理由は、ユーザーが管理したいものが「Codex というプロセス」ではなく「レビュー担当」「フロントエンド実装担当」「ローカルモデルで動く軽量レビュアー」のような働きだからである。
@@ -51,8 +51,8 @@ Agent Profile が持つ共通項目:
 - `adapter`
 - `model`
 - `skill_set_ids`
-- `domain_group_ids`
 - `domain_ids`
+- `artifact_type_ids`
 - `prompt`
 - `output_contracts`
 
@@ -144,7 +144,7 @@ UI は次を表示する:
 
 ### R8. Routing Is Independent From Tool
 
-Dispatch は Agent Profile の role、domain scope、specialties、skills、prompt summary を見て選択する。Codex か OpenClaw かは候補比較の一部ではあるが、最初の分類軸にしない。
+Dispatch は Agent Profile の role、Domain / Artifact Type scope、specialties、skills、prompt summary を見て選択する。Codex か OpenClaw かは候補比較の一部ではあるが、最初の分類軸にしない。
 
 ### R9. Skill Catalog Is Explicit
 
@@ -173,7 +173,7 @@ Agent 管理の使い勝手を固めるには、「この Work Item ならどの
 Dispatch Preview は次を表示する:
 
 - candidate agents
-- matched domain / domain group
+- matched Domain / Artifact Type
 - matched project rule
 - project rule skill sets
 - agent-specific skill sets
@@ -278,7 +278,7 @@ MVP では `nagare skill init` 相当の CLI か、手動作成した local dire
 4. Model で `gpt-5.3-codex` を選ぶ。
 5. Skills で `rust`, `test-runner`, `repo-maintenance` を選ぶ。
 6. Prompt に「小さく実装し、検証結果を最後に書く」と入力する。
-7. Domain Scope に `general` と `backend` を選ぶ。
+7. Domain / Artifact Type scope に `general` と `backend` を選ぶ。
 8. 保存する。
 
 期待結果:
@@ -393,15 +393,15 @@ MVP では `nagare skill init` 相当の CLI か、手動作成した local dire
 
 シナリオ:
 
-1. Work Item 作成時に Domain Group `web`、Domain `frontend` を選ぶ。
+1. Work Item 作成時に Domain `web`、Domain `frontend` を選ぶ。
 2. Work Item を advance する。
 3. Dispatch が candidate Agent を比較する。
-4. `domain_ids = ["frontend"]` を持つ Agent が優先される。
+4. `artifact_type_ids = ["frontend"]` を持つ Agent が優先される。
 
 期待結果:
 
 - Agent の tool が Codex でも OpenClaw でも候補になる。
-- domain scope が一致する Agent が選ばれやすい。
+- Domain / Artifact Type scope が一致する Agent が選ばれやすい。
 - 一致する Agent がない場合、domain agent policy に従って fallback または確認になる。
 
 要件確認:
@@ -778,7 +778,7 @@ Agent 詳細はタブ構成にする。
 - Overview: name, role, working_dir, tool
 - Model: provider, model, base_url
 - Skills: assigned skill sets, applied/skipped preview
-- Routing: domain groups, domains, dispatch hints
+- Routing: Domains, domains, dispatch hints
 - Prompt: instructions, version, preview
 - Runtime: adapter, external binding, healthcheck, probe
 
@@ -788,7 +788,7 @@ Agent 作成は、設定フォームではなく短い wizard として扱う。
 
 ```text
 Step 1. Basics
-  name, role, domain scope
+  name, role, Domain / Artifact Type scope
 
 Step 2. Tool and Model
   Codex / Codex CLI / OpenClaw
@@ -967,8 +967,8 @@ pub struct AgentProfile {
     pub specialties: Vec<String>,
     pub tool_kind: AgentToolKind,
     pub skill_set_ids: Vec<String>,
-    pub domain_group_ids: Vec<String>,
     pub domain_ids: Vec<String>,
+    pub artifact_type_ids: Vec<String>,
     pub model: AgentModelSelection,
     pub external: ExternalAgentBinding,
     pub prompt: AgentPromptConfig,

@@ -13,8 +13,9 @@ pub struct ProjectLayout {
     pub nagare_dir: PathBuf,
     pub config_path: PathBuf,
     pub agents_dir: PathBuf,
-    pub domain_groups_dir: PathBuf,
     pub domains_dir: PathBuf,
+    pub artifact_types_dir: PathBuf,
+    pub artifact_type_samples_dir: PathBuf,
     pub state_dir: PathBuf,
     pub ledger_path: PathBuf,
     pub artifacts_dir: PathBuf,
@@ -29,8 +30,9 @@ impl ProjectLayout {
         Self {
             config_path: nagare_dir.join("project.toml"),
             agents_dir: nagare_dir.join("agents"),
-            domain_groups_dir: nagare_dir.join("domain-groups"),
             domains_dir: nagare_dir.join("domains"),
+            artifact_types_dir: nagare_dir.join("artifact-types"),
+            artifact_type_samples_dir: nagare_dir.join("artifact-type-samples"),
             ledger_path: state_dir.join("ledger.json"),
             state_dir,
             artifacts_dir: nagare_dir.join("artifacts"),
@@ -54,8 +56,9 @@ pub fn init_project(root: impl Into<PathBuf>) -> io::Result<InitResult> {
     fs::create_dir_all(&layout.artifacts_dir)?;
     fs::create_dir_all(&layout.logs_dir)?;
     fs::create_dir_all(&layout.agents_dir)?;
-    fs::create_dir_all(&layout.domain_groups_dir)?;
     fs::create_dir_all(&layout.domains_dir)?;
+    fs::create_dir_all(&layout.artifact_types_dir)?;
+    fs::create_dir_all(&layout.artifact_type_samples_dir)?;
     seed_default_domains(&layout)?;
 
     let created_config = if layout.config_path.exists() {
@@ -82,16 +85,16 @@ pub fn init_project(root: impl Into<PathBuf>) -> io::Result<InitResult> {
 pub(crate) fn seed_default_domains(layout: &ProjectLayout) -> io::Result<()> {
     let i18n = default_seed_i18n(layout);
     write_default_seed_file(
-        &layout.domain_groups_dir.join("general.toml"),
-        &i18n.general_domain_group_toml(),
+        &layout.domains_dir.join("general.toml"),
+        &i18n.general_domain_toml(),
         &[
             "General-purpose work that does not need a specialized domain.",
             "display_name = \"General\"",
         ],
     )?;
     write_default_seed_file(
-        &layout.domains_dir.join("general.toml"),
-        &i18n.general_domain_profile_toml(),
+        &layout.artifact_types_dir.join("general.toml"),
+        &i18n.general_artifact_type_toml(),
         &[
             "General implementation, review, documentation, and maintenance work.",
             "display_name = \"General\"",

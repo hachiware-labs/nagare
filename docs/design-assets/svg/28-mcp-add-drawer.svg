@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960">
+  <rect width="1440" height="960" fill="#f8fafc"/>
+  <style>
+    .title{font:700 24px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h2{font:700 17px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .h3{font:700 14px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .body{font:500 13px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#020617}
+    .small{font:500 11px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .tiny{font:600 10px Inter,Segoe UI,"Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#334155}
+    .nav{font:650 13px Inter,Segoe UI,Arial,sans-serif;fill:#334155}
+    .nav-on{font:700 13px Inter,Segoe UI,Arial,sans-serif;fill:#4338ca}
+  </style>
+
+  <rect x="0" y="0" width="200" height="960" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="28" y="42" class="title">Nagare</text>
+  <text x="30" y="64" class="tiny" style="fill:#4338ca">HACHIWARE LABS</text>
+  <text x="34" y="118" class="nav">Work Items</text>
+  <text x="34" y="156" class="nav">Skills</text>
+  <rect x="18" y="172" width="164" height="32" rx="7" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="34" y="194" class="nav-on">MCP</text>
+  <text x="34" y="232" class="nav">Agents</text>
+  <line x1="200" y1="0" x2="200" y2="960" stroke="#e2e8f0"/>
+
+  <text x="232" y="48" class="title">MCP</text>
+  <text x="232" y="72" class="small">接続定義を追加</text>
+  <rect x="232" y="96" width="760" height="772" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="260" y="134" class="h2">MCP 接続一覧</text>
+  <rect x="260" y="170" width="704" height="74" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="280" y="198" class="h3">filesystem-read</text>
+  <text x="280" y="220" class="small">使用中Agent: researcher, reviewer ↗</text>
+  <rect x="260" y="262" width="704" height="74" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="280" y="290" class="h3">github-repo</text>
+  <text x="280" y="312" class="small">使用中Agent: reviewer ↗</text>
+
+  <rect x="1028" y="0" width="412" height="960" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1058" y="48" class="title">MCPを追加</text>
+  <text x="1058" y="72" class="small">接続方式と権限を先に確認する</text>
+
+  <text x="1058" y="120" class="tiny">接続方式</text>
+  <rect x="1058" y="138" width="330" height="42" rx="7" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="1076" y="165" class="body">stdio command</text>
+  <text x="1058" y="214" class="tiny">command / URL</text>
+  <rect x="1058" y="232" width="330" height="42" rx="7" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="1076" y="259" class="body">nagare-mcp-filesystem --root docs</text>
+
+  <text x="1058" y="310" class="tiny">対象範囲</text>
+  <rect x="1058" y="328" width="330" height="42" rx="7" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="1076" y="355" class="body">docs/, crates/</text>
+
+  <text x="1058" y="408" class="tiny">権限</text>
+  <rect x="1058" y="426" width="84" height="26" rx="13" fill="#eef2ff" stroke="#eef2ff"/>
+  <text x="1074" y="444" class="tiny" style="fill:#4338ca">read</text>
+  <rect x="1152" y="426" width="84" height="26" rx="13" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="1168" y="444" class="tiny" style="fill:#475569">write</text>
+  <rect x="1246" y="426" width="110" height="26" rx="13" fill="#f1f5f9" stroke="#f1f5f9"/>
+  <text x="1262" y="444" class="tiny" style="fill:#475569">external send</text>
+
+  <text x="1058" y="500" class="tiny">認証情報</text>
+  <rect x="1058" y="518" width="330" height="42" rx="7" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="1076" y="545" class="body">secret: not required</text>
+
+  <text x="1058" y="610" class="tiny">接続テスト</text>
+  <rect x="1058" y="628" width="330" height="74" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="1076" y="658" class="small">未実行。成功するまで利用候補に入れない。</text>
+  <text x="1076" y="684" class="small">Agent別の割り当てはAgent詳細で設定。</text>
+
+  <rect x="1058" y="778" width="116" height="34" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1072" y="800" class="body">接続テスト</text>
+  <rect x="1188" y="778" width="142" height="34" rx="7" fill="#4338ca" stroke="#4338ca"/>
+  <text x="1208" y="800" class="body" style="fill:#ffffff">MCPを追加</text>
+</svg>

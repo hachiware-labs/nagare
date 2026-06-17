@@ -19,7 +19,7 @@ pub(crate) fn parse_form_urlencoded(body: &str) -> HashMap<String, String> {
     fields
 }
 
-fn url_decode(value: &str) -> Option<String> {
+pub(crate) fn url_decode(value: &str) -> Option<String> {
     let mut bytes = Vec::new();
     let mut chars = value.as_bytes().iter().copied();
     while let Some(byte) = chars.next() {

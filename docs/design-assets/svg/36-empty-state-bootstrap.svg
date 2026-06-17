@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024" role="img" aria-labelledby="-title -desc">
+  <title id="-title">ワーク</title>
+  <desc id="-desc">空状態のワーク画面に、プロジェクト作成とランタイム接続を行うセットアップウィザードを重ねた画面。</desc>
+  <rect width="1440" height="1024" fill="#f7f8fb"/>
+  <style>
+    .title{font:700 25px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .kicker{font:700 10px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+    .h1{font:750 22px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h2{font:700 16px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h3{font:700 13px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .body{font:500 12px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .small{font:500 11px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .tiny{font:700 10px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .mono{font:500 11px Consolas,Menlo,monospace;fill:#111827}
+    .nav{font:650 13px Inter,"Segoe UI",Arial,sans-serif;fill:#526174}
+    .nav-on{font:750 13px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+  </style>
+
+    <g id="sidebar">
+      <rect x="0" y="0" width="204" height="1024" rx="0" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="28" y="43" class="title">Nagare</text>
+      <text x="30" y="64" class="kicker">制御プレーン</text>
+      <text x="30" y="82" class="small">プロジェクト対応ランタイム</text>
+      <g>
+        <rect x="18" y="96" width="168" height="33" rx="7" fill="#eef2ff" stroke="#eef2ff" stroke-width="1"/>
+        <text x="34" y="118" class="nav-on">ワーク</text>
+      </g><g>
+
+        <text x="34" y="157" class="nav">プロジェクト</text>
+      </g><g>
+
+        <text x="34" y="196" class="nav">ドメイン</text>
+      </g><g>
+
+        <text x="34" y="235" class="nav">エージェント</text>
+      </g><g>
+
+        <text x="34" y="274" class="nav">スキル</text>
+      </g><g>
+
+        <text x="34" y="313" class="nav">MCP</text>
+      </g><g>
+
+        <text x="34" y="352" class="nav">設定</text>
+      </g>
+    </g>
+    <g id="page-header">
+      <text x="232" y="48" class="title">ワーク</text>
+      <text x="232" y="72" class="small">セットアップが必要な場合はウィザードから開始します</text>
+
+    </g>
+    <g id="content">
+
+    <rect x="232" y="96" width="1164" height="828" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <rect x="252" y="124" width="1124" height="92" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="162" class="h1">ワーク</text>
+    <text x="276" y="190" class="body">依頼、実行前確認、実行中、レビュー、完了までの流れをここで追います。</text>
+    <rect x="1120" y="150" width="138" height="24" rx="12" fill="#fef3c7" stroke="#fef3c7" stroke-width="1"/>
+  <text x="1130" y="166" class="tiny" style="fill:#b45309">セットアップ必要</text>
+    <rect x="1268" y="150" width="108" height="24" rx="12" fill="#fee2e2" stroke="#fee2e2" stroke-width="1"/>
+  <text x="1278" y="166" class="tiny" style="fill:#b91c1c">ランタイム 0</text>
+
+    <rect x="252" y="256" width="1124" height="252" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="292" class="h2">ワークの流れ</text>
+    <text x="276" y="318" class="small">プロジェクトとランタイムが未設定のため、まだ作成・実行はできません。</text>
+    <rect x="276" y="354" width="192" height="98" rx="8" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="300" y="390" class="h3">依頼</text>
+    <text x="300" y="418" class="small" style="fill:#b45309">停止中</text>
+    <line x1="468" y1="403" x2="500" y2="403" stroke="#b8c4d3" stroke-width="2"/><path d="M 492 398 L 500 403 L 492 408" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <rect x="500" y="354" width="192" height="98" rx="8" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="524" y="390" class="h3">実行前確認</text>
+    <text x="524" y="418" class="small" style="fill:#b45309">プロジェクトが必要</text>
+    <line x1="692" y1="403" x2="724" y2="403" stroke="#b8c4d3" stroke-width="2"/><path d="M 716 398 L 724 403 L 716 408" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <rect x="724" y="354" width="192" height="98" rx="8" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="748" y="390" class="h3">実行中</text>
+    <text x="748" y="418" class="small" style="fill:#b91c1c">ランタイムが必要</text>
+    <line x1="916" y1="403" x2="948" y2="403" stroke="#b8c4d3" stroke-width="2"/><path d="M 940 398 L 948 403 L 940 408" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <rect x="948" y="354" width="192" height="98" rx="8" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="972" y="390" class="h3">レビュー</text>
+    <text x="972" y="418" class="small">待機中</text>
+    <line x1="1140" y1="403" x2="1172" y2="403" stroke="#b8c4d3" stroke-width="2"/><path d="M 1164 398 L 1172 403 L 1164 408" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <rect x="1172" y="354" width="180" height="98" rx="8" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="1196" y="390" class="h3">完了</text>
+    <text x="1196" y="418" class="small">待機中</text>
+
+    <rect x="252" y="548" width="544" height="236" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="584" class="h2">セットアップ状態</text>
+    <rect x="276" y="622" width="178" height="24" rx="12" fill="#fef3c7" stroke="#fef3c7" stroke-width="1"/>
+  <text x="286" y="638" class="tiny" style="fill:#b45309">プロジェクト: 未設定</text>
+    <rect x="276" y="660" width="174" height="24" rx="12" fill="#fee2e2" stroke="#fee2e2" stroke-width="1"/>
+  <text x="286" y="676" class="tiny" style="fill:#b91c1c">ランタイム: 未接続</text>
+    <rect x="276" y="698" width="154" height="24" rx="12" fill="#fef3c7" stroke="#fef3c7" stroke-width="1"/>
+  <text x="286" y="714" class="tiny" style="fill:#b45309">ワーク: 作成不可</text>
+
+    <rect x="832" y="548" width="544" height="236" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="856" y="584" class="h2">セットアップ後</text>
+    <rect x="856" y="622" width="156" height="24" rx="12" fill="#dbeafe" stroke="#dbeafe" stroke-width="1"/>
+  <text x="866" y="638" class="tiny" style="fill:#2563eb">ドメイン: general</text>
+    <rect x="1028" y="622" width="228" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="1038" y="638" class="tiny" style="fill:#15803d">エージェント: default-worker</text>
+    <rect x="856" y="660" width="226" height="24" rx="12" fill="#ccfbf1" stroke="#ccfbf1" stroke-width="1"/>
+  <text x="866" y="676" class="tiny" style="fill:#0f766e">割り当て: general -&gt; worker</text>
+    <rect x="1106" y="660" width="216" height="24" rx="12" fill="#fef3c7" stroke="#fef3c7" stroke-width="1"/>
+  <text x="1116" y="676" class="tiny" style="fill:#b45309">セッション: 実行時に作成</text>
+    <text x="856" y="728" class="small">自動作成内容は実行前確認とトレースで表示され、後から変更できます。</text>
+
+    <rect x="204" y="0" width="1236" height="1024" fill="#111827" opacity="0.18"/>
+    <rect x="410" y="176" width="620" height="526" rx="8" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+    <text x="448" y="224" class="h1">セットアップが必要です</text>
+    <text x="448" y="254" class="body">ワークを実行するために、プロジェクトとランタイム接続だけ確認します。</text>
+    <text x="448" y="278" class="small">その他の構成は暫定作成し、あとで変更できます。</text>
+
+    <text x="448" y="334" class="h2">このウィザードで行うこと</text>
+    <rect x="448" y="366" width="176" height="82" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <circle cx="476" cy="396" r="15" fill="#eef2ff" stroke="#4f46e5" stroke-width="2"/>
+    <text x="471" y="401" class="tiny" style="fill:#4f46e5">1</text>
+    <text x="502" y="396" class="h3">プロジェクト</text>
+    <text x="466" y="428" class="small">選択または作成</text>
+    <line x1="624" y1="408" x2="646" y2="408" stroke="#b8c4d3" stroke-width="2"/><path d="M 638 403 L 646 408 L 638 413" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <rect x="646" y="366" width="176" height="82" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <circle cx="674" cy="396" r="15" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+    <text x="669" y="401" class="tiny" style="fill:#2563eb">2</text>
+    <text x="700" y="396" class="h3">ランタイム</text>
+    <text x="664" y="428" class="small">1つだけ接続</text>
+    <line x1="822" y1="408" x2="844" y2="408" stroke="#b8c4d3" stroke-width="2"/><path d="M 836 403 L 844 408 L 836 413" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <rect x="844" y="366" width="176" height="82" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <circle cx="872" cy="396" r="15" fill="#dcfce7" stroke="#15803d" stroke-width="2"/>
+    <text x="867" y="401" class="tiny" style="fill:#15803d">3</text>
+    <text x="898" y="396" class="h3">準備完了</text>
+    <text x="862" y="428" class="small">ワークへ進む</text>
+
+    <rect x="448" y="500" width="544" height="76" rx="8" fill="#dcfce7" stroke="#15803d" stroke-width="1"/>
+    <text x="472" y="532" class="h3" style="fill:#15803d">自動作成されるもの</text>
+    <text x="472" y="558" class="small">generalドメイン / 汎用ルーブリック / default-workerエージェント / 割り当て</text>
+
+    <rect x="448" y="626" width="160" height="34" rx="7" fill="#4f46e5" stroke="#4f46e5" stroke-width="1"/>
+  <text x="462" y="648" class="body" style="fill:#ffffff">セットアップを開始</text>
+
+    </g>
+
+</svg>

@@ -1,7 +1,7 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::*;
@@ -33,34 +33,31 @@ pub fn get_agent_profile(
     get_agent_profile_from_layout(&layout, agent_profile_id)
 }
 
-pub fn list_domain_profiles(root: impl Into<PathBuf>) -> Result<Vec<DomainProfile>, NagareError> {
+pub fn list_artifact_types(root: impl Into<PathBuf>) -> Result<Vec<ArtifactType>, NagareError> {
     let layout = ensure_project(root)?;
-    Ok(load_domain_profiles(&layout)?.into_values().collect())
+    Ok(load_artifact_types(&layout)?.into_values().collect())
 }
 
-pub fn list_domain_groups(root: impl Into<PathBuf>) -> Result<Vec<DomainGroup>, NagareError> {
+pub fn list_domains(root: impl Into<PathBuf>) -> Result<Vec<Domain>, NagareError> {
     let layout = ensure_project(root)?;
-    Ok(load_domain_groups(&layout)?.into_values().collect())
+    Ok(load_domains(&layout)?.into_values().collect())
 }
 
-pub fn get_domain_profile(
+pub fn get_artifact_type(
     root: impl Into<PathBuf>,
-    domain_profile_id: &str,
-) -> Result<DomainProfile, NagareError> {
+    artifact_type_id: &str,
+) -> Result<ArtifactType, NagareError> {
     let layout = ensure_project(root)?;
-    load_domain_profiles(&layout)?
-        .remove(domain_profile_id)
-        .ok_or_else(|| NagareError::NotFound(format!("domain profile `{domain_profile_id}`")))
+    load_artifact_types(&layout)?
+        .remove(artifact_type_id)
+        .ok_or_else(|| NagareError::NotFound(format!("Artifact Type `{artifact_type_id}`")))
 }
 
-pub fn get_domain_group(
-    root: impl Into<PathBuf>,
-    domain_group_id: &str,
-) -> Result<DomainGroup, NagareError> {
+pub fn get_domain(root: impl Into<PathBuf>, domain_id: &str) -> Result<Domain, NagareError> {
     let layout = ensure_project(root)?;
-    load_domain_groups(&layout)?
-        .remove(domain_group_id)
-        .ok_or_else(|| NagareError::NotFound(format!("domain group `{domain_group_id}`")))
+    load_domains(&layout)?
+        .remove(domain_id)
+        .ok_or_else(|| NagareError::NotFound(format!("Domain `{domain_id}`")))
 }
 
 pub fn get_workflow_settings(root: impl Into<PathBuf>) -> Result<WorkflowSettings, NagareError> {
@@ -77,30 +74,30 @@ pub fn set_workflow_settings(
     Ok(settings)
 }
 
-pub fn add_domain_profile(
+pub fn add_artifact_type(
     root: impl Into<PathBuf>,
-    input: AddDomainProfileInput<'_>,
-) -> Result<AddDomainProfileResult, NagareError> {
+    input: AddArtifactTypeInput<'_>,
+) -> Result<AddArtifactTypeResult, NagareError> {
     let layout = ensure_project(root)?;
-    validate_domain_profile_id(input.id)?;
-    let existing = load_domain_profiles(&layout)?;
+    validate_artifact_type_id(input.id)?;
+    let existing = load_artifact_types(&layout)?;
     if existing.contains_key(input.id) {
         return Err(NagareError::InvalidState(format!(
-            "domain profile `{}` already exists",
+            "Artifact Type `{}` already exists",
             input.id
         )));
     }
-    let group_id = input
-        .group_id
+    let domain_id = input
+        .domain_id
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned);
-    if let Some(group_id) = group_id.as_deref() {
-        validate_existing_domain_group(&layout, group_id)?;
+    if let Some(domain_id) = domain_id.as_deref() {
+        validate_existing_domain(&layout, domain_id)?;
     }
-    let domain = DomainProfile {
+    let domain = ArtifactType {
         id: input.id.to_string(),
-        group_id,
+        domain_id,
         display_name: if input.display_name.trim().is_empty() {
             input.id.to_string()
         } else {
@@ -111,26 +108,26 @@ pub fn add_domain_profile(
         rubric: normalize_specialties(input.rubric),
         dispatch_hints: normalize_specialties(input.dispatch_hints),
         workflow: input.workflow,
-        source: DomainProfileSource::ProjectDomainDirectory,
+        source: ArtifactTypeSource::ProjectArtifactTypeDirectory,
     };
-    let path = write_domain_profile_file(&layout, &domain)?;
-    Ok(AddDomainProfileResult { domain, path })
+    let path = write_artifact_type_file(&layout, &domain)?;
+    Ok(AddArtifactTypeResult { domain, path })
 }
 
-pub fn update_domain_profile(
+pub fn update_artifact_type(
     root: impl Into<PathBuf>,
-    domain_profile_id: &str,
-    input: UpdateDomainProfileInput<'_>,
-) -> Result<UpdateDomainProfileResult, NagareError> {
+    artifact_type_id: &str,
+    input: UpdateArtifactTypeInput<'_>,
+) -> Result<UpdateArtifactTypeResult, NagareError> {
     let layout = ensure_project(root)?;
-    validate_domain_profile_id(domain_profile_id)?;
-    let mut domain = get_domain_profile(&layout.root, domain_profile_id)?;
-    if let Some(group_id) = input.group_id {
-        let group_id = group_id.map(str::trim).filter(|value| !value.is_empty());
-        if let Some(group_id) = group_id {
-            validate_existing_domain_group(&layout, group_id)?;
+    validate_artifact_type_id(artifact_type_id)?;
+    let mut domain = get_artifact_type(&layout.root, artifact_type_id)?;
+    if let Some(domain_id) = input.domain_id {
+        let domain_id = domain_id.map(str::trim).filter(|value| !value.is_empty());
+        if let Some(domain_id) = domain_id {
+            validate_existing_domain(&layout, domain_id)?;
         }
-        domain.group_id = group_id.map(ToOwned::to_owned);
+        domain.domain_id = domain_id.map(ToOwned::to_owned);
     }
     if let Some(display_name) = input.display_name {
         domain.display_name = if display_name.trim().is_empty() {
@@ -154,44 +151,46 @@ pub fn update_domain_profile(
     if let Some(workflow) = input.workflow {
         domain.workflow = workflow;
     }
-    domain.source = DomainProfileSource::ProjectDomainDirectory;
-    let path = write_domain_profile_file(&layout, &domain)?;
-    Ok(UpdateDomainProfileResult { domain, path })
+    domain.source = ArtifactTypeSource::ProjectArtifactTypeDirectory;
+    let path = write_artifact_type_file(&layout, &domain)?;
+    Ok(UpdateArtifactTypeResult { domain, path })
 }
 
-pub fn delete_domain_profile(
+pub fn delete_artifact_type(
     root: impl Into<PathBuf>,
-    domain_profile_id: &str,
-) -> Result<DomainProfile, NagareError> {
+    artifact_type_id: &str,
+) -> Result<ArtifactType, NagareError> {
     let layout = ensure_project(root)?;
-    validate_domain_profile_id(domain_profile_id)?;
-    let domain = get_domain_profile(&layout.root, domain_profile_id)?;
-    if domain.source != DomainProfileSource::ProjectDomainDirectory {
+    validate_artifact_type_id(artifact_type_id)?;
+    let domain = get_artifact_type(&layout.root, artifact_type_id)?;
+    if domain.source != ArtifactTypeSource::ProjectArtifactTypeDirectory {
         return Err(NagareError::InvalidState(format!(
-            "domain profile `{domain_profile_id}` is not project-local and cannot be deleted"
+            "Artifact Type `{artifact_type_id}` is not project-local and cannot be deleted"
         )));
     }
-    let path = layout.domains_dir.join(format!("{domain_profile_id}.toml"));
+    let path = layout
+        .artifact_types_dir
+        .join(format!("{artifact_type_id}.toml"));
     if path.exists() {
         fs::remove_file(&path)?;
     }
     Ok(domain)
 }
 
-pub fn add_domain_group(
+pub fn add_domain(
     root: impl Into<PathBuf>,
-    input: AddDomainGroupInput<'_>,
-) -> Result<AddDomainGroupResult, NagareError> {
+    input: AddDomainInput<'_>,
+) -> Result<AddDomainResult, NagareError> {
     let layout = ensure_project(root)?;
-    validate_domain_group_id(input.id)?;
-    let existing = load_domain_groups(&layout)?;
+    validate_domain_id(input.id)?;
+    let existing = load_domains(&layout)?;
     if existing.contains_key(input.id) {
         return Err(NagareError::InvalidState(format!(
-            "domain group `{}` already exists",
+            "Domain `{}` already exists",
             input.id
         )));
     }
-    let group = DomainGroup {
+    let group = Domain {
         id: input.id.to_string(),
         display_name: if input.display_name.trim().is_empty() {
             input.id.to_string()
@@ -203,20 +202,20 @@ pub fn add_domain_group(
         common_rubric: normalize_specialties(input.common_rubric),
         dispatch_hints: normalize_specialties(input.dispatch_hints),
         workflow: input.workflow,
-        source: DomainGroupSource::ProjectDomainGroupDirectory,
+        source: DomainSource::ProjectDomainDirectory,
     };
-    let path = write_domain_group_file(&layout, &group)?;
-    Ok(AddDomainGroupResult { group, path })
+    let path = write_domain_file(&layout, &group)?;
+    Ok(AddDomainResult { group, path })
 }
 
-pub fn update_domain_group(
+pub fn update_domain(
     root: impl Into<PathBuf>,
-    domain_group_id: &str,
-    input: UpdateDomainGroupInput<'_>,
-) -> Result<UpdateDomainGroupResult, NagareError> {
+    domain_id: &str,
+    input: UpdateDomainInput<'_>,
+) -> Result<UpdateDomainResult, NagareError> {
     let layout = ensure_project(root)?;
-    validate_domain_group_id(domain_group_id)?;
-    let mut group = get_domain_group(&layout.root, domain_group_id)?;
+    validate_domain_id(domain_id)?;
+    let mut group = get_domain(&layout.root, domain_id)?;
     if let Some(display_name) = input.display_name {
         group.display_name = if display_name.trim().is_empty() {
             group.id.clone()
@@ -239,35 +238,30 @@ pub fn update_domain_group(
     if let Some(workflow) = input.workflow {
         group.workflow = workflow;
     }
-    group.source = DomainGroupSource::ProjectDomainGroupDirectory;
-    let path = write_domain_group_file(&layout, &group)?;
-    Ok(UpdateDomainGroupResult { group, path })
+    group.source = DomainSource::ProjectDomainDirectory;
+    let path = write_domain_file(&layout, &group)?;
+    Ok(UpdateDomainResult { group, path })
 }
 
-pub fn delete_domain_group(
-    root: impl Into<PathBuf>,
-    domain_group_id: &str,
-) -> Result<DomainGroup, NagareError> {
+pub fn delete_domain(root: impl Into<PathBuf>, domain_id: &str) -> Result<Domain, NagareError> {
     let layout = ensure_project(root)?;
-    validate_domain_group_id(domain_group_id)?;
-    let group = get_domain_group(&layout.root, domain_group_id)?;
-    if group.source != DomainGroupSource::ProjectDomainGroupDirectory {
+    validate_domain_id(domain_id)?;
+    let group = get_domain(&layout.root, domain_id)?;
+    if group.source != DomainSource::ProjectDomainDirectory {
         return Err(NagareError::InvalidState(format!(
-            "domain group `{domain_group_id}` is not project-local and cannot be deleted"
+            "Domain `{domain_id}` is not project-local and cannot be deleted"
         )));
     }
-    let domains = load_domain_profiles(&layout)?;
+    let domains = load_artifact_types(&layout)?;
     if domains
         .values()
-        .any(|domain| domain.group_id.as_deref() == Some(domain_group_id))
+        .any(|domain| domain.domain_id.as_deref() == Some(domain_id))
     {
         return Err(NagareError::InvalidState(format!(
-            "domain group `{domain_group_id}` still has domains"
+            "Domain `{domain_id}` still has domains"
         )));
     }
-    let path = layout
-        .domain_groups_dir
-        .join(format!("{domain_group_id}.toml"));
+    let path = layout.domains_dir.join(format!("{domain_id}.toml"));
     if path.exists() {
         fs::remove_file(&path)?;
     }
@@ -300,12 +294,12 @@ pub fn add_agent_profile(
         adapter,
         input.external,
     ))?;
-    let domain_group_ids = normalize_domain_group_ids(input.domain_group_ids)?;
-    let domain_ids = normalize_domain_profile_ids(input.domain_ids)?;
+    let domain_ids = normalize_domain_ids(input.domain_ids)?;
+    let artifact_type_ids = normalize_artifact_type_ids(input.artifact_type_ids)?;
     let skill_set_ids = normalize_skill_set_ids(input.skill_set_ids)?;
     validate_existing_skill_set_ids(&layout, &skill_set_ids)?;
-    validate_existing_domain_group_ids(&layout, &domain_group_ids)?;
-    validate_existing_domain_profile_ids(&layout, &domain_ids)?;
+    validate_existing_domain_ids(&layout, &domain_ids)?;
+    validate_existing_artifact_type_ids(&layout, &artifact_type_ids)?;
     let prompt = AgentPromptConfig {
         instructions: input.description.trim().to_string(),
         version: default_agent_prompt_version(),
@@ -329,8 +323,8 @@ pub fn add_agent_profile(
         description: input.description.trim().to_string(),
         specialties: normalize_specialties(input.specialties),
         skill_set_ids,
-        domain_group_ids,
         domain_ids,
+        artifact_type_ids,
         managed_by,
         model,
         external,
@@ -419,13 +413,13 @@ pub fn update_agent_profile(
         profile.skill_set_ids = normalize_skill_set_ids(skill_set_ids)?;
         validate_existing_skill_set_ids(&layout, &profile.skill_set_ids)?;
     }
-    if let Some(domain_group_ids) = input.domain_group_ids {
-        profile.domain_group_ids = normalize_domain_group_ids(domain_group_ids)?;
-        validate_existing_domain_group_ids(&layout, &profile.domain_group_ids)?;
-    }
     if let Some(domain_ids) = input.domain_ids {
-        profile.domain_ids = normalize_domain_profile_ids(domain_ids)?;
-        validate_existing_domain_profile_ids(&layout, &profile.domain_ids)?;
+        profile.domain_ids = normalize_domain_ids(domain_ids)?;
+        validate_existing_domain_ids(&layout, &profile.domain_ids)?;
+    }
+    if let Some(artifact_type_ids) = input.artifact_type_ids {
+        profile.artifact_type_ids = normalize_artifact_type_ids(artifact_type_ids)?;
+        validate_existing_artifact_type_ids(&layout, &profile.artifact_type_ids)?;
     }
     if let Some(managed_by) = input.managed_by {
         profile.managed_by = normalize_managed_by(managed_by)?;
@@ -554,6 +548,9 @@ pub fn list_skill_packages(
             reference: package.reference,
             checksum: package.checksum,
             installed_path: package.installed_path,
+            installed_paths: package.installed_paths,
+            install_scope: package.install_scope,
+            installed_targets: package.installed_targets,
             provided_skill_sets: package.provided_skill_sets,
         })
         .collect())
@@ -577,29 +574,76 @@ pub fn add_skill_package(
             )
         })?;
     validate_skill_package_id(package_id)?;
-    let skill_set_id = input
-        .skill_set_id
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or(package_id);
-    let skill_set_id = normalize_skill_set_ids(vec![skill_set_id.to_string()])?
-        .into_iter()
-        .next()
-        .ok_or_else(|| NagareError::InvalidState("skill set id is required".to_string()))?;
-    let source = input
+    let install_scope = normalize_skill_install_scope(source_kind, input.install_scope)?;
+    let installed_targets =
+        normalize_skill_install_targets(source_kind, input.install_targets, input.install)?;
+    let mut source = input
         .source
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_string)
         .or_else(|| input.path.map(|path| path.trim().to_string()))
         .unwrap_or_else(|| package_id.to_string());
-    let installed_path = input
+    let import = if input.install {
+        import_skill_package(
+            &layout,
+            source_kind,
+            package_id,
+            &source,
+            input.skill_set_id,
+            &install_scope,
+            &installed_targets,
+        )?
+    } else {
+        None
+    };
+    if let Some(import_source) = import
+        .as_ref()
+        .and_then(|import| import.source.as_ref())
+        .filter(|value| !value.trim().is_empty())
+    {
+        source = import_source.clone();
+    }
+    let skill_set_id = input
+        .skill_set_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .or(import
+            .as_ref()
+            .and_then(|import| import.skill_name.as_deref()))
+        .or(skill_md.name.as_deref())
+        .unwrap_or(package_id);
+    let skill_set_id = normalize_skill_set_ids(vec![skill_set_id.to_string()])?
+        .into_iter()
+        .next()
+        .ok_or_else(|| NagareError::InvalidState("skill set id is required".to_string()))?;
+    let installed_paths = input
         .path
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .unwrap_or("")
-        .replace('\\', "/");
-    let skill_paths = normalize_skill_paths(input.skill_paths, input.path)?;
+        .map(|path| vec![path.replace('\\', "/")])
+        .or_else(|| {
+            import.as_ref().map(|import| {
+                import
+                    .installed_paths
+                    .iter()
+                    .map(|path| path.replace('\\', "/"))
+                    .collect::<Vec<_>>()
+            })
+        })
+        .unwrap_or_default();
+    let installed_path = installed_paths.first().cloned().unwrap_or_default();
+    let source_paths_for_skills = if !installed_paths.is_empty() {
+        installed_paths.clone()
+    } else if installed_path.is_empty() {
+        input
+            .path
+            .map(|path| vec![path.replace('\\', "/")])
+            .unwrap_or_default()
+    } else {
+        vec![installed_path.clone()]
+    };
+    let skill_paths = normalize_skill_paths(input.skill_paths, source_paths_for_skills)?;
     let skill_set = SkillSetDeclaration {
         paths: skill_paths,
         required_capabilities: normalize_specialties(input.required_capabilities),
@@ -611,6 +655,9 @@ pub fn add_skill_package(
         reference: input.reference.unwrap_or("").trim().to_string(),
         checksum: input.checksum.unwrap_or("").trim().to_string(),
         installed_path,
+        installed_paths,
+        install_scope,
+        installed_targets,
         provided_skill_sets: vec![skill_set_id.clone()],
     };
     write_skill_package_to_project_config(
@@ -628,6 +675,9 @@ pub fn add_skill_package(
             reference: package.reference,
             checksum: package.checksum,
             installed_path: package.installed_path,
+            installed_paths: package.installed_paths,
+            install_scope: package.install_scope,
+            installed_targets: package.installed_targets,
             provided_skill_sets: package.provided_skill_sets,
         },
         skill_set: SkillSetCatalogEntry {
@@ -636,6 +686,94 @@ pub fn add_skill_package(
             required_capabilities: skill_set.required_capabilities,
             optional_capabilities: skill_set.optional_capabilities,
         },
+    })
+}
+
+pub fn uninstall_agent_skill_package(
+    root: impl Into<PathBuf>,
+    input: UninstallAgentSkillPackageInput<'_>,
+) -> Result<UninstallAgentSkillPackageResult, NagareError> {
+    let layout = ensure_project(root)?;
+    validate_agent_profile_id(input.agent_profile_id)?;
+    let skill_set_id = normalize_skill_set_ids(vec![input.skill_set_id.to_string()])?
+        .into_iter()
+        .next()
+        .ok_or_else(|| NagareError::InvalidState("skill set id is required".to_string()))?;
+    let profile = get_agent_profile_from_layout(&layout, input.agent_profile_id)?;
+    let package = find_skill_package_for_skill_set(&layout, &skill_set_id)?;
+    let mut warnings = Vec::new();
+    let removed_from_agent = profile.skill_set_ids.iter().any(|id| id == &skill_set_id);
+    if !removed_from_agent {
+        warnings.push(format!(
+            "skill set `{skill_set_id}` was not assigned to agent `{}`",
+            profile.id
+        ));
+        return Ok(UninstallAgentSkillPackageResult {
+            agent_profile_id: profile.id,
+            skill_set_id,
+            package_id: package.as_ref().map(|(id, _)| id.clone()),
+            removed_from_agent: false,
+            package_removed: false,
+            installed_path_removed: false,
+            warnings,
+        });
+    }
+
+    let next_skill_set_ids = profile
+        .skill_set_ids
+        .iter()
+        .filter(|id| *id != &skill_set_id)
+        .cloned()
+        .collect::<Vec<_>>();
+    update_agent_profile(
+        &layout.root,
+        &profile.id,
+        UpdateAgentProfileInput {
+            skill_set_ids: Some(next_skill_set_ids),
+            ..UpdateAgentProfileInput::default()
+        },
+    )?;
+
+    let mut package_removed = false;
+    let mut installed_path_removed = false;
+    if input.uninstall_package {
+        if let Some((package_id, package)) = package.as_ref() {
+            let provided = if package.provided_skill_sets.is_empty() {
+                vec![skill_set_id.clone()]
+            } else {
+                package.provided_skill_sets.clone()
+            };
+            if skill_sets_still_referenced(&layout, &provided)? {
+                warnings.push(format!(
+                    "skill package `{package_id}` is still used by another agent or project rule"
+                ));
+            } else {
+                let body_result = uninstall_skill_package_body(
+                    &layout,
+                    package_id,
+                    package,
+                    profile.tool_kind,
+                    &skill_set_id,
+                    &mut warnings,
+                )?;
+                package_removed = body_result.package_removed;
+                installed_path_removed = body_result.installed_path_removed;
+            }
+        } else {
+            warnings.push(format!(
+                "skill set `{skill_set_id}` has no registered skill package"
+            ));
+        }
+    }
+
+    Ok(UninstallAgentSkillPackageResult {
+        agent_profile_id: profile.id,
+        skill_set_id,
+        package_id: package.map(|(id, _)| id),
+        removed_from_agent,
+        package_removed,
+        installed_path_removed,
+        warnings,
     })
 }
 
@@ -884,8 +1022,8 @@ fn write_agent_profile_file(
             description: profile.description.clone(),
             specialties: profile.specialties.clone(),
             skill_set_ids: profile.skill_set_ids.clone(),
-            domain_group_ids: profile.domain_group_ids.clone(),
             domain_ids: profile.domain_ids.clone(),
+            artifact_type_ids: profile.artifact_type_ids.clone(),
             managed_by: profile.managed_by.clone(),
             model: profile.model.clone(),
             external: profile.external.clone(),
@@ -899,16 +1037,18 @@ fn write_agent_profile_file(
     Ok(path)
 }
 
-fn write_domain_profile_file(
+fn write_artifact_type_file(
     layout: &ProjectLayout,
-    domain: &DomainProfile,
+    domain: &ArtifactType,
 ) -> Result<PathBuf, NagareError> {
-    fs::create_dir_all(&layout.domains_dir)?;
-    let path = layout.domains_dir.join(format!("{}.toml", domain.id));
-    let document = DomainProfileFile {
-        domain_profile: Some(DomainProfileFileEntry {
+    fs::create_dir_all(&layout.artifact_types_dir)?;
+    let path = layout
+        .artifact_types_dir
+        .join(format!("{}.toml", domain.id));
+    let document = ArtifactTypeFile {
+        artifact_type: Some(ArtifactTypeFileEntry {
             id: Some(domain.id.clone()),
-            group_id: domain.group_id.clone(),
+            domain_id: domain.domain_id.clone(),
             display_name: domain.display_name.clone(),
             description: domain.description.clone(),
             artifact_types: domain.artifact_types.clone(),
@@ -916,21 +1056,18 @@ fn write_domain_profile_file(
             dispatch_hints: domain.dispatch_hints.clone(),
             workflow: domain.workflow,
         }),
-        domain_profiles: BTreeMap::new(),
+        artifact_types: BTreeMap::new(),
     };
     let raw = toml::to_string_pretty(&document)?;
     fs::write(&path, raw)?;
     Ok(path)
 }
 
-fn write_domain_group_file(
-    layout: &ProjectLayout,
-    group: &DomainGroup,
-) -> Result<PathBuf, NagareError> {
-    fs::create_dir_all(&layout.domain_groups_dir)?;
-    let path = layout.domain_groups_dir.join(format!("{}.toml", group.id));
-    let document = DomainGroupFile {
-        domain_group: Some(DomainGroupFileEntry {
+fn write_domain_file(layout: &ProjectLayout, group: &Domain) -> Result<PathBuf, NagareError> {
+    fs::create_dir_all(&layout.domains_dir)?;
+    let path = layout.domains_dir.join(format!("{}.toml", group.id));
+    let document = DomainFile {
+        domain: Some(DomainFileEntry {
             id: Some(group.id.clone()),
             display_name: group.display_name.clone(),
             description: group.description.clone(),
@@ -939,7 +1076,7 @@ fn write_domain_group_file(
             dispatch_hints: group.dispatch_hints.clone(),
             workflow: group.workflow,
         }),
-        domain_groups: BTreeMap::new(),
+        domains: BTreeMap::new(),
     };
     let raw = toml::to_string_pretty(&document)?;
     fs::write(&path, raw)?;
@@ -998,13 +1135,977 @@ fn normalize_skill_source_kind(kind: &str) -> Result<&'static str, NagareError> 
     }
 }
 
+fn normalize_skill_install_scope(
+    source_kind: &str,
+    scope: Option<&str>,
+) -> Result<String, NagareError> {
+    let scope = scope.map(str::trim).filter(|value| !value.is_empty());
+    match source_kind {
+        "vercel" => match scope.unwrap_or("project").to_ascii_lowercase().as_str() {
+            "project" => Ok("project".to_string()),
+            "global" => Ok("global".to_string()),
+            other => Err(NagareError::InvalidState(format!(
+                "unsupported Vercel skill install scope `{other}`; expected project or global"
+            ))),
+        },
+        "clawhub" => Ok(scope.unwrap_or("project").to_string()),
+        _ => Ok(scope.unwrap_or("").to_string()),
+    }
+}
+
+fn normalize_skill_install_targets(
+    source_kind: &str,
+    targets: Vec<String>,
+    install: bool,
+) -> Result<Vec<String>, NagareError> {
+    let mut normalized = Vec::new();
+    for target in normalize_specialties(targets) {
+        let target = match target.to_ascii_lowercase().replace('_', "-").as_str() {
+            "codex" | "codex-cli" | "codex-app" | "codex-app-server" => "codex",
+            "openclaw" | "open-claw" => "openclaw",
+            other => {
+                return Err(NagareError::InvalidState(format!(
+                    "unsupported skill install target `{other}`; expected codex or openclaw"
+                )));
+            }
+        };
+        if !normalized.iter().any(|value| value == target) {
+            normalized.push(target.to_string());
+        }
+    }
+    if normalized.is_empty() {
+        if source_kind == "vercel" && install {
+            normalized.push("codex".to_string());
+        } else if source_kind == "clawhub" && install {
+            normalized.push("openclaw".to_string());
+        }
+    }
+    if source_kind == "vercel" && install && normalized.is_empty() {
+        return Err(NagareError::InvalidState(
+            "Vercel skill install requires at least one target tool".to_string(),
+        ));
+    }
+    Ok(normalized)
+}
+
+#[derive(Debug, Clone, Default)]
+struct SkillPackageImport {
+    source: Option<String>,
+    installed_paths: Vec<String>,
+    skill_name: Option<String>,
+}
+
+fn import_skill_package(
+    layout: &ProjectLayout,
+    source_kind: &str,
+    package_id: &str,
+    source: &str,
+    explicit_skill_set_id: Option<&str>,
+    install_scope: &str,
+    installed_targets: &[String],
+) -> Result<Option<SkillPackageImport>, NagareError> {
+    match source_kind {
+        "vercel" => import_vercel_skill_package(
+            layout,
+            package_id,
+            source,
+            explicit_skill_set_id,
+            install_scope,
+            installed_targets,
+        )
+        .map(Some),
+        "clawhub" => import_clawhub_skill_package(layout, package_id, source).map(Some),
+        _ => Ok(None),
+    }
+}
+
+fn import_vercel_skill_package(
+    layout: &ProjectLayout,
+    package_id: &str,
+    source: &str,
+    explicit_skill_set_id: Option<&str>,
+    install_scope: &str,
+    installed_targets: &[String],
+) -> Result<SkillPackageImport, NagareError> {
+    let roots = skill_dir_roots_for_install(layout, install_scope, installed_targets);
+    let before = read_skill_dirs(&roots)?;
+    let (source, skill_hint) = vercel_source_and_skill(package_id, source, explicit_skill_set_id);
+    let mut args = vec![
+        "skills".to_string(),
+        "add".to_string(),
+        source.clone(),
+        if install_scope == "global" {
+            "--global".to_string()
+        } else {
+            "--project".to_string()
+        },
+        "--agent".to_string(),
+    ];
+    args.extend(installed_targets.iter().cloned());
+    args.extend(["-y".to_string(), "--copy".to_string()]);
+    if let Some(skill) = skill_hint.as_deref() {
+        args.push("--skill".to_string());
+        args.push(skill.to_string());
+    }
+    let output = run_command_in_dir("npx", &args, &layout.root).map_err(|error| {
+        NagareError::InvalidState(format!(
+            "failed to run `npx skills add`; install Node.js/npm or run `npx skills add {source}` manually: {error}"
+        ))
+    })?;
+    ensure_command_success("npx skills add", &output)?;
+    let mut import = discover_skill_install(
+        layout,
+        before,
+        read_skill_dirs(&roots)?,
+        skill_hint.as_deref(),
+        &source,
+        &roots,
+    )?;
+    import.source = Some(source);
+    Ok(import)
+}
+
+fn import_clawhub_skill_package(
+    layout: &ProjectLayout,
+    package_id: &str,
+    source: &str,
+) -> Result<SkillPackageImport, NagareError> {
+    let before = common_skill_dirs(layout)?;
+    let source = source.trim();
+    let output = if command_exists("openclaw") {
+        run_command_in_dir(
+            "openclaw",
+            &[
+                "skill".to_string(),
+                "install".to_string(),
+                source.to_string(),
+            ],
+            &layout.root,
+        )
+    } else if command_exists("clawhub") {
+        run_command_in_dir(
+            "clawhub",
+            &["install".to_string(), source.to_string()],
+            &layout.root,
+        )
+    } else if command_exists("npx") {
+        run_command_in_dir(
+            "npx",
+            &[
+                "clawhub@latest".to_string(),
+                "install".to_string(),
+                source.to_string(),
+            ],
+            &layout.root,
+        )
+    } else {
+        return Err(NagareError::InvalidState(
+            "ClawHub import requires OpenClaw (`openclaw skill install`), ClawHub CLI (`npm i -g clawhub`), or npm/npx.".to_string(),
+        ));
+    }
+    .map_err(|error| {
+        NagareError::InvalidState(format!(
+            "failed to run ClawHub install command; install OpenClaw or `npm i -g clawhub`: {error}"
+        ))
+    })?;
+    ensure_command_success("ClawHub skill install", &output)?;
+    let mut import = discover_common_skill_install(layout, before, Some(package_id), source)?;
+    import.source = Some(source.to_string());
+    Ok(import)
+}
+
+fn vercel_source_and_skill(
+    package_id: &str,
+    source: &str,
+    explicit_skill_set_id: Option<&str>,
+) -> (String, Option<String>) {
+    let explicit_skill = explicit_skill_set_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+    if let Some((repo, skill)) = source.split_once('@') {
+        return (
+            repo.trim().to_string(),
+            explicit_skill.or_else(|| Some(skill.trim().to_string())),
+        );
+    }
+    if let Some((repo, skill)) = package_id.split_once('@') {
+        return (
+            repo.trim().to_string(),
+            explicit_skill.or_else(|| Some(skill.trim().to_string())),
+        );
+    }
+    let inferred_skill = if source.trim() != package_id.trim() && !package_id.contains('/') {
+        Some(package_id.trim().to_string())
+    } else {
+        None
+    };
+    (source.trim().to_string(), explicit_skill.or(inferred_skill))
+}
+
+fn common_skill_dirs(layout: &ProjectLayout) -> Result<BTreeMap<String, PathBuf>, NagareError> {
+    let dirs = common_skill_roots(layout);
+    read_skill_dirs(&dirs)
+}
+
+fn common_skill_roots(layout: &ProjectLayout) -> Vec<PathBuf> {
+    let mut dirs = vec![
+        layout.root.join(".agents").join("skills"),
+        layout.root.join(".openclaw").join("skills"),
+        layout.root.join("skills"),
+    ];
+    if let Some(home) = home_dir() {
+        dirs.push(home.join(".openclaw").join("skills"));
+        dirs.push(home.join(".agents").join("skills"));
+    }
+    dirs
+}
+
+fn skill_dir_roots_for_install(
+    layout: &ProjectLayout,
+    install_scope: &str,
+    installed_targets: &[String],
+) -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    let global = install_scope == "global";
+    for target in installed_targets {
+        match target.as_str() {
+            "codex" => {
+                if global {
+                    if let Some(home) = home_dir() {
+                        roots.push(home.join(".agents").join("skills"));
+                    }
+                } else {
+                    roots.push(layout.root.join(".agents").join("skills"));
+                }
+            }
+            "openclaw" => {
+                if global {
+                    if let Some(home) = home_dir() {
+                        roots.push(home.join(".openclaw").join("skills"));
+                    }
+                } else {
+                    roots.push(layout.root.join("skills"));
+                    roots.push(layout.root.join(".openclaw").join("skills"));
+                }
+            }
+            _ => {}
+        }
+    }
+    dedupe_paths(roots)
+}
+
+fn read_skill_dirs(dirs: &[PathBuf]) -> Result<BTreeMap<String, PathBuf>, NagareError> {
+    let mut skills = BTreeMap::new();
+    for dir in dirs {
+        if !dir.is_dir() {
+            continue;
+        }
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if !path.is_dir() || !path.join("SKILL.md").is_file() {
+                continue;
+            }
+            if let Some(name) = path.file_name().and_then(|name| name.to_str()) {
+                skills.insert(name.to_string(), path);
+            }
+        }
+    }
+    Ok(skills)
+}
+
+fn discover_common_skill_install(
+    layout: &ProjectLayout,
+    before: BTreeMap<String, PathBuf>,
+    skill_hint: Option<&str>,
+    source: &str,
+) -> Result<SkillPackageImport, NagareError> {
+    let roots = common_skill_roots(layout);
+    let after = read_skill_dirs(&roots)?;
+    discover_skill_install(layout, before, after, skill_hint, source, &roots)
+}
+
+fn discover_skill_install(
+    layout: &ProjectLayout,
+    before: BTreeMap<String, PathBuf>,
+    after: BTreeMap<String, PathBuf>,
+    skill_hint: Option<&str>,
+    source: &str,
+    roots: &[PathBuf],
+) -> Result<SkillPackageImport, NagareError> {
+    let mut candidates = Vec::new();
+    if let Some(hint) = skill_hint.map(str::trim).filter(|value| !value.is_empty()) {
+        if let Some(path) = after.get(hint) {
+            candidates.push(path.clone());
+        }
+    }
+    if candidates.is_empty() {
+        if let Some(name) = source
+            .trim_end_matches('/')
+            .rsplit(['/', '\\', '@'])
+            .next()
+            .filter(|value| !value.is_empty())
+        {
+            if let Some(path) = after.get(name) {
+                candidates.push(path.clone());
+            }
+        }
+    }
+    let new_paths = after
+        .iter()
+        .filter(|(name, _)| !before.contains_key(*name))
+        .map(|(_, path)| path.clone())
+        .collect::<Vec<_>>();
+    if candidates.is_empty() {
+        if new_paths.len() == 1 {
+            candidates.push(new_paths[0].clone());
+        } else if new_paths.len() > 1 {
+            return Err(NagareError::InvalidState(format!(
+                "skill import installed multiple skills; specify a single skill with Skill Set ID or `owner/repo@skill`: {}",
+                new_paths
+                    .iter()
+                    .filter_map(|path| path.file_name().and_then(|name| name.to_str()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )));
+        }
+    }
+    let Some(path) = candidates.into_iter().next() else {
+        return Err(NagareError::InvalidState(format!(
+            "skill import completed but Nagare could not locate an installed SKILL.md for `{source}`"
+        )));
+    };
+    let metadata = skill_md_metadata_at(&path)?;
+    let skill_name = metadata.name.or_else(|| {
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .map(ToOwned::to_owned)
+    });
+    let installed_paths = skill_name
+        .as_deref()
+        .map(|name| installed_skill_paths(layout, roots, name))
+        .filter(|paths| !paths.is_empty())
+        .unwrap_or_else(|| vec![path_for_config(layout, &path)]);
+    Ok(SkillPackageImport {
+        source: None,
+        installed_paths,
+        skill_name,
+    })
+}
+
+fn installed_skill_paths(
+    layout: &ProjectLayout,
+    roots: &[PathBuf],
+    skill_name: &str,
+) -> Vec<String> {
+    roots
+        .iter()
+        .map(|root| root.join(skill_name))
+        .filter(|path| path.join("SKILL.md").is_file())
+        .map(|path| path_for_config(layout, &path))
+        .collect()
+}
+
+fn dedupe_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    paths
+        .into_iter()
+        .filter(|path| seen.insert(path.to_string_lossy().replace('\\', "/")))
+        .collect()
+}
+
+fn run_command_in_dir(
+    command: &str,
+    args: &[String],
+    current_dir: &Path,
+) -> io::Result<std::process::Output> {
+    match Command::new(command)
+        .args(args)
+        .current_dir(current_dir)
+        .output()
+    {
+        Ok(output) => Ok(output),
+        Err(error) if cfg!(windows) && error.kind() == io::ErrorKind::NotFound => {
+            Command::new(format!("{command}.cmd"))
+                .args(args)
+                .current_dir(current_dir)
+                .output()
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn ensure_command_success(command: &str, output: &std::process::Output) -> Result<(), NagareError> {
+    if output.status.success() {
+        return Ok(());
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    Err(NagareError::InvalidState(format!(
+        "`{command}` failed with {}. stdout: {} stderr: {}",
+        output.status,
+        first_nonempty_line(&stdout).unwrap_or_else(|| "-".to_string()),
+        first_nonempty_line(&stderr).unwrap_or_else(|| "-".to_string())
+    )))
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct SkillPackageBodyUninstallResult {
+    package_removed: bool,
+    installed_path_removed: bool,
+}
+
+fn find_skill_package_for_skill_set(
+    layout: &ProjectLayout,
+    skill_set_id: &str,
+) -> Result<Option<(String, SkillPackageDeclaration)>, NagareError> {
+    let config = load_project_config(layout)?;
+    Ok(config.skill_packages.into_iter().find(|(id, package)| {
+        id.as_str() == skill_set_id
+            || package
+                .provided_skill_sets
+                .iter()
+                .any(|skill| skill == skill_set_id)
+    }))
+}
+
+fn uninstall_skill_from_external_tool(
+    layout: &ProjectLayout,
+    tool_kind: AgentToolKind,
+    package: &SkillPackageDeclaration,
+    skill_set_id: &str,
+    warnings: &mut Vec<String>,
+) {
+    match package.source_kind.as_str() {
+        "vercel" => {
+            let agent_key = external_skill_agent_key(tool_kind);
+            uninstall_vercel_skill_package_body(
+                layout,
+                package,
+                skill_set_id,
+                agent_key,
+                warnings,
+            );
+        }
+        "clawhub" if tool_kind == AgentToolKind::OpenClaw => {
+            uninstall_clawhub_skill_package_body(layout, package, skill_set_id, warnings);
+        }
+        "clawhub" => warnings.push(
+            "ClawHub uninstall is only applied for OpenClaw agents; removed Nagare project registration only"
+                .to_string(),
+        ),
+        _ => {}
+    }
+}
+
+fn external_skill_agent_key(tool_kind: AgentToolKind) -> &'static str {
+    match tool_kind {
+        AgentToolKind::Codex | AgentToolKind::CodexCli => "codex",
+        AgentToolKind::OpenClaw => "openclaw",
+    }
+}
+
+fn skill_sets_still_referenced(
+    layout: &ProjectLayout,
+    skill_set_ids: &[String],
+) -> Result<bool, NagareError> {
+    let ids = skill_set_ids.iter().collect::<BTreeSet<_>>();
+    if ids.is_empty() {
+        return Ok(false);
+    }
+    let agents = load_agent_profiles(layout)?;
+    if agents.values().any(|profile| {
+        profile
+            .skill_set_ids
+            .iter()
+            .any(|skill_set_id| ids.contains(skill_set_id))
+    }) {
+        return Ok(true);
+    }
+    let config = load_project_config(layout)?;
+    Ok(config.project_rules.iter().any(|rule| {
+        rule.skill_sets
+            .iter()
+            .any(|skill_set_id| ids.contains(skill_set_id))
+    }))
+}
+
+fn uninstall_skill_package_body(
+    layout: &ProjectLayout,
+    package_id: &str,
+    package: &SkillPackageDeclaration,
+    tool_kind: AgentToolKind,
+    skill_set_id: &str,
+    warnings: &mut Vec<String>,
+) -> Result<SkillPackageBodyUninstallResult, NagareError> {
+    uninstall_skill_from_external_tool(layout, tool_kind, package, skill_set_id, warnings);
+    let mut installed_path_removed = false;
+    for path in managed_skill_package_paths(layout, package, skill_set_id, tool_kind) {
+        match safe_remove_skill_dir(layout, &path) {
+            Ok(removed) => installed_path_removed |= removed,
+            Err(error) => warnings.push(error.to_string()),
+        }
+    }
+    let target = external_skill_agent_key(tool_kind);
+    let has_remaining_targets = !package.installed_targets.is_empty()
+        && package
+            .installed_targets
+            .iter()
+            .any(|installed_target| installed_target != target);
+    if has_remaining_targets {
+        update_skill_package_after_target_uninstall(
+            layout,
+            package_id,
+            skill_set_id,
+            package,
+            tool_kind,
+        )?;
+        return Ok(SkillPackageBodyUninstallResult {
+            package_removed: false,
+            installed_path_removed,
+        });
+    }
+    if let Err(error) = remove_skill_from_skills_lock(layout, skill_set_id, package_id) {
+        warnings.push(error.to_string());
+    }
+    remove_skill_package_from_project_config(layout, package_id, package)?;
+    Ok(SkillPackageBodyUninstallResult {
+        package_removed: true,
+        installed_path_removed,
+    })
+}
+
+fn uninstall_vercel_skill_package_body(
+    layout: &ProjectLayout,
+    package: &SkillPackageDeclaration,
+    skill_set_id: &str,
+    agent_key: &str,
+    warnings: &mut Vec<String>,
+) {
+    let mut args = vec![
+        "skills".to_string(),
+        "remove".to_string(),
+        skill_set_id.to_string(),
+        "--agent".to_string(),
+        agent_key.to_string(),
+    ];
+    if package.install_scope == "global" {
+        args.push("--global".to_string());
+    }
+    args.push("-y".to_string());
+    match run_command_in_dir("npx", &args, &layout.root) {
+        Ok(output) => {
+            if let Err(error) = ensure_command_success("npx skills remove --agent", &output) {
+                warnings.push(error.to_string());
+            }
+        }
+        Err(error) => warnings.push(format!(
+            "failed to run `npx skills remove --agent {agent_key}`: {error}"
+        )),
+    }
+}
+
+fn uninstall_clawhub_skill_package_body(
+    layout: &ProjectLayout,
+    package: &SkillPackageDeclaration,
+    skill_set_id: &str,
+    warnings: &mut Vec<String>,
+) {
+    let source = package
+        .source
+        .trim()
+        .is_empty()
+        .then(|| skill_set_id.to_string())
+        .unwrap_or_else(|| package.source.trim().to_string());
+    let attempts = clawhub_uninstall_attempts(&source);
+    let mut failure_messages = Vec::new();
+    for (command, args, label) in attempts {
+        if !command_exists(&command) && command != "npx" {
+            continue;
+        }
+        match run_command_in_dir(&command, &args, &layout.root) {
+            Ok(output) if output.status.success() => return,
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                failure_messages.push(format!(
+                    "`{label}` failed with {}. stdout: {} stderr: {}",
+                    output.status,
+                    first_nonempty_line(&stdout).unwrap_or_else(|| "-".to_string()),
+                    first_nonempty_line(&stderr).unwrap_or_else(|| "-".to_string())
+                ));
+            }
+            Err(error) => failure_messages.push(format!("`{label}` failed: {error}")),
+        }
+    }
+    if failure_messages.is_empty() {
+        warnings.push(
+            "ClawHub uninstall command was not found; removed Nagare project registration only"
+                .to_string(),
+        );
+    } else {
+        warnings.extend(failure_messages);
+    }
+}
+
+fn clawhub_uninstall_attempts(source: &str) -> Vec<(String, Vec<String>, String)> {
+    vec![
+        (
+            "openclaw".to_string(),
+            vec![
+                "skills".to_string(),
+                "uninstall".to_string(),
+                source.to_string(),
+            ],
+            format!("openclaw skills uninstall {source}"),
+        ),
+        (
+            "openclaw".to_string(),
+            vec![
+                "skill".to_string(),
+                "uninstall".to_string(),
+                source.to_string(),
+            ],
+            format!("openclaw skill uninstall {source}"),
+        ),
+        (
+            "clawhub".to_string(),
+            vec!["uninstall".to_string(), source.to_string()],
+            format!("clawhub uninstall {source}"),
+        ),
+        (
+            "npx".to_string(),
+            vec![
+                "clawhub@latest".to_string(),
+                "uninstall".to_string(),
+                source.to_string(),
+            ],
+            format!("npx clawhub@latest uninstall {source}"),
+        ),
+    ]
+}
+
+fn managed_skill_package_paths(
+    layout: &ProjectLayout,
+    package: &SkillPackageDeclaration,
+    skill_set_id: &str,
+    tool_kind: AgentToolKind,
+) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    for path in package_installed_paths(package) {
+        paths.push(skill_package_path_for_uninstall(layout, path));
+    }
+    if let Ok(config) = load_project_config(layout) {
+        if let Some(skill_set) = config.skill_sets.get(skill_set_id) {
+            for path in &skill_set.paths {
+                paths.push(skill_package_path_for_uninstall(layout, path));
+            }
+        }
+    }
+    paths.push(
+        layout
+            .root
+            .join(".agents")
+            .join("skills")
+            .join(skill_set_id),
+    );
+    paths.push(layout.root.join("skills").join(skill_set_id));
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    paths
+        .into_iter()
+        .filter(|path| path_matches_tool_kind(layout, path, tool_kind))
+        .filter(|path| seen.insert(path.to_string_lossy().replace('\\', "/")))
+        .collect()
+}
+
+fn package_installed_paths(package: &SkillPackageDeclaration) -> Vec<&str> {
+    let mut paths = Vec::new();
+    if !package.installed_path.trim().is_empty() {
+        paths.push(package.installed_path.as_str());
+    }
+    for path in &package.installed_paths {
+        if !path.trim().is_empty() && !paths.iter().any(|existing| *existing == path.as_str()) {
+            paths.push(path.as_str());
+        }
+    }
+    paths
+}
+
+fn path_matches_tool_kind(layout: &ProjectLayout, path: &Path, tool_kind: AgentToolKind) -> bool {
+    tool_skill_roots(layout, tool_kind)
+        .iter()
+        .any(|root| path.starts_with(root))
+}
+
+fn tool_skill_roots(layout: &ProjectLayout, tool_kind: AgentToolKind) -> Vec<PathBuf> {
+    let mut roots = match tool_kind {
+        AgentToolKind::Codex | AgentToolKind::CodexCli => {
+            vec![layout.root.join(".agents").join("skills")]
+        }
+        AgentToolKind::OpenClaw => vec![
+            layout.root.join("skills"),
+            layout.root.join(".openclaw").join("skills"),
+        ],
+    };
+    if let Some(home) = home_dir() {
+        match tool_kind {
+            AgentToolKind::Codex | AgentToolKind::CodexCli => {
+                roots.push(home.join(".agents").join("skills"));
+            }
+            AgentToolKind::OpenClaw => {
+                roots.push(home.join(".openclaw").join("skills"));
+            }
+        }
+    }
+    dedupe_paths(roots)
+}
+
+fn skill_package_path_for_uninstall(layout: &ProjectLayout, path: &str) -> PathBuf {
+    let path = Path::new(path.trim());
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        layout.root.join(path)
+    }
+}
+
+fn safe_remove_skill_dir(layout: &ProjectLayout, path: &Path) -> Result<bool, NagareError> {
+    if !path.exists() {
+        return Ok(false);
+    }
+    if !path.is_dir() || !path.join("SKILL.md").is_file() {
+        return Ok(false);
+    }
+    let root = layout.root.canonicalize()?;
+    let target = path.canonicalize()?;
+    if target == root || !target.starts_with(&root) {
+        return Err(NagareError::InvalidState(format!(
+            "refusing to delete unmanaged skill path `{}`",
+            path.display()
+        )));
+    }
+    fs::remove_dir_all(path)?;
+    Ok(true)
+}
+
+fn remove_skill_from_skills_lock(
+    layout: &ProjectLayout,
+    skill_set_id: &str,
+    package_id: &str,
+) -> Result<(), NagareError> {
+    let lock_path = layout.root.join("skills-lock.json");
+    if !lock_path.exists() {
+        return Ok(());
+    }
+    let raw = fs::read_to_string(&lock_path)?;
+    let mut value: serde_json::Value = serde_json::from_str(&raw)?;
+    let mut changed = false;
+    if let Some(skills) = value
+        .get_mut("skills")
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        changed |= skills.remove(skill_set_id).is_some();
+        if package_id != skill_set_id {
+            changed |= skills.remove(package_id).is_some();
+        }
+    }
+    if changed {
+        fs::write(
+            &lock_path,
+            format!("{}\n", serde_json::to_string_pretty(&value)?),
+        )?;
+    }
+    Ok(())
+}
+
+fn update_skill_package_after_target_uninstall(
+    layout: &ProjectLayout,
+    package_id: &str,
+    skill_set_id: &str,
+    package: &SkillPackageDeclaration,
+    tool_kind: AgentToolKind,
+) -> Result<(), NagareError> {
+    let target = external_skill_agent_key(tool_kind);
+    let raw = fs::read_to_string(&layout.config_path)?;
+    let mut value = raw.parse::<toml::Value>()?;
+    let remaining_targets = package
+        .installed_targets
+        .iter()
+        .filter(|installed_target| installed_target.as_str() != target)
+        .cloned()
+        .collect::<Vec<_>>();
+    let remaining_paths = package_installed_paths(package)
+        .into_iter()
+        .filter(|path| {
+            !path_matches_tool_kind(
+                layout,
+                &skill_package_path_for_uninstall(layout, path),
+                tool_kind,
+            )
+        })
+        .map(ToOwned::to_owned)
+        .collect::<Vec<_>>();
+    let root_table = value.as_table_mut().ok_or_else(|| {
+        NagareError::InvalidState("project config must be a TOML table".to_string())
+    })?;
+    let skill_packages = root_table
+        .get_mut("skill_packages")
+        .and_then(toml::Value::as_table_mut)
+        .ok_or_else(|| {
+            NagareError::InvalidState("skill_packages must be a TOML table".to_string())
+        })?;
+    if let Some(package_value) = skill_packages.get_mut(package_id) {
+        let package_table = package_value.as_table_mut().ok_or_else(|| {
+            NagareError::InvalidState("skill package entry must be a TOML table".to_string())
+        })?;
+        package_table.insert(
+            "installed_targets".to_string(),
+            toml::Value::Array(
+                remaining_targets
+                    .iter()
+                    .map(|target| toml::Value::String(target.clone()))
+                    .collect(),
+            ),
+        );
+        package_table.insert(
+            "installed_paths".to_string(),
+            toml::Value::Array(
+                remaining_paths
+                    .iter()
+                    .map(|path| toml::Value::String(path.clone()))
+                    .collect(),
+            ),
+        );
+        package_table.insert(
+            "installed_path".to_string(),
+            toml::Value::String(remaining_paths.first().cloned().unwrap_or_default()),
+        );
+    }
+    if let Some(skill_sets) = root_table
+        .get_mut("skill_sets")
+        .and_then(toml::Value::as_table_mut)
+    {
+        if let Some(skill_set_value) = skill_sets.get_mut(skill_set_id) {
+            let skill_set_table = skill_set_value.as_table_mut().ok_or_else(|| {
+                NagareError::InvalidState("skill set entry must be a TOML table".to_string())
+            })?;
+            let existing_paths = skill_set_table
+                .get("paths")
+                .and_then(toml::Value::as_array)
+                .map(|values| {
+                    values
+                        .iter()
+                        .filter_map(toml::Value::as_str)
+                        .map(ToOwned::to_owned)
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let mut remaining_skill_paths = existing_paths
+                .into_iter()
+                .filter(|path| {
+                    !path_matches_tool_kind(
+                        layout,
+                        &skill_package_path_for_uninstall(layout, path),
+                        tool_kind,
+                    )
+                })
+                .collect::<Vec<_>>();
+            if remaining_skill_paths.is_empty() {
+                remaining_skill_paths = remaining_paths.clone();
+            }
+            skill_set_table.insert(
+                "paths".to_string(),
+                toml::Value::Array(
+                    remaining_skill_paths
+                        .into_iter()
+                        .map(toml::Value::String)
+                        .collect(),
+                ),
+            );
+        }
+    }
+    fs::write(&layout.config_path, toml::to_string_pretty(&value)?)?;
+    Ok(())
+}
+
+fn remove_skill_package_from_project_config(
+    layout: &ProjectLayout,
+    package_id: &str,
+    package: &SkillPackageDeclaration,
+) -> Result<(), NagareError> {
+    let raw = fs::read_to_string(&layout.config_path)?;
+    let mut value = raw.parse::<toml::Value>()?;
+    let other_provided_skill_sets = value
+        .get("skill_packages")
+        .and_then(toml::Value::as_table)
+        .map(|packages| {
+            packages
+                .iter()
+                .filter(|(id, _)| id.as_str() != package_id)
+                .flat_map(|(_, value)| provided_skill_sets_from_value(value))
+                .collect::<BTreeSet<_>>()
+        })
+        .unwrap_or_default();
+    let root_table = value.as_table_mut().ok_or_else(|| {
+        NagareError::InvalidState("project config must be a TOML table".to_string())
+    })?;
+    if let Some(skill_packages) = root_table
+        .get_mut("skill_packages")
+        .and_then(toml::Value::as_table_mut)
+    {
+        skill_packages.remove(package_id);
+    }
+    if let Some(skill_sets) = root_table
+        .get_mut("skill_sets")
+        .and_then(toml::Value::as_table_mut)
+    {
+        for skill_set_id in &package.provided_skill_sets {
+            if !other_provided_skill_sets.contains(skill_set_id) {
+                skill_sets.remove(skill_set_id);
+            }
+        }
+        if package.provided_skill_sets.is_empty() && !other_provided_skill_sets.contains(package_id)
+        {
+            skill_sets.remove(package_id);
+        }
+    }
+    fs::write(&layout.config_path, toml::to_string_pretty(&value)?)?;
+    Ok(())
+}
+
+fn command_exists(command: &str) -> bool {
+    let checker = if cfg!(windows) { "where" } else { "which" };
+    Command::new(checker)
+        .arg(command)
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+fn home_dir() -> Option<PathBuf> {
+    std::env::var_os("USERPROFILE")
+        .or_else(|| std::env::var_os("HOME"))
+        .map(PathBuf::from)
+}
+
+fn path_for_config(layout: &ProjectLayout, path: &Path) -> String {
+    path.strip_prefix(&layout.root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
 fn validate_skill_package_id(id: &str) -> Result<(), NagareError> {
     let id = id.trim();
-    if id.is_empty()
-        || !id
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
-    {
+    let valid = !id.is_empty()
+        && id.split(['/', '@']).all(|part| {
+            !part.is_empty()
+                && part
+                    .chars()
+                    .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
+        });
+    if !valid {
         return Err(NagareError::InvalidState(format!(
             "skill package id `{id}` contains unsupported characters"
         )));
@@ -1014,13 +2115,14 @@ fn validate_skill_package_id(id: &str) -> Result<(), NagareError> {
 
 fn normalize_skill_paths(
     paths: Vec<String>,
-    source_path: Option<&str>,
+    source_paths: Vec<String>,
 ) -> Result<Vec<String>, NagareError> {
     let mut paths = normalize_specialties(paths);
     if paths.is_empty() {
-        if let Some(path) = source_path.map(str::trim).filter(|path| !path.is_empty()) {
-            paths.push(path.replace('\\', "/"));
-        }
+        paths = normalize_specialties(source_paths)
+            .into_iter()
+            .map(|path| path.replace('\\', "/"))
+            .collect();
     }
     if paths.is_empty() {
         paths.push(".".to_string());
@@ -1032,7 +2134,11 @@ fn skill_md_metadata(path: Option<&str>) -> Result<SkillMdMetadata, NagareError>
     let Some(path) = path.map(str::trim).filter(|path| !path.is_empty()) else {
         return Ok(SkillMdMetadata::default());
     };
-    let skill_path = PathBuf::from(path).join("SKILL.md");
+    skill_md_metadata_at(&PathBuf::from(path))
+}
+
+fn skill_md_metadata_at(path: &Path) -> Result<SkillMdMetadata, NagareError> {
+    let skill_path = path.join("SKILL.md");
     if !skill_path.exists() {
         return Ok(SkillMdMetadata::default());
     }
@@ -1066,6 +2172,26 @@ fn write_skill_package_to_project_config(
 ) -> Result<(), NagareError> {
     let raw = fs::read_to_string(&layout.config_path)?;
     let mut value = raw.parse::<toml::Value>()?;
+    let mut old_provided_skill_sets = value
+        .get("skill_packages")
+        .and_then(toml::Value::as_table)
+        .and_then(|packages| packages.get(package_id))
+        .map(provided_skill_sets_from_value)
+        .unwrap_or_default();
+    if package_id != skill_set_id && !old_provided_skill_sets.iter().any(|id| id == package_id) {
+        old_provided_skill_sets.push(package_id.to_string());
+    }
+    let skill_sets_provided_by_other_packages = value
+        .get("skill_packages")
+        .and_then(toml::Value::as_table)
+        .map(|packages| {
+            packages
+                .iter()
+                .filter(|(id, _)| id.as_str() != package_id)
+                .flat_map(|(_, value)| provided_skill_sets_from_value(value))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
     let root_table = value.as_table_mut().ok_or_else(|| {
         NagareError::InvalidState("project config must be a TOML table".to_string())
     })?;
@@ -1074,6 +2200,14 @@ fn write_skill_package_to_project_config(
         .or_insert_with(|| toml::Value::Table(toml::map::Map::new()))
         .as_table_mut()
         .ok_or_else(|| NagareError::InvalidState("skill_sets must be a TOML table".to_string()))?;
+    for old_skill_set_id in old_provided_skill_sets {
+        if old_skill_set_id != skill_set_id
+            && !package.provided_skill_sets.contains(&old_skill_set_id)
+            && !skill_sets_provided_by_other_packages.contains(&old_skill_set_id)
+        {
+            skill_sets.remove(&old_skill_set_id);
+        }
+    }
     skill_sets.insert(
         skill_set_id.to_string(),
         toml::Value::try_from(skill_set.clone())?,
@@ -1092,6 +2226,20 @@ fn write_skill_package_to_project_config(
     let rendered = toml::to_string_pretty(&value)?;
     fs::write(&layout.config_path, rendered)?;
     Ok(())
+}
+
+fn provided_skill_sets_from_value(value: &toml::Value) -> Vec<String> {
+    value
+        .get("provided_skill_sets")
+        .and_then(toml::Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(ToOwned::to_owned)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn validate_existing_skill_set_ids(
@@ -1129,25 +2277,26 @@ fn domain_prompt_context(
     locale: &str,
 ) -> Result<String, NagareError> {
     let i18n = I18n::new(locale);
-    let domain_groups = load_domain_groups(layout)?;
-    let domains = load_domain_profiles(layout)?;
-    let domain = item
+    let domains = load_domains(layout)?;
+    let artifact_types = load_artifact_types(layout)?;
+    let artifact_type = item
+        .artifact_type_id
+        .as_deref()
+        .and_then(|artifact_type_id| artifact_types.get(artifact_type_id));
+    let domain_id = item
         .domain_id
         .as_deref()
-        .and_then(|domain_id| domains.get(domain_id));
-    let domain_group_id = item
-        .domain_group_id
-        .as_deref()
-        .or_else(|| domain.and_then(|domain| domain.group_id.as_deref()));
-    let domain_group = domain_group_id.and_then(|group_id| domain_groups.get(group_id));
-    if domain.is_none() && domain_group.is_none() {
+        .or_else(|| artifact_type.and_then(|artifact_type| artifact_type.domain_id.as_deref()));
+    let domain = domain_id.and_then(|domain_id| domains.get(domain_id));
+    if domain.is_none() && artifact_type.is_none() {
         return Ok(String::new());
     }
     let mut lines = Vec::new();
-    if let Some(group) = domain_group {
+    let mut has_rubric = false;
+    if let Some(group) = domain {
         lines.push(format!(
             "{}: {} ({})",
-            i18n.ui(UiTextKey::DomainGroup),
+            i18n.ui(UiTextKey::Domain),
             group.display_name,
             group.id
         ));
@@ -1165,6 +2314,7 @@ fn domain_prompt_context(
             &group.shared_knowledge,
         );
         append_context_list(&mut lines, "Common rubric", &group.common_rubric);
+        has_rubric |= !group.common_rubric.is_empty();
         append_context_list(
             &mut lines,
             &format!(
@@ -1175,40 +2325,44 @@ fn domain_prompt_context(
             &group.dispatch_hints,
         );
     }
-    if let Some(domain) = domain {
+    if let Some(artifact_type) = artifact_type {
         lines.push(format!(
             "{}: {} ({})",
-            i18n.ui(UiTextKey::Domain),
-            domain.display_name,
-            domain.id
+            i18n.ui(UiTextKey::ArtifactType),
+            artifact_type.display_name,
+            artifact_type.id
         ));
-        if !domain.description.trim().is_empty() {
+        if !artifact_type.description.trim().is_empty() {
             lines.push(format!(
                 "{} {}: {}",
-                i18n.ui(UiTextKey::Domain),
+                i18n.ui(UiTextKey::ArtifactType),
                 i18n.ui(UiTextKey::Description).to_ascii_lowercase(),
-                domain.description
+                artifact_type.description
             ));
         }
-        append_context_list(&mut lines, "Artifact types", &domain.artifact_types);
+        append_context_list(&mut lines, "Artifact types", &artifact_type.artifact_types);
         append_context_list(
             &mut lines,
             &format!(
                 "{} {}",
-                i18n.ui(UiTextKey::Domain),
+                i18n.ui(UiTextKey::ArtifactType),
                 i18n.ui(UiTextKey::Rubric)
             ),
-            &domain.rubric,
+            &artifact_type.rubric,
         );
+        has_rubric |= !artifact_type.rubric.is_empty();
         append_context_list(
             &mut lines,
             &format!(
                 "{} {}",
-                i18n.ui(UiTextKey::Domain),
+                i18n.ui(UiTextKey::ArtifactType),
                 i18n.ui(UiTextKey::DispatchHints)
             ),
-            &domain.dispatch_hints,
+            &artifact_type.dispatch_hints,
         );
+    }
+    if has_rubric {
+        lines.push("Review scoring policy: Evaluate against the domain rubric on a 100-point scale. Follow Nagare's common Review Policy for any next-agent handling; do not invent domain-specific follow-up rules.".to_string());
     }
     Ok(lines.join("\n"))
 }
@@ -1927,12 +3081,12 @@ fn domain_fallback_confirmation(
         return None;
     }
     let fallback_agent = general_fallback_agent_id(candidates, default_work_agent_id);
-    let domain = item.domain_id.as_deref().unwrap_or("-");
-    let group = item.domain_group_id.as_deref().unwrap_or("-");
+    let domain = item.artifact_type_id.as_deref().unwrap_or("-");
+    let group = item.domain_id.as_deref().unwrap_or("-");
     Some(DomainFallbackConfirmation {
         target_agent_profile_id: fallback_agent.clone(),
         message: format!(
-            "No candidate agent is scoped to domain `{domain}` or domain group `{group}`; confirm whether to proceed with general fallback agent `{fallback_agent}`."
+            "No candidate agent is scoped to domain `{domain}` or Domain `{group}`; confirm whether to proceed with general fallback agent `{fallback_agent}`."
         ),
     })
 }
@@ -1946,22 +3100,22 @@ fn required_domain_agent_confirmation(
         return None;
     }
     let fallback_agent = general_fallback_agent_id(candidates, default_work_agent_id);
-    let domain = item.domain_id.as_deref().unwrap_or("-");
-    let group = item.domain_group_id.as_deref().unwrap_or("-");
+    let domain = item.artifact_type_id.as_deref().unwrap_or("-");
+    let group = item.domain_id.as_deref().unwrap_or("-");
     Some(DomainFallbackConfirmation {
         target_agent_profile_id: fallback_agent.clone(),
         message: format!(
-            "Domain-scoped agent is required for domain `{domain}` or domain group `{group}`, but no candidate agent is scoped to it; add a matching agent or change the domain agent policy before proceeding."
+            "Domain-scoped agent is required for domain `{domain}` or Domain `{group}`, but no candidate agent is scoped to it; add a matching agent or change the domain agent policy before proceeding."
         ),
     })
 }
 
 fn domain_agent_missing(item: &WorkItem, candidates: &BTreeMap<String, AgentProfile>) -> bool {
-    if item.domain_id.is_none() && item.domain_group_id.is_none() {
+    if item.artifact_type_id.is_none() && item.domain_id.is_none() {
         return false;
     }
-    if item.domain_id.as_deref() == Some("general")
-        || item.domain_group_id.as_deref() == Some("general")
+    if item.artifact_type_id.as_deref() == Some("general")
+        || item.domain_id.as_deref() == Some("general")
     {
         return false;
     }
@@ -1999,29 +3153,29 @@ fn general_fallback_agent_id(
 
 fn agent_is_general(profile: &AgentProfile) -> bool {
     profile
-        .domain_ids
+        .artifact_type_ids
         .iter()
-        .any(|domain_id| domain_id == "general")
+        .any(|artifact_type_id| artifact_type_id == "general")
         || profile
-            .domain_group_ids
+            .domain_ids
             .iter()
-            .any(|domain_group_id| domain_group_id == "general")
+            .any(|domain_id| domain_id == "general")
 }
 
 fn agent_matches_item_domain(profile: &AgentProfile, item: &WorkItem) -> bool {
-    item.domain_id.as_deref().is_some_and(|domain_id| {
-        profile
-            .domain_ids
-            .iter()
-            .any(|profile_domain_id| profile_domain_id == domain_id)
-    }) || item
-        .domain_group_id
+    item.artifact_type_id
         .as_deref()
-        .is_some_and(|domain_group_id| {
+        .is_some_and(|artifact_type_id| {
             profile
-                .domain_group_ids
+                .artifact_type_ids
                 .iter()
-                .any(|profile_domain_group_id| profile_domain_group_id == domain_group_id)
+                .any(|profile_artifact_type_id| profile_artifact_type_id == artifact_type_id)
+        })
+        || item.domain_id.as_deref().is_some_and(|domain_id| {
+            profile
+                .domain_ids
+                .iter()
+                .any(|profile_domain_id| profile_domain_id == domain_id)
         })
 }
 

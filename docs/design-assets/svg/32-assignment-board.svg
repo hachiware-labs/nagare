@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024" role="img" aria-labelledby="-title -desc">
+  <title id="-title">割り当てボード</title>
+  <desc id="-desc">プロジェクト、ドメイン、エージェントの一対一割り当てと不足を示すボード。</desc>
+  <rect width="1440" height="1024" fill="#f7f8fb"/>
+  <style>
+    .title{font:700 25px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .kicker{font:700 10px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+    .h1{font:750 22px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h2{font:700 16px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h3{font:700 13px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .body{font:500 12px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .small{font:500 11px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .tiny{font:700 10px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .mono{font:500 11px Consolas,Menlo,monospace;fill:#111827}
+    .nav{font:650 13px Inter,"Segoe UI",Arial,sans-serif;fill:#526174}
+    .nav-on{font:750 13px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+  </style>
+
+    <g id="sidebar">
+      <rect x="0" y="0" width="204" height="1024" rx="0" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="28" y="43" class="title">Nagare</text>
+      <text x="30" y="64" class="kicker">制御プレーン</text>
+      <text x="30" y="82" class="small">プロジェクト対応ランタイム</text>
+      <g>
+
+        <text x="34" y="118" class="nav">ワーク</text>
+      </g><g>
+        <rect x="18" y="135" width="168" height="33" rx="7" fill="#eef2ff" stroke="#eef2ff" stroke-width="1"/>
+        <text x="34" y="157" class="nav-on">プロジェクト</text>
+      </g><g>
+
+        <text x="34" y="196" class="nav">ドメイン</text>
+      </g><g>
+
+        <text x="34" y="235" class="nav">エージェント</text>
+      </g><g>
+
+        <text x="34" y="274" class="nav">スキル</text>
+      </g><g>
+
+        <text x="34" y="313" class="nav">MCP</text>
+      </g><g>
+
+        <text x="34" y="352" class="nav">設定</text>
+      </g>
+    </g>
+    <g id="page-header">
+      <text x="232" y="48" class="title">割り当てボード</text>
+      <text x="232" y="72" class="small">ドメインごとの担当、ランタイム、セッション方針、機能を一本の流れで確認する</text>
+      <rect x="1242" y="28" width="130" height="34" rx="7" fill="#4f46e5" stroke="#4f46e5" stroke-width="1"/>
+  <text x="1256" y="50" class="body" style="fill:#ffffff">割り当て追加</text>
+    </g>
+    <g id="content">
+
+    <rect x="232" y="96" width="1164" height="828" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <rect x="252" y="124" width="246" height="192" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="162" class="h2">カバー状況</text>
+    <circle cx="334" cy="232" r="54" fill="#dcfce7" stroke="#15803d" stroke-width="14"/>
+    <path d="M334 178 A54 54 0 0 1 382 256" fill="none" stroke="#b45309" stroke-width="14" stroke-linecap="round"/>
+    <text x="312" y="238" class="h1" style="fill:#111827">6/7</text>
+    <text x="276" y="298" class="small">テストドメインが未割り当て</text>
+
+    <rect x="526" y="124" width="850" height="192" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="550" y="162" class="h2">割り当て定義</text>
+    <text x="550" y="190" class="small">プロジェクト x ドメイン x エージェントの1対1対応に、ランタイム・セッション方針・機能を載せる</text>
+    <rect x="550" y="230" width="168" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff" stroke-width="1"/>
+  <text x="560" y="246" class="tiny" style="fill:#4f46e5">プロジェクト: Nagare</text>
+    <rect x="736" y="230" width="218" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="746" y="246" class="tiny" style="fill:#15803d">スレッド方針: 再利用優先</text>
+    <rect x="970" y="230" width="126" height="24" rx="12" fill="#fee2e2" stroke="#fee2e2" stroke-width="1"/>
+  <text x="980" y="246" class="tiny" style="fill:#b91c1c">自動代替禁止</text>
+    <rect x="1112" y="230" width="98" height="24" rx="12" fill="#ccfbf1" stroke="#ccfbf1" stroke-width="1"/>
+  <text x="1122" y="246" class="tiny" style="fill:#0f766e">範囲限定</text>
+
+    <rect x="252" y="354" width="1124" height="54" rx="7" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="388" class="tiny">ドメイン</text>
+    <text x="502" y="388" class="tiny">エージェント</text>
+    <text x="742" y="388" class="tiny">ランタイム</text>
+    <text x="934" y="388" class="tiny">セッション状態</text>
+    <text x="1060" y="388" class="tiny">機能</text>
+    <rect x="252" y="408" width="1124" height="74" rx="7" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="276" y="437" class="h2">設計</text>
+      <text x="276" y="460" class="tiny">ドメイン</text>
+      <line x1="428" y1="445" x2="476" y2="445" stroke="#b8c4d3" stroke-width="2"/><path d="M 468 440 L 476 445 L 468 450" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+      <text x="502" y="437" class="h3">architect-agent</text>
+      <text x="502" y="460" class="small">エージェント / 役割: レビュアー</text>
+      <line x1="678" y1="445" x2="720" y2="445" stroke="#b8c4d3" stroke-width="2"/><path d="M 712 440 L 720 445 L 712 450" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+      <rect x="742" y="432" width="118" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff" stroke-width="1"/>
+  <text x="752" y="448" class="tiny" style="fill:#4f46e5">Codex</text>
+      <line x1="872" y1="445" x2="914" y2="445" stroke="#b8c4d3" stroke-width="2"/><path d="M 906 440 L 914 445 L 906 450" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+      <rect x="934" y="432" width="104" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="944" y="448" class="tiny" style="fill:#15803d">準備完了</text>
+      <rect x="1060" y="432" width="100" height="24" rx="12" fill="#ccfbf1" stroke="#ccfbf1" stroke-width="1"/>
+  <text x="1070" y="448" class="tiny" style="fill:#0f766e">レビュー</text><rect x="1172" y="432" width="100" height="24" rx="12" fill="#dbeafe" stroke="#dbeafe" stroke-width="1"/>
+  <text x="1182" y="448" class="tiny" style="fill:#2563eb">GitHub</text>
+    <rect x="252" y="494" width="1124" height="74" rx="7" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="276" y="523" class="h2">ツール方針</text>
+      <text x="276" y="546" class="tiny">ドメイン</text>
+      <line x1="428" y1="531" x2="476" y2="531" stroke="#b8c4d3" stroke-width="2"/><path d="M 468 526 L 476 531 L 468 536" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+      <text x="502" y="523" class="h3">policy-agent</text>
+      <text x="502" y="546" class="small">エージェント / 役割: レビュアー</text>
+      <line x1="678" y1="531" x2="720" y2="531" stroke="#b8c4d3" stroke-width="2"/><path d="M 712 526 L 720 531 L 712 536" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+      <rect x="742" y="518" width="118" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff" stroke-width="1"/>
+  <text x="752" y="534" class="tiny" style="fill:#4f46e5">Claude</text>
+      <line x1="872" y1="531" x2="914" y2="531" stroke="#b8c4d3" stroke-width="2"/><path d="M 906 526 L 914 531 L 906 536" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+      <rect x="934" y="518" width="104" height="24" rx="12" fill="#fef3c7" stroke="#fef3c7" stroke-width="1"/>
+  <text x="944" y="534" class="tiny" style="fill:#b45309">承認待ち</text>
+      <rect x="1060" y="518" width="100" height="24" rx="12" fill="#f3e8ff" stroke="#f3e8ff" stroke-width="1"/>
+  <text x="1070" y="534" class="tiny" style="fill:#7c3aed">ポリシー</text><rect x="1172" y="518" width="100" height="24" rx="12" fill="#fef3c7" stroke="#fef3c7" stroke-width="1"/>
+  <text x="1182" y="534" class="tiny" style="fill:#b45309">書込確認</text>
+    <rect x="252" y="580" width="1124" height="74" rx="7" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="276" y="609" class="h2">エージェント実行</text>
+      <text x="276" y="632" class="tiny">ドメイン</text>
+      <line x1="428" y1="617" x2="476" y2="617" stroke="#b8c4d3" stroke-width="2"/><path d="M 468 612 L 476 617 L 468 622" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+      <text x="502" y="609" class="h3">runtime-agent</text>
+      <text x="502" y="632" class="small">エージェント / 役割: レビュアー</text>
+      <line x1="678" y1="617" x2="720" y2="617" stroke="#b8c4d3" stroke-width="2"/><path d="M 712 612 L 720 617 L 712 622" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+      <rect x="742" y="604" width="118" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff" stroke-width="1"/>
+  <text x="752" y="620" class="tiny" style="fill:#4f46e5">OpenClaw</text>
+      <line x1="872" y1="617" x2="914" y2="617" stroke="#b8c4d3" stroke-width="2"/><path d="M 906 612 L 914 617 L 906 622" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+      <rect x="934" y="604" width="104" height="24" rx="12" fill="#fee2e2" stroke="#fee2e2" stroke-width="1"/>
+  <text x="944" y="620" class="tiny" style="fill:#b91c1c">未接続</text>
+      <rect x="1060" y="604" width="100" height="24" rx="12" fill="#ccfbf1" stroke="#ccfbf1" stroke-width="1"/>
+  <text x="1070" y="620" class="tiny" style="fill:#0f766e">アダプタ</text><rect x="1172" y="604" width="100" height="24" rx="12" fill="#dbeafe" stroke="#dbeafe" stroke-width="1"/>
+  <text x="1182" y="620" class="tiny" style="fill:#2563eb">トレース</text>
+    <rect x="252" y="666" width="1124" height="74" rx="7" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="276" y="695" class="h2">実装</text>
+      <text x="276" y="718" class="tiny">ドメイン</text>
+      <line x1="428" y1="703" x2="476" y2="703" stroke="#b8c4d3" stroke-width="2"/><path d="M 468 698 L 476 703 L 468 708" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+      <text x="502" y="695" class="h3">worker-agent</text>
+      <text x="502" y="718" class="small">エージェント / 役割: レビュアー</text>
+      <line x1="678" y1="703" x2="720" y2="703" stroke="#b8c4d3" stroke-width="2"/><path d="M 712 698 L 720 703 L 712 708" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+      <rect x="742" y="690" width="118" height="24" rx="12" fill="#eef2ff" stroke="#eef2ff" stroke-width="1"/>
+  <text x="752" y="706" class="tiny" style="fill:#4f46e5">Codex CLI</text>
+      <line x1="872" y1="703" x2="914" y2="703" stroke="#b8c4d3" stroke-width="2"/><path d="M 906 698 L 914 703 L 906 708" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+      <rect x="934" y="690" width="104" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="944" y="706" class="tiny" style="fill:#15803d">実行中</text>
+      <rect x="1060" y="690" width="100" height="24" rx="12" fill="#ccfbf1" stroke="#ccfbf1" stroke-width="1"/>
+  <text x="1070" y="706" class="tiny" style="fill:#0f766e">実装</text><rect x="1172" y="690" width="100" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="1182" y="706" class="tiny" style="fill:#15803d">テスト</text>
+
+    <rect x="252" y="782" width="1124" height="84" rx="8" fill="#fef3c7" stroke="#b45309" stroke-width="1"/>
+    <text x="276" y="818" class="h2" style="fill:#b45309">不足</text>
+    <text x="330" y="818" class="body">テストドメインはプロジェクトで有効だが割り当てがない。不透明な自動代替を避けるため先に担当を決める。</text>
+    <rect x="1030" y="802" width="152" height="34" rx="7" fill="#4f46e5" stroke="#4f46e5" stroke-width="1"/>
+  <text x="1044" y="824" class="body" style="fill:#ffffff">テスト担当を作成</text>
+    <rect x="1200" y="802" width="142" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1214" y="824" class="body" style="fill:#111827">一時的に無効化</text>
+
+    </g>
+
+</svg>

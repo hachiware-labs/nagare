@@ -74,9 +74,9 @@ impl I18n {
         }
     }
 
-    pub fn general_domain_group_toml(&self) -> String {
+    pub fn general_domain_toml(&self) -> String {
         match self.language {
-            NagareLanguage::Ja => r#"[domain_group]
+            NagareLanguage::Ja => r#"[domain]
 id = "general"
 display_name = "汎用"
 description = "専門ドメインを必要としない汎用作業。"
@@ -90,11 +90,11 @@ common_rubric = [
     "成果物とメモがhandoffまたはreviewに十分な簡潔さで残っている。",
 ]
 dispatch_hints = [
-    "より狭いDomain Groupが適していない場合にこのGroupを使う。",
+    "より狭いDomainが適していない場合にこのGroupを使う。",
 ]
 "#
             .to_string(),
-            NagareLanguage::En => r#"[domain_group]
+            NagareLanguage::En => r#"[domain]
 id = "general"
 display_name = "General"
 description = "General-purpose work that does not need a specialized domain."
@@ -108,18 +108,18 @@ common_rubric = [
     "Artifacts and notes are concise enough for handoff or review.",
 ]
 dispatch_hints = [
-    "Use this group when no narrower domain group is a better fit.",
+    "Use this group when no narrower Domain is a better fit.",
 ]
 "#
             .to_string(),
         }
     }
 
-    pub fn general_domain_profile_toml(&self) -> String {
+    pub fn general_artifact_type_toml(&self) -> String {
         match self.language {
-            NagareLanguage::Ja => r#"[domain_profile]
+            NagareLanguage::Ja => r#"[artifact_type]
 id = "general"
-group_id = "general"
+domain_id = "general"
 display_name = "汎用"
 description = "実装、レビュー、ドキュメント、保守を含む汎用作業。"
 artifact_types = [
@@ -138,9 +138,9 @@ dispatch_hints = [
 ]
 "#
             .to_string(),
-            NagareLanguage::En => r#"[domain_profile]
+            NagareLanguage::En => r#"[artifact_type]
 id = "general"
-group_id = "general"
+domain_id = "general"
 display_name = "General"
 description = "General implementation, review, documentation, and maintenance work."
 artifact_types = [
@@ -229,8 +229,8 @@ role = "worker"
 working_dir = "."
 managed_by = "nagare"
 description = "{worker_description}"
-domain_group_ids = ["general"]
 domain_ids = ["general"]
+artifact_type_ids = ["general"]
 
 [agent_profiles.worker.external]
 provider = "codex-cli"
@@ -246,8 +246,8 @@ role = "reviewer"
 working_dir = "."
 managed_by = "nagare"
 description = "{reviewer_description}"
-domain_group_ids = ["general"]
 domain_ids = ["general"]
+artifact_type_ids = ["general"]
 
 [agent_profiles.reviewer.external]
 provider = "codex-cli"
@@ -263,8 +263,8 @@ role = "dispatcher"
 working_dir = "."
 managed_by = "nagare"
 description = "{dispatcher_description}"
-domain_group_ids = ["general"]
 domain_ids = ["general"]
+artifact_type_ids = ["general"]
 
 [agent_profiles.dispatcher.external]
 provider = "codex-cli"
@@ -280,8 +280,8 @@ role = "supervisor"
 working_dir = "."
 managed_by = "nagare"
 description = "{supervisor_description}"
-domain_group_ids = ["general"]
 domain_ids = ["general"]
+artifact_type_ids = ["general"]
 
 [agent_profiles.supervisor.external]
 provider = "codex-cli"
@@ -322,13 +322,13 @@ pub enum UiTextKey {
     Agents,
     Domains,
     Domain,
-    DomainGroups,
-    DomainGroup,
+    ArtifactTypes,
+    ArtifactType,
     Workflow,
     Profiles,
     Registered,
-    CreateNewDomainGroup,
     CreateNewDomain,
+    CreateNewArtifactType,
     ClearFilters,
     Agent,
     Type,
@@ -359,8 +359,8 @@ pub enum UiTextKey {
     FinalApproval,
     DomainAgentPolicy,
     SettingsLead,
-    DomainGroupsLead,
     DomainsLead,
+    ArtifactTypesLead,
     ProjectDefault,
     SaveWorkflowSettings,
     Edit,
@@ -376,17 +376,16 @@ pub enum UiTextKey {
     Work,
     Review,
     Dispatch,
-    CreateDomainGroup,
-    SaveDomainGroup,
     CreateDomain,
     SaveDomain,
+    CreateArtifactType,
+    SaveArtifactType,
     CreateAgent,
     SaveAgent,
     DeleteAgent,
     DomainFormLead,
-    DomainGroupFormLead,
+    ArtifactTypeFormLead,
     AgentFormLead,
-    ArtifactTypes,
     CommonRubric,
     ProgressModeOverride,
     FinalApprovalOverride,
@@ -420,13 +419,13 @@ pub fn ui_text(language: NagareLanguage, key: UiTextKey) -> &'static str {
             UiTextKey::Agents => "エージェント",
             UiTextKey::Domains => "ドメイン",
             UiTextKey::Domain => "ドメイン",
-            UiTextKey::DomainGroups => "ドメイングループ",
-            UiTextKey::DomainGroup => "ドメイングループ",
+            UiTextKey::ArtifactTypes => "成果物種別",
+            UiTextKey::ArtifactType => "成果物種別",
             UiTextKey::Workflow => "ワークフロー",
             UiTextKey::Profiles => "プロファイル",
             UiTextKey::Registered => "登録済み",
-            UiTextKey::CreateNewDomainGroup => "ドメイングループを作成",
             UiTextKey::CreateNewDomain => "ドメインを作成",
+            UiTextKey::CreateNewArtifactType => "成果物種別を作成",
             UiTextKey::ClearFilters => "フィルタ解除",
             UiTextKey::Agent => "エージェント",
             UiTextKey::Type => "種別",
@@ -459,11 +458,9 @@ pub fn ui_text(language: NagareLanguage, key: UiTextKey) -> &'static str {
             UiTextKey::SettingsLead => {
                 "ワークフロー、ドメイン、エージェントプロファイルを設定します"
             }
-            UiTextKey::DomainGroupsLead => {
-                "共通知識、共通評価基準、振り分けヒント、ワークフロー既定値"
-            }
-            UiTextKey::DomainsLead => {
-                "ドメイングループ所属、成果物種別、評価基準、振り分けヒント、ワークフロー上書き"
+            UiTextKey::DomainsLead => "共通知識、共通評価基準、振り分けヒント、ワークフロー既定値",
+            UiTextKey::ArtifactTypesLead => {
+                "ドメイン所属、評価基準、振り分けヒント、ワークフロー上書き"
             }
             UiTextKey::ProjectDefault => "プロジェクト既定",
             UiTextKey::SaveWorkflowSettings => "ワークフロー設定を保存",
@@ -480,17 +477,20 @@ pub fn ui_text(language: NagareLanguage, key: UiTextKey) -> &'static str {
             UiTextKey::Work => "作業",
             UiTextKey::Review => "レビュー",
             UiTextKey::Dispatch => "振り分け",
-            UiTextKey::CreateDomainGroup => "ドメイングループを作成",
-            UiTextKey::SaveDomainGroup => "ドメイングループを保存",
             UiTextKey::CreateDomain => "ドメインを作成",
             UiTextKey::SaveDomain => "ドメインを保存",
+            UiTextKey::CreateArtifactType => "成果物種別を作成",
+            UiTextKey::SaveArtifactType => "成果物種別を保存",
             UiTextKey::CreateAgent => "エージェントを作成",
             UiTextKey::SaveAgent => "エージェントを保存",
             UiTextKey::DeleteAgent => "エージェントを削除",
-            UiTextKey::DomainFormLead => "ドメインの評価基準とDispatchヒントを設定します",
-            UiTextKey::DomainGroupFormLead => "共通知識、評価基準、ワークフロー既定値を設定します",
+            UiTextKey::DomainFormLead => {
+                "ドメインの共通知識、評価基準、ワークフロー既定値を設定します"
+            }
+            UiTextKey::ArtifactTypeFormLead => {
+                "成果物種別ごとの評価基準とDispatchヒントを設定します"
+            }
             UiTextKey::AgentFormLead => "エージェントプロファイルを設定します",
-            UiTextKey::ArtifactTypes => "成果物種別",
             UiTextKey::CommonRubric => "共通評価基準",
             UiTextKey::ProgressModeOverride => "進行モードの上書き",
             UiTextKey::FinalApprovalOverride => "最終承認の上書き",
@@ -521,13 +521,13 @@ pub fn ui_text(language: NagareLanguage, key: UiTextKey) -> &'static str {
             UiTextKey::Agents => "Agents",
             UiTextKey::Domains => "Domains",
             UiTextKey::Domain => "Domain",
-            UiTextKey::DomainGroups => "Domain Groups",
-            UiTextKey::DomainGroup => "Domain Group",
+            UiTextKey::ArtifactTypes => "Artifact Types",
+            UiTextKey::ArtifactType => "Artifact Type",
             UiTextKey::Workflow => "Workflow",
             UiTextKey::Profiles => "profiles",
             UiTextKey::Registered => "registered",
-            UiTextKey::CreateNewDomainGroup => "Create New Domain Group",
             UiTextKey::CreateNewDomain => "Create New Domain",
+            UiTextKey::CreateNewArtifactType => "Create New Artifact Type",
             UiTextKey::ClearFilters => "Clear filters",
             UiTextKey::Agent => "Agent",
             UiTextKey::Type => "Type",
@@ -558,11 +558,11 @@ pub fn ui_text(language: NagareLanguage, key: UiTextKey) -> &'static str {
             UiTextKey::FinalApproval => "Final approval",
             UiTextKey::DomainAgentPolicy => "Domain agent policy",
             UiTextKey::SettingsLead => "Workflow policy, domains, and agent profiles",
-            UiTextKey::DomainGroupsLead => {
+            UiTextKey::DomainsLead => {
                 "Shared knowledge, common rubric, dispatch hints, and workflow defaults"
             }
-            UiTextKey::DomainsLead => {
-                "Domain Group membership, artifact types, rubric, dispatch hints, and workflow overrides"
+            UiTextKey::ArtifactTypesLead => {
+                "Domain membership, rubric, dispatch hints, and workflow overrides"
             }
             UiTextKey::ProjectDefault => "project default",
             UiTextKey::SaveWorkflowSettings => "Save Workflow Settings",
@@ -579,19 +579,18 @@ pub fn ui_text(language: NagareLanguage, key: UiTextKey) -> &'static str {
             UiTextKey::Work => "work",
             UiTextKey::Review => "review",
             UiTextKey::Dispatch => "dispatch",
-            UiTextKey::CreateDomainGroup => "Create Domain Group",
-            UiTextKey::SaveDomainGroup => "Save Domain Group",
             UiTextKey::CreateDomain => "Create Domain",
             UiTextKey::SaveDomain => "Save Domain",
+            UiTextKey::CreateArtifactType => "Create Artifact Type",
+            UiTextKey::SaveArtifactType => "Save Artifact Type",
             UiTextKey::CreateAgent => "Create Agent",
             UiTextKey::SaveAgent => "Save Agent",
             UiTextKey::DeleteAgent => "Delete Agent",
-            UiTextKey::DomainFormLead => "Configure domain rubric and dispatch hints",
-            UiTextKey::DomainGroupFormLead => {
-                "Configure shared knowledge, rubric, and workflow defaults"
+            UiTextKey::DomainFormLead => {
+                "Configure domain knowledge, rubric, and workflow defaults"
             }
+            UiTextKey::ArtifactTypeFormLead => "Configure artifact type rubric and dispatch hints",
             UiTextKey::AgentFormLead => "Configure this agent profile",
-            UiTextKey::ArtifactTypes => "Artifact types",
             UiTextKey::CommonRubric => "Common rubric",
             UiTextKey::ProgressModeOverride => "Progress mode override",
             UiTextKey::FinalApprovalOverride => "Final approval override",
@@ -828,7 +827,7 @@ mod tests {
             i18n.default_config_toml("Asia/Tokyo")
                 .contains("割り当てられたWork Item")
         );
-        assert!(i18n.general_domain_group_toml().contains("専門ドメイン"));
+        assert!(i18n.general_domain_toml().contains("専門ドメイン"));
         let instruction = localized_output_contract_instruction(
             "ja-JP",
             AgentRunPurpose::Work,

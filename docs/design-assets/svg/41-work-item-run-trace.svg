@@ -1,0 +1,222 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="2210" viewBox="0 0 1440 2210" role="img" aria-labelledby="-title -desc">
+  <title id="-title">ワーク詳細</title>
+  <desc id="-desc">一覧から開いたワークの状態、回答サマリ、担当者付きステップを表示する詳細画面。</desc>
+  <rect width="1440" height="2210" fill="#f7f8fb"/>
+  <style>
+    .title{font:700 25px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .kicker{font:700 10px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+    .h1{font:750 22px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h2{font:700 16px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .h3{font:700 13px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .body{font:500 12px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#111827}
+    .small{font:500 11px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .tiny{font:700 10px Inter,"Segoe UI","Yu Gothic UI",Meiryo,Arial,sans-serif;fill:#526174}
+    .mono{font:500 11px Consolas,Menlo,monospace;fill:#111827}
+    .nav{font:650 13px Inter,"Segoe UI",Arial,sans-serif;fill:#526174}
+    .nav-on{font:750 13px Inter,"Segoe UI",Arial,sans-serif;fill:#4f46e5}
+  </style>
+
+    <g id="sidebar">
+      <rect x="0" y="0" width="204" height="2210" rx="0" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="28" y="43" class="title">Nagare</text>
+      <text x="30" y="64" class="kicker">制御プレーン</text>
+      <text x="30" y="82" class="small">プロジェクト対応ランタイム</text>
+      <g>
+        <rect x="18" y="96" width="168" height="33" rx="7" fill="#eef2ff" stroke="#eef2ff" stroke-width="1"/>
+        <text x="34" y="118" class="nav-on">ワーク</text>
+      </g><g>
+
+        <text x="34" y="157" class="nav">プロジェクト</text>
+      </g><g>
+
+        <text x="34" y="196" class="nav">ドメイン</text>
+      </g><g>
+
+        <text x="34" y="235" class="nav">エージェント</text>
+      </g><g>
+
+        <text x="34" y="274" class="nav">スキル</text>
+      </g><g>
+
+        <text x="34" y="313" class="nav">MCP</text>
+      </g><g>
+
+        <text x="34" y="352" class="nav">設定</text>
+      </g>
+    </g>
+    <g id="page-header">
+      <text x="232" y="48" class="title">ワーク詳細</text>
+      <text x="232" y="72" class="small">ワークの現在状態、回答サマリ、ステップごとの担当者を確認する</text>
+
+    </g>
+    <g id="content">
+
+    <rect x="232" y="96" width="1164" height="2074" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+    <rect x="252" y="124" width="1124" height="168" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="162" class="h1">ワーク詳細</text>
+    <text x="276" y="190" class="h2">READMEを新構想に合わせて更新</text>
+    <rect x="276" y="222" width="92" height="24" rx="12" fill="#dbeafe" stroke="#dbeafe" stroke-width="1"/>
+  <text x="286" y="238" class="tiny" style="fill:#2563eb">実行中</text>
+    <text x="392" y="238" class="body">プロジェクト: nagare</text>
+    <text x="580" y="238" class="body">更新: 2分前</text>
+    <rect x="1258" y="146" width="74" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1272" y="168" class="body" style="fill:#111827">停止</text>
+
+    <rect x="252" y="324" width="1124" height="156" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="360" class="h2">回答サマリ</text>
+    <text x="276" y="394" class="h3">現在の結論</text>
+    <text x="382" y="394" class="body">README差分案は作成済み。レビューで構想整合性を確認中です。</text>
+    <text x="276" y="424" class="h3">次に必要な確認</text>
+    <text x="382" y="424" class="body">レビュー完了後、ユーザーは差分案とレビュー指摘を確認します。</text>
+    <text x="276" y="452" class="small">現時点ではユーザーの承認待ちはありません。</text>
+    <rect x="1052" y="390" width="104" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1066" y="412" class="body" style="fill:#111827">差分を見る</text>
+    <rect x="1174" y="390" width="118" height="34" rx="7" fill="#ffffff" stroke="#b8c4d3" stroke-width="1"/>
+  <text x="1188" y="412" class="body" style="fill:#111827">レビュー結果</text>
+
+    <rect x="252" y="520" width="1124" height="1588" rx="8" fill="#fbfcfe" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="276" y="560" class="h1">ステップ</text>
+    <text x="276" y="588" class="body">各ステップで受け取ったもの、担当者、結果を確認します。</text>
+    <line x1="276" y1="624" x2="1332" y2="624" stroke="#d8e0ea" stroke-width="1"/>
+    <text x="338" y="654" class="tiny">ステップ</text>
+    <text x="990" y="654" class="tiny">担当者</text>
+    <text x="1176" y="654" class="tiny">状態</text>
+    <line x1="276" y1="672" x2="1332" y2="672" stroke="#d8e0ea" stroke-width="1"/>
+    <g>
+      <rect x="276" y="692" width="1056" height="318" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <rect x="276" y="692" width="5" height="318" rx="3" fill="#2563eb"/>
+      <circle cx="308" cy="727" r="15" fill="#dcfce7" stroke="#15803d" stroke-width="2"/>
+      <text x="303" y="732" class="tiny" style="fill:#15803d">1</text>
+      <text x="338" y="724" class="h2">依頼受付</text>
+      <text x="458" y="724" class="small" style="fill:#2563eb">Role: オーガナイザー</text>
+      <text x="990" y="728" class="body">Nagare</text>
+      <rect x="1176" y="712" width="92" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="1186" y="728" class="tiny" style="fill:#15803d">完了</text>
+
+      <g>
+      <text x="338" y="750" class="tiny" style="fill:#526174">判断材料</text>
+      <rect x="338" y="760" width="450" height="108" rx="6" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="350" y="781" class="body">READMEを新構想に合わせて更新</text><text x="350" y="799" class="small">プロジェクト指定は未選択のまま実行</text><text x="350" y="817" class="small">依頼文は短く、対象ファイルはREADMEと解釈</text><text x="350" y="835" class="small">追加条件や締切は指定なし</text><text x="350" y="853" class="small">危険操作の指示は含まれていない</text>
+    </g>
+      <g>
+      <text x="812" y="750" class="tiny" style="fill:#526174">割り当て結果</text>
+      <rect x="812" y="760" width="410" height="108" rx="6" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="824" y="781" class="body">README更新ワークを作成</text><text x="824" y="799" class="small">対象プロジェクトは現在の文脈から nagare と推定</text><text x="824" y="817" class="small">初回セットアップ済みのRuntimeを利用候補に設定</text><text x="824" y="835" class="small">実行前確認を経由せず通常実行へ進行</text><text x="824" y="853" class="small">履歴に表示する回答サマリを初期化</text>
+    </g>
+      <g>
+      <text x="338" y="882" class="tiny" style="fill:#526174">設定した流れ</text>
+      <rect x="338" y="892" width="450" height="108" rx="6" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="350" y="913" class="body">work-1048</text><text x="350" y="931" class="small">依頼本文、作成時刻、推定プロジェクトを記録</text><text x="350" y="949" class="small">状態は実行中として登録</text><text x="350" y="967" class="small">詳細画面でステップ追跡できるよう初期行を作成</text><text x="350" y="985" class="small">ユーザー操作は実行ボタンのみ</text>
+    </g>
+      <g>
+      <text x="812" y="882" class="tiny" style="fill:#526174">理由</text>
+      <rect x="812" y="892" width="410" height="108" rx="6" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="824" y="913" class="body">ユーザー確認は不要</text><text x="824" y="931" class="small">次のステップで担当エージェントを決定</text><text x="824" y="949" class="small">プロジェクト未選択でも開始できる方針に従う</text><text x="824" y="967" class="small">後続で推定が誤っていれば差し戻し可能</text><text x="824" y="985" class="small">この時点では成果物はまだない</text>
+    </g>
+    </g>
+    <text x="616" y="1020" class="tiny" style="fill:#526174">work-1048 を判断材料として次へ</text>
+    <line x1="806" y1="1014" x2="806" y2="1030" stroke="#b8c4d3" stroke-width="2"/><path d="M 798 1025 L 806 1030 L 798 1035" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <g>
+      <rect x="276" y="1030" width="1056" height="318" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <rect x="276" y="1030" width="5" height="318" rx="3" fill="#2563eb"/>
+      <circle cx="308" cy="1065" r="15" fill="#dcfce7" stroke="#15803d" stroke-width="2"/>
+      <text x="303" y="1070" class="tiny" style="fill:#15803d">2</text>
+      <text x="338" y="1062" class="h2">割り当て</text>
+      <text x="458" y="1062" class="small" style="fill:#2563eb">Role: オーガナイザー</text>
+      <text x="990" y="1066" class="body">オーガナイザー</text>
+      <rect x="1176" y="1050" width="92" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="1186" y="1066" class="tiny" style="fill:#15803d">完了</text>
+
+      <g>
+      <text x="338" y="1088" class="tiny" style="fill:#526174">判断材料</text>
+      <rect x="338" y="1098" width="450" height="108" rx="6" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="350" y="1119" class="body">ワーク内容と現在のプロジェクト</text><text x="350" y="1137" class="small">README更新と構想反映が主目的</text><text x="350" y="1155" class="small">対象はドキュメント作成寄りの作業</text><text x="350" y="1173" class="small">レビューが必要な変更と判断</text><text x="350" y="1191" class="small">利用可能RuntimeはCodex CLI</text>
+    </g>
+      <g>
+      <text x="812" y="1088" class="tiny" style="fill:#526174">割り当て結果</text>
+      <rect x="812" y="1098" width="410" height="108" rx="6" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="824" y="1119" class="body">作成エージェントを選定</text><text x="824" y="1137" class="small">レビューエージェントを後続ステップに設定</text><text x="824" y="1155" class="small">default-workerではなく文書作成向けに割り当て</text><text x="824" y="1173" class="small">レビュー完了後に回答サマリへ統合予定</text><text x="824" y="1191" class="small">承認が必要な操作はまだない</text>
+    </g>
+      <g>
+      <text x="338" y="1220" class="tiny" style="fill:#526174">設定した流れ</text>
+      <rect x="338" y="1230" width="450" height="108" rx="6" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="350" y="1251" class="body">assignment: create-agent</text><text x="350" y="1269" class="small">review-agent をレビュー担当として予約</text><text x="350" y="1287" class="small">作成ステップとレビューステップを分離</text><text x="350" y="1305" class="small">担当、Runtime、状態をトレースへ保存</text><text x="350" y="1323" class="small">ユーザーが後で割り当て理由を追えるよう記録</text>
+    </g>
+      <g>
+      <text x="812" y="1220" class="tiny" style="fill:#526174">理由</text>
+      <rect x="812" y="1230" width="410" height="108" rx="6" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="824" y="1251" class="body">汎用ワーカーではなく文書作成寄りに割り当て</text><text x="824" y="1269" class="small">実行前に危険な操作は検出されていない</text><text x="824" y="1287" class="small">スキル追加は不要と判断</text><text x="824" y="1305" class="small">モデルやProviderの詳細は表示しない</text><text x="824" y="1323" class="small">内部ログは詳細ログ側へ下げる</text>
+    </g>
+    </g>
+    <text x="592" y="1358" class="tiny" style="fill:#526174">assignment: create-agent を入力として次へ</text>
+    <line x1="806" y1="1352" x2="806" y2="1368" stroke="#b8c4d3" stroke-width="2"/><path d="M 798 1363 L 806 1368 L 798 1373" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <g>
+      <rect x="276" y="1368" width="1056" height="318" rx="8" fill="#ffffff" stroke="#d8e0ea" stroke-width="1"/>
+      <rect x="276" y="1368" width="5" height="318" rx="3" fill="#15803d"/>
+      <circle cx="308" cy="1403" r="15" fill="#dcfce7" stroke="#15803d" stroke-width="2"/>
+      <text x="303" y="1408" class="tiny" style="fill:#15803d">3</text>
+      <text x="338" y="1400" class="h2">作成</text>
+      <text x="458" y="1400" class="small" style="fill:#15803d">Role: ワーカー</text>
+      <text x="990" y="1404" class="body">create-agent</text>
+      <rect x="1176" y="1388" width="92" height="24" rx="12" fill="#dcfce7" stroke="#dcfce7" stroke-width="1"/>
+  <text x="1186" y="1404" class="tiny" style="fill:#15803d">完了</text>
+
+      <g>
+      <text x="338" y="1426" class="tiny" style="fill:#526174">入力</text>
+      <rect x="338" y="1436" width="450" height="108" rx="6" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="350" y="1457" class="body">READMEとNagareの新構想メモ</text><text x="350" y="1475" class="small">既存説明と新しい制御プレーン構想を比較</text><text x="350" y="1493" class="small">Project-aware control plane の説明が不足</text><text x="350" y="1511" class="small">初回導線とRuntime連携の説明も不足</text><text x="350" y="1529" class="small">ワーク一覧/詳細の考え方は未反映</text>
+    </g>
+      <g>
+      <text x="812" y="1426" class="tiny" style="fill:#526174">作業結果</text>
+      <rect x="812" y="1436" width="410" height="108" rx="6" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="824" y="1457" class="body">説明文と差分案を作成</text><text x="824" y="1475" class="small">Project-aware control plane の説明をREADMEへ追加</text><text x="824" y="1493" class="small">初回セットアップからワーク実行までの流れを追記</text><text x="824" y="1511" class="small">RuntimeとAgentの関係をツール非依存で記述</text><text x="824" y="1529" class="small">ユーザーに見える概念を中心に文章化</text>
+    </g>
+      <g>
+      <text x="338" y="1558" class="tiny" style="fill:#526174">成果物</text>
+      <rect x="338" y="1568" width="450" height="108" rx="6" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="350" y="1589" class="body">README差分案</text><text x="350" y="1607" class="small">概要、初回導線、Runtime連携の説明を含む</text><text x="350" y="1625" class="small">Agent/Runtime/Skillの関係を整理</text><text x="350" y="1643" class="small">ワーク一覧と詳細で状態を追える前提を追加</text><text x="350" y="1661" class="small">未コミットの差分として保持</text>
+    </g>
+      <g>
+      <text x="812" y="1558" class="tiny" style="fill:#526174">補足</text>
+      <rect x="812" y="1568" width="410" height="108" rx="6" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="824" y="1589" class="body">未コミットの差分として保持</text><text x="824" y="1607" class="small">レビュー完了後にユーザー確認へ進める</text><text x="824" y="1625" class="small">表現はまだ最終ではない</text><text x="824" y="1643" class="small">用語の揺れをレビュー対象にする</text><text x="824" y="1661" class="small">成果物はこのステップで初めて発生</text>
+    </g>
+    </g>
+    <text x="604" y="1696" class="tiny" style="fill:#526174">README差分案 をレビュー対象として次へ</text>
+    <line x1="806" y1="1690" x2="806" y2="1706" stroke="#b8c4d3" stroke-width="2"/><path d="M 798 1701 L 806 1706 L 798 1711" fill="none" stroke="#b8c4d3" stroke-width="2" stroke-linecap="round"/>
+    <g>
+      <rect x="276" y="1706" width="1056" height="318" rx="8" fill="#eff6ff" stroke="#dbeafe" stroke-width="1"/>
+      <rect x="276" y="1706" width="7" height="318" rx="3" fill="#7c3aed"/>
+      <circle cx="308" cy="1741" r="15" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+      <text x="303" y="1746" class="tiny" style="fill:#2563eb">4</text>
+      <text x="338" y="1738" class="h2">レビュー</text>
+      <text x="458" y="1738" class="small" style="fill:#7c3aed">Role: レビュー</text>
+      <text x="990" y="1742" class="body">review-agent</text>
+      <rect x="1176" y="1726" width="92" height="24" rx="12" fill="#dbeafe" stroke="#dbeafe" stroke-width="1"/>
+  <text x="1186" y="1742" class="tiny" style="fill:#2563eb">実行中</text>
+      <text x="1074" y="1770" class="small" style="fill:#2563eb">現在処理中</text>
+      <g>
+      <text x="338" y="1764" class="tiny" style="fill:#526174">レビュー対象</text>
+      <rect x="338" y="1774" width="450" height="108" rx="6" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="350" y="1795" class="body">README差分案</text><text x="350" y="1813" class="small">作成エージェントが出した説明文と変更案</text><text x="350" y="1831" class="small">新構想の資料と照合</text><text x="350" y="1849" class="small">ユーザーが優先したUI導線とも照合</text><text x="350" y="1867" class="small">未確定の用語がないか確認</text>
+    </g>
+      <g>
+      <text x="812" y="1764" class="tiny" style="fill:#526174">評価</text>
+      <rect x="812" y="1774" width="410" height="108" rx="6" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="824" y="1795" class="body">構想整合性はOK</text><text x="824" y="1813" class="small">RuntimeよりProject/Workを中心に説明できている</text><text x="824" y="1831" class="small">初回導線の記述は概ね自然</text><text x="824" y="1849" class="small">スキル管理の説明は追加余地あり</text><text x="824" y="1867" class="small">表現修正1件を指摘し、確認を継続中</text>
+    </g>
+      <g>
+      <text x="338" y="1896" class="tiny" style="fill:#526174">スコア</text>
+      <rect x="338" y="1906" width="450" height="108" rx="6" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="350" y="1927" class="body">README品質 / 構想整合性: 82 / 100</text><text x="350" y="1945" class="small">構想整合性 28/30</text><text x="350" y="1963" class="small">分かりやすさ 24/30</text><text x="350" y="1981" class="small">具体性 18/25</text><text x="350" y="1999" class="small">残件 12/15</text>
+    </g>
+      <g>
+      <text x="812" y="1896" class="tiny" style="fill:#526174">指摘</text>
+      <rect x="812" y="1906" width="410" height="108" rx="6" fill="#f1f5f9" stroke="#d8e0ea" stroke-width="1"/>
+      <text x="824" y="1927" class="body">用語の揺れと導線説明の不足を指摘</text><text x="824" y="1945" class="small">追加修正が必要なら作成ステップへ戻す</text><text x="824" y="1963" class="small">レビュー結果は詳細画面に残す</text><text x="824" y="1981" class="small">長いログは初期表示しない</text><text x="824" y="1999" class="small">完了後に回答サマリへ反映予定</text>
+    </g>
+    </g>
+
+    </g>
+
+</svg>
