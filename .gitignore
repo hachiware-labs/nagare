@@ -6,6 +6,7 @@ dist/
 test-results/
 .codex-screenshots/
 docs/design-assets/scratch/
+janken.txt
 
 .nagare/
 *.tgz
