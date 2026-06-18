@@ -4,6 +4,7 @@ dist/
 *.log
 .tmp/
 test-results/
+.codex-screenshots/
 docs/design-assets/scratch/
 
 .nagare/
