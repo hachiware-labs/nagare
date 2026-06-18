@@ -574,6 +574,7 @@ pub(crate) fn workflow_decision_for_snapshot(
     });
     let accepted_recovery = latest_unapplied_accepted_recovery(snapshot);
     let draft_recovery = latest_unapplied_draft_recovery(snapshot);
+    let organizer_agent = effective_organizer_agent(settings).to_string();
 
     let (action, reason, requires_human, target_agent_profile_id, command_hint) =
         if let Some(plan) = accepted_recovery {
@@ -644,7 +645,7 @@ pub(crate) fn workflow_decision_for_snapshot(
                     WorkflowDecisionAction::Dispatch,
                     "handoff_created".to_string(),
                     false,
-                    Some(settings.dispatch_agent.clone()),
+                    Some(organizer_agent.clone()),
                     Some(format!("nagare handoff dispatch {}", snapshot.item.id)),
                 ),
                 WorkItemStatus::ChangesRequested => (
@@ -715,7 +716,7 @@ pub(crate) fn workflow_decision_for_snapshot(
                     WorkflowDecisionAction::Dispatch,
                     "ready_without_dispatch".to_string(),
                     false,
-                    Some(settings.dispatch_agent.clone()),
+                    Some(organizer_agent.clone()),
                     Some(format!("nagare item preview {}", snapshot.item.id)),
                 ),
             }
@@ -736,6 +737,14 @@ pub(crate) fn workflow_decision_for_snapshot(
         locale,
         created_at: timestamp(),
     }
+}
+
+fn effective_organizer_agent(settings: &NagareAgentSettings) -> &str {
+    settings
+        .organizer_agent
+        .as_deref()
+        .filter(|agent| !agent.trim().is_empty())
+        .unwrap_or(settings.dispatch_agent.as_str())
 }
 
 fn latest_unapplied_accepted_recovery(snapshot: &WorkItemSnapshot) -> Option<&RecoveryPlan> {

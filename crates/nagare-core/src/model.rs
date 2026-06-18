@@ -1052,6 +1052,8 @@ pub struct NagareAgentSettings {
     pub work_agent: String,
     #[serde(default = "default_review_agent_id")]
     pub review_agent: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub organizer_agent: Option<String>,
     #[serde(default = "default_dispatch_agent_id")]
     pub dispatch_agent: String,
     #[serde(default = "default_supervisor_agent_id")]
@@ -1086,6 +1088,7 @@ impl Default for NagareAgentSettings {
         Self {
             work_agent: default_work_agent_id(),
             review_agent: default_review_agent_id(),
+            organizer_agent: None,
             dispatch_agent: default_dispatch_agent_id(),
             supervisor_agent: default_supervisor_agent_id(),
         }
@@ -1096,6 +1099,7 @@ impl Default for NagareAgentSettings {
 pub struct SetNagareAgentSettingsInput<'a> {
     pub work_agent: Option<&'a str>,
     pub review_agent: Option<&'a str>,
+    pub organizer_agent: Option<&'a str>,
     pub dispatch_agent: Option<&'a str>,
     pub supervisor_agent: Option<&'a str>,
 }

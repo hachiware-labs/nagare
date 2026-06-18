@@ -2437,6 +2437,10 @@ pub fn set_nagare_agent_settings(
         validate_existing_agent_profile(&layout, agent)?;
         settings.review_agent = agent.to_string();
     }
+    if let Some(agent) = input.organizer_agent {
+        validate_existing_agent_profile(&layout, agent)?;
+        settings.organizer_agent = Some(agent.to_string());
+    }
     if let Some(agent) = input.dispatch_agent {
         validate_existing_agent_profile(&layout, agent)?;
         settings.dispatch_agent = agent.to_string();
@@ -2444,6 +2448,30 @@ pub fn set_nagare_agent_settings(
     if let Some(agent) = input.supervisor_agent {
         validate_existing_agent_profile(&layout, agent)?;
         settings.supervisor_agent = agent.to_string();
+    }
+
+    write_nagare_agent_settings(&layout, &settings)?;
+    Ok(settings)
+}
+
+pub fn set_project_organizer_agent(
+    root: impl Into<PathBuf>,
+    organizer_agent: Option<&str>,
+) -> Result<NagareAgentSettings, NagareError> {
+    let layout = ensure_project(root)?;
+    let mut settings = get_nagare_agent_settings(&layout.root)?;
+
+    match organizer_agent
+        .map(str::trim)
+        .filter(|agent| !agent.is_empty())
+    {
+        Some(agent) => {
+            validate_existing_agent_profile(&layout, agent)?;
+            settings.organizer_agent = Some(agent.to_string());
+        }
+        None => {
+            settings.organizer_agent = None;
+        }
     }
 
     write_nagare_agent_settings(&layout, &settings)?;

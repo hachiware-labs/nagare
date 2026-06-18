@@ -185,6 +185,9 @@ approval_policy = "manual_final_approval"
 [nagare_agents]
 work_agent = "worker"
 review_agent = "reviewer"
+# When omitted, Nagare uses dispatch_agent as the built-in project organizer.
+# Set this to an organizer-role Agent Profile for project-specific routing.
+# organizer_agent = "dispatcher"
 dispatch_agent = "dispatcher"
 supervisor_agent = "supervisor"
 

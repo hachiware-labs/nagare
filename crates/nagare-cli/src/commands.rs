@@ -629,15 +629,17 @@ fn agent_use_command(args: &[String]) -> Result<(), String> {
     let parsed = ParsedArgs::parse(args)?;
     let work_agent = parsed.optional("--work-agent");
     let review_agent = parsed.optional("--review-agent");
+    let organizer_agent = parsed.optional("--organizer-agent");
     let dispatch_agent = parsed.optional("--dispatch-agent");
     let supervisor_agent = parsed.optional("--supervisor-agent");
     if work_agent.is_none()
         && review_agent.is_none()
+        && organizer_agent.is_none()
         && dispatch_agent.is_none()
         && supervisor_agent.is_none()
     {
         return Err(
-            "agent use requires --work-agent, --review-agent, --dispatch-agent, or --supervisor-agent"
+            "agent use requires --work-agent, --review-agent, --organizer-agent, --dispatch-agent, or --supervisor-agent"
                 .to_string(),
         );
     }
@@ -646,6 +648,7 @@ fn agent_use_command(args: &[String]) -> Result<(), String> {
         SetNagareAgentSettingsInput {
             work_agent,
             review_agent,
+            organizer_agent,
             dispatch_agent,
             supervisor_agent,
         },

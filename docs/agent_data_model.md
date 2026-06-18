@@ -54,6 +54,7 @@ timezone = "Asia/Tokyo"
 [nagare_agents]
 work_agent = "codex-impl"
 review_agent = "codex-app-impl"
+organizer_agent = "codex-dispatch"
 dispatch_agent = "codex-impl"
 supervisor_agent = "codex-impl"
 
@@ -231,11 +232,15 @@ does not explicitly specify one.
 [nagare_agents]
 work_agent = "codex-impl"
 review_agent = "codex-app-impl"
+organizer_agent = "codex-dispatch"
 dispatch_agent = "codex-impl"
 ```
 
 - `work_agent`: default target for `nagare item run` when `--agent` is omitted.
 - `review_agent`: default profile for review-oriented flows.
+- `organizer_agent`: project organizer profile that receives requests routed from
+  the Nagare or Tomoshibikan entry session. When omitted, Nagare uses
+  `dispatch_agent` as the built-in organizer fallback.
 - `dispatch_agent`: default profile that will propose or resolve dispatch plans.
   It receives only a small Agent Profile candidate list, then returns a selected
   `target_agent_profile_id` in DispatchPlan-oriented JSON.

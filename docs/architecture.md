@@ -267,6 +267,9 @@ dispatch preview はさらに DispatchPlan を保存し、AgentRun、ResolvedRun
 実行ログ Artifact と紐づける。
 `--path` / `--work-folder` が指定された場合は ScopeResolution を作り、依頼時の
 作業フォルダ、Agent Profile の `working_dir`、CapabilityProbe、Review 観点を表示する。
+プロジェクトに `nagare_agents.organizer_agent` が設定されている場合、
+Workflow の Dispatch 判断ではその Agent Profile をプロジェクトのオーガナイザーとして使う。
+未設定の場合は既存互換のため `nagare_agents.dispatch_agent` をビルトイン・オーガナイザーとして使う。
 `item run --path` で `--agent` が省略された場合は、最新 accepted DispatchPlan を優先し、
 なければ `nagare_agents.work_agent` を実行先に使う。path / glob だけで既定 agent を
 固定するルール設定は採用せず、Agent Profile 属性と作業フォルダの関係から判断する。
@@ -483,6 +486,7 @@ Nagare 本体が使う既定 Agent:
 
 - `work_agent`: `item run` の既定実行先。`--agent` があれば明示指定を優先する
 - `review_agent`: 後続のレビュー/検証支援用の既定Agent
+- `organizer_agent`: 灯火館/Nagare入口からプロジェクトに渡された依頼を最初に整理するプロジェクト固有Agent。未設定なら `dispatch_agent` をビルトイン・オーガナイザーとして使う
 - `dispatch_agent`: 後続の dispatch 案作成や Work Item routing 用の既定Agent
 
 Locale:

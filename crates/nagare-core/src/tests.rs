@@ -643,6 +643,7 @@ fn nagare_agent_settings_can_select_default_work_agent() {
         SetNagareAgentSettingsInput {
             work_agent: Some("codex-work"),
             review_agent: None,
+            organizer_agent: Some("codex-work"),
             dispatch_agent: Some("codex-work"),
             supervisor_agent: Some("codex-work"),
         },
@@ -650,12 +651,127 @@ fn nagare_agent_settings_can_select_default_work_agent() {
     .expect("settings should update");
     assert_eq!(settings.work_agent, "codex-work");
     assert_eq!(settings.review_agent, "reviewer");
+    assert_eq!(settings.organizer_agent.as_deref(), Some("codex-work"));
     assert_eq!(settings.dispatch_agent, "codex-work");
     assert_eq!(settings.supervisor_agent, "codex-work");
 
     let loaded = get_nagare_agent_settings(&root).expect("settings should load");
     assert_eq!(loaded.work_agent, "codex-work");
+    assert_eq!(loaded.organizer_agent.as_deref(), Some("codex-work"));
     assert_eq!(loaded.supervisor_agent, "codex-work");
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn workflow_dispatch_uses_project_organizer_with_dispatch_fallback() {
+    let root = test_root("organizer-agent-fallback");
+    init_project(&root).expect("project should init");
+    let item = create_work_item(&root, "Route with organizer", "")
+        .expect("item should create")
+        .item;
+
+    let fallback_decision =
+        create_workflow_decision(&root, &item.id).expect("fallback decision should create");
+    assert_eq!(
+        fallback_decision.decision.action,
+        WorkflowDecisionAction::Dispatch
+    );
+    assert_eq!(
+        fallback_decision
+            .decision
+            .target_agent_profile_id
+            .as_deref(),
+        Some("dispatcher")
+    );
+
+    add_agent_profile(
+        &root,
+        AddAgentProfileInput {
+            id: "project-organizer",
+            display_name: "Project Organizer",
+            runtime: "codex-local",
+            adapter: "process.codex-cli",
+            role: "organizer",
+            working_dir: ".",
+            description: "",
+            specialties: Vec::new(),
+            skill_set_ids: Vec::new(),
+            domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
+        },
+    )
+    .expect("organizer profile should be added");
+
+    set_nagare_agent_settings(
+        &root,
+        SetNagareAgentSettingsInput {
+            work_agent: None,
+            review_agent: None,
+            organizer_agent: Some("project-organizer"),
+            dispatch_agent: None,
+            supervisor_agent: None,
+        },
+    )
+    .expect("organizer should update");
+
+    let organizer_decision =
+        create_workflow_decision(&root, &item.id).expect("organizer decision should create");
+    assert_eq!(
+        organizer_decision.decision.action,
+        WorkflowDecisionAction::Dispatch
+    );
+    assert_eq!(
+        organizer_decision
+            .decision
+            .target_agent_profile_id
+            .as_deref(),
+        Some("project-organizer")
+    );
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn project_organizer_setting_can_be_cleared_to_builtin_fallback() {
+    let root = test_root("organizer-agent-clear");
+    init_project(&root).expect("project should init");
+    add_agent_profile(
+        &root,
+        AddAgentProfileInput {
+            id: "project-organizer",
+            display_name: "Project Organizer",
+            runtime: "codex-local",
+            adapter: "process.codex-cli",
+            role: "organizer",
+            working_dir: ".",
+            description: "",
+            specialties: Vec::new(),
+            skill_set_ids: Vec::new(),
+            domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
+        },
+    )
+    .expect("organizer profile should be added");
+
+    let settings = set_project_organizer_agent(&root, Some("project-organizer"))
+        .expect("organizer should update");
+    assert_eq!(
+        settings.organizer_agent.as_deref(),
+        Some("project-organizer")
+    );
+
+    let settings =
+        set_project_organizer_agent(&root, None).expect("organizer should clear to fallback");
+    assert_eq!(settings.organizer_agent, None);
+
+    let loaded = get_nagare_agent_settings(&root).expect("settings should load");
+    assert_eq!(loaded.organizer_agent, None);
+    assert_eq!(loaded.dispatch_agent, "dispatcher");
     fs::remove_dir_all(root).ok();
 }
 

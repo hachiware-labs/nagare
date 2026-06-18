@@ -1,10 +1,10 @@
 use std::path::Path;
 
 use nagare_core::{
-    ApprovalPolicy, I18n, UiTextKey, WorkItemStatus, WorkflowMode, WorkflowSettings,
-    get_artifact_type, get_domain, get_locale_settings, get_work_item_snapshot,
-    get_workflow_settings, list_agent_profiles, list_artifact_types, list_domains,
-    list_skill_set_catalog, list_work_items,
+    AgentProfile, ApprovalPolicy, I18n, NagareAgentSettings, UiTextKey, WorkItemStatus,
+    WorkflowMode, WorkflowSettings, get_artifact_type, get_domain, get_locale_settings,
+    get_nagare_agent_settings, get_work_item_snapshot, get_workflow_settings, list_agent_profiles,
+    list_artifact_types, list_domains, list_skill_set_catalog, list_work_items,
 };
 
 use crate::ui::read_ui_running_state;
@@ -470,9 +470,9 @@ pub(crate) fn render_serve_new_item(root: &Path) -> Result<String, String> {
         i18n.ui(UiTextKey::ExpectedArtifacts),
         i18n.ui(UiTextKey::Constraints),
         i18n.ui(UiTextKey::Domain),
-        artifact_type_options,
-        i18n.ui(UiTextKey::Domain),
         domain_options,
+        i18n.ui(UiTextKey::ArtifactType),
+        artifact_type_options,
         i18n.ui(UiTextKey::DomainAgentPolicy),
         domain_agent_policy_options,
         i18n.ui(UiTextKey::ProgressMode),
@@ -506,10 +506,12 @@ pub(crate) fn render_serve_settings(root: &Path) -> Result<String, String> {
     let domains = list_domains(root).map_err(|error| error.to_string())?;
     let artifact_types = list_artifact_types(root).map_err(|error| error.to_string())?;
     let workflow_settings = get_workflow_settings(root).map_err(|error| error.to_string())?;
+    let agent_settings = get_nagare_agent_settings(root).map_err(|error| error.to_string())?;
     let agent_rows = agent_profile_rows(&agents, &domains, &artifact_types, &i18n);
     let group_rows = domain_rows(&domains, &i18n);
     let domain_rows = artifact_type_rows(&artifact_types, &domains, &i18n);
-    let workflow_form = render_workflow_settings_form(workflow_settings, &i18n);
+    let workflow_form =
+        render_workflow_settings_form(workflow_settings, &agents, &agent_settings, &i18n);
     Ok(format!(
         r##"<!doctype html>
 <html lang="ja">
@@ -759,7 +761,13 @@ fn source_label(source: &str, i18n: &I18n) -> String {
     }
 }
 
-fn render_workflow_settings_form(settings: WorkflowSettings, i18n: &I18n) -> String {
+fn render_workflow_settings_form(
+    settings: WorkflowSettings,
+    agents: &[AgentProfile],
+    agent_settings: &NagareAgentSettings,
+    i18n: &I18n,
+) -> String {
+    let organizer_form = render_project_organizer_form(agents, agent_settings, i18n);
     format!(
         r#"<section class="panel">
         <div class="panel-head">
@@ -774,15 +782,125 @@ fn render_workflow_settings_form(settings: WorkflowSettings, i18n: &I18n) -> Str
           <button type="submit">{}</button>
           <p id="workflow-settings-status" class="muted" role="status"></p>
         </form>
-      </section>"#,
+      </section>
+      {}"#,
         i18n.ui(UiTextKey::Workflow),
         i18n.ui(UiTextKey::ProjectDefault),
         i18n.ui(UiTextKey::ProgressMode),
         workflow_mode_options(Some(settings.default_progress_mode), false, i18n),
         i18n.ui(UiTextKey::FinalApproval),
         approval_policy_options(Some(settings.approval_policy), false, i18n),
-        i18n.ui(UiTextKey::SaveWorkflowSettings)
+        i18n.ui(UiTextKey::SaveWorkflowSettings),
+        organizer_form
     )
+}
+
+fn render_project_organizer_form(
+    agents: &[AgentProfile],
+    settings: &NagareAgentSettings,
+    i18n: &I18n,
+) -> String {
+    let selected = settings.organizer_agent.as_deref();
+    let effective_agent = selected.unwrap_or(settings.dispatch_agent.as_str());
+    let state = organizer_state_text(settings, i18n);
+    let handoff = if selected.is_some() {
+        format!(
+            "{}: {}",
+            localized(i18n, "現在の引き継ぎ", "Current handoff"),
+            effective_agent
+        )
+    } else {
+        format!(
+            "{}: {}",
+            localized(
+                i18n,
+                "ビルトインがワーク化と割り振りを行います",
+                "Built-in organizer prepares and routes work"
+            ),
+            effective_agent
+        )
+    };
+    format!(
+        r#"<section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>{}</h2>
+            <p class="muted">{}</p>
+          </div>
+        </div>
+        <form id="project-organizer-form" data-action="/api/project-organizer">
+          <div class="form-grid">
+            <label>{}<select name="organizer_agent">{}</select></label>
+          </div>
+          <div class="routing-preview">
+            <strong data-organizer-state>{}</strong>
+            <p class="muted" data-organizer-handoff>{}</p>
+          </div>
+          <button type="submit">{}</button>
+          <p id="project-organizer-status" class="muted" role="status"></p>
+        </form>
+      </section>"#,
+        localized(i18n, "プロジェクト・オーガナイザー", "Project Organizer"),
+        localized(
+            i18n,
+            "未設定なら標準のオーガナイザーを使います。プロジェクト固有の調整が必要な場合だけ選びます。",
+            "When unset, Nagare uses the built-in organizer. Select a project-specific organizer only when the project needs one."
+        ),
+        localized(i18n, "オーガナイザー", "Organizer"),
+        organizer_agent_options(agents, selected, i18n),
+        h(&state),
+        h(&handoff),
+        localized(i18n, "オーガナイザー設定を保存", "Save Organizer")
+    )
+}
+
+fn organizer_agent_options(agents: &[AgentProfile], selected: Option<&str>, i18n: &I18n) -> String {
+    let built_in_selected = if selected.is_none() { " selected" } else { "" };
+    let mut options = vec![format!(
+        r#"<option value=""{}>{}</option>"#,
+        built_in_selected,
+        h(localized(
+            i18n,
+            "ビルトイン・オーガナイザーを使用",
+            "Use built-in organizer"
+        ))
+    )];
+    let mut organizer_agents = agents
+        .iter()
+        .filter(|agent| agent.role == "organizer" || selected == Some(agent.id.as_str()))
+        .collect::<Vec<_>>();
+    organizer_agents.sort_by_key(|agent| agent.display_name.as_str());
+    options.extend(organizer_agents.into_iter().map(|agent| {
+        let selected_attr = if selected == Some(agent.id.as_str()) {
+            " selected"
+        } else {
+            ""
+        };
+        format!(
+            r#"<option value="{}"{}>{} ({})</option>"#,
+            h(&agent.id),
+            selected_attr,
+            h(&agent.display_name),
+            h(&agent.id)
+        )
+    }));
+    options.join("")
+}
+
+fn organizer_state_text(settings: &NagareAgentSettings, i18n: &I18n) -> String {
+    match settings.organizer_agent.as_deref() {
+        Some(agent) => format!(
+            "{}: {}",
+            localized(i18n, "プロジェクト固有", "Project-specific"),
+            agent
+        ),
+        None => localized(
+            i18n,
+            "プロジェクト固有は未設定",
+            "Project-specific organizer not configured",
+        )
+        .to_string(),
+    }
 }
 
 fn artifact_type_select_options(
@@ -1892,10 +2010,10 @@ pub(crate) fn render_serve_agent_form(
         h(model_id),
         i18n.ui(UiTextKey::BaseUrl),
         h(base_url),
-        i18n.ui(UiTextKey::Domains),
-        artifact_type_options,
-        i18n.ui(UiTextKey::Domains),
+        i18n.ui(UiTextKey::Domain),
         domain_options,
+        i18n.ui(UiTextKey::ArtifactType),
+        artifact_type_options,
         localized(&i18n, "スキル", "Skills"),
         localized(
             &i18n,

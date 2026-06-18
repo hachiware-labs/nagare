@@ -236,7 +236,7 @@ pub(crate) fn print_snapshot(snapshot: &WorkItemSnapshot) {
 
 pub(crate) fn print_agent_profile_row(profile: &AgentProfile) {
     println!(
-        "{}\trole={}\ttool={}\t{}\t{}\t{}\tmodel={}\texternal={}/{}\tmanaged={}\tspecialties={}\tskills={}\tdomains={}\tdomains={}\twork_contract={}\treview_contract={}\tdispatch_contract={}\tsupervision_contract={}\t{}",
+        "{}\trole={}\ttool={}\t{}\t{}\t{}\tmodel={}\texternal={}/{}\tmanaged={}\tspecialties={}\tskills={}\tdomains={}\tartifact_types={}\twork_contract={}\treview_contract={}\tdispatch_contract={}\tsupervision_contract={}\t{}",
         profile.id,
         if profile.role.trim().is_empty() {
             "-"
@@ -270,6 +270,13 @@ fn empty_display(value: &str) -> &str {
 pub(crate) fn print_agent_defaults(settings: &NagareAgentSettings) {
     println!("work_agent: {}", settings.work_agent);
     println!("review_agent: {}", settings.review_agent);
+    println!(
+        "organizer_agent: {}",
+        settings
+            .organizer_agent
+            .as_deref()
+            .unwrap_or("(built-in via dispatch_agent)")
+    );
     println!("dispatch_agent: {}", settings.dispatch_agent);
     println!("supervisor_agent: {}", settings.supervisor_agent);
 }

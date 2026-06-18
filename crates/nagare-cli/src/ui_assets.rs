@@ -225,7 +225,7 @@ if(form){
     syncWorkDomainOptions();
     if(routingDomain){
       const groupText=selectedText(workDomainselect) || 'プロジェクト既定';
-      const domainText=selectedText(workDomainSelect) || (workDomainSelect && workDomainSelect.disabled ? 'ドメインはグループ選択後に指定' : 'プロジェクト既定');
+      const domainText=selectedText(workDomainSelect) || (workDomainSelect && workDomainSelect.disabled ? '成果物種別はドメイン選択後に指定' : 'プロジェクト既定');
       routingDomain.textContent=`${groupText} / ${domainText}`;
     }
     if(routingPolicy){
@@ -707,6 +707,29 @@ if(workflowSettingsForm){
     const response=await fetch(workflowSettingsForm.dataset.action,{method:'POST',body:new URLSearchParams(new FormData(workflowSettingsForm))});
     if(!response.ok){await notifyResponseError(response,workflowSettingsStatus);return;}
     workflowSettingsStatus.textContent='ワークフロー設定を保存しました。';
+  });
+}
+const projectOrganizerForm=document.getElementById('project-organizer-form');
+if(projectOrganizerForm){
+  const organizerStatus=document.getElementById('project-organizer-status');
+  const organizerState=projectOrganizerForm.querySelector('[data-organizer-state]');
+  const organizerHandoff=projectOrganizerForm.querySelector('[data-organizer-handoff]');
+  const organizerSelect=projectOrganizerForm.querySelector('select[name="organizer_agent"]');
+  projectOrganizerForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    organizerStatus.textContent='オーガナイザー設定を保存しています…';
+    const response=await fetch(projectOrganizerForm.dataset.action,{method:'POST',body:new URLSearchParams(new FormData(projectOrganizerForm))});
+    if(!response.ok){await notifyResponseError(response,organizerStatus);return;}
+    const result=await response.json();
+    if(result.fallback){
+      organizerState.textContent='プロジェクト固有は未設定';
+      organizerHandoff.textContent=`ビルトインがワーク化と割り振りを行います: ${result.dispatch_agent}`;
+      if(organizerSelect){organizerSelect.value='';}
+    }else{
+      organizerState.textContent=`プロジェクト固有: ${result.organizer_agent}`;
+      organizerHandoff.textContent=`現在の引き継ぎ: ${result.organizer_agent}`;
+    }
+    organizerStatus.textContent='オーガナイザー設定を保存しました。';
   });
 }
 const skillPackageForm=document.getElementById('skill-package-form');

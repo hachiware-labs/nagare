@@ -20,8 +20,8 @@ use nagare_core::{
     create_recovery_plan, create_work_item_with_input, delete_agent_profile, delete_artifact_type,
     delete_domain, delete_work_item, export_static_ui, get_nagare_agent_settings,
     get_work_item_snapshot, list_agent_profiles, logo_png, reject_work_item,
-    run_work_item_with_input, set_workflow_settings, uninstall_agent_skill_package,
-    update_agent_profile, update_artifact_type, update_domain,
+    run_work_item_with_input, set_project_organizer_agent, set_workflow_settings,
+    uninstall_agent_skill_package, update_agent_profile, update_artifact_type, update_domain,
 };
 
 use crate::args::ParsedArgs;
@@ -679,6 +679,23 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
             r#"{{"default_progress_mode":"{}","approval_policy":"{}"}}"#,
             json(&settings.default_progress_mode.to_string()),
             json(&settings.approval_policy.to_string())
+        );
+        return write_response(stream, "200 OK", "application/json; charset=utf-8", &body);
+    }
+    if request.method == "POST" && request.path == "/api/project-organizer" {
+        let fields = parse_form_urlencoded(&request.body);
+        let organizer_agent = fields
+            .get("organizer_agent")
+            .map(String::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        let settings = set_project_organizer_agent(root, organizer_agent)
+            .map_err(|error| error.to_string())?;
+        let body = format!(
+            r#"{{"organizer_agent":"{}","dispatch_agent":"{}","fallback":{}}}"#,
+            json(settings.organizer_agent.as_deref().unwrap_or("")),
+            json(&settings.dispatch_agent),
+            settings.organizer_agent.is_none()
         );
         return write_response(stream, "200 OK", "application/json; charset=utf-8", &body);
     }

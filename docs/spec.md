@@ -89,6 +89,7 @@ Agent Profile / Skill のデータ形式は `docs/agent_data_model.md` を参照
 | 4.1.2 | Work / Review の担当は固定Defaultではなく dispatch が選ぶ。 | 複数の Agent Profile が存在する | Work Item を進める | dispatch が purpose、role、specialties、description、working_dir、履歴を見て target Agent Profile を選ぶ | 実装済み |
 | 4.1.3 | fallback Agent は内部設定として扱い、Settings UI の主機能にしない。 | dispatch が選べない、または明示Agentが省略される | `item run` / `item review` / `item preview` を実行する | 既存の fallback 設定を使えるが、ユーザー向け Settings には Agent Defaults form を出さない | 実装済み |
 | 4.1.4 | Nagare のワークフロー判断に使う supervisor_agent は高度なfallback設定として扱う。 | Agent Profile が存在する | `nagare agent use --supervisor-agent <id>` を実行する | `.nagare/project.toml` の `[nagare_agents].supervisor_agent` が更新される | 実装済み |
+| 4.1.4a | Project は organizer_agent を任意で設定できる。未設定時は dispatch_agent をビルトイン・オーガナイザーとして使う。 | Agent Profile が存在する | `nagare agent use --organizer-agent <id>` を実行する | `.nagare/project.toml` の `[nagare_agents].organizer_agent` が更新され、Workflow の Dispatch 判断がその Agent を使う | 実装済み |
 | 4.1.5 | Domain / Artifact Type / Rubric / Agent の関係をHTML設計文書で確認できる。 | 設計文書を読む | `docs/domain-rubric-agent-design.html` を開く | Domain、Artifact Type、Rubric、Agent Profile、Workflow Policy、Dispatch / Review の関係図と責務表が確認できる | 実装済み |
 | 4.2.1 | dispatch_agent は Work Item の実行前確認に使う。 | dispatch_agent が設定済み | `nagare item preview <work_id>` を実行する | dispatch_agent の AgentRun が `dispatch_preview` として記録される | 実装済み |
 | 4.2.2 | dispatch は Work Item の実作業を進めない。 | Work Item が存在する | Preview を実行する | AgentRun と Evidence は残るが、Work Item status は実行結果で進まない | 実装済み |

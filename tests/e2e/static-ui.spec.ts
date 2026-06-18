@@ -311,10 +311,19 @@ test("local UI server creates a work item from the browser", async ({ page }) =>
     await expect(page.getByRole("heading", { name: "Agent Defaults" })).toHaveCount(0);
     await expect(page.locator("#agent-defaults-form")).toHaveCount(0);
     await expect(page.getByRole("tab", { name: /Workflow|ワークフロー/ })).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator("#project-organizer-form")).toContainText("プロジェクト固有は未設定");
+    await expect(page.locator('#project-organizer-form select[name="organizer_agent"]')).toContainText(
+      "ビルトイン・オーガナイザーを使用",
+    );
+    await page.locator('#project-organizer-form button[type="submit"]').click();
+    await expect(page.locator("#project-organizer-status")).toContainText(
+      "オーガナイザー設定を保存しました。",
+    );
+    await expect(page.locator("#project-organizer-form")).toContainText("プロジェクト固有は未設定");
     await expect(page.getByRole("tab", { name: "Domain Groups" })).toHaveCount(0);
     await page.getByRole("tab", { name: /Domains|ドメイン/, exact: true }).click();
     await expect(page.getByRole("heading", { name: "ドメイン", exact: true })).toBeVisible();
-    await page.locator('a[href="/settings/domain-groups/new"]').click();
+    await page.locator('a[href="/settings/domains/new"]').click();
     await expect(page.locator("#domain-group-form")).toBeVisible();
     await page.locator('#domain-group-form input[name="id"]').fill("software-development");
     await page.locator('#domain-group-form input[name="display_name"]').fill("Software Development");
@@ -332,12 +341,12 @@ test("local UI server creates a work item from the browser", async ({ page }) =>
       .fill("Use specialized code agents.");
     await page.locator('#domain-group-form button[type="submit"]').click();
     await expect(page.getByRole("heading", { name: "ドメイン", exact: true })).toBeVisible();
-    await expect(page.locator("#domain-groups")).toContainText("Software Development");
-    await expect(page.locator("#domain-groups")).toContainText("2");
-    await page.locator('a[href="/settings/domains/new"]').click();
+    await expect(page.locator("#domains")).toContainText("Software Development");
+    await expect(page.locator("#domains")).toContainText("2");
+    await page.locator('a[href="/settings/artifact-types/new"]').click();
     await expect(page.locator("#domain-profile-form")).toBeVisible();
     await page.locator('#domain-profile-form input[name="id"]').fill("frontend-ui");
-    await page.locator('#domain-profile-form select[name="group_id"]').selectOption("software-development");
+    await page.locator('#domain-profile-form select[name="domain_id"]').selectOption("software-development");
     await page.locator('#domain-profile-form input[name="display_name"]').fill("Frontend UI");
     await page
       .locator('#domain-profile-form textarea[name="description"]')
@@ -354,7 +363,7 @@ test("local UI server creates a work item from the browser", async ({ page }) =>
     await expect(page.locator("#domain-profiles")).toContainText("Frontend UI");
     await expect(page.locator("#domain-profiles")).toContainText("Software Development");
     await expect(page.locator("#domain-profiles")).toContainText("3");
-    await page.locator('a[href$="/settings/domains/frontend-ui"]').first().click();
+    await page.locator('a[href$="/settings/artifact-types/frontend-ui"]').first().click();
     await expect(page.locator("#domain-profile-form")).toBeVisible();
     await page
       .locator('#domain-profile-form textarea[name="rubric"]')
@@ -391,8 +400,8 @@ test("local UI server creates a work item from the browser", async ({ page }) =>
     await expect(page.locator('#agent-profile-form select[name="role"]')).toBeVisible();
     await page.locator('#agent-profile-form select[name="role"]').selectOption("worker");
     await page.locator('#agent-profile-form input[name="working_dir"]').fill(".");
-    await page.locator('#agent-profile-form select[name="domain_group_ids"]').selectOption("software-development");
-    await page.locator('#agent-profile-form select[name="domain_ids"]').selectOption("frontend-ui");
+    await page.locator('#agent-profile-form select[name="domain_ids"]').selectOption("software-development");
+    await page.locator('#agent-profile-form select[name="artifact_type_ids"]').selectOption("frontend-ui");
     await page.locator('#agent-profile-form textarea[name="description"]').fill("Use SOUL.md when present.");
     await page.locator('#agent-profile-form textarea[name="specialties"]').fill("ui,e2e");
     await page.locator('#agent-profile-form button[type="submit"]').click();
@@ -400,8 +409,8 @@ test("local UI server creates a work item from the browser", async ({ page }) =>
     await expect(page.locator("#agent-profiles")).toContainText("UI Agent");
     const agentListOutput = runNagare(["agent", "list", "--root", root]);
     expect(agentListOutput).toContain("ui-agent");
-    expect(agentListOutput).toContain("domain_groups=software-development");
-    expect(agentListOutput).toContain("domains=frontend-ui");
+    expect(agentListOutput).toContain("domains=software-development");
+    expect(agentListOutput).toContain("artifact_types=frontend-ui");
     await page.locator('a[href$="/settings/agents/ui-agent"]').first().click();
     page.once("dialog", async (dialog) => {
       expect(dialog.message()).toContain("UI Agent");
@@ -457,8 +466,8 @@ test("local UI server creates a work item from the browser", async ({ page }) =>
     await page.locator('a[href="/new"]').click();
     await expect(page.locator("#create-work-form")).toBeVisible();
     await page.locator('#create-work-form textarea[name="description"]').fill("ブラウザフォームから作る");
-    await page.locator('#create-work-form select[name="domain_group_id"]').selectOption("software-development");
-    await page.locator('#create-work-form select[name="domain_id"]').selectOption("frontend-ui");
+    await page.locator('#create-work-form select[name="domain_id"]').selectOption("software-development");
+    await page.locator('#create-work-form select[name="artifact_type_id"]').selectOption("frontend-ui");
     await page
       .locator('#create-work-form textarea[name="acceptance"]')
       .fill("一覧に表示される\nconfirm_firstで保存される");
