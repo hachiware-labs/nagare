@@ -1,0 +1,9 @@
+{
+  "roots": ["."],
+  "tools": ["local", "wiki-garden", "tavily", "exa", "firecrawl"],
+  "order": ["local", "wiki-garden", "tavily", "exa", "firecrawl"],
+  "enrich": ["firecrawl"],
+  "enrichLimit": 5,
+  "merge": "ranked",
+  "limit": 8
+}

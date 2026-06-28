@@ -1,0 +1,154 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="760" viewBox="0 0 2400 760" role="img" aria-labelledby="title desc">
+  <title id="title">Nagare First Run Setup Flow ワイヤーフレーム</title>
+  <desc id="desc">案Aの初回セットアップフロー。セットアップ開始、Runtime Setup、Default Workspace Setup、最初の依頼作成を左から右へ示す。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#222"/>
+    </marker>
+    <style>
+      .bg { fill: #f7f7f7; }
+      .screen { fill: #fff; stroke: #222; stroke-width: 1.4; }
+      .contract { fill: #fff; stroke: #cfcfcf; stroke-width: 1; }
+      .panel { fill: #fafafa; stroke: #d7d7d7; stroke-width: 1; }
+      .panelStrong { fill: #f1f1f1; stroke: #222; stroke-width: 1.2; }
+      .button { fill: #222; stroke: #222; stroke-width: 1; }
+      .buttonLight { fill: #fff; stroke: #555; stroke-width: 1; }
+      .chipDark { fill: #222; stroke: #222; stroke-width: 1; }
+      .chip { fill: #eee; stroke: #777; stroke-width: 1; }
+      .line { stroke: #222; stroke-width: 1.4; fill: none; }
+      .softLine { stroke: #d0d0d0; stroke-width: 1; fill: none; }
+      .titleText { font: 700 22px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #111; letter-spacing: 0; }
+      .h { font: 700 16px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #111; letter-spacing: 0; }
+      .body { font: 400 13px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #222; letter-spacing: 0; }
+      .small { font: 400 11px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #555; letter-spacing: 0; }
+      .label { font: 700 11px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #222; letter-spacing: 0; }
+      .contractText { font: 400 12px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #333; letter-spacing: 0; }
+      .contractTitle { font: 700 13px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #111; letter-spacing: 0; }
+      .buttonText { font: 700 12px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #fff; letter-spacing: 0; }
+      .buttonTextDark { font: 700 12px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #222; letter-spacing: 0; }
+      .mono { font: 400 11px Consolas, "Cascadia Mono", monospace; fill: #222; letter-spacing: 0; }
+      .arrowLabel { font: 700 12px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #222; letter-spacing: 0; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="2400" height="760"/>
+  <text class="titleText" x="56" y="62">Nagare 初回セットアップフロー案A</text>
+  <text class="small" x="56" y="84">ランタイムをつなぎ、作業フォルダを選ぶだけで、デフォルト構成を作成して依頼を受け付ける。</text>
+
+  <g id="screen-contracts">
+    <g transform="translate(56 126)">
+      <rect class="contract" width="500" height="58" rx="8"/>
+      <text class="contractTitle" x="14" y="24">Setup Wizard Entry</text>
+      <text class="contractText" x="14" y="44">問い: 最初に何を始めるか / 主操作: セットアップを始める</text>
+    </g>
+    <g transform="translate(652 126)">
+      <rect class="contract" width="500" height="58" rx="8"/>
+      <text class="contractTitle" x="14" y="24">Runtime Setup</text>
+      <text class="contractText" x="14" y="44">問い: 実行環境は接続できるか / 主操作: 次へ</text>
+    </g>
+    <g transform="translate(1248 126)">
+      <rect class="contract" width="500" height="58" rx="8"/>
+      <text class="contractTitle" x="14" y="24">Default Workspace Setup</text>
+      <text class="contractText" x="14" y="44">問い: どの作業フォルダで始めるか / 主操作: 作成して次へ</text>
+    </g>
+    <g transform="translate(1844 126)">
+      <rect class="contract" width="500" height="58" rx="8"/>
+      <text class="contractTitle" x="14" y="24">Work Request Composer</text>
+      <text class="contractText" x="14" y="44">問い: 最初に何を頼むか / 主操作: 依頼を作成</text>
+    </g>
+  </g>
+
+  <g id="flow-arrows">
+    <line class="line" x1="556" y1="405" x2="652" y2="405" marker-end="url(#arrow)"/>
+    <text class="arrowLabel" x="570" y="390">セットアップを始める</text>
+    <line class="line" x1="1152" y1="405" x2="1248" y2="405" marker-end="url(#arrow)"/>
+    <text class="arrowLabel" x="1170" y="390">接続成功 / 次へ</text>
+    <line class="line" x1="1748" y1="405" x2="1844" y2="405" marker-end="url(#arrow)"/>
+    <text class="arrowLabel" x="1760" y="390">作成して次へ</text>
+  </g>
+
+  <g id="screen-setup-entry" transform="translate(56 210)">
+    <rect class="screen" width="500" height="390" rx="8"/>
+    <rect class="panel" x="18" y="18" width="82" height="354"/>
+    <text class="h" x="34" y="50">Nagare</text>
+    <rect class="chipDark" x="30" y="82" width="58" height="24" rx="5"/>
+    <text class="buttonText" x="44" y="99">ワーク</text>
+    <text class="small" x="34" y="134">プロジェクト</text>
+    <text class="small" x="34" y="164">知識</text>
+    <text class="small" x="34" y="194">エージェント</text>
+    <text class="h" x="124" y="56">ワーク</text>
+    <rect class="panelStrong" x="124" y="104" width="330" height="156" rx="8"/>
+    <text class="h" x="150" y="140">さぁ、セットアップを始めましょう。</text>
+    <text class="body" x="150" y="170">依頼を受け付けるための最小構成を作ります。</text>
+    <rect class="button" x="150" y="204" width="156" height="34" rx="7"/>
+    <text class="buttonText" x="180" y="226">セットアップを始める</text>
+  </g>
+
+  <g id="screen-runtime-setup" transform="translate(652 210)">
+    <rect class="screen" width="500" height="390" rx="8"/>
+    <text class="h" x="24" y="40">Runtime Setup</text>
+    <rect class="panel" x="24" y="70" width="452" height="48" rx="8"/>
+    <text class="label" x="42" y="94">エージェントツール</text>
+    <text class="body" x="174" y="94">Codex CLI</text>
+    <rect class="chip" x="374" y="82" width="70" height="22" rx="11"/>
+    <text class="label" x="392" y="98">検出済み</text>
+    <rect class="panel" x="24" y="138" width="284" height="118" rx="8"/>
+    <text class="h" x="44" y="170">Codex の設定</text>
+    <text class="small" x="44" y="202">モデル</text>
+    <rect class="panel" x="86" y="184" width="120" height="30" rx="6"/>
+    <text class="body" x="104" y="204">GPT-5.5</text>
+    <text class="small" x="44" y="236">エフォート</text>
+    <rect class="panel" x="116" y="218" width="90" height="30" rx="6"/>
+    <text class="body" x="134" y="238">High</text>
+    <rect class="panel" x="330" y="138" width="146" height="118" rx="8"/>
+    <text class="label" x="350" y="170">接続テスト</text>
+    <text class="small" x="350" y="198">送信: "ready?"</text>
+    <text class="body" x="350" y="226">応答あり</text>
+    <rect class="buttonLight" x="24" y="318" width="88" height="34" rx="7"/>
+    <text class="buttonTextDark" x="56" y="340">戻る</text>
+    <rect class="button" x="386" y="318" width="90" height="34" rx="7"/>
+    <text class="buttonText" x="420" y="340">次へ</text>
+  </g>
+
+  <g id="screen-default-workspace" transform="translate(1248 210)">
+    <rect class="screen" width="500" height="390" rx="8"/>
+    <text class="h" x="24" y="40">Default Workspace Setup</text>
+    <rect class="panel" x="24" y="70" width="452" height="92" rx="8"/>
+    <text class="label" x="44" y="100">作業フォルダ</text>
+    <rect class="panel" x="44" y="112" width="318" height="32" rx="6"/>
+    <text class="mono" x="58" y="132">C:\Users\naruhide\workspace\nagare</text>
+    <rect class="buttonLight" x="376" y="112" width="74" height="32" rx="6"/>
+    <text class="buttonTextDark" x="398" y="133">参照</text>
+    <rect class="panel" x="24" y="184" width="452" height="94" rx="8"/>
+    <text class="label" x="44" y="214">作成される初期構成</text>
+    <text class="body" x="44" y="240">デフォルトプロジェクト: nagare</text>
+    <text class="small" x="44" y="262">オーガナイザー / ワーカー / レビュアー</text>
+    <rect class="buttonLight" x="24" y="318" width="88" height="34" rx="7"/>
+    <text class="buttonTextDark" x="56" y="340">戻る</text>
+    <rect class="button" x="342" y="318" width="134" height="34" rx="7"/>
+    <text class="buttonText" x="374" y="340">作成して次へ</text>
+  </g>
+
+  <g id="screen-work-request-composer" transform="translate(1844 210)">
+    <rect class="screen" width="500" height="390" rx="8"/>
+    <rect class="panel" x="18" y="18" width="82" height="354"/>
+    <text class="h" x="34" y="50">Nagare</text>
+    <rect class="chipDark" x="30" y="82" width="58" height="24" rx="5"/>
+    <text class="buttonText" x="44" y="99">ワーク</text>
+    <rect class="panel" x="250" y="28" width="204" height="42" rx="8"/>
+    <circle cx="270" cy="49" r="7" fill="#222"/>
+    <path d="M 266 49 L 269 52 L 275 46" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <text class="label" x="286" y="47">セットアップが完了しました</text>
+    <text class="small" x="286" y="62">依頼を作成できます</text>
+    <text class="h" x="124" y="48">ワーク</text>
+    <rect class="panelStrong" x="124" y="86" width="330" height="138" rx="8"/>
+    <text class="label" x="146" y="116">新しい依頼</text>
+    <rect class="panel" x="146" y="132" width="286" height="58" rx="7"/>
+    <text class="small" x="162" y="158">README のセットアップ手順を更新して</text>
+    <rect class="button" x="322" y="202" width="110" height="34" rx="7"/>
+    <text class="buttonText" x="348" y="224">依頼を作成</text>
+    <rect class="panel" x="124" y="248" width="330" height="104" rx="8"/>
+    <text class="label" x="146" y="278">ワーク履歴</text>
+    <text class="small" x="146" y="304">依頼を作成するとここに表示されます</text>
+  </g>
+</svg>

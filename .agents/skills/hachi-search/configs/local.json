@@ -1,0 +1,8 @@
+{
+  "roots": ["."],
+  "tools": ["local"],
+  "order": ["local"],
+  "enrich": [],
+  "merge": "ranked",
+  "limit": 8
+}

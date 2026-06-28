@@ -1,0 +1,372 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Nagare ワーク一覧 デザインシステム適用画面</title>
+  <desc id="desc">既存ソースコードから抽出した Nagare のデザインシステムを適用した、ワーク一覧画面の高忠実度SVG。新しい依頼、プロジェクト/状態/キーワードフィルタ、状態アイコン付きワーク履歴を示す。</desc>
+  <defs>
+    <filter id="toastShadow" x="-20%" y="-40%" width="140%" height="180%">
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#0f172a" flood-opacity="0.14"/>
+    </filter>
+    <filter id="panelShadow" x="-8%" y="-12%" width="116%" height="130%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+
+    <linearGradient id="appBg" x1="0" y1="0" x2="1440" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.42" stop-color="#f8fbff"/>
+      <stop offset="1" stop-color="#eaf2ff"/>
+    </linearGradient>
+    <linearGradient id="sidebarBg" x1="0" y1="0" x2="200" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f6f9ff"/>
+    </linearGradient>
+    <linearGradient id="panelSurface" x1="232" y1="100" x2="1408" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f8fbff"/>
+    </linearGradient>
+    <linearGradient id="composerSurface" x1="232" y1="104" x2="1408" y2="104" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.68" stop-color="#fbfdff"/>
+      <stop offset="1" stop-color="#eef4ff"/>
+    </linearGradient>
+    <linearGradient id="primaryGradient" x1="1180" y1="214" x2="1344" y2="214" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563eb"/>
+      <stop offset="0.48" stop-color="#4338ca"/>
+      <stop offset="1" stop-color="#312e81"/>
+    </linearGradient>
+    <linearGradient id="navGradient" x1="18" y1="108" x2="182" y2="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#eef2ff"/>
+      <stop offset="1" stop-color="#e0f2fe"/>
+    </linearGradient>
+    <linearGradient id="flowLine" x1="232" y1="0" x2="1408" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#bae6fd"/>
+      <stop offset="0.5" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#312e81"/>
+    </linearGradient>
+    <linearGradient id="brandDisk" x1="0" y1="0" x2="34" y2="34" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e0f2fe"/>
+      <stop offset="1" stop-color="#eef2ff"/>
+    </linearGradient>
+    <linearGradient id="brandMark" x1="8" y1="7" x2="32" y2="24" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="0.44" stop-color="#4338ca"/>
+      <stop offset="1" stop-color="#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="toastSurface" x1="1040" y1="86" x2="1378" y2="86" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f3fbff"/>
+    </linearGradient>
+    <linearGradient id="attentionRow" x1="0" y1="0" x2="1120" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.58" stop-color="#fffbeb"/>
+      <stop offset="1" stop-color="#fff3c4"/>
+    </linearGradient>
+    <linearGradient id="runningRow" x1="0" y1="0" x2="1120" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.54" stop-color="#eef6ff"/>
+      <stop offset="1" stop-color="#dbeafe"/>
+    </linearGradient>
+    <linearGradient id="recoveryRow" x1="0" y1="0" x2="1120" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.58" stop-color="#fff7f7"/>
+      <stop offset="1" stop-color="#fee2e2"/>
+    </linearGradient>
+    <linearGradient id="doneRow" x1="0" y1="0" x2="1120" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.58" stop-color="#fbfffd"/>
+      <stop offset="1" stop-color="#dcfce7"/>
+    </linearGradient>
+
+    <symbol id="icon-inbox" viewBox="0 0 24 24">
+      <path d="M4 5h16l-2 9h-4a2 2 0 0 1-4 0H6L4 5Z"/>
+      <path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>
+    </symbol>
+    <symbol id="icon-folder" viewBox="0 0 24 24">
+      <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>
+    </symbol>
+    <symbol id="icon-book" viewBox="0 0 24 24">
+      <path d="M4 5a3 3 0 0 1 3-3h13v18H7a3 3 0 0 0-3 3Z"/>
+      <path d="M4 5v18"/>
+      <path d="M8 7h8"/>
+    </symbol>
+    <symbol id="icon-bot" viewBox="0 0 24 24">
+      <rect x="5" y="7" width="14" height="12" rx="3"/>
+      <path d="M12 3v4"/>
+      <path d="M9 12h.01M15 12h.01"/>
+      <path d="M9 16h6"/>
+    </symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24">
+      <path d="M12 8a4 4 0 1 0 0 8a4 4 0 0 0 0-8Z"/>
+      <path d="M4 12h2M18 12h2M12 4v2M12 18v2M6.3 6.3l1.4 1.4M16.3 16.3l1.4 1.4M17.7 6.3l-1.4 1.4M7.7 16.3l-1.4 1.4"/>
+    </symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24">
+      <path d="M12 5v14M5 12h14"/>
+    </symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="7"/>
+      <path d="m16 16 4 4"/>
+    </symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="m8 12 3 3 6-7"/>
+    </symbol>
+    <symbol id="icon-help" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M9.6 9a2.6 2.6 0 0 1 5 1c0 2-2.6 2.1-2.6 4"/>
+      <path d="M12 17h.01"/>
+    </symbol>
+    <symbol id="icon-alert" viewBox="0 0 24 24">
+      <path d="M12 3 2.8 20h18.4L12 3Z"/>
+      <path d="M12 9v5M12 17h.01"/>
+    </symbol>
+    <symbol id="icon-clock" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M12 7v5l4 2"/>
+    </symbol>
+    <symbol id="icon-file" viewBox="0 0 24 24">
+      <path d="M7 3h7l4 4v14H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/>
+      <path d="M14 3v5h5"/>
+      <path d="M8 13h8M8 17h6"/>
+    </symbol>
+    <symbol id="icon-filter" viewBox="0 0 24 24">
+      <path d="M4 5h16M7 12h10M10 19h4"/>
+    </symbol>
+    <symbol id="icon-chevron" viewBox="0 0 24 24">
+      <path d="m7 10 5 5 5-5"/>
+    </symbol>
+    <symbol id="icon-x" viewBox="0 0 24 24">
+      <path d="M18 6 6 18M6 6l12 12"/>
+    </symbol>
+
+    <style>
+      .bg { fill: url(#appBg); }
+      .surface { fill: url(#panelSurface); stroke: #dbe4f0; stroke-width: 1; }
+      .surfaceTint { fill: #fbfdff; stroke: #dbe4f0; stroke-width: 1; }
+      .surface2 { fill: #f1f5f9; stroke: #e2e8f0; stroke-width: 1; }
+      .navActive { fill: url(#navGradient); }
+      .primary { fill: url(#primaryGradient); stroke: #312e81; stroke-width: 1; }
+      .secondary { fill: #f1f5f9; stroke: #e2e8f0; stroke-width: 1; }
+      .line { stroke: #e2e8f0; stroke-width: 1; fill: none; }
+      .titleText { font: 700 24px Inter, "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #020617; letter-spacing: 0; }
+      .brandText { font: 800 24px Inter, "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #020617; letter-spacing: 0; }
+      .section { font: 700 17px Inter, "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #020617; letter-spacing: 0; }
+      .body { font: 400 14px Inter, "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #020617; letter-spacing: 0; }
+      .bodyStrong { font: 700 14px Inter, "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #020617; letter-spacing: 0; }
+      .small { font: 400 12px Inter, "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #475569; letter-spacing: 0; }
+      .label { font: 800 12px Inter, "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #334155; letter-spacing: 0; }
+      .tiny { font: 800 11px Inter, "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #64748b; letter-spacing: 0; }
+      .buttonText { font: 800 12px Inter, "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #ffffff; letter-spacing: 0; }
+      .buttonTextDark { font: 800 12px Inter, "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #4338ca; letter-spacing: 0; }
+      .nav { font: 800 13px Inter, "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #475569; letter-spacing: 0; }
+      .navOn { font: 800 13px Inter, "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #4338ca; letter-spacing: 0; }
+      .icon { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+      .badgeTextBlue { font: 800 11px Inter, "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #4338ca; letter-spacing: 0; }
+      .badgeTextGreen { font: 800 11px Inter, "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #047857; letter-spacing: 0; }
+      .badgeTextAmber { font: 800 11px Inter, "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #b45309; letter-spacing: 0; }
+      .badgeTextRed { font: 800 11px Inter, "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #b91c1c; letter-spacing: 0; }
+      .badgeTextGray { font: 800 11px Inter, "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #475569; letter-spacing: 0; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1440" height="1024"/>
+
+  <g id="sidebar">
+    <rect x="0" y="0" width="200" height="1024" fill="url(#sidebarBg)"/>
+    <line class="line" x1="200" y1="0" x2="200" y2="1024"/>
+    <g id="brand" transform="translate(24 24)">
+      <circle cx="16" cy="17" r="16" fill="url(#brandDisk)"/>
+      <path d="M8 18c9-2 10-12 20-11c-5 3-4 10-13 15c6-2 11-1 17 1c-8 4-17 3-24-5Z" fill="url(#brandMark)"/>
+      <text class="brandText" x="42" y="24">Nagare</text>
+      <text class="tiny" x="42" y="44">hachiware-labs</text>
+    </g>
+
+    <g id="nav" transform="translate(18 108)">
+      <rect class="navActive" x="0" y="0" width="164" height="36" rx="7"/>
+      <g class="icon" style="color:#4338ca" transform="translate(14 9)"><use href="#icon-inbox" width="18" height="18"/></g>
+      <text class="navOn" x="44" y="23">ワーク</text>
+
+      <g class="icon" style="color:#64748b" transform="translate(14 55)"><use href="#icon-folder" width="18" height="18"/></g>
+      <text class="nav" x="44" y="69">プロジェクト</text>
+
+      <g class="icon" style="color:#64748b" transform="translate(14 97)"><use href="#icon-book" width="18" height="18"/></g>
+      <text class="nav" x="44" y="111">知識</text>
+
+      <g class="icon" style="color:#64748b" transform="translate(14 139)"><use href="#icon-bot" width="18" height="18"/></g>
+      <text class="nav" x="44" y="153">エージェント</text>
+
+      <g class="icon" style="color:#64748b" transform="translate(14 181)"><use href="#icon-settings" width="18" height="18"/></g>
+      <text class="nav" x="44" y="195">設定</text>
+    </g>
+
+    <line class="line" x1="18" y1="352" x2="182" y2="352"/>
+    <text class="tiny" x="24" y="386">現在のプロジェクト</text>
+    <text class="bodyStrong" x="24" y="414">nagare</text>
+    <text class="small" x="24" y="436">C:/workspace/nagare</text>
+  </g>
+
+  <g id="page-header">
+    <text class="titleText" x="232" y="48">ワーク</text>
+    <text class="small" x="232" y="72">新しい依頼を作成し、対応が必要な作業だけすばやく確認します</text>
+    <rect x="232" y="88" width="1176" height="3" rx="1.5" fill="url(#flowLine)" opacity="0.9"/>
+    <g id="header-counts">
+      <rect x="1128" y="28" width="72" height="24" rx="12" fill="#eef2ff"/>
+      <text class="badgeTextBlue" x="1142" y="44">Work 5</text>
+      <rect x="1210" y="28" width="82" height="24" rx="12" fill="#f1f5f9"/>
+      <text class="badgeTextGray" x="1224" y="44">Agent 3</text>
+      <rect x="1304" y="26" width="88" height="30" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+      <g class="icon" style="color:#4338ca" transform="translate(1320 33)"><use href="#icon-filter" width="16" height="16"/></g>
+      <text class="buttonTextDark" x="1344" y="45">分析</text>
+    </g>
+  </g>
+
+  <g id="request-composer">
+    <rect x="232" y="104" width="1176" height="218" rx="8" fill="url(#composerSurface)" stroke="#dbe4f0" filter="url(#panelShadow)"/>
+    <rect x="232" y="104" width="1176" height="1" fill="#ffffff" opacity="0.92"/>
+    <text class="section" x="260" y="140">新しい依頼</text>
+    <text class="small" x="260" y="162">プロジェクトを選び、やりたいことを書きます。確認条件は作成時に提案されます。</text>
+
+    <g id="project-select">
+      <text class="label" x="260" y="202">作業プロジェクト</text>
+      <rect class="surfaceTint" x="260" y="214" width="280" height="38" rx="7"/>
+      <g class="icon" style="color:#475569" transform="translate(276 224)"><use href="#icon-folder" width="18" height="18"/></g>
+      <text class="body" x="306" y="238">nagare</text>
+      <g class="icon" style="color:#475569" transform="translate(506 225)"><use href="#icon-chevron" width="16" height="16"/></g>
+    </g>
+
+    <g id="request-input">
+      <text class="label" x="568" y="202">依頼内容</text>
+      <rect class="surfaceTint" x="568" y="214" width="582" height="76" rx="7"/>
+      <g class="icon" style="color:#64748b" transform="translate(586 232)"><use href="#icon-file" width="18" height="18"/></g>
+      <text class="body" x="616" y="238">README のセットアップ手順を更新して</text>
+      <text class="small" x="616" y="262">docs/setup.md の変更を README に反映。既存説明と重複しないように整理。</text>
+    </g>
+
+    <g id="composer-actions">
+      <rect class="primary" x="1180" y="214" width="164" height="38" rx="7"/>
+      <g class="icon" style="color:#ffffff" transform="translate(1200 224)"><use href="#icon-plus" width="18" height="18"/></g>
+      <text class="buttonText" x="1228" y="238">依頼を作成</text>
+      <rect class="secondary" x="1180" y="264" width="164" height="34" rx="7"/>
+      <text class="buttonTextDark" x="1232" y="286">下書き保存</text>
+    </g>
+  </g>
+
+  <g id="setup-toast" filter="url(#toastShadow)">
+    <rect x="1040" y="86" width="338" height="58" rx="8" fill="url(#toastSurface)" stroke="#dbe4f0"/>
+    <rect x="1040" y="86" width="4" height="58" rx="2" fill="#047857"/>
+    <g class="icon" style="color:#047857" transform="translate(1060 105)"><use href="#icon-check" width="22" height="22"/></g>
+    <text class="bodyStrong" x="1094" y="111">セットアップが完了しました</text>
+    <text class="small" x="1094" y="130">最初の依頼を作成できます</text>
+    <g class="icon" style="color:#94a3b8" transform="translate(1348 105)"><use href="#icon-x" width="18" height="18"/></g>
+  </g>
+
+  <g id="work-history">
+    <rect class="surface" x="232" y="346" width="1176" height="630" rx="8" filter="url(#panelShadow)"/>
+    <rect x="232" y="346" width="1176" height="1" fill="#ffffff" opacity="0.95"/>
+    <g id="history-header">
+      <text class="section" x="260" y="384">ワーク履歴</text>
+      <text class="small" x="260" y="406">プロジェクト、ワーク状態、依頼文で絞り込み、必要な作業を開きます。</text>
+      <rect x="1186" y="366" width="86" height="24" rx="12" fill="#fffbeb"/>
+      <text class="badgeTextAmber" x="1200" y="382">要対応 3</text>
+      <rect x="1284" y="366" width="82" height="24" rx="12" fill="#eef2ff"/>
+      <text class="badgeTextBlue" x="1298" y="382">処理中 1</text>
+    </g>
+
+    <g id="filters" transform="translate(260 430)">
+      <rect class="surfaceTint" x="0" y="0" width="260" height="38" rx="7"/>
+      <g class="icon" style="color:#475569" transform="translate(14 10)"><use href="#icon-folder" width="18" height="18"/></g>
+      <text class="body" x="44" y="24">プロジェクト: すべて</text>
+      <g class="icon" style="color:#475569" transform="translate(226 11)"><use href="#icon-chevron" width="16" height="16"/></g>
+
+      <rect class="surfaceTint" x="278" y="0" width="404" height="38" rx="7"/>
+      <g class="icon" style="color:#475569" transform="translate(294 10)"><use href="#icon-filter" width="18" height="18"/></g>
+      <rect x="330" y="11" width="16" height="16" rx="3" fill="#4338ca"/>
+      <path d="M334 19l3 3 6-8" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      <text class="label" x="354" y="25">要対応</text>
+      <rect x="458" y="11" width="16" height="16" rx="3" fill="#ffffff" stroke="#cbd5e1"/>
+      <path d="M462 19l3 3 6-8" fill="none" stroke="#4338ca" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      <text class="label" x="482" y="25">処理中</text>
+      <rect x="584" y="11" width="16" height="16" rx="3" fill="#ffffff" stroke="#cbd5e1"/>
+      <text class="label" x="608" y="25">完了</text>
+
+      <rect class="surfaceTint" x="704" y="0" width="414" height="38" rx="7"/>
+      <g class="icon" style="color:#64748b" transform="translate(720 10)"><use href="#icon-search" width="18" height="18"/></g>
+      <text class="small" x="750" y="24">依頼文のキーワードで検索</text>
+    </g>
+
+    <g id="history-table" transform="translate(260 494)">
+      <text class="tiny" x="18" y="0">依頼</text>
+      <text class="tiny" x="538" y="0">プロジェクト</text>
+      <text class="tiny" x="670" y="0">状態</text>
+      <text class="tiny" x="854" y="0">更新</text>
+      <text class="tiny" x="1016" y="0">操作</text>
+
+      <g id="row-confirm" transform="translate(0 18)">
+        <rect x="0" y="0" width="1120" height="82" rx="8" fill="url(#attentionRow)" stroke="#e2e8f0" stroke-width="1"/>
+        <g class="icon" style="color:#b45309" transform="translate(18 18)"><use href="#icon-check" width="20" height="20"/></g>
+        <text class="bodyStrong" x="52" y="26">CLI テスト手順の追記</text>
+        <text class="small" x="52" y="50">変更案ができました。採用するか確認してください。</text>
+        <text class="small" x="538" y="31">nagare</text>
+        <rect x="668" y="20" width="128" height="26" rx="13" fill="#fffbeb" stroke="#fde68a"/>
+        <g class="icon" style="color:#b45309" transform="translate(682 25)"><use href="#icon-check" width="16" height="16"/></g>
+        <text class="badgeTextAmber" x="708" y="37">要対応・確認</text>
+        <text class="small" x="854" y="31">3分前</text>
+        <rect x="1000" y="18" width="82" height="32" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+        <text class="buttonTextDark" x="1028" y="38">詳細</text>
+      </g>
+
+      <g id="row-question" transform="translate(0 112)">
+        <rect x="0" y="0" width="1120" height="82" rx="8" fill="url(#attentionRow)" stroke="#e2e8f0" stroke-width="1"/>
+        <g class="icon" style="color:#b45309" transform="translate(18 18)"><use href="#icon-help" width="20" height="20"/></g>
+        <text class="bodyStrong" x="52" y="26">API エラー時の説明を整理</text>
+        <text class="small" x="52" y="50">AIから確認したい項目があります。回答すると作業を再開できます。</text>
+        <text class="small" x="538" y="31">hidamari</text>
+        <rect x="668" y="20" width="128" height="26" rx="13" fill="#fffbeb" stroke="#fde68a"/>
+        <g class="icon" style="color:#b45309" transform="translate(682 25)"><use href="#icon-help" width="16" height="16"/></g>
+        <text class="badgeTextAmber" x="708" y="37">要対応・質問</text>
+        <text class="small" x="854" y="31">12分前</text>
+        <rect x="1000" y="18" width="82" height="32" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+        <text class="buttonTextDark" x="1028" y="38">詳細</text>
+      </g>
+
+      <g id="row-running" transform="translate(0 206)">
+        <rect x="0" y="0" width="1120" height="82" rx="8" fill="url(#runningRow)" stroke="#e2e8f0" stroke-width="1"/>
+        <g class="icon" style="color:#4338ca" transform="translate(18 18)"><use href="#icon-clock" width="20" height="20"/></g>
+        <text class="bodyStrong" x="52" y="26">README のセットアップ手順を更新</text>
+        <text class="small" x="52" y="50">いまはAIが変更案を作成中です。操作は不要です。</text>
+        <text class="small" x="538" y="31">nagare</text>
+        <rect x="668" y="20" width="104" height="26" rx="13" fill="#eef2ff" stroke="#c7d2fe"/>
+        <g class="icon" style="color:#4338ca" transform="translate(682 25)"><use href="#icon-clock" width="16" height="16"/></g>
+        <text class="badgeTextBlue" x="708" y="37">処理中</text>
+        <text class="small" x="854" y="31">処理中</text>
+        <rect x="1000" y="18" width="82" height="32" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+        <text class="buttonTextDark" x="1028" y="38">詳細</text>
+      </g>
+
+      <g id="row-recovery" transform="translate(0 300)">
+        <rect x="0" y="0" width="1120" height="82" rx="8" fill="url(#recoveryRow)" stroke="#e2e8f0" stroke-width="1"/>
+        <g class="icon" style="color:#b91c1c" transform="translate(18 18)"><use href="#icon-alert" width="20" height="20"/></g>
+        <text class="bodyStrong" x="52" y="26">依存パッケージ更新メモを作成</text>
+        <text class="small" x="52" y="50">作業が止まりました。安全な再開方法を選べます。</text>
+        <text class="small" x="538" y="31">nagare</text>
+        <rect x="668" y="20" width="128" height="26" rx="13" fill="#fef2f2" stroke="#fecaca"/>
+        <g class="icon" style="color:#b91c1c" transform="translate(682 25)"><use href="#icon-alert" width="16" height="16"/></g>
+        <text class="badgeTextRed" x="708" y="37">要対応・回復</text>
+        <text class="small" x="854" y="31">41分前</text>
+        <rect x="1000" y="18" width="82" height="32" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+        <text class="buttonTextDark" x="1028" y="38">詳細</text>
+      </g>
+
+      <g id="row-done" transform="translate(0 394)">
+        <rect x="0" y="0" width="1120" height="82" rx="8" fill="url(#doneRow)" stroke="#e2e8f0" stroke-width="1"/>
+        <g class="icon" style="color:#047857" transform="translate(18 18)"><use href="#icon-check" width="20" height="20"/></g>
+        <text class="bodyStrong" x="52" y="26">README の日本語見出しを調整</text>
+        <text class="small" x="52" y="50">依頼は完了しました。採用済みの内容を確認できます。</text>
+        <text class="small" x="538" y="31">nagare</text>
+        <rect x="668" y="20" width="86" height="26" rx="13" fill="#ecfdf5" stroke="#bbf7d0"/>
+        <g class="icon" style="color:#047857" transform="translate(682 25)"><use href="#icon-check" width="16" height="16"/></g>
+        <text class="badgeTextGreen" x="708" y="37">完了</text>
+        <text class="small" x="854" y="31">昨日</text>
+        <rect x="1000" y="18" width="82" height="32" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+        <text class="buttonTextDark" x="1028" y="38">詳細</text>
+      </g>
+    </g>
+  </g>
+</svg>

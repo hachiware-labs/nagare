@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "hachi-search": {
+      "source": "hachiware-labs/hachi-search",
+      "sourceType": "github",
+      "skillPath": "skills/hachi-search/SKILL.md",
+      "computedHash": "40be0932495baecaa99ebe0f2b810af2240721b8e8f0a23b55fb5ea9d95ac76d"
+    }
+  }
+}

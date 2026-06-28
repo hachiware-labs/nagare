@@ -1,23 +1,74 @@
 # Design Assets
 
-This directory stores UI design assets that are stable enough to reference from
-Nagare specs, design deltas, or implementation tasks.
-
-## Adopted Screens
-
-| ID | Asset | Purpose |
-| --- | --- | --- |
-| 49 | `svg/49-domain-edit-basic-tab.svg` / `png/49-domain-edit-basic-tab.png` | Domain edit modal, basic information tab. |
-| 50 | `svg/50-domain-edit-artifacts-tab.svg` / `png/50-domain-edit-artifacts-tab.png` | Domain edit modal, artifact types tab. |
-| 51 | `svg/51-domain-edit-artifact-ai-assist.svg` / `png/51-domain-edit-artifact-ai-assist.png` | AI-assisted artifact rubric editing flow. |
-| 53 | `svg/53-agent-list-edit-modal.svg` / `png/53-agent-list-edit-modal.png` | Agent list with a large edit modal. |
-| 54 | `svg/54-project-organizer-settings.svg` / `png/54-project-organizer-settings.png` | Project organizer fallback settings. |
-
-## Scratch Policy
-
-Superseded or exploratory screens should stay outside the adopted asset list
-until a spec, design delta, or implementation task references them.
-
-Local scratch files may be kept under `docs/design-assets/scratch/`, but they
-should not be referenced from committed docs unless they are promoted to adopted
+This directory stores the current UI flow summary and wireframe assets for
+Nagare. The previous detailed screen set was intentionally removed so the next
+iteration can start from the end-to-end flow instead of accumulated individual
 screens.
+
+## Current Flow
+
+- Flow summary: `nagare_screen_flow_summary.md`
+- Full-page screen flow SVG: `svg/nagare-full-page-flow-wireframe.svg`
+- Full-page screen flow PNG: `png/nagare-full-page-flow-wireframe.png`
+- Modal flow SVG: `svg/nagare-modal-flow-wireframe.svg`
+- Modal flow PNG: `png/nagare-modal-flow-wireframe.png`
+
+## Split Rule
+
+Use full-page wireframes for screens where the user reads, compares, tracks, or
+reviews work. Use modal wireframes only for temporary setup or confirmation
+tasks that return to a full-page screen.
+
+Full-page wireframes should show the Nagare app shell. The `ワーク` section is
+the selected item in the left navigation, not a standalone title bar label.
+
+In the work list, `詳細` opens a single work detail screen. That detail screen
+uses tabs such as `結果`, `実行状況`, `レビュー`, and `履歴`; it should not branch
+to separate unrelated pages for execution status and artifacts. The work list
+should also show enough result summary for completed items, including the answer
+and the produced artifacts.
+
+The `結果` tab should show concrete produced file names, not only artifact
+types. Reviews should include score, evidence, concerns, and confirmation notes.
+If the user sends work back, the UI must provide a comment field so the next run
+has actionable feedback. Confirmation policy should be selectable when starting
+a work item, for example final confirmation, important-only confirmation, or
+automatic adoption.
+
+The result screen should not reserve a permanent action card. Whether user
+confirmation is shown depends on the work confirmation policy. When confirmation
+is required, place the confirmation entry point in `結果サマリー`; clicking it
+opens a modal where the user can approve or send the work back with a message.
+Use the freed space for wider artifact and review sections, with vertical
+scrolling when the content is long.
+Do not draw the confirmation modal as permanent content inside the result
+screen. Keep the full-page result screen and the modal confirmation state as
+separate wireframes.
+
+The `実行状況` tab should not require the user to switch through each step.
+Show a compact overview at the top, then list each step as a chronological panel
+with the responsible agent, input, action, output, and current state. Long runs
+should be followed by scrolling the step list.
+
+## Current Design Direction
+
+Nagare should first make the main work journey understandable:
+
+1. Start from an empty work state.
+2. Complete the minimum setup in a modal: project and runtime.
+3. Return to the work screen and create a work request.
+4. Follow running steps and required user decisions.
+5. Review the outcome and close the work.
+
+Management screens for projects, domains, runtimes, agents, skills, and MCP are
+secondary paths. They should support the main journey without appearing as
+required first-run work unless the user explicitly opens settings.
+
+## Asset Policy
+
+- Keep adopted flow assets small and easy to review.
+- Prefer wireframes while the navigation model is still moving.
+- Keep full-page screens and modal flows separate so full-page information
+  architecture has enough space to be evaluated.
+- Keep exploratory or detailed alternatives under `docs/design-assets/scratch/`
+  until they are promoted into this README.

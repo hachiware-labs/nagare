@@ -1,0 +1,17 @@
+{
+  "roots": [
+    "."
+  ],
+  "tools": [
+    "tavily"
+  ],
+  "order": [
+    "tavily"
+  ],
+  "enrich": [
+    "firecrawl"
+  ],
+  "enrichLimit": 5,
+  "limit": 8,
+  "merge": "agent-sort"
+}

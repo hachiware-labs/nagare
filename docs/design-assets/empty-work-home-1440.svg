@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Nagare 画面01 空状態ホーム 実寸ワイヤーフレーム</title>
+  <desc id="desc">Nagare の初回セットアップ入口を 1440x1024 のデスクトップ密度で示す白黒ワイヤーフレーム。ウィザード開始へ前向きに誘導する。</desc>
+  <defs>
+    <style>
+      .bg { fill: #f7f7f7; }
+      .sidebar { fill: #f0f0f0; stroke: #c9c9c9; stroke-width: 1; }
+      .surface { fill: #fff; stroke: #d1d1d1; stroke-width: 1; }
+      .strong { fill: #f1f1f1; stroke: #222; stroke-width: 1.3; }
+      .button { fill: #222; stroke: #222; stroke-width: 1; }
+      .buttonLight { fill: #fff; stroke: #555; stroke-width: 1; }
+      .chipDark { fill: #222; stroke: #222; stroke-width: 1; }
+      .softLine { stroke: #d0d0d0; stroke-width: 1; fill: none; }
+      .titleText { font: 700 22px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #111; letter-spacing: 0; }
+      .heroText { font: 700 26px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #111; letter-spacing: 0; }
+      .body { font: 400 14px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #222; letter-spacing: 0; }
+      .small { font: 400 12px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #555; letter-spacing: 0; }
+      .tiny { font: 400 11px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #666; letter-spacing: 0; }
+      .label { font: 700 12px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #222; letter-spacing: 0; }
+      .nav { font: 700 13px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #333; letter-spacing: 0; }
+      .navInv { font: 700 13px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #fff; letter-spacing: 0; }
+      .buttonText { font: 700 13px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #fff; letter-spacing: 0; }
+      .buttonTextDark { font: 700 13px "Segoe UI", "Yu Gothic UI", Meiryo, Arial, sans-serif; fill: #222; letter-spacing: 0; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1440" height="1024"/>
+
+  <g id="app-shell">
+    <rect class="sidebar" x="0" y="0" width="212" height="1024"/>
+    <text class="titleText" x="28" y="46">Nagare</text>
+    <text class="tiny" x="28" y="68">作業を進める画面</text>
+    <rect class="chipDark" x="20" y="112" width="172" height="36" rx="7"/>
+    <text class="navInv" x="42" y="135">ワーク</text>
+    <text class="nav" x="42" y="184">プロジェクト</text>
+    <text class="nav" x="42" y="226">知識</text>
+    <text class="nav" x="42" y="268">エージェント</text>
+    <text class="nav" x="42" y="310">設定</text>
+    <line class="softLine" x1="20" y1="356" x2="192" y2="356"/>
+    <text class="label" x="28" y="388">作業リスト</text>
+    <text class="small" x="28" y="414">作業はまだありません</text>
+  </g>
+
+  <g id="page-header">
+    <rect class="surface" x="240" y="24" width="1172" height="72" rx="8"/>
+    <text class="titleText" x="264" y="56">ワーク</text>
+    <text class="small" x="264" y="78">最初のセットアップを終えると、依頼した作業がここに表示されます</text>
+  </g>
+
+  <g id="empty-state">
+    <rect class="strong" x="240" y="116" width="1172" height="420" rx="8"/>
+    <text class="label" x="264" y="150">初回セットアップ</text>
+    <text class="heroText" x="264" y="190">さぁ、セットアップを始めましょう。</text>
+    <text class="body" x="264" y="222">作業場所と接続を確認すると、最初の依頼を作成できます。</text>
+    <text class="small" x="264" y="250">この画面では入力せず、次の画面で必要な項目だけ確認します。</text>
+
+    <rect class="button" x="264" y="306" width="188" height="42" rx="7"/>
+    <text class="buttonText" x="298" y="332">セットアップを始める</text>
+  </g>
+</svg>
