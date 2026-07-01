@@ -13,6 +13,21 @@ screens.
 - Modal flow SVG: `svg/nagare-modal-flow-wireframe.svg`
 - Modal flow PNG: `png/nagare-modal-flow-wireframe.png`
 
+## Current Full-Scale Wireframes
+
+- Work home: `work-home-1440.svg`
+- Designed work home: `work-home-designed-1440.svg`
+- Runtime setup: `runtime-setup-1440.svg`
+- Work run trace: `work-run-trace-1440.svg`
+- Work run trace variants: `work-run-trace-question-1440.svg`, `work-run-trace-confirmation-1440.svg`, `work-run-trace-done-1440.svg`
+- Project list: `project-list-wireframe-1440.svg`
+- Project create: `project-create-wireframe-1440.svg`
+- Project settings: `project-settings-wireframe-1440.svg`
+- Knowledge list: `knowledge-list-wireframe-1440.svg`
+- Knowledge create: `knowledge-create-wireframe-1440.svg`
+- Knowledge edit: `knowledge-edit-wireframe-1440.svg`
+- Agent settings: `agent-settings-wireframe-1440.svg`
+
 ## Split Rule
 
 Use full-page wireframes for screens where the user reads, compares, tracks, or

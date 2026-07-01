@@ -12,16 +12,17 @@ use nagare_core::{
     AdvanceUntilBlockedInput, AdvanceWorkItemInput, AgentModelSelection, AgentRunPurpose,
     AnswerWorkItemInput, ApplyRecoveryPlanInput, ApprovalPolicy, CreateWorkItemInput,
     DomainAgentPolicy, DomainWorkflowOverride, ExternalAgentBinding, ProjectLayout,
-    RunWorkItemInput, StaticUiExportInput, UninstallAgentSkillPackageInput,
-    UpdateAgentProfileInput, UpdateArtifactTypeInput, UpdateDomainInput, WorkflowMode,
-    WorkflowSettings, accept_dispatch_plan, accept_recovery_plan, add_agent_profile,
-    add_artifact_type, add_domain, add_skill_package, advance_work_item_once,
+    RunWorkItemInput, SetNagareAgentSettingsInput, StaticUiExportInput,
+    UninstallAgentSkillPackageInput, UpdateAgentProfileInput, UpdateArtifactTypeInput,
+    UpdateDomainInput, WorkflowMode, WorkflowSettings, accept_dispatch_plan, accept_recovery_plan,
+    add_agent_profile, add_artifact_type, add_domain, add_skill_package, advance_work_item_once,
     advance_work_item_until_blocked, answer_work_item, apply_recovery_plan, approve_work_item,
     create_recovery_plan, create_work_item_with_input, delete_agent_profile, delete_artifact_type,
     delete_domain, delete_work_item, export_static_ui, get_nagare_agent_settings,
-    get_work_item_snapshot, list_agent_profiles, logo_png, reject_work_item,
-    run_work_item_with_input, set_project_organizer_agent, set_workflow_settings,
-    uninstall_agent_skill_package, update_agent_profile, update_artifact_type, update_domain,
+    get_work_item_snapshot, init_project, list_agent_profiles, logo_png, reject_work_item,
+    run_work_item_with_input, set_nagare_agent_settings, set_project_organizer_agent,
+    set_workflow_settings, uninstall_agent_skill_package, update_agent_profile,
+    update_artifact_type, update_domain,
 };
 
 use crate::args::ParsedArgs;
@@ -31,8 +32,9 @@ use crate::ui_form::{
     split_lines, split_list, url_decode,
 };
 use crate::ui_pages::{
-    render_serve_agent_form, render_serve_artifact_type_form, render_serve_domain_form,
-    render_serve_home, render_serve_new_item, render_serve_settings, render_serve_skill_form,
+    render_serve_agent_form, render_serve_artifact_type_form, render_serve_design_catalog,
+    render_serve_domain_form, render_serve_home, render_serve_new_item, render_serve_runtime_setup,
+    render_serve_settings, render_serve_setup_entry, render_serve_skill_form,
 };
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -164,7 +166,15 @@ fn parse_bool(value: &str) -> Result<bool, String> {
 fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> {
     let request = read_http_request(stream)?;
     if request.method == "GET" && request.path == "/" {
+        if !ui_project_initialized(root) {
+            let html = render_serve_setup_entry()?;
+            return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
+        }
         let html = render_serve_home(root)?;
+        return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
+    }
+    if request.method == "GET" && request.path == "/setup/runtime" {
+        let html = render_serve_runtime_setup()?;
         return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
     }
     if request.method == "GET" && request.path == "/assets/logo.png" {
@@ -172,6 +182,10 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
     }
     if request.method == "GET" && request.path == "/settings" {
         let html = render_serve_settings(root)?;
+        return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
+    }
+    if request.method == "GET" && request.path == "/design-catalog" {
+        let html = render_serve_design_catalog()?;
         return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
     }
     if request.method == "GET" && request.path == "/settings/agents/new" {
@@ -290,6 +304,20 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
             "application/json; charset=utf-8",
             &body,
         );
+    }
+    if request.method == "POST" && request.path == "/api/setup/codex" {
+        let fields = parse_form_urlencoded(&request.body);
+        let model = fields
+            .get("model")
+            .map(String::as_str)
+            .unwrap_or("codex-default")
+            .trim();
+        setup_codex_project(root, model)?;
+        let body = format!(
+            r#"{{"runtime":"codex","model":"{}","work_agent":"worker","review_agent":"reviewer","dispatch_agent":"dispatcher"}}"#,
+            json(model)
+        );
+        return write_response(stream, "200 OK", "application/json; charset=utf-8", &body);
     }
     if request.method == "POST" {
         if let Some(work_item_id) = request
@@ -1099,6 +1127,113 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
         "text/plain; charset=utf-8",
         "not found",
     )
+}
+
+fn ui_project_initialized(root: &Path) -> bool {
+    let layout = ProjectLayout::new(root.to_path_buf());
+    layout.config_path.is_file() && layout.ledger_path.is_file()
+}
+
+fn setup_codex_project(root: &Path, model: &str) -> Result<(), String> {
+    init_project(root).map_err(|error| error.to_string())?;
+    let selected_model = codex_setup_model_selection(model);
+    let existing_agents = list_agent_profiles(root).map_err(|error| error.to_string())?;
+    if !existing_agents.iter().any(|agent| agent.id == "organizer") {
+        add_agent_profile(
+            root,
+            AddAgentProfileInput {
+                id: "organizer",
+                display_name: "Organizer",
+                runtime: "codex-local",
+                adapter: "process.codex-cli",
+                role: "organizer",
+                working_dir: ".",
+                description: "Judge the request context and decide the next Nagare workflow step.",
+                specialties: Vec::new(),
+                skill_set_ids: Vec::new(),
+                domain_ids: vec!["general".to_string()],
+                artifact_type_ids: vec!["general".to_string()],
+                managed_by: Some("nagare"),
+                model: AgentModelSelection {
+                    provider: selected_model
+                        .as_ref()
+                        .map(|_| "openai-codex".to_string())
+                        .unwrap_or_default(),
+                    id: selected_model.clone().unwrap_or_default(),
+                    base_url: String::new(),
+                    api_key_env: String::new(),
+                },
+                external: ExternalAgentBinding {
+                    provider: "codex-cli".to_string(),
+                    agent_id: "organizer".to_string(),
+                    managed: true,
+                    source: "created".to_string(),
+                },
+            },
+        )
+        .map_err(|error| error.to_string())?;
+    }
+    set_nagare_agent_settings(
+        root,
+        SetNagareAgentSettingsInput {
+            work_agent: Some("worker"),
+            review_agent: Some("reviewer"),
+            organizer_agent: Some("organizer"),
+            dispatch_agent: Some("dispatcher"),
+            supervisor_agent: Some("supervisor"),
+        },
+    )
+    .map_err(|error| error.to_string())?;
+
+    for agent_id in [
+        "worker",
+        "reviewer",
+        "dispatcher",
+        "supervisor",
+        "organizer",
+    ] {
+        update_agent_profile(
+            root,
+            agent_id,
+            UpdateAgentProfileInput {
+                runtime: Some("codex-local"),
+                adapter: Some("process.codex-cli"),
+                managed_by: Some("nagare"),
+                model: Some(AgentModelSelection {
+                    provider: selected_model
+                        .as_ref()
+                        .map(|_| "openai-codex".to_string())
+                        .unwrap_or_default(),
+                    id: selected_model.clone().unwrap_or_default(),
+                    base_url: String::new(),
+                    api_key_env: String::new(),
+                }),
+                external: Some(ExternalAgentBinding {
+                    provider: "codex-cli".to_string(),
+                    agent_id: agent_id.to_string(),
+                    managed: true,
+                    source: "created".to_string(),
+                }),
+                ..UpdateAgentProfileInput::default()
+            },
+        )
+        .map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+fn codex_setup_model_selection(model: &str) -> Option<String> {
+    let trimmed = model.trim();
+    if trimmed.is_empty()
+        || matches!(
+            trimmed,
+            "default" | "codex-default" | "gpt-5.5-codex" | "gpt-5.4-codex"
+        )
+    {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
 }
 
 struct HttpRequest {

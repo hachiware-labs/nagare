@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::path::Path;
 
 use nagare_core::{
@@ -17,11 +18,65 @@ fn i18n_for_root(root: &Path) -> Result<I18n, String> {
     Ok(I18n::new(locale.language))
 }
 
+fn serve_main_nav(active: &str) -> String {
+    let item = |id: &str, href: &str, label: &str| {
+        let class = if active == id {
+            " class=\"active\""
+        } else {
+            ""
+        };
+        format!(
+            r#"<a{} href="{}"><span class="nav-icon nav-icon-{}" aria-hidden="true"></span><span>{}</span></a>"#,
+            class,
+            h(href),
+            h(id),
+            h(label)
+        )
+    };
+    format!(
+        "{}{}{}{}{}",
+        item("work", "/", "ワーク"),
+        item("project", "/settings", "プロジェクト"),
+        item("knowledge", "/settings", "知識"),
+        item("agent", "/settings", "エージェント"),
+        item("settings", "/settings", "設定")
+    )
+}
+
+fn work_project_label(work_folder: Option<&str>) -> String {
+    let value = work_folder.unwrap_or(".").trim();
+    if value.is_empty() || value == "." {
+        "nagare".to_string()
+    } else {
+        value
+            .trim_matches('/')
+            .trim_matches('\\')
+            .rsplit(['/', '\\'])
+            .next()
+            .unwrap_or(value)
+            .to_string()
+    }
+}
+
 pub(crate) fn render_serve_home(root: &Path) -> Result<String, String> {
     let i18n = i18n_for_root(root)?;
     let items = list_work_items(root).map_err(|error| error.to_string())?;
     let agents = list_agent_profiles(root).map_err(|error| error.to_string())?;
     let mut queue_signals = QueueSignals::default();
+    let mut project_names = BTreeSet::new();
+    for item in &items {
+        project_names.insert(work_project_label(item.work_folder.as_deref()));
+    }
+    if project_names.is_empty() {
+        project_names.insert("nagare".to_string());
+    }
+    let project_options =
+        std::iter::once(r#"<option value="all">プロジェクト: すべて</option>"#.to_string())
+            .chain(project_names.iter().map(|project| {
+                format!(r#"<option value="{}">{}</option>"#, h(project), h(project))
+            }))
+            .collect::<Vec<_>>()
+            .join("");
     let (rows, cards) = if items.is_empty() {
         (
             format!(
@@ -51,6 +106,14 @@ pub(crate) fn render_serve_home(root: &Path) -> Result<String, String> {
                 .map(|snapshot| answer_view(snapshot, &agents));
             let answer_preview = render_answer_preview(answer.as_ref());
             let filter_state = queue_filter_state(&state_label);
+            let project = work_project_label(item.work_folder.as_deref());
+            let search_text = format!(
+                "{} {} {} {}",
+                item.title,
+                item.description,
+                project,
+                localized_queue_state(&i18n, &state_label)
+            );
             let row_class = format!(
                 "state-{}",
                 state_label.to_ascii_lowercase().replace(' ', "-")
@@ -64,26 +127,22 @@ pub(crate) fn render_serve_home(root: &Path) -> Result<String, String> {
                 h(i18n.ui(UiTextKey::Delete))
             );
             row_entries.push(format!(
-                r#"<tr class="{}" data-work-record="{}" data-queue-state="{}"><td data-label="{}"><a href="/items/{}">{}</a><div class="muted">{}</div></td><td data-label="{}">{}</td><td data-label="Answer">{}</td><td data-label="{}"><span class="badge {}">{}</span><div class="muted">{}</div></td><td data-label="{}">{}</td><td data-label="{}">{}</td><td data-label="">{}</td></tr>"#,
+                r#"<tr class="work-history-row {}" data-work-record="{}" data-queue-state="{}" data-project="{}" data-search="{}"><td data-label="依頼"><div class="work-title-line"><span class="work-state-dot {}"></span><a href="/items/{}">{}</a></div><div class="muted">{}</div><div class="work-answer-inline">{}</div></td><td data-label="プロジェクト">{}</td><td data-label="状態"><span class="badge {}">{}</span><div class="muted">{}</div></td><td data-label="更新">-</td><td data-label="操作"><div class="row-actions"><a class="button-link secondary" href="/items/{}">詳細</a></div></td></tr>"#,
                 h(&row_class),
                 h(&item.id),
                 h(filter_state),
-                h(i18n.ui(UiTextKey::IdFolder)),
+                h(&project),
+                h(&search_text),
+                state_class,
                 h(&item.id),
-                h(&item.id),
-                h(item.work_folder.as_deref().unwrap_or(".")),
-                h(i18n.ui(UiTextKey::Title)),
                 h(&item.title),
+                h(&state_detail_text),
                 answer_preview,
-                h(i18n.ui(UiTextKey::State)),
+                h(&project),
                 state_class,
                 h(&state_text),
                 h(&state_detail_text),
-                h(i18n.ui(UiTextKey::Next)),
-                h(next_action),
-                h(i18n.ui(UiTextKey::Mode)),
-                h(&item.workflow_mode.to_string()),
-                delete_form
+                h(&item.id)
             ));
             card_entries.push(format!(
                 r#"<article class="queue-card {}" data-work-record="{}" data-queue-state="{}">
@@ -131,40 +190,77 @@ pub(crate) fn render_serve_home(root: &Path) -> Result<String, String> {
   <style>{}{}</style>
 </head>
 <body>
-  <main class="app">
+  <main class="app flow-app">
     <aside class="sidebar">
       <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
-      <nav>
-        <a class="active" href="/">{}</a>
-        <a href="/settings">{}</a>
-      </nav>
+      <nav>{}</nav>
+      <div class="sidebar-project">
+        <span>現在のプロジェクト</span>
+        <b>nagare</b>
+        <small>C:/workspace/nagare</small>
+      </div>
     </aside>
-    <section class="content">
+    <section class="content flow-content">
       <header class="topbar">
         <div>
-          <h1>{}</h1>
-          <p class="muted">{}</p>
+          <h1>ワーク</h1>
+          <p class="muted">新しい依頼を作成し、対応が必要な作業だけすばやく確認します</p>
         </div>
         <div class="actions">
-          <a class="button-link" href="/new">{}</a>
-            <span class="badge blue">{} {}</span>
-            <span class="badge gray">{} {}</span>
+          <span class="badge blue">Work {}</span>
+          <span class="badge gray">Agent {}</span>
+          <a class="button-link secondary" href="/settings">分析</a>
         </div>
       </header>
+      <section class="panel home-composer-panel">
+        <div class="panel-head">
+          <div>
+            <h2>新しい依頼</h2>
+            <p class="muted">プロジェクトを選び、やりたいことを書きます。確認条件は作成時に提案されます。</p>
+          </div>
+        </div>
+        <form id="home-work-form" class="home-work-form">
+          <label>作業プロジェクト
+            <select name="work_folder"><option value=".">nagare</option></select>
+          </label>
+          <label>依頼内容
+            <textarea name="description" rows="3" required placeholder="README のセットアップ手順を更新して"></textarea>
+          </label>
+          <input type="hidden" name="acceptance" value="">
+          <input type="hidden" name="artifacts" value="">
+          <input type="hidden" name="constraints" value="">
+          <input type="hidden" name="max_steps" value="8">
+          <input type="hidden" name="command" value="">
+          <input type="hidden" name="review_command" value="">
+          <div class="home-work-actions">
+            <button type="submit">依頼を作成</button>
+            <button class="secondary-button" type="button">下書き保存</button>
+          </div>
+          <p id="home-form-status" class="muted" role="status"></p>
+        </form>
+      </section>
       <section class="queue-layout">
-        <section class="panel queue-panel">
+        <section class="panel queue-panel work-history-panel">
           <div class="panel-head">
-            <h2>{}</h2>
-            <span class="badge gray">{}</span>
+            <div>
+              <h2>ワーク履歴</h2>
+              <p class="muted">プロジェクト、ワーク状態、依頼文で絞り込み、必要な作業を開きます。</p>
+            </div>
+            <div class="history-counts">
+              <span class="badge amber">要対応 {}</span>
+              <span class="badge blue">処理中 {}</span>
+            </div>
           </div>
-          <div class="status-strip">
-            <button class="queue-chip active" type="button" data-filter-state="all">{} <b>{}</b></button>
-            <button class="queue-chip attention" type="button" data-filter-state="attention">{} <b>{}</b></button>
-            <button class="queue-chip failed" type="button" data-filter-state="failed">{} <b>{}</b></button>
-            <button class="queue-chip approval" type="button" data-filter-state="approval">{} <b>{}</b></button>
-            <button class="queue-chip running" type="button" data-filter-state="running">{} <b>{}</b></button>
+          <div class="work-filter-panel">
+            <label class="filter-project"><select id="work-project-filter">{}</select></label>
+            <div class="checkbox-grid" aria-label="ワークの状態">
+              <label class="check-option"><input type="checkbox" data-work-status-filter value="attention" checked> 要対応</label>
+              <label class="check-option"><input type="checkbox" data-work-status-filter value="running" checked> 処理中</label>
+              <label class="check-option"><input type="checkbox" data-work-status-filter value="done"> 完了</label>
+            </div>
+            <label class="filter-keyword"><input id="work-keyword-filter" placeholder="依頼文のキーワードで検索"></label>
           </div>
-          <table class="queue-table"><thead><tr><th>{}</th><th>{}</th><th>Answer</th><th>{}</th><th>{}</th><th>{}</th><th></th></tr></thead><tbody id="work-items">{}</tbody></table>
+          <table class="queue-table work-history-table"><thead><tr><th>依頼</th><th>プロジェクト</th><th>状態</th><th>更新</th><th>操作</th></tr></thead><tbody id="work-items">{}</tbody></table>
           <div class="queue-card-list" aria-label="{}">{}</div>
         </section>
       </section>
@@ -175,35 +271,418 @@ pub(crate) fn render_serve_home(root: &Path) -> Result<String, String> {
 </html>"##,
         serve_stylesheet(),
         serve_responsive_stylesheet(),
-        i18n.ui(UiTextKey::WorkQueue),
-        i18n.ui(UiTextKey::Settings),
-        i18n.ui(UiTextKey::WorkQueue),
-        "作業の一覧、フィルタ、継続操作をまとめて確認します",
-        i18n.ui(UiTextKey::CreateNewItem),
-        i18n.ui(UiTextKey::Work),
+        serve_main_nav("work"),
         items.len(),
-        i18n.ui(UiTextKey::Agents),
         agents.len(),
-        i18n.ui(UiTextKey::WorkQueue),
-        i18n.ui(UiTextKey::ManualContinuation),
-        i18n.ui(UiTextKey::All),
-        items.len(),
-        i18n.ui(UiTextKey::NeedsAttention),
         queue_signals.attention,
-        i18n.ui(UiTextKey::Failed),
-        queue_signals.failed,
-        i18n.ui(UiTextKey::Approval),
-        queue_signals.approval,
-        i18n.ui(UiTextKey::Running),
         queue_signals.running,
-        i18n.ui(UiTextKey::IdFolder),
-        i18n.ui(UiTextKey::Title),
-        i18n.ui(UiTextKey::State),
-        i18n.ui(UiTextKey::Next),
-        i18n.ui(UiTextKey::Mode),
+        project_options,
         rows,
         i18n.ui(UiTextKey::WorkQueue),
         cards,
+        serve_script()
+    ))
+}
+
+pub(crate) fn render_serve_setup_entry() -> Result<String, String> {
+    Ok(format!(
+        r#"<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Nagare Setup</title>
+  <style>{}{}</style>
+</head>
+<body class="setup-page">
+  <main class="app flow-app setup-flow-app">
+    <aside class="sidebar">
+      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
+      <nav>{}</nav>
+    </aside>
+    <section class="content setup-entry-content">
+      <header class="topbar">
+        <div>
+          <h1>ワーク</h1>
+          <p class="muted">最初の依頼を受け付けるための最小構成を作ります。</p>
+        </div>
+      </header>
+      <section class="setup-entry-frame">
+        <section class="setup-entry-dialog" aria-labelledby="setup-start-title">
+          <h2 id="setup-start-title">さぁ、セットアップを始めましょう。</h2>
+          <p>依頼を受け付けるための最小構成を作ります。</p>
+          <a class="button-link setup-primary" href="/setup/runtime">セットアップを始める</a>
+        </section>
+      </section>
+    </section>
+  </main>
+  <script>{}</script>
+</body>
+</html>"#,
+        serve_stylesheet(),
+        serve_responsive_stylesheet(),
+        serve_main_nav("work"),
+        serve_script()
+    ))
+}
+
+pub(crate) fn render_serve_runtime_setup() -> Result<String, String> {
+    Ok(format!(
+        r#"<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Runtime Setup</title>
+  <style>{}{}</style>
+</head>
+<body class="setup-page">
+  <main class="app flow-app runtime-setup-app">
+    <aside class="sidebar">
+      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
+      <nav>{}</nav>
+      <div class="sidebar-project setup-side-note">
+        <span>セットアップ</span>
+        <b>Runtime Setup</b>
+      </div>
+    </aside>
+    <section class="content runtime-setup-content">
+      <header class="runtime-page-header">
+        <div>
+          <h1>Runtime Setup</h1>
+          <p class="muted">エージェントツール、モデル、エフォートを選び、接続できることを確認します</p>
+        </div>
+      </header>
+      <section class="runtime-stepper">
+        <div class="runtime-step done"><span>1</span><b>セットアップ開始</b><small>完了</small></div>
+        <div class="runtime-step-line active"></div>
+        <div class="runtime-step current"><span>2</span><b>実行環境</b><small>この画面</small></div>
+        <div class="runtime-step-line"></div>
+        <div class="runtime-step"><span>3</span><b>最初の依頼</b><small>次へ</small></div>
+      </section>
+      <form id="setup-codex-form" class="runtime-main-panel">
+        <section class="runtime-settings-card" aria-labelledby="runtime-settings-title">
+          <h2 id="runtime-settings-title">エージェントツール設定</h2>
+          <label>エージェントツール
+            <select name="tool">
+              <option value="codex-cli" selected>Codex CLI</option>
+            </select>
+          </label>
+          <section class="runtime-tool-panel">
+            <h3>Codex の設定</h3>
+            <div class="form-grid runtime-model-grid">
+              <label>モデル
+                <select name="model">
+                  <option value="codex-default" selected>Codex 既定</option>
+                  <option value="gpt-5.5-codex">GPT-5.5</option>
+                  <option value="gpt-5.4-codex">GPT-5.4</option>
+                </select>
+              </label>
+              <label>エフォート
+                <select name="effort">
+                  <option value="high" selected>High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </label>
+            </div>
+          </section>
+        </section>
+        <section class="runtime-test-card" aria-labelledby="runtime-test-title">
+          <h2 id="runtime-test-title">接続テスト</h2>
+          <div class="runtime-test-box">
+            <b>テストメッセージ</b>
+            <span>送信: "ready?"</span>
+            <div class="runtime-test-result"><span>✓</span><b>応答あり</b><small>選択した設定で返答を確認しました。</small></div>
+          </div>
+          <div class="runtime-test-actions">
+            <span class="runtime-ok">接続OK</span>
+            <button class="secondary-button" type="button">再テスト</button>
+          </div>
+        </section>
+        <input type="hidden" name="continue_session" value="true">
+        <div class="runtime-footer-actions">
+          <a class="button-link secondary" href="/">戻る</a>
+          <button class="setup-primary" type="submit">次へ</button>
+        </div>
+        <p id="setup-status" class="muted" role="status"></p>
+      </form>
+    </section>
+  </main>
+  <script>{}</script>
+</body>
+</html>"#,
+        serve_stylesheet(),
+        serve_responsive_stylesheet(),
+        serve_main_nav("work"),
+        serve_script()
+    ))
+}
+
+pub(crate) fn render_serve_design_catalog() -> Result<String, String> {
+    Ok(format!(
+        r##"<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Nagare Design Catalog</title>
+  <style>{}{}</style>
+</head>
+<body>
+  <main class="app flow-app">
+    <aside class="sidebar">
+      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
+      <nav>{}</nav>
+      <div class="sidebar-project">
+        <span>Design System</span>
+        <b>Catalog</b>
+        <small>docs/design-assets/DESIGN.md</small>
+      </div>
+    </aside>
+    <section class="content flow-content design-catalog">
+      <header class="topbar">
+        <div>
+          <h1>デザインカタログ</h1>
+          <p class="muted">画面を作る前に、Nagare の共通部品、状態色、密度、余白を確認します。</p>
+        </div>
+        <div class="actions">
+          <a class="button-link secondary" href="/">ワークへ戻る</a>
+          <span class="badge blue">alpha</span>
+        </div>
+      </header>
+
+      <section class="catalog-hero panel">
+        <div>
+          <span class="catalog-kicker">Visual Thesis</span>
+          <h2>静かな運用ツールに、左から右へ流れる方向性を持たせる。</h2>
+          <p>白とスレートを主役にし、インディゴは選択、進行、主要操作に限定します。繰り返し要素は薄いグレーの輪郭で揃え、状態はチップと右側の淡い色で判別します。</p>
+        </div>
+        <div class="catalog-flow-card">
+          <span>flow accent</span>
+          <b>#06b6d4 → #2563eb → #312e81</b>
+        </div>
+      </section>
+
+      <section class="catalog-grid">
+        <section class="panel catalog-panel">
+          <div class="catalog-section-head">
+            <span>Color Tokens</span>
+            <h2>色</h2>
+          </div>
+          <div class="color-token-grid">
+            <div class="color-token bg-token"><span>Background</span><b>#f8fafc</b></div>
+            <div class="color-token surface-token"><span>Surface</span><b>#ffffff</b></div>
+            <div class="color-token primary-token"><span>Primary</span><b>#4338ca</b></div>
+            <div class="color-token flow-token"><span>Flow</span><b>#06b6d4</b></div>
+            <div class="color-token success-token"><span>Success</span><b>#047857</b></div>
+            <div class="color-token warning-token"><span>Warning</span><b>#b45309</b></div>
+            <div class="color-token danger-token"><span>Danger</span><b>#b91c1c</b></div>
+            <div class="color-token border-token"><span>Border</span><b>#e2e8f0</b></div>
+          </div>
+        </section>
+
+        <section class="panel catalog-panel">
+          <div class="catalog-section-head">
+            <span>Typography</span>
+            <h2>文字</h2>
+          </div>
+          <div class="type-specimen">
+            <h1>ワーク</h1>
+            <h2>新しい依頼</h2>
+            <p>プロジェクトを選び、やりたいことを書きます。確認条件は作成時に提案されます。</p>
+            <small>メタ情報、フィルタ、補足説明は 11-12px の密度で扱います。</small>
+          </div>
+        </section>
+      </section>
+
+      <section class="panel catalog-panel">
+        <div class="catalog-section-head">
+          <span>Actions</span>
+          <h2>ボタンと入力</h2>
+        </div>
+        <div class="catalog-action-grid">
+          <div class="catalog-action-stack">
+            <button class="catalog-primary-button" type="button">依頼を作成</button>
+            <button class="secondary-button catalog-secondary-button" type="button">下書き保存</button>
+            <a class="button-link secondary catalog-detail-button" href="/design-catalog">詳細</a>
+          </div>
+          <label class="catalog-field catalog-project-field">
+            <span class="catalog-label-row"><span>作業プロジェクト</span><small>既定</small></span>
+            <span class="catalog-select-shell"><select><option>nagare</option><option>hidamari</option></select></span>
+          </label>
+          <label class="catalog-field catalog-wide-input">
+            <span class="catalog-label-row"><span>依頼内容</span><small>確認条件は作成時に提案</small></span>
+            <span class="catalog-composer-shell">
+              <textarea rows="5">README のセットアップ手順を更新して、既存説明と重複しないように整理する。変更対象は docs/setup.md と README の該当セクションだけに絞り、最後に差分の要点もまとめてください。</textarea>
+              <span class="catalog-composer-footer"><span>入力は保存され、依頼作成後に実行計画へ進みます</span><b>118字</b></span>
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <section class="panel catalog-panel">
+        <div class="catalog-section-head">
+          <span>Microinteractions</span>
+          <h2>操作状態</h2>
+        </div>
+        <div class="micro-grid">
+          <article class="micro-card">
+            <span>Rest</span>
+            <button class="catalog-primary-button" type="button">依頼を作成</button>
+            <small>通常状態。主操作だけを強く見せます。</small>
+          </article>
+          <article class="micro-card">
+            <span>Hover</span>
+            <button class="catalog-primary-button micro-hover" type="button">依頼を作成</button>
+            <small>わずかに明度を上げ、押せる面を示します。</small>
+          </article>
+          <article class="micro-card">
+            <span>Focus</span>
+            <button class="catalog-primary-button micro-focus" type="button">依頼を作成</button>
+            <small>キーボード操作用に #a5b4fc のリングを出します。</small>
+          </article>
+          <article class="micro-card">
+            <span>Selected</span>
+            <button class="catalog-primary-button micro-selected" type="button">選択中</button>
+            <small>選択直後は控えめな光沢が右へ抜け、状態を保持します。</small>
+          </article>
+          <article class="micro-card">
+            <span>Active</span>
+            <button class="catalog-primary-button micro-active" type="button">依頼を作成</button>
+            <small>押下中は少し沈み、短い反応に留めます。</small>
+          </article>
+          <article class="micro-card">
+            <span>Loading</span>
+            <button class="catalog-primary-button micro-loading" type="button">作成中</button>
+            <small>処理中は再押下を避け、進行感だけを出します。</small>
+          </article>
+          <article class="micro-card">
+            <span>Success</span>
+            <button class="catalog-primary-button micro-success" type="button">作成済み</button>
+            <small>完了後は緑に寄せ、Toastと合わせます。</small>
+          </article>
+          <article class="micro-card">
+            <span>Error</span>
+            <button class="catalog-primary-button micro-error" type="button">再試行</button>
+            <small>失敗時は赤を操作面に使い、復旧へ誘導します。</small>
+          </article>
+          <article class="micro-card">
+            <span>Disabled</span>
+            <button class="catalog-primary-button micro-disabled" type="button" disabled>依頼を作成</button>
+            <small>入力不足では透明度を下げ、状態を固定します。</small>
+          </article>
+          <article class="micro-card micro-wide">
+            <span>Undo</span>
+            <div class="micro-undo-bar"><b>下書きを保存しました</b><button class="secondary-button" type="button">取り消す</button></div>
+            <small>保存、削除、承認の直後は短時間だけ戻せる余地を出します。</small>
+          </article>
+        </div>
+        <div class="micro-field-grid">
+          <label class="micro-field-default">通常
+            <input value="README のセットアップ手順を更新して">
+          </label>
+          <label class="micro-field-focus">Focus
+            <input value="README のセットアップ手順を更新して">
+          </label>
+          <label class="micro-field-valid">Valid
+            <input value="確認条件を提案できます">
+          </label>
+          <label class="micro-field-error">Error
+            <input value="">
+            <small>依頼内容を入力してください。</small>
+          </label>
+        </div>
+        <div class="micro-row-strip">
+          <div class="micro-row-state micro-row-hover"><span class="work-state-dot blue"></span><b>行 hover</b><small>詳細を開けることを示す</small></div>
+          <div class="micro-row-state micro-row-selected"><span class="work-state-dot amber"></span><b>選択中</b><small>詳細画面で対象を保持</small></div>
+          <div class="micro-row-state micro-row-progress"><span class="micro-progress-dot"></span><b>処理中</b><small>バックグラウンド実行中</small></div>
+        </div>
+      </section>
+
+      <section class="panel catalog-panel">
+        <div class="catalog-section-head">
+          <span>Status Language</span>
+          <h2>状態チップ</h2>
+        </div>
+        <div class="catalog-chip-row">
+          <span class="badge amber">要対応・確認</span>
+          <span class="badge amber">要対応・質問</span>
+          <span class="badge red">要対応・回復</span>
+          <span class="badge blue">処理中</span>
+          <span class="badge green">完了</span>
+          <span class="badge gray">待機</span>
+        </div>
+      </section>
+
+      <section class="panel catalog-panel">
+        <div class="catalog-section-head">
+          <span>Work Rows</span>
+          <h2>ワーク履歴行</h2>
+        </div>
+        <table class="queue-table work-history-table catalog-work-table">
+          <thead><tr><th>依頼</th><th>プロジェクト</th><th>状態</th><th>更新</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr class="work-history-row state-needs-approval">
+              <td><div class="work-title-line"><span class="work-state-dot amber"></span><a href="/design-catalog">CLI テスト手順の追記</a></div><div class="muted">変更案ができました。採用するか確認してください。</div></td>
+              <td>nagare</td>
+              <td><span class="badge amber">要対応・確認</span></td>
+              <td>3分前</td>
+              <td><div class="row-actions"><a class="button-link secondary" href="/design-catalog">詳細</a></div></td>
+            </tr>
+            <tr class="work-history-row state-running">
+              <td><div class="work-title-line"><span class="work-state-dot blue"></span><a href="/design-catalog">README のセットアップ手順を更新</a></div><div class="muted">AIが変更案を作成中です。操作は不要です。</div></td>
+              <td>nagare</td>
+              <td><span class="badge blue">処理中</span></td>
+              <td>処理中</td>
+              <td><div class="row-actions"><a class="button-link secondary" href="/design-catalog">詳細</a></div></td>
+            </tr>
+            <tr class="work-history-row state-done">
+              <td><div class="work-title-line"><span class="work-state-dot green"></span><a href="/design-catalog">README の日本語見出しを調整</a></div><div class="muted">依頼は完了しました。採用済みの内容を確認できます。</div></td>
+              <td>nagare</td>
+              <td><span class="badge green">完了</span></td>
+              <td>昨日</td>
+              <td><div class="row-actions"><a class="button-link secondary" href="/design-catalog">詳細</a></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="catalog-grid">
+        <section class="panel catalog-panel">
+          <div class="catalog-section-head">
+            <span>Runtime Stepper</span>
+            <h2>セットアップ進行</h2>
+          </div>
+          <section class="runtime-stepper catalog-stepper">
+            <div class="runtime-step done"><span>1</span><b>セットアップ開始</b><small>完了</small></div>
+            <div class="runtime-step-line active"></div>
+            <div class="runtime-step current"><span>2</span><b>実行環境</b><small>この画面</small></div>
+            <div class="runtime-step-line"></div>
+            <div class="runtime-step"><span>3</span><b>最初の依頼</b><small>次へ</small></div>
+          </section>
+        </section>
+
+        <section class="panel catalog-panel">
+          <div class="catalog-section-head">
+            <span>Feedback</span>
+            <h2>Toast</h2>
+          </div>
+          <div class="catalog-toast-stack">
+            <div class="toast success">セットアップが完了しました<br>最初の依頼を作成できます</div>
+            <div class="toast info">Work Itemを追加しました。</div>
+            <div class="toast error">実行環境の応答を確認できませんでした。</div>
+          </div>
+        </section>
+      </section>
+    </section>
+  </main>
+  <script>{}</script>
+</body>
+</html>"##,
+        serve_stylesheet(),
+        serve_responsive_stylesheet(),
+        serve_main_nav("settings"),
         serve_script()
     ))
 }
@@ -213,13 +692,13 @@ fn localized_queue_state(i18n: &I18n, label: &str) -> String {
         match label {
             "Done" => "完了",
             "Running" => "処理中",
-            "Needs input" => "入力待ち",
-            "Needs approval" => "承認待ち",
-            "Queued" => "待機中",
-            "In review" => "レビュー中",
-            "Needs handoff" => "引き継ぎ待ち",
-            "Changes requested" => "変更要求",
-            "Failed" => "失敗",
+            "Needs input" => "要対応・質問",
+            "Needs approval" => "要対応・確認",
+            "Queued" => "処理中",
+            "In review" => "処理中",
+            "Needs handoff" => "要対応・確認",
+            "Changes requested" => "要対応・回復",
+            "Failed" => "要対応・回復",
             other => other,
         }
         .to_string()
@@ -255,6 +734,8 @@ fn queue_filter_state(label: &str) -> &'static str {
         "Failed" => "failed attention",
         "Needs approval" => "approval attention",
         "Running" => "running",
+        "Done" => "done",
+        "Queued" | "In review" => "running",
         "Needs input" | "Needs handoff" | "Changes requested" => "attention",
         _ => "normal",
     }
@@ -395,33 +876,35 @@ pub(crate) fn render_serve_new_item(root: &Path) -> Result<String, String> {
   <style>{}{}</style>
 </head>
 <body>
-  <main class="app">
+  <main class="app flow-app">
     <aside class="sidebar">
       <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
-      <nav>
-        <a href="/">{}</a>
-        <a href="/settings">{}</a>
-      </nav>
+      <nav>{}</nav>
+      <div class="sidebar-project">
+        <span>現在のプロジェクト</span>
+        <b>nagare</b>
+        <small>C:/workspace/nagare</small>
+      </div>
     </aside>
-    <section class="content">
+    <section class="content flow-content">
       <header class="topbar">
         <div>
-          <h1>{}</h1>
-          <p class="muted">{}</p>
+          <h1>新しい依頼</h1>
+          <p class="muted">プロジェクトを選び、やりたいことを自然文で書きます。</p>
         </div>
         <div class="actions">
-          <a class="button-link secondary" href="/">{}</a>
-          <span class="badge blue">{} {}</span>
+          <a class="button-link secondary" href="/">ワークへ戻る</a>
+          <span class="badge blue">Work {}</span>
         </div>
       </header>
-      <section class="composer">
-        <h2>{}</h2>
+      <section class="composer work-request-composer">
+        <h2>依頼を作成</h2>
         <form id="create-work-form">
-          <label>{}<textarea name="description" rows="4" required placeholder="エージェントへの依頼内容"></textarea></label>
-          <label>{}<input name="work_folder" placeholder="crates/nagare-core"></label>
-          <label>{}<textarea name="acceptance" rows="3" placeholder="1行に1条件"></textarea></label>
-          <details class="advanced-form" open>
-            <summary>{}</summary>
+          <label>作業プロジェクト<select name="work_folder"><option value=".">nagare</option></select></label>
+          <label>依頼内容<textarea name="description" rows="7" required placeholder="README のセットアップ手順を更新して"></textarea></label>
+          <label>確認条件<textarea name="acceptance" rows="3" placeholder="空のままでも、作成時に提案されます"></textarea></label>
+          <details class="advanced-form">
+            <summary>詳細条件</summary>
             <label>{}<textarea name="artifacts" rows="2" placeholder="README, tests, screenshots"></textarea></label>
             <label>{}<textarea name="constraints" rows="2" placeholder="破壊的操作を避ける、既存APIを維持する"></textarea></label>
             <div class="form-grid">
@@ -443,7 +926,7 @@ pub(crate) fn render_serve_new_item(root: &Path) -> Result<String, String> {
           <input type="hidden" name="max_steps" value="8">
           <input type="hidden" name="command" value="">
           <input type="hidden" name="review_command" value="">
-          <button type="submit">{}</button>
+          <button type="submit">依頼を作成</button>
           <p id="form-status" class="muted" role="status"></p>
         </form>
       </section>
@@ -455,18 +938,8 @@ pub(crate) fn render_serve_new_item(root: &Path) -> Result<String, String> {
         i18n.ui(UiTextKey::CreateNewItem),
         serve_stylesheet(),
         serve_responsive_stylesheet(),
-        i18n.ui(UiTextKey::WorkQueue),
-        i18n.ui(UiTextKey::Settings),
-        i18n.ui(UiTextKey::CreateNewItem),
-        i18n.ui(UiTextKey::AddItemLead),
-        i18n.ui(UiTextKey::WorkQueue),
-        i18n.ui(UiTextKey::Work),
+        serve_main_nav("work"),
         items.len(),
-        i18n.ui(UiTextKey::CreateNewItem),
-        i18n.ui(UiTextKey::Prompt),
-        i18n.ui(UiTextKey::WorkFolder),
-        i18n.ui(UiTextKey::AcceptanceCriteria),
-        i18n.ui(UiTextKey::MoreContext),
         i18n.ui(UiTextKey::ExpectedArtifacts),
         i18n.ui(UiTextKey::Constraints),
         i18n.ui(UiTextKey::Domain),
@@ -495,7 +968,6 @@ pub(crate) fn render_serve_new_item(root: &Path) -> Result<String, String> {
             "実際の担当と理由は詳細画面のステップで確認できます。",
             "The chosen target and reason appear in the item detail steps."
         ),
-        i18n.ui(UiTextKey::CreateNewItem),
         serve_script()
     ))
 }
@@ -522,15 +994,12 @@ pub(crate) fn render_serve_settings(root: &Path) -> Result<String, String> {
   <style>{}{}</style>
 </head>
 <body>
-  <main class="app">
+  <main class="app flow-app">
     <aside class="sidebar">
       <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
-      <nav>
-        <a href="/">{}</a>
-        <a class="active" href="/settings">{}</a>
-      </nav>
+      <nav>{}</nav>
     </aside>
-    <section class="content">
+    <section class="content flow-content">
       <header class="topbar">
         <div>
           <h1>{}</h1>
@@ -583,8 +1052,7 @@ pub(crate) fn render_serve_settings(root: &Path) -> Result<String, String> {
         i18n.ui(UiTextKey::Settings),
         serve_stylesheet(),
         serve_responsive_stylesheet(),
-        i18n.ui(UiTextKey::WorkQueue),
-        i18n.ui(UiTextKey::Settings),
+        serve_main_nav("settings"),
         i18n.ui(UiTextKey::Settings),
         i18n.ui(UiTextKey::SettingsLead),
         i18n.ui(UiTextKey::Settings),
@@ -1558,18 +2026,15 @@ pub(crate) fn render_serve_artifact_type_form(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>{}</title>
-  <style>{}</style>
+  <style>{}{}</style>
 </head>
 <body>
-  <main class="app">
+  <main class="app flow-app">
     <aside class="sidebar">
       <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
-      <nav>
-        <a href="/">{}</a>
-        <a class="active" href="/settings">{}</a>
-      </nav>
+      <nav>{}</nav>
     </aside>
-    <section class="content">
+    <section class="content flow-content">
       <header class="topbar">
         <div>
           <h1>{}</h1>
@@ -1626,8 +2091,8 @@ pub(crate) fn render_serve_artifact_type_form(
 </html>"##,
         h(&title),
         serve_stylesheet(),
-        i18n.ui(UiTextKey::WorkQueue),
-        i18n.ui(UiTextKey::Settings),
+        serve_responsive_stylesheet(),
+        serve_main_nav("settings"),
         h(&title),
         i18n.ui(UiTextKey::ArtifactTypeFormLead),
         i18n.ui(UiTextKey::Settings),
@@ -1715,18 +2180,15 @@ pub(crate) fn render_serve_domain_form(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>{}</title>
-  <style>{}</style>
+  <style>{}{}</style>
 </head>
 <body>
-  <main class="app">
+  <main class="app flow-app">
     <aside class="sidebar">
       <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
-      <nav>
-        <a href="/">{}</a>
-        <a class="active" href="/settings">{}</a>
-      </nav>
+      <nav>{}</nav>
     </aside>
-    <section class="content">
+    <section class="content flow-content">
       <header class="topbar">
         <div>
           <h1>{}</h1>
@@ -1759,8 +2221,8 @@ pub(crate) fn render_serve_domain_form(
 </html>"##,
         h(&title),
         serve_stylesheet(),
-        i18n.ui(UiTextKey::WorkQueue),
-        i18n.ui(UiTextKey::Settings),
+        serve_responsive_stylesheet(),
+        serve_main_nav("settings"),
         h(&title),
         i18n.ui(UiTextKey::DomainFormLead),
         i18n.ui(UiTextKey::Settings),
@@ -1886,15 +2348,12 @@ pub(crate) fn render_serve_agent_form(
   <style>{}{}</style>
 </head>
   <body>
-  <main class="app">
+  <main class="app flow-app">
     <aside class="sidebar">
       <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
-      <nav>
-        <a href="/">{}</a>
-        <a class="active" href="/settings">{}</a>
-      </nav>
+      <nav>{}</nav>
     </aside>
-    <section class="content">
+    <section class="content flow-content">
       <header class="topbar">
         <div>
           <h1>{}</h1>
@@ -1974,8 +2433,7 @@ pub(crate) fn render_serve_agent_form(
         h(&title),
         serve_stylesheet(),
         serve_responsive_stylesheet(),
-        i18n.ui(UiTextKey::WorkQueue),
-        i18n.ui(UiTextKey::Settings),
+        serve_main_nav("settings"),
         h(&title),
         i18n.ui(UiTextKey::AgentFormLead),
         i18n.ui(UiTextKey::Agents),
@@ -2054,15 +2512,12 @@ pub(crate) fn render_serve_skill_form(root: &Path) -> Result<String, String> {
   <style>{}{}</style>
 </head>
 <body>
-  <main class="app">
+  <main class="app flow-app">
     <aside class="sidebar">
       <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
-      <nav>
-        <a href="/">{}</a>
-        <a class="active" href="/settings">{}</a>
-      </nav>
+      <nav>{}</nav>
     </aside>
-    <section class="content">
+    <section class="content flow-content">
       <header class="topbar">
         <div>
           <h1>{}</h1>
@@ -2131,8 +2586,7 @@ pub(crate) fn render_serve_skill_form(root: &Path) -> Result<String, String> {
         h(localized(&i18n, "スキルを追加", "Add Skill")),
         serve_stylesheet(),
         serve_responsive_stylesheet(),
-        i18n.ui(UiTextKey::WorkQueue),
-        i18n.ui(UiTextKey::Settings),
+        serve_main_nav("settings"),
         h(localized(&i18n, "スキルを追加", "Add Skill")),
         h(localized(
             &i18n,

@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Knowledge List Wireframe 1440</title>
+  <desc id="desc">Nagare knowledge domain list wireframe with create action, artifact definitions that each own one long rubric text, source count, and row actions.</desc>
+  <defs>
+    <style>
+      .bg{fill:#f8f8f8}.surface{fill:#fff}.soft{fill:#f3f4f6}.line{stroke:#d1d5db;stroke-width:1;fill:none}.strong{stroke:#111827;stroke-width:1.5;fill:none}.text{fill:#111827;font-family:Inter,Segoe UI,Arial,sans-serif}.muted{fill:#6b7280;font-family:Inter,Segoe UI,Arial,sans-serif}.tiny{font-size:11px}.small{font-size:12px}.body{font-size:14px}.h2{font-size:17px;font-weight:700}.h1{font-size:24px;font-weight:700}.bold{font-weight:700}.chip{fill:#fff;stroke:#9ca3af;stroke-width:1}.active{fill:#e5e7eb}.wire{fill:none;stroke:#111827;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+    </style>
+  </defs>
+  <rect class="bg" width="1440" height="1024"/>
+  <g id="sidebar">
+    <rect class="surface" x="0" y="0" width="200" height="1024"/><line class="line" x1="200" y1="0" x2="200" y2="1024"/>
+    <circle class="soft" cx="39" cy="42" r="18"/><path class="wire" d="M28 45c12 0 20-8 26-20-4 17-10 27-26 30z"/>
+    <text class="text h1" x="62" y="39">Nagare</text><text class="muted tiny" x="64" y="61">hachiware-labs</text>
+    <g class="body">
+      <text class="text" x="62" y="132">ワーク</text><rect class="wire" x="34" y="121" width="13" height="10" rx="1"/>
+      <text class="text" x="62" y="178">プロジェクト</text><path class="wire" d="M34 171h14l2 4v8H32v-12z"/>
+      <rect class="active" x="18" y="200" width="164" height="37" rx="8"/><text class="text bold" x="62" y="224">知識</text><rect class="wire" x="34" y="209" width="13" height="16" rx="1"/>
+      <text class="text" x="62" y="270">エージェント</text><circle class="wire" cx="40" cy="254" r="4"/><path class="wire" d="M32 270c1-7 15-7 16 0"/>
+      <text class="text" x="62" y="316">設定</text><circle class="wire" cx="40" cy="300" r="5"/><path class="wire" d="M40 290v5M40 305v5M30 300h5M45 300h5"/>
+    </g>
+  </g>
+  <g id="content" transform="translate(232 28)">
+    <text class="text h1" x="0" y="20">知識</text>
+    <text class="muted small" x="0" y="52">知識領域ごとに、AIが作る生成物と長文ルーブリックを管理します</text>
+    <line class="strong" x1="0" y1="80" x2="1188" y2="80"/>
+    <g id="knowledge-list" transform="translate(0 112)">
+      <rect class="surface" x="0" y="0" width="1188" height="708" rx="8"/><rect class="line" x="0" y="0" width="1188" height="708" rx="8"/>
+      <text class="text h2" x="28" y="36">知識領域一覧</text>
+      <rect class="soft" x="934" y="20" width="226" height="38" rx="7"/><text class="text small bold" x="983" y="44">新しい知識領域を追加</text>
+      <rect class="soft" x="28" y="68" width="360" height="38" rx="7"/><text class="muted small" x="48" y="92">知識領域・生成物・ルーブリックで検索</text>
+      <rect class="chip" x="408" y="68" width="178" height="38" rx="7"/><text class="text small" x="430" y="92">ドメイン: すべて</text>
+      <g transform="translate(28 144)">
+        <text class="muted tiny bold" x="0" y="0">知識領域</text><text class="muted tiny bold" x="292" y="0">生成物とルーブリック</text><text class="muted tiny bold" x="770" y="0">知識ファイル</text><text class="muted tiny bold" x="1010" y="0">操作</text>
+        <rect class="soft" x="0" y="18" width="1132" height="82" rx="7"/>
+        <text class="text body bold" x="18" y="50">ソフトウェア開発</text><text class="muted small" x="18" y="72">README、CLI、UI実装の共通知識</text>
+        <text class="text small" x="292" y="46">README、CLIエラー説明、UI変更レポート</text><text class="muted tiny" x="292" y="68">3生成物 / ルーブリック本文 3件</text>
+        <text class="text small" x="770" y="46">8件</text><text class="muted tiny" x="770" y="68">最終追加 2日前</text>
+        <rect class="chip" x="984" y="39" width="64" height="30" rx="7"/><text class="text tiny bold" x="1002" y="59">編集</text><rect class="chip" x="1058" y="39" width="58" height="30" rx="7"/><text class="text tiny bold" x="1074" y="59">削除</text>
+
+        <rect class="surface" x="0" y="116" width="1132" height="82" rx="7"/><rect class="line" x="0" y="116" width="1132" height="82" rx="7"/>
+        <text class="text body bold" x="18" y="148">ドキュメント</text><text class="muted small" x="18" y="170">用語、文体、見出し粒度</text>
+        <text class="text small" x="292" y="144">手順書、変更要約</text><text class="muted tiny" x="292" y="166">2生成物 / ルーブリック本文 2件</text>
+        <text class="text small" x="770" y="144">3件</text><text class="muted tiny" x="770" y="166">最終追加 12日前</text>
+        <rect class="chip" x="984" y="137" width="64" height="30" rx="7"/><text class="text tiny bold" x="1002" y="157">編集</text><rect class="chip" x="1058" y="137" width="58" height="30" rx="7"/><text class="text tiny bold" x="1074" y="157">削除</text>
+
+        <rect class="surface" x="0" y="214" width="1132" height="82" rx="7"/><rect class="line" x="0" y="214" width="1132" height="82" rx="7"/>
+        <text class="text body bold" x="18" y="246">UIプロトタイプ</text><text class="muted small" x="18" y="268">画面構成、要素責務、採点観点</text>
+        <text class="text small" x="292" y="242">ワイヤーフレーム、画面評価レポート</text><text class="muted tiny" x="292" y="264">2生成物 / ルーブリック本文 2件</text>
+        <text class="text small" x="770" y="242">5件</text><text class="muted tiny" x="770" y="264">最終追加 昨日</text>
+        <rect class="chip" x="984" y="235" width="64" height="30" rx="7"/><text class="text tiny bold" x="1002" y="255">編集</text><rect class="chip" x="1058" y="235" width="58" height="30" rx="7"/><text class="text tiny bold" x="1074" y="255">削除</text>
+      </g>
+    </g>
+  </g>
+</svg>

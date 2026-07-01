@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Agent Settings Wireframe 1440</title>
+  <desc id="desc">Nagare agent settings wireframe: selected agent profile, role/domain fit, runtime and model choices, Skill/MCP permission scope, generated prompt preview, and quality signals.</desc>
+  <defs>
+    <style>
+      .bg{fill:#f8f8f8}.surface{fill:#fff}.soft{fill:#f3f4f6}.line{stroke:#d1d5db;stroke-width:1;fill:none}.strong{stroke:#111827;stroke-width:1.5;fill:none}.text{fill:#111827;font-family:Inter,Segoe UI,Arial,sans-serif}.muted{fill:#6b7280;font-family:Inter,Segoe UI,Arial,sans-serif}.tiny{font-size:11px}.small{font-size:12px}.body{font-size:14px}.h2{font-size:17px;font-weight:700}.h1{font-size:24px;font-weight:700}.bold{font-weight:700}.chip{fill:#fff;stroke:#9ca3af;stroke-width:1}.active{fill:#e5e7eb}.wire{fill:none;stroke:#111827;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+    </style>
+  </defs>
+  <rect class="bg" width="1440" height="1024"/>
+  <g id="sidebar">
+    <rect class="surface" x="0" y="0" width="200" height="1024"/><line class="line" x1="200" y1="0" x2="200" y2="1024"/>
+    <circle class="soft" cx="39" cy="42" r="18"/><path class="wire" d="M28 45c12 0 20-8 26-20-4 17-10 27-26 30z"/>
+    <text class="text h1" x="62" y="39">Nagare</text><text class="muted tiny" x="64" y="61">hachiware-labs</text>
+    <g class="body">
+      <text class="text" x="62" y="132">ワーク</text><rect class="wire" x="34" y="121" width="13" height="10" rx="1"/>
+      <text class="text" x="62" y="178">プロジェクト</text><path class="wire" d="M34 171h14l2 4v8H32v-12z"/>
+      <text class="text" x="62" y="224">知識</text><rect class="wire" x="34" y="209" width="13" height="16" rx="1"/>
+      <rect class="active" x="18" y="246" width="164" height="37" rx="8"/><text class="text bold" x="62" y="270">エージェント</text><circle class="wire" cx="40" cy="254" r="4"/><path class="wire" d="M32 270c1-7 15-7 16 0"/>
+      <text class="text" x="62" y="316">設定</text><circle class="wire" cx="40" cy="300" r="5"/><path class="wire" d="M40 290v5M40 305v5M30 300h5M45 300h5"/>
+    </g>
+    <line class="line" x1="18" y1="352" x2="182" y2="352"/>
+    <text class="muted tiny bold" x="24" y="385">現在のプロジェクト</text><text class="text small bold" x="24" y="414">nagare</text><text class="muted small" x="24" y="438">C:/workspace/nagare</text>
+  </g>
+  <g id="content" transform="translate(232 28)">
+    <text class="text h1" x="0" y="20">エージェント</text>
+    <text class="muted small" x="0" y="52">役割、対応ドメイン、使える Skill / MCP、モデルをエージェント単位で管理します</text>
+    <g transform="translate(910 0)"><rect class="chip" x="0" y="0" width="92" height="30" rx="15"/><text class="text tiny bold" x="18" y="20">Agent 4</text><rect class="chip" x="106" y="0" width="142" height="30" rx="15"/><text class="text tiny bold" x="125" y="20">権限警告 1</text></g>
+    <line class="strong" x1="0" y1="80" x2="1188" y2="80"/>
+
+    <g id="agent-list" transform="translate(0 104)">
+      <rect class="surface" x="0" y="0" width="306" height="780" rx="8"/><rect class="line" x="0" y="0" width="306" height="780" rx="8"/>
+      <text class="text h2" x="22" y="34">エージェント一覧</text>
+      <rect class="soft" x="22" y="54" width="262" height="36" rx="7"/><text class="muted small" x="40" y="77">名前・役割で検索</text>
+      <g transform="translate(22 112)">
+        <rect class="active" x="0" y="0" width="262" height="82" rx="7"/><text class="text body bold" x="14" y="27">Default Worker</text><text class="muted small" x="14" y="49">ワーカー / ソフトウェア開発</text><text class="muted tiny" x="14" y="68">Skill 2 / MCP 1 / 採用率 82%</text>
+        <rect class="surface" x="0" y="94" width="262" height="82" rx="7"/><rect class="line" x="0" y="94" width="262" height="82" rx="7"/><text class="text body bold" x="14" y="121">Default Reviewer</text><text class="muted small" x="14" y="143">レビュアー / 全ドメイン</text><text class="muted tiny" x="14" y="162">確認条件レビュー</text>
+        <rect class="surface" x="0" y="188" width="262" height="82" rx="7"/><rect class="line" x="0" y="188" width="262" height="82" rx="7"/><text class="text body bold" x="14" y="215">Default Organizer</text><text class="muted small" x="14" y="237">オーガナイザー / 依頼整理</text><text class="muted tiny" x="14" y="256">ルーティング判断</text>
+        <rect class="surface" x="0" y="282" width="262" height="82" rx="7"/><rect class="line" x="0" y="282" width="262" height="82" rx="7"/><text class="text body bold" x="14" y="309">Research Helper</text><text class="muted small" x="14" y="331">ワーカー / 調査</text><text class="muted tiny" x="14" y="350">未接続</text>
+      </g>
+      <rect class="chip" x="22" y="724" width="262" height="36" rx="7"/><text class="text small bold" x="112" y="747">追加</text>
+    </g>
+
+    <g id="profile" transform="translate(330 104)">
+      <rect class="surface" x="0" y="0" width="478" height="282" rx="8"/><rect class="line" x="0" y="0" width="478" height="282" rx="8"/>
+      <text class="text h2" x="24" y="36">Default Worker</text>
+      <text class="muted small" x="24" y="60">選択中のエージェントが担当できる作業と、使う構成を確認します。</text>
+      <g transform="translate(24 88)">
+        <text class="muted tiny bold" x="0" y="0">役割</text><rect class="soft" x="0" y="12" width="202" height="40" rx="7"/><text class="text small bold" x="16" y="37">ワーカー</text>
+        <text class="muted tiny bold" x="230" y="0">対応ドメイン</text><rect class="soft" x="230" y="12" width="202" height="40" rx="7"/><text class="text small bold" x="246" y="37">ソフトウェア開発</text>
+        <text class="muted tiny bold" x="0" y="82">エージェントツール</text><rect class="surface" x="0" y="94" width="202" height="40" rx="7"/><rect class="line" x="0" y="94" width="202" height="40" rx="7"/><text class="text small bold" x="16" y="119">Codex</text>
+        <text class="muted tiny bold" x="230" y="82">モデル</text><rect class="surface" x="230" y="94" width="202" height="40" rx="7"/><rect class="line" x="230" y="94" width="202" height="40" rx="7"/><text class="text small bold" x="246" y="119">GPT-5.5 / High</text>
+      </g>
+      <rect class="chip" x="24" y="230" width="132" height="32" rx="7"/><text class="text small bold" x="45" y="251">テンプレート変更</text>
+      <rect class="soft" x="330" y="230" width="124" height="32" rx="7"/><text class="text small bold" x="351" y="251">設定を保存</text>
+    </g>
+
+    <g id="role-fit" transform="translate(832 104)">
+      <rect class="surface" x="0" y="0" width="356" height="282" rx="8"/><rect class="line" x="0" y="0" width="356" height="282" rx="8"/>
+      <text class="text h2" x="22" y="36">役割との適合</text>
+      <text class="muted small" x="22" y="60">品質記録から見た使いどころ</text>
+      <g transform="translate(22 88)">
+        <rect class="soft" x="0" y="0" width="312" height="48" rx="7"/><text class="text small bold" x="16" y="20">採用率</text><text class="muted small" x="250" y="20">82%</text><line class="line" x1="16" y1="34" x2="296" y2="34"/>
+        <rect class="surface" x="0" y="62" width="312" height="48" rx="7"/><rect class="line" x="0" y="62" width="312" height="48" rx="7"/><text class="text small bold" x="16" y="82">差し戻しが多い観点</text><text class="muted small" x="178" y="82">根拠不足</text>
+        <rect class="surface" x="0" y="124" width="312" height="48" rx="7"/><rect class="line" x="0" y="124" width="312" height="48" rx="7"/><text class="text small bold" x="16" y="144">推奨</text><text class="muted small" x="74" y="144">README / CLI の小変更</text>
+      </g>
+      <text class="muted tiny" x="22" y="250">サンプル数が少ない記録は参考値として扱う。</text>
+    </g>
+
+    <g id="permissions" transform="translate(330 410)">
+      <rect class="surface" x="0" y="0" width="858" height="328" rx="8"/><rect class="line" x="0" y="0" width="858" height="328" rx="8"/>
+      <text class="text h2" x="24" y="36">Skill / MCP の割り当て</text>
+      <text class="muted small" x="24" y="60">全体カタログから、このエージェントだけに渡すものを選びます。権限は範囲つきで表示します。</text>
+      <g transform="translate(24 88)">
+        <rect class="soft" x="0" y="0" width="810" height="48" rx="7"/><text class="text small bold" x="16" y="20">hachi-search</text><text class="muted small" x="170" y="20">Skill</text><text class="muted small" x="300" y="20">読み取り: docs, README</text><text class="text small bold" x="660" y="20">有効</text>
+        <rect class="surface" x="0" y="62" width="810" height="48" rx="7"/><rect class="line" x="0" y="62" width="810" height="48" rx="7"/><text class="text small bold" x="16" y="82">browser</text><text class="muted small" x="170" y="82">MCP</text><text class="muted small" x="300" y="82">ローカルURLのみ / 書き込みなし</text><text class="text small bold" x="660" y="82">有効</text>
+        <rect class="surface" x="0" y="124" width="810" height="48" rx="7"/><rect class="line" x="0" y="124" width="810" height="48" rx="7"/><text class="text small bold" x="16" y="144">deploy-to-vercel</text><text class="muted small" x="170" y="144">Skill</text><text class="muted small" x="300" y="144">外部送信を含むため要確認</text><text class="text small bold" x="660" y="144">未割当</text>
+      </g>
+      <rect class="chip" x="24" y="274" width="110" height="32" rx="7"/><text class="text small bold" x="45" y="295">Skillを追加</text>
+      <rect class="chip" x="146" y="274" width="142" height="32" rx="7"/><text class="text small bold" x="168" y="295">MCP権限を調整</text>
+    </g>
+
+    <g id="prompt-preview" transform="translate(0 410)">
+      <rect class="surface" x="0" y="0" width="306" height="328" rx="8"/><rect class="line" x="0" y="0" width="306" height="328" rx="8"/>
+      <text class="text h2" x="22" y="36">生成プロンプト</text>
+      <text class="muted small" x="22" y="60">役割と知識から自動生成。必要時だけ広く編集します。</text>
+      <rect class="soft" x="22" y="86" width="262" height="178" rx="7"/>
+      <text class="text small" x="38" y="114">あなたはソフトウェア開発の</text>
+      <text class="text small" x="38" y="136">ワーカーです。変更は小さく、</text>
+      <text class="text small" x="38" y="158">確認条件と差分要点を残します。</text>
+      <text class="muted small" x="38" y="206">README更新ルールを参照...</text>
+      <rect class="chip" x="22" y="282" width="148" height="30" rx="7"/><text class="text small bold" x="44" y="302">プロンプトを開く</text>
+    </g>
+
+    <g id="footer" transform="translate(0 766)">
+      <rect class="surface" x="0" y="0" width="1188" height="118" rx="8"/><rect class="line" x="0" y="0" width="1188" height="118" rx="8"/>
+      <text class="text body bold" x="24" y="34">保存前の確認</text>
+      <text class="muted small" x="24" y="58">外部送信を含む Skill / MCP を割り当てる場合は、対象範囲と理由を確認してから保存します。</text>
+      <rect class="surface" x="24" y="76" width="450" height="28" rx="7"/><rect class="line" x="24" y="76" width="450" height="28" rx="7"/><text class="muted tiny" x="40" y="95">警告例: deploy-to-vercel は外部送信を含むため未割当のままです。</text>
+      <rect class="soft" x="1010" y="38" width="144" height="42" rx="7"/><text class="text small bold" x="1033" y="64">設定を保存</text>
+    </g>
+  </g>
+</svg>

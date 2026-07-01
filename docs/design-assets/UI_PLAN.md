@@ -34,7 +34,8 @@ where deeper details can be inspected.
 |---|---|---|
 | Work Item | 依頼 / 作業 | primary object |
 | Project | プロジェクト | work folder, participating agents, project-specific knowledge and rubric |
-| Knowledge Domain | 知識 / ドメイン | shared domain knowledge and rubrics |
+| Knowledge Domain | 知識 / ドメイン | shared domain knowledge, artifact definitions, and per-artifact rubrics |
+| Knowledge Artifact | 生成物 | artifact description plus one long rubric text |
 | Agent | エージェント | domain-bound actor with organizer, worker, or reviewer role |
 | Current State | 作業中 / 質問あり / 回復が必要 / 確認待ち / 完了 | tells whether action is needed |
 | Current Step | 現在の工程 | concise progress |
@@ -52,6 +53,13 @@ where deeper details can be inspected.
 | Default Workspace Setup | primary | どの作業フォルダで依頼を受け付けるか | 作成して次へ | draft / ready | First-Run Activation Checklist |
 | Work Request Composer | primary | 何を頼み、何を自動推定に任せるか | 依頼を作成 | draft / warning / valid | Work Intake + History Stack |
 | Work Run Trace | primary/recovery/result | 今この依頼に対して操作が必要か | 一覧に戻る / 質問に回答 / 回復案を見る / 採用する | working / needs input / recovery / review / done | Agent Execution Trace with inline user action section |
+| Project List | supporting/primary | どのプロジェクトを開くか、新しく追加するか | 新しいプロジェクトを追加 / 詳細を開く | normal / empty | Dense Record View |
+| Project Create | supporting/primary | 新しいプロジェクトをどの作業フォルダで作るか | プロジェクトを作成 | draft / invalid | Object Creation Studio |
+| Project Settings | supporting/primary | このプロジェクトの作業フォルダ、知識ファイル、参加エージェントを管理できるか | プロジェクト設定を保存 | normal / dirty / invalid | Object Profile / 360 Detail |
+| Knowledge List | supporting/primary | どの知識領域を開くか、新しく追加するか | 新しい知識領域を追加 / 編集 | normal / empty | Dense Record View |
+| Knowledge Create | supporting/primary | 新しい知識領域でどんな生成物を作り、生成と評価をどう定義するか | 知識領域を作成 | draft / invalid | Object Creation Studio |
+| Knowledge Edit | supporting/primary | この知識領域のファイルと、生成物ごとの長文ルーブリック本文を管理できるか | 変更を保存 | normal / dirty / invalid | Object Profile / Domain Knowledge Workspace |
+| Agent Settings | supporting/primary | このエージェントは何を担当し、どの知識・Skill・MCPを使えるか | エージェント設定を保存 | normal / dirty / permission warning | Object Profile + Permission Scope |
 
 ## Flow Causality
 
@@ -260,6 +268,157 @@ Plain-language rule for this screen:
 - If user action becomes necessary, insert a `ユーザー対応` section after `タスクの状況`, then continue with `トレース記録`.
 - In `確認待ち`, do not create a separate review screen. Show the concrete result content, review pass/fail, confirmation checks, and `採用する` / `差し戻す` in the inline user action section.
 
+### Project List
+
+- Dominant information unit: simple project list with folder, knowledge file count, agent count, and open action.
+- Supporting information: empty-state add action when no projects exist.
+- Input/view intent: choose an existing project or create a new one.
+- Information shapes: `dense_record_view`, `object_summary_view`, `empty_first_run_view`.
+- Unit patterns: `work_history_row`, `object_header`.
+- Field responsibility: no user input on the list; project creation happens on Project Create.
+- State and recovery: normal, empty, filtered zero.
+- Primary action: `新しいプロジェクトを追加`.
+- Secondary actions: row-level `詳細`, row-level `削除`.
+- Area budget: project list 80%, header/actions 20%.
+- Gaze route: Project header -> add action -> project rows -> row detail.
+
+Plain-language rule for this screen:
+
+- Keep this as a list, not an analytics dashboard.
+- Do not show runtime, agent internals, or knowledge contents here.
+- Row summary should only show enough to identify the project: name, folder, file count, agent count.
+
+### Project Create
+
+- Dominant information unit: work folder selector for the new project.
+- Supporting information: optional knowledge file registration and agent participation rows.
+- Input/view intent: create a project with the minimum useful setup.
+- Information shapes: `file_source_input`, `file_collection`, `choice_classification_input`.
+- Unit patterns: `object_header`, `requirement_checklist_row`.
+- Field responsibility: user selects work folder and optional files/agents; Nagare derives project name from folder.
+- State and recovery: draft, invalid folder, duplicate folder.
+- Primary action: `プロジェクトを作成`.
+- Secondary actions: `一覧に戻る`, `ファイルを登録`, `エージェントを追加`.
+- Area budget: folder selector 35%, optional files/agents 55%, actions 10%.
+- Gaze route: title -> folder -> optional files/agents -> create.
+
+Plain-language rule for this screen:
+
+- Do not ask for a project name unless the folder name cannot be used.
+- Do not require knowledge files or agents before creation; they are useful optional additions.
+- Keep delete actions row-level only.
+
+### Project Settings
+
+- Dominant information unit: three simple project controls: work folder, registered knowledge files, and participating agents.
+- Supporting information: minimal row metadata only: file name, path/freshness, agent name, role.
+- Input/view intent: let the user change the folder, register/remove files, and add/remove agents without reading dependency or readiness diagnostics.
+- Information shapes: `file_source_input`, `file_collection`, `dense_record_view`, `choice_classification_input`.
+- Unit patterns: `object_header`, `requirement_checklist_row`.
+- Field responsibility: user selects/corrects the work folder, registers knowledge files, and adds/removes participating agents; Nagare handles project name, file indexing, and agent internals elsewhere.
+- State and recovery: normal, dirty, invalid folder.
+- Primary action: none in the bottom footer; changes are section-level or immediate in this wireframe.
+- Secondary actions: `一覧に戻る`, `作業フォルダを変更`, `ファイルを登録`, `エージェントを追加`, row-level `削除`.
+- Area budget: work folder 25%, knowledge file list 35%, agent list 35%, footer actions 5%.
+- Gaze route: Project header -> work folder -> project-specific knowledge -> participating agents -> save.
+
+Plain-language rule for this screen:
+
+- Do not expose internal project IDs or agent runtime details in the main surface.
+- Do not show state badges such as `保存済み` or `ワーク受付可` unless the state is blocking the user.
+- The screen must answer only what can be edited here:作業フォルダ、知識ファイル一覧、参加エージェント一覧.
+- Project-specific knowledge is a file list here. Do not show abstract knowledge cards, update rules, rubric detail, or editing previews.
+- Agent participation is a simple list here. Do not show prompt, model, quality, Skill, MCP, or runtime settings.
+- Row actions are limited to open/view when useful and `削除`; deeper configuration belongs to the Knowledge or Agent screen.
+- Do not place a large bottom `設定を保存` button on this simplified detail screen. Put `一覧に戻る` in the header or footer instead.
+
+### Knowledge List
+
+- Dominant information unit: knowledge domain rows with artifact summaries, per-artifact rubric text coverage, source count, and edit action.
+- Supporting information: keyword/domain filter and empty-state add action.
+- Input/view intent: choose an existing knowledge domain or create a new one.
+- Information shapes: `dense_record_view`, `object_summary_view`, `long_form_authoring_input`.
+- Unit patterns: `object_header`, `evidence_strip`.
+- Field responsibility: no heavy editing on the list; creation happens on Knowledge Create and edits happen on Knowledge Edit.
+- State and recovery: normal, empty, filtered zero.
+- Primary action: `新しい知識領域を追加`.
+- Secondary actions: row-level `編集`, row-level `削除`.
+- Area budget: domain list 80%, header/actions 20%.
+- Gaze route: Knowledge header -> add action -> domain rows -> row edit.
+
+Plain-language rule for this screen:
+
+- Keep this as a knowledge domain list, not a file browser.
+- Each row must show why the domain matters: what AI can produce, and whether each artifact has a rubric text.
+- Do not show long knowledge body, raw paths, or full rubric text in the list.
+
+### Knowledge Create
+
+- Dominant information unit: new knowledge domain definition plus its first artifact definitions.
+- Supporting information: each artifact's description, one long rubric text, and optional source files.
+- Input/view intent: create a useful domain with the minimum structure needed for work execution.
+- Information shapes: `long_form_authoring_input`, `structured_requirement_input`, `file_source_input`.
+- Unit patterns: `object_header`, `requirement_checklist_row`.
+- Field responsibility: user names the domain, defines each artifact, and writes one long rubric text that covers generation and evaluation together; source files are optional.
+- State and recovery: draft, missing domain name, no artifact definition, missing rubric text.
+- Primary action: `知識領域を作成`.
+- Secondary actions: `一覧に戻る`, `生成物を追加`, `テンプレート`, `本文を整形`, `ファイルを登録`.
+- Area budget: domain definition 15%, artifact selector 15%, selected artifact long-text editor 60%, optional sources/actions 10%.
+- Gaze route: title -> domain name -> artifact selector -> selected artifact description -> long rubric text editor -> optional files -> create.
+
+Plain-language rule for this screen:
+
+- Do not start with a generic upload-only screen.
+- Name artifacts as deliverables, not actions. Use `README`, not `README更新`; use `UI変更レポート`, not `UI変更を報告`.
+- Rubrics are not global to the knowledge domain; one rubric text belongs one-to-one to one artifact definition.
+- Artifact definitions must include both "what this artifact is" and a long rubric text covering how to generate and evaluate it.
+- Do not split generation and evaluation into separate tabs, columns, or row tables. Use one large long-form text editor, because the user wants a single coherent rubric document.
+- Keep project assignment and agent assignment out of this creation flow unless needed later.
+
+### Knowledge Edit
+
+- Dominant information unit: editable knowledge domain profile with source files and artifact definitions that each own one long rubric text.
+- Supporting information: short domain description and row-level delete controls.
+- Input/view intent: maintain how this domain guides AI output and review.
+- Information shapes: `file_collection`, `structured_requirement_input`, `rubric_scores`, `long_form_authoring_input`.
+- Unit patterns: `object_header`, `requirement_checklist_row`.
+- Field responsibility: user edits domain label/description, adds/removes files, adds/removes artifact definitions, and edits the selected artifact's long rubric text.
+- State and recovery: normal, dirty, invalid, delete confirmation.
+- Primary action: `変更を保存`.
+- Secondary actions: `一覧に戻る`, `ファイルを登録`, `生成物を追加`, `テンプレート`, `本文を整形`, row-level `削除`.
+- Area budget: domain header 12%, artifact selector 18%, selected artifact long-text editor 60%, files/actions 10%.
+- Gaze route: domain header -> artifact selector -> selected artifact description -> long rubric text editor -> files/actions -> save.
+
+Plain-language rule for this screen:
+
+- Do not hide artifact definitions and rubric behind separate advanced settings.
+- Do not create a standalone domain-level rubric section; the visible rubric editor must be scoped to one selected artifact.
+- Do not split the main rubric editor into generation/evaluation sections unless the user explicitly asks. Keep it as one coherent long text.
+- The editor must be large enough for 100-line text and show scroll capacity without turning the rubric into row management.
+- Source file paths are secondary; show file names first.
+
+### Agent Settings
+
+- Dominant information unit: selected agent profile showing role, covered domain, default model/tool choice, and allowed capabilities.
+- Supporting information: role fit, assigned Skill/MCP permissions, and recent quality signals.
+- Input/view intent: create or adjust an agent without asking the user to rewrite generated prompts or reassign knowledge already implied by domain selection.
+- Information shapes: `object_summary_view`, `choice_classification_input`, `permission_scope_input`, `detail_property_view`, `metric_trend_view`, `relationship_dependency_view`.
+- Unit patterns: `object_header`, `permission_scope_row`, `metric_insight_block`, `validation_state_block`.
+- Field responsibility: user selects role/template, runtime tool, model, domain, and Skill/MCP allowlist; Nagare drafts role description and prompt from template plus domain knowledge; quality signals are evidence/display.
+- State and recovery: normal, dirty, missing role, permission warning, runtime disconnected, saved.
+- Primary action: `エージェント設定を保存`.
+- Secondary actions: `テンプレートを変更`, `Skillを追加`, `MCP権限を調整`, `プロンプトを開く`.
+- Area budget: agent list 25%, selected agent profile and role fit 30%, Skill/MCP permission matrix 30%, quality signals 15%.
+- Gaze route: Agent header -> selected agent role -> capability scope -> permission warnings -> save.
+
+Plain-language rule for this screen:
+
+- Do not make prompt editing the default first surface; show generated prompt as review-only with a wide editor entry.
+- Skill and MCP assignment happens here, not in the global Skill/MCP catalog.
+- Permissions must show scope and reason, not bare toggles.
+- Agent runtime and model are visible because they affect capability, but low-level command/session details stay hidden.
+- Quality records should explain whether the agent fits the role, not become a generic analytics dashboard.
+
 ## Field Responsibility Matrix
 
 | Screen | User Input | User Selection | Auto-filled | Review Only | Exception-only Input | Evidence / Display |
@@ -268,6 +427,11 @@ Plain-language rule for this screen:
 | Default Workspace Setup | none on happy path | work folder | default project name, organizer, worker, reviewer | initial structure summary | project name correction only if folder name is unusable | folder validity |
 | Composer | request body | confirmation policy | project, scope hints, work folder | inferred confirmation conditions | manual scope correction | routing preview |
 | Run Trace | none while working | answer text / recovery choice / adopt-sendback only when needed | current state, owner, progress, final answer, artifacts, checks | latest progress, reason, stop conditions, review and verification result | answer/recovery note/send-back reason in variants | readable history, selected root evidence, collapsed details |
+| Project Settings | none on happy path | work folder, knowledge files, participating agents | project name from folder | selected file/agent summaries | delete confirmation only | file metadata only when it helps identify the row |
+| Knowledge List | none | knowledge domain row | artifact count, rubric text count, source count | domain summaries | delete confirmation only | what AI can produce and which artifacts have rubric text |
+| Knowledge Create | domain description, artifact descriptions, rubric text | optional source files, selected artifact | initial defaults from domain name | created artifact structure preview | missing required field correction | no advanced usage diagnostics |
+| Knowledge Edit | domain description, artifact descriptions, rubric text | source files, selected artifact | source freshness and use count | selected file names, artifact/rubric summaries | delete confirmation only | file names, per-artifact rubric coverage, artifact definitions |
+| Agent Settings | prompt correction only after opening editor | role, runtime tool, model, domain, Skill/MCP allowlist | role description, generated prompt, default permissions | quality signals, role fit, current assignments | permission override reason | capability scope, quality records, affected works |
 
 ## Input Friction Audit
 
@@ -282,6 +446,14 @@ Plain-language rule for this screen:
 | Human answer | exception_only | ask only when question blocks progress | question variant |
 | Recovery note | exception_only | ask only after recovery choice | recovery variant |
 | Raw logs | evidence_display | structured product details first; raw fallback belongs outside the user-facing detail screen | developer diagnostics |
+| Project folder | user_selects | select once per project, then inherit into Work creation | folder selector with change action |
+| Participating agents | user_selects | add from existing agents or remove from project | simple agent list with `エージェントを追加` and row `削除` |
+| Project knowledge files | user_selects | register files and remove files from project knowledge | file list with `ファイルを登録` and row `削除` |
+| Domain knowledge | user_corrects | edit selected source or selected artifact rubric only when stale/missing | selected wide editor, not many blank textareas |
+| Long rubric text | user_enters_new | write or paste 100-line artifact rubric as one coherent text | full-width long-form editor, not a row table or split generation/evaluation controls |
+| Source freshness | evidence_display | generated from source metadata and usage | source rows with freshness and affected agents |
+| Agent prompt | system_inferred | generated from role template and domain knowledge | review-only preview with `プロンプトを開く` |
+| Skill/MCP permissions | user_selects | assign from registered catalog per agent | permission scope rows with reason and scope |
 
 ## Plain-Language Review
 

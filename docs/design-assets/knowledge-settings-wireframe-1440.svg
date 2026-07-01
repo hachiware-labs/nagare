@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Knowledge Settings Wireframe 1440</title>
+  <desc id="desc">Nagare knowledge settings wireframe: domain knowledge workspace with source freshness, rubric coverage, selected editor preview, and affected agents.</desc>
+  <defs>
+    <style>
+      .bg{fill:#f8f8f8}.surface{fill:#fff}.soft{fill:#f3f4f6}.line{stroke:#d1d5db;stroke-width:1;fill:none}.strong{stroke:#111827;stroke-width:1.5;fill:none}.text{fill:#111827;font-family:Inter,Segoe UI,Arial,sans-serif}.muted{fill:#6b7280;font-family:Inter,Segoe UI,Arial,sans-serif}.tiny{font-size:11px}.small{font-size:12px}.body{font-size:14px}.h2{font-size:17px;font-weight:700}.h1{font-size:24px;font-weight:700}.bold{font-weight:700}.chip{fill:#fff;stroke:#9ca3af;stroke-width:1}.active{fill:#e5e7eb}.wire{fill:none;stroke:#111827;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+    </style>
+  </defs>
+  <rect class="bg" width="1440" height="1024"/>
+  <g id="sidebar">
+    <rect class="surface" x="0" y="0" width="200" height="1024"/><line class="line" x1="200" y1="0" x2="200" y2="1024"/>
+    <circle class="soft" cx="39" cy="42" r="18"/><path class="wire" d="M28 45c12 0 20-8 26-20-4 17-10 27-26 30z"/>
+    <text class="text h1" x="62" y="39">Nagare</text><text class="muted tiny" x="64" y="61">hachiware-labs</text>
+    <g class="body">
+      <text class="text" x="62" y="132">ワーク</text><rect class="wire" x="34" y="121" width="13" height="10" rx="1"/>
+      <text class="text" x="62" y="178">プロジェクト</text><path class="wire" d="M34 171h14l2 4v8H32v-12z"/>
+      <rect class="active" x="18" y="200" width="164" height="37" rx="8"/><text class="text bold" x="62" y="224">知識</text><rect class="wire" x="34" y="209" width="13" height="16" rx="1"/>
+      <text class="text" x="62" y="270">エージェント</text><circle class="wire" cx="40" cy="254" r="4"/><path class="wire" d="M32 270c1-7 15-7 16 0"/>
+      <text class="text" x="62" y="316">設定</text><circle class="wire" cx="40" cy="300" r="5"/><path class="wire" d="M40 290v5M40 305v5M30 300h5M45 300h5"/>
+    </g>
+    <line class="line" x1="18" y1="352" x2="182" y2="352"/>
+    <text class="muted tiny bold" x="24" y="385">現在のプロジェクト</text><text class="text small bold" x="24" y="414">nagare</text><text class="muted small" x="24" y="438">C:/workspace/nagare</text>
+  </g>
+  <g id="content" transform="translate(232 28)">
+    <text class="text h1" x="0" y="20">知識</text>
+    <text class="muted small" x="0" y="52">ドメインごとにAIへ渡す知識、成果物種別、ルーブリックを管理します</text>
+    <g transform="translate(930 0)"><rect class="chip" x="0" y="0" width="104" height="30" rx="15"/><text class="text tiny bold" x="17" y="20">3ドメイン</text><rect class="chip" x="118" y="0" width="130" height="30" rx="15"/><text class="text tiny bold" x="137" y="20">未確認 1件</text></g>
+    <line class="strong" x1="0" y1="80" x2="1188" y2="80"/>
+
+    <g id="domain-list" transform="translate(0 104)">
+      <rect class="surface" x="0" y="0" width="266" height="780" rx="8"/><rect class="line" x="0" y="0" width="266" height="780" rx="8"/>
+      <text class="text h2" x="22" y="34">ドメイン</text>
+      <rect class="soft" x="22" y="54" width="222" height="36" rx="7"/><text class="muted small" x="40" y="77">ドメインを検索</text>
+      <g transform="translate(22 112)">
+        <rect class="active" x="0" y="0" width="222" height="76" rx="7"/><text class="text body bold" x="14" y="26">ソフトウェア開発</text><text class="muted small" x="14" y="48">知識 8 / ルーブリック 5</text><text class="muted tiny" x="14" y="66">README, CLI, UI</text>
+        <rect class="surface" x="0" y="88" width="222" height="76" rx="7"/><rect class="line" x="0" y="88" width="222" height="76" rx="7"/><text class="text body bold" x="14" y="114">ドキュメント</text><text class="muted small" x="14" y="136">知識 3 / ルーブリック 2</text><text class="muted tiny" x="14" y="154">用語と文体</text>
+        <rect class="surface" x="0" y="176" width="222" height="76" rx="7"/><rect class="line" x="0" y="176" width="222" height="76" rx="7"/><text class="text body bold" x="14" y="202">汎用</text><text class="muted small" x="14" y="224">知識 2 / ルーブリック 1</text><text class="muted tiny" x="14" y="242">初期値</text>
+      </g>
+      <rect class="chip" x="22" y="724" width="222" height="36" rx="7"/><text class="text small bold" x="82" y="747">ドメインを追加</text>
+    </g>
+
+    <g id="main" transform="translate(290 104)">
+      <rect class="surface" x="0" y="0" width="606" height="780" rx="8"/><rect class="line" x="0" y="0" width="606" height="780" rx="8"/>
+      <text class="text h2" x="24" y="34">ソフトウェア開発の知識</text>
+      <text class="muted small" x="24" y="60">選択中のドメインでAIが参照する知識と確認観点です。</text>
+      <g transform="translate(24 84)">
+        <rect class="soft" x="0" y="0" width="558" height="82" rx="7"/>
+        <text class="text body bold" x="18" y="28">README 更新ルール</text>
+        <text class="muted small" x="18" y="50">既存説明と重複しない。setup.md の変更がある場合だけ README に反映。</text>
+        <rect class="chip" x="420" y="22" width="112" height="28" rx="14"/><text class="text tiny bold" x="443" y="41">使用中</text>
+        <rect class="surface" x="0" y="96" width="558" height="82" rx="7"/><rect class="line" x="0" y="96" width="558" height="82" rx="7"/>
+        <text class="text body bold" x="18" y="124">CLI 出力の説明基準</text><text class="muted small" x="18" y="146">エラー、次の操作、影響範囲を短く分ける。</text><rect class="chip" x="420" y="118" width="112" height="28" rx="14"/><text class="text tiny bold" x="443" y="137">要確認</text>
+      </g>
+      <g transform="translate(24 298)">
+        <text class="text h2" x="0" y="0">選択中の知識を編集</text>
+        <text class="muted small" x="0" y="24">長文はここで広く編集します。未保存時は保存前確認を表示します。</text>
+        <rect class="soft" x="0" y="44" width="558" height="292" rx="7"/>
+        <text class="muted tiny bold" x="18" y="70">README 更新ルール.md</text>
+        <line class="line" x1="18" y1="88" x2="540" y2="88"/>
+        <text class="text body" x="18" y="118">- 既存説明と重複する章は作らない</text>
+        <text class="text body" x="18" y="148">- docs/setup.md が変更された場合だけ README に差分を反映する</text>
+        <text class="text body" x="18" y="178">- 最後に変更対象と確認したコマンドを要約する</text>
+        <text class="muted small" x="18" y="226">この編集面はスクロール可能。長い知識本文でもサイドバーに押し込まない。</text>
+      </g>
+      <g transform="translate(24 676)">
+        <rect class="chip" x="0" y="0" width="124" height="36" rx="7"/><text class="text small bold" x="24" y="23">ソースを追加</text>
+        <rect class="soft" x="400" y="0" width="158" height="36" rx="7"/><text class="text small bold" x="436" y="23">知識を更新</text>
+      </g>
+    </g>
+
+    <g id="support" transform="translate(920 104)">
+      <rect class="surface" x="0" y="0" width="268" height="258" rx="8"/><rect class="line" x="0" y="0" width="268" height="258" rx="8"/>
+      <text class="text h2" x="20" y="34">ルーブリック範囲</text>
+      <g transform="translate(20 58)">
+        <rect class="soft" x="0" y="0" width="228" height="46" rx="7"/><text class="text small bold" x="12" y="20">セットアップ手順</text><text class="muted tiny" x="12" y="36">5観点 / 1未確認</text>
+        <rect class="surface" x="0" y="58" width="228" height="46" rx="7"/><rect class="line" x="0" y="58" width="228" height="46" rx="7"/><text class="text small bold" x="12" y="78">CLI エラー説明</text><text class="muted tiny" x="12" y="94">4観点 / 保存済み</text>
+        <rect class="surface" x="0" y="116" width="228" height="46" rx="7"/><rect class="line" x="0" y="116" width="228" height="46" rx="7"/><text class="text small bold" x="12" y="136">UI 操作手順</text><text class="muted tiny" x="12" y="152">6観点 / 保存済み</text>
+      </g>
+      <rect class="chip" x="20" y="210" width="144" height="32" rx="7"/><text class="text small bold" x="42" y="231">ルーブリックを編集</text>
+
+      <g transform="translate(0 282)">
+        <rect class="surface" x="0" y="0" width="268" height="230" rx="8"/><rect class="line" x="0" y="0" width="268" height="230" rx="8"/>
+        <text class="text h2" x="20" y="34">使用中エージェント</text>
+        <text class="muted small" x="20" y="58">この知識を使う担当AI</text>
+        <rect class="soft" x="20" y="78" width="228" height="40" rx="7"/><text class="text small bold" x="34" y="103">Default Worker</text>
+        <rect class="surface" x="20" y="130" width="228" height="40" rx="7"/><rect class="line" x="20" y="130" width="228" height="40" rx="7"/><text class="text small bold" x="34" y="155">Default Reviewer</text>
+        <rect class="chip" x="20" y="184" width="160" height="30" rx="7"/><text class="text small bold" x="43" y="204">エージェントを見る</text>
+      </g>
+
+      <g transform="translate(0 536)">
+        <rect class="surface" x="0" y="0" width="268" height="244" rx="8"/><rect class="line" x="0" y="0" width="268" height="244" rx="8"/>
+        <text class="text h2" x="20" y="34">ソース状態</text>
+        <text class="muted small" x="20" y="58">鮮度と利用状況</text>
+        <line class="line" x1="20" y1="82" x2="248" y2="82"/>
+        <text class="text small bold" x="20" y="112">README 更新ルール.md</text><text class="muted tiny" x="20" y="132">最終更新: 2日前 / 使用中</text>
+        <text class="text small bold" x="20" y="166">CLI 出力基準.md</text><text class="muted tiny" x="20" y="186">最終更新: 94日前 / 要確認</text>
+        <rect class="chip" x="20" y="204" width="118" height="28" rx="7"/><text class="text small bold" x="39" y="223">差分を確認</text>
+      </g>
+    </g>
+  </g>
+</svg>

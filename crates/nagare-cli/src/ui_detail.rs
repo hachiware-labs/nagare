@@ -7,9 +7,20 @@ use nagare_core::{
 
 use crate::ui::read_ui_running_state;
 use crate::ui_agent::{agent_label, agent_label_with_meta};
-use crate::ui_assets::{serve_item_detail_stylesheet, serve_script, serve_stylesheet};
+use crate::ui_assets::{
+    serve_item_detail_stylesheet, serve_responsive_stylesheet, serve_script, serve_stylesheet,
+};
 use crate::ui_history::render_run_history_panel;
 use crate::ui_html::{h, is_empty_display_value};
+
+fn detail_main_nav() -> &'static str {
+    r#"<a class="active" href="/"><span class="nav-icon nav-icon-work" aria-hidden="true"></span><span>ワーク</span></a>
+        <a href="/settings"><span class="nav-icon nav-icon-project" aria-hidden="true"></span><span>プロジェクト</span></a>
+        <a href="/settings"><span class="nav-icon nav-icon-knowledge" aria-hidden="true"></span><span>知識</span></a>
+        <a href="/settings"><span class="nav-icon nav-icon-agent" aria-hidden="true"></span><span>エージェント</span></a>
+        <a href="/settings"><span class="nav-icon nav-icon-settings" aria-hidden="true"></span><span>設定</span></a>"#
+}
+
 fn current_processing_state(
     status: &WorkItemStatus,
     next_action: &str,
@@ -810,15 +821,24 @@ fn render_summary_panel(
     let assigned_agent = assigned_agent_line(latest_dispatch, profiles);
     let assigned_context =
         assigned_agent_context(latest_dispatch, &snapshot.completion.next_action, profiles);
+    let request_body = if snapshot.item.description.trim().is_empty() {
+        snapshot.item.title.as_str()
+    } else {
+        snapshot.item.description.as_str()
+    };
     format!(
         r#"<section id="detail" class="panel summary">
   <div class="panel-head">
     <div>
-      <h2>状況</h2>
-      <p class="muted">依頼への結論と、次に必要なことを表示しています。</p>
+      <h2>タスクの状況</h2>
+      <p class="muted">依頼文、現在の担当、質問や確認、結果を先に表示します。</p>
     </div>
     <span class="badge blue">現在</span>
   </div>
+  <section class="request-brief">
+    <span>依頼文</span>
+    <p>{}</p>
+  </section>
   <div class="status-grid">
     <div class="status-card primary conclusion-card">
       <span>結論</span>
@@ -842,6 +862,7 @@ fn render_summary_panel(
     </div>
   </div>
 </section>"#,
+        h(request_body),
         h(&conclusion),
         h(&conclusion_detail),
         h(&current),
@@ -1063,19 +1084,21 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
   <style>{}</style>
 </head>
 <body data-next-action="{}" data-running="{}">
-  <main class="app">
+  <main class="app flow-app">
     <aside class="sidebar">
       <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" alt=""><span class="brand-text">Nagare</span></h1>
-      <nav>
-        <a class="active" href="/">Work Queue</a>
-        <a href="/settings">Settings</a>
-      </nav>
+      <nav>{}</nav>
+      <div class="sidebar-project">
+        <span>現在のプロジェクト</span>
+        <b>nagare</b>
+        <small>C:/workspace/nagare</small>
+      </div>
     </aside>
-    <section class="content">
+    <section class="content flow-content">
       <nav class="breadcrumbs" aria-label="Breadcrumb">
-        <a href="/">Work Queue</a>
+        <a href="/">ワーク</a>
         <span>/</span>
-        <span>Detail</span>
+        <span>詳細</span>
       </nav>
       <header class="topbar">
         <div>
@@ -1099,9 +1122,15 @@ pub(crate) fn render_serve_item_detail(root: &Path, work_item_id: &str) -> Resul
 </body>
 </html>"##,
         h(&snapshot.item.title),
-        format!("{}{}", serve_stylesheet(), serve_item_detail_stylesheet()),
+        format!(
+            "{}{}{}",
+            serve_stylesheet(),
+            serve_responsive_stylesheet(),
+            serve_item_detail_stylesheet()
+        ),
         h(&snapshot.completion.next_action),
         h(running_state.as_deref().unwrap_or("")),
+        detail_main_nav(),
         h(&snapshot.item.title),
         h(&snapshot.item.id),
         h(&work_item_status_label(&snapshot.item.status)),
