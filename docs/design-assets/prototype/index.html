@@ -1,0 +1,3103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nagare — UIプロトタイプ</title>
+<style>
+/* ============ Design tokens (hachiware-labs.com 準拠) ============ */
+:root {
+  --bg: #ffffff;
+  --text: #020617;          /* slate-950 */
+  --text-body: #334155;     /* slate-700 */
+  --text-muted: #64748b;    /* slate-500 */
+  --text-faint: #94a3b8;    /* slate-400 */
+  --border: #e2e8f0;        /* slate-200 */
+  --border-strong: #cbd5e1; /* slate-300 */
+  --primary: #4338ca;       /* indigo-700 */
+  --primary-hover: #3730a3; /* indigo-800 */
+  --primary-soft: #eef2ff;  /* indigo-50 */
+  --primary-line: #c7d2fe;  /* indigo-200 */
+  --focus: #818cf8;         /* indigo-400 */
+  --success: #15803d; --success-soft: #f0fdf4; --success-line: #bbf7d0;
+  --warning: #b45309; --warning-soft: #fffbeb; --warning-line: #fde68a;
+  --danger: #b91c1c;  --danger-soft: #fef2f2;  --danger-line: #fecaca;
+  --radius: 8px;
+  --font: "Geist", ui-sans-serif, "Segoe UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", Meiryo, sans-serif;
+  --mono: "Geist Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { height:100%; }
+body { font-family:var(--font); color:var(--text-body); background:var(--bg); font-size:14px; line-height:1.6; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
+h1,h2,h3,h4 { color:var(--text); line-height:1.4; }
+button { font-family:inherit; font-size:inherit; cursor:pointer; }
+input,textarea,select { font-family:inherit; font-size:inherit; color:var(--text); }
+
+/* ============ App shell ============ */
+.app { display:flex; height:100vh; overflow:hidden; }
+.sidebar { width:216px; flex-shrink:0; border-right:1px solid var(--border); display:flex; flex-direction:column; background:#fff; }
+.brand { display:flex; align-items:center; gap:12px; padding:16px; border-bottom:1px solid var(--border); }
+.brand img { width:56px; height:56px; border-radius:var(--radius); object-fit:contain; box-shadow:0 0 0 1px var(--border); background:#fff; }
+.brand .name { font-size:17px; font-weight:700; letter-spacing:.16em; color:var(--text); }
+.brand .org { display:block; font-size:9.5px; font-weight:600; letter-spacing:.2em; color:#4f46e5; text-transform:uppercase; margin-top:2px; }
+.nav { padding:10px 8px; display:flex; flex-direction:column; gap:2px; }
+.nav-label { font-size:10px; font-weight:600; letter-spacing:.14em; color:var(--text-faint); text-transform:uppercase; padding:12px 10px 4px; }
+.nav a { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:var(--radius); color:var(--text-body); text-decoration:none; font-weight:500; transition:.15s; }
+.nav a:hover { background:var(--primary-soft); color:var(--primary); }
+.nav a.active { background:var(--primary-soft); color:var(--primary); font-weight:600; }
+.nav a .dot { width:6px; height:6px; border-radius:50%; background:var(--warning); margin-left:auto; }
+.main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.topbar { display:flex; align-items:center; gap:12px; padding:10px 24px; border-bottom:1px solid var(--border); background:rgba(255,255,255,.88); backdrop-filter:blur(24px); min-height:49px; }
+.topbar .crumb { font-size:13px; color:var(--text-muted); }
+.topbar .crumb b { color:var(--text); font-weight:600; }
+.topbar .spacer { flex:1; }
+.content { flex:1; overflow-y:auto; padding:24px; background:#f8fafc; }
+.content::-webkit-scrollbar { width:10px; }
+.content::-webkit-scrollbar-thumb { background:var(--border); border-radius:8px; border:2px solid #f8fafc; }
+.content::-webkit-scrollbar-thumb:hover { background:var(--border-strong); }
+.content-inner { max-width:920px; margin:0 auto; }
+
+/* ============ Primitives ============ */
+.btn { display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:var(--radius); border:1px solid transparent; font-weight:600; font-size:13px; transition:all .15s cubic-bezier(.4,0,.2,1); }
+.btn:focus-visible { outline:2px solid var(--focus); outline-offset:1px; }
+.btn:active { transform:translateY(1px); }
+.btn:disabled { opacity:.45; pointer-events:none; }
+.btn-primary { background:linear-gradient(180deg,#4f46e5,#4338ca); color:#fff; box-shadow:inset 0 1px 0 rgba(255,255,255,.16), 0 1px 2px rgba(67,56,202,.35); }
+.btn-primary:hover { background:linear-gradient(180deg,#4338ca,#3730a3); box-shadow:inset 0 1px 0 rgba(255,255,255,.12), 0 2px 6px rgba(67,56,202,.4); }
+.btn-primary:active { box-shadow:inset 0 1px 2px rgba(0,0,0,.2); }
+.btn-secondary { background:linear-gradient(180deg,#fff,#fafbfc); color:var(--text-body); border-color:var(--border); box-shadow:0 1px 2px rgba(2,6,23,.05); }
+.btn-secondary:hover { border-color:var(--border-strong); background:#f8fafc; box-shadow:0 2px 4px rgba(2,6,23,.06); }
+.btn-ghost { background:transparent; color:var(--primary); }
+.btn-ghost:hover { background:var(--primary-soft); }
+.btn-sm { padding:5px 12px; font-size:12px; }
+.btn-danger-soft { background:#fff; color:var(--danger); border-color:var(--danger-line); }
+.btn-danger-soft:hover { background:var(--danger-soft); }
+.card { background:#fff; border:1px solid var(--border); border-radius:var(--radius); box-shadow:0 1px 2px rgba(2,6,23,.04); }
+.badge { display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px; font-size:11.5px; font-weight:600; white-space:nowrap; border:1px solid transparent; }
+.badge .bdot { width:6px; height:6px; border-radius:50%; background:currentColor; }
+.badge-run  { background:var(--primary-soft); color:var(--primary); border-color:var(--primary-line); }
+.badge-run .bdot { animation:pulse 1.6s ease-in-out infinite; }
+.badge-ask  { background:var(--warning-soft); color:var(--warning); border-color:var(--warning-line); }
+.badge-fix  { background:var(--danger-soft); color:var(--danger); border-color:var(--danger-line); }
+.badge-done { background:var(--success-soft); color:var(--success); border-color:var(--success-line); }
+.badge-neutral { background:#f8fafc; color:var(--text-muted); border-color:var(--border); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+.chip { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:500; background:var(--primary-soft); color:var(--primary); border:1px solid var(--primary-line); cursor:pointer; }
+.chip:hover { background:#e0e7ff; }
+.chip.k::before { content:"📘"; font-size:10px; }
+input[type=text], textarea, select { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:var(--radius); background:#fff; transition:.15s; box-shadow:inset 0 1px 2px rgba(2,6,23,.03); }
+input[type=text]:focus, textarea:focus, select:focus { outline:none; border-color:var(--focus); box-shadow:inset 0 1px 2px rgba(2,6,23,.02), 0 0 0 3px rgba(129,140,248,.22); }
+input[type=radio], input[type=checkbox] { accent-color:var(--primary); }
+textarea { resize:vertical; min-height:72px; line-height:1.6; }
+.field { margin-bottom:16px; }
+.field label { display:block; font-size:12.5px; font-weight:600; color:var(--text); margin-bottom:5px; }
+.field .hint { font-size:12px; color:var(--text-muted); margin-top:4px; }
+.mono { font-family:var(--mono); font-size:12px; }
+
+/* ============ Screens ============ */
+.screen { display:none; }
+.screen.active { display:block; }
+.page-title { font-size:19px; font-weight:700; margin-bottom:4px; }
+.page-sub { color:var(--text-muted); font-size:13px; margin-bottom:20px; }
+
+/* Empty home */
+.hero-empty { text-align:center; padding:48px 24px 40px; }
+.hero-empty img { width:150px; height:150px; object-fit:contain; margin-bottom:18px; border-radius:16px; box-shadow:0 0 0 1px var(--border), 0 4px 16px rgba(2,6,23,.06); }
+.hero-empty h2 { font-size:20px; margin-bottom:8px; }
+.hero-empty p { color:var(--text-muted); max-width:440px; margin:0 auto 24px; }
+.flow-model { display:flex; justify-content:center; gap:0; margin:28px auto 32px; max-width:760px; }
+.flow-step { flex:1; position:relative; padding:14px 10px 12px; }
+.flow-step:not(:last-child)::after { content:"→"; position:absolute; right:-8px; top:22px; color:var(--text-faint); font-size:14px; }
+.flow-step .fs-icon { width:36px; height:36px; margin:0 auto 8px; border-radius:var(--radius); background:linear-gradient(180deg,#f5f7ff,var(--primary-soft)); color:var(--primary); display:flex; align-items:center; justify-content:center; font-size:16px; border:1px solid var(--primary-line); box-shadow:0 1px 2px rgba(67,56,202,.08), inset 0 1px 0 rgba(255,255,255,.6); }
+.flow-step .fs-name { font-weight:600; color:var(--text); font-size:13px; }
+.flow-step .fs-desc { font-size:11.5px; color:var(--text-muted); line-height:1.5; margin-top:2px; }
+.flow-step.human .fs-icon { background:var(--warning-soft); color:var(--warning); border-color:var(--warning-line); }
+
+/* Work home */
+.ask-box { border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:24px; background:#fff; box-shadow:0 1px 2px rgba(2,6,23,.04), 0 4px 12px -6px rgba(2,6,23,.05); transition:.15s; }
+.ask-box:focus-within { border-color:var(--focus); box-shadow:0 0 0 3px rgba(129,140,248,.22), 0 4px 12px -6px rgba(2,6,23,.05); }
+.ask-box textarea { border:none; box-shadow:none; padding:0; min-height:52px; font-size:14.5px; }
+.ask-box textarea:focus { box-shadow:none; }
+.ask-foot { display:flex; align-items:center; gap:8px; margin-top:10px; }
+.ask-foot .meta { font-size:12px; color:var(--text-muted); display:flex; gap:12px; }
+.filters { display:flex; gap:8px; margin:20px 0 10px; align-items:center; }
+.filter-result { font-size:12px; color:var(--text-faint); }
+.filter-btn { padding:5px 14px; border-radius:999px; border:1px solid var(--border); background:#fff; color:var(--text-muted); font-size:12.5px; font-weight:600; transition:.15s; box-shadow:0 1px 2px rgba(2,6,23,.04); }
+.filter-btn:hover { border-color:var(--border-strong); color:var(--text-body); }
+.filter-btn.active { background:var(--primary-soft); border-color:var(--primary-line); color:var(--primary); }
+.filter-btn .fc { font-weight:500; opacity:.75; margin-left:2px; }
+
+/* Dropdown */
+.dd { position:relative; display:inline-block; }
+.dd-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:var(--radius); border:1px solid var(--border); background:linear-gradient(180deg,#fff,#fafbfc); box-shadow:0 1px 2px rgba(2,6,23,.05); font-size:12.5px; font-weight:600; color:var(--text-body); transition:.15s; }
+.dd-btn:hover { border-color:var(--border-strong); }
+.dd-btn .dd-pre { color:var(--text-faint); font-weight:500; }
+.dd-btn b { color:var(--text); font-weight:600; }
+.dd-btn .chev { width:7px; height:7px; border-right:1.5px solid var(--text-faint); border-bottom:1.5px solid var(--text-faint); transform:rotate(45deg) translateY(-2px); transition:.15s; margin-left:2px; }
+.dd.open .dd-btn { border-color:var(--focus); box-shadow:0 0 0 3px rgba(129,140,248,.22); }
+.dd.open .chev { transform:rotate(225deg) translateY(-2px); }
+.dd-menu { display:none; position:absolute; top:calc(100% + 6px); left:0; min-width:190px; background:#fff; border:1px solid var(--border); border-radius:var(--radius); box-shadow:0 12px 28px -8px rgba(2,6,23,.18), 0 2px 8px rgba(2,6,23,.06); padding:5px; z-index:30; }
+.dd.open .dd-menu { display:block; }
+.dd-item { display:flex; align-items:center; gap:8px; width:100%; text-align:left; padding:7px 10px; border:none; background:none; border-radius:6px; font-size:12.5px; font-weight:500; color:var(--text-body); transition:.1s; }
+.dd-item:hover { background:var(--primary-soft); color:var(--primary); }
+.dd-item.active { color:var(--primary); font-weight:600; }
+.dd-item .dd-count { margin-left:auto; font-size:11px; color:var(--text-faint); }
+.dd-item .chk { visibility:hidden; font-size:11px; color:var(--primary); }
+.dd-item .dd-count + .chk { margin-left:6px; }
+.dd-item:not(:has(.dd-count)) .chk { margin-left:auto; }
+.dd-item.active .chk { visibility:visible; }
+.dd.demo-open .dd-menu { display:block; position:static; margin-top:8px; }
+
+/* List */
+.list { background:#fff; border:1px solid var(--border); border-radius:var(--radius); box-shadow:0 1px 2px rgba(2,6,23,.04); overflow:hidden; }
+.list-item { display:flex; align-items:center; gap:14px; padding:12px 16px; border-bottom:1px solid var(--border); cursor:pointer; transition:.15s; background:#fff; }
+.list-item:last-of-type { border-bottom:none; }
+.list-item:hover { background:#fafaff; }
+.list-item .li-icon { width:32px; height:32px; border-radius:6px; background:var(--primary-soft); color:var(--primary); display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+.list-item .li-title { font-weight:600; color:var(--text); font-size:13.5px; }
+.list-item .li-desc { font-size:12px; color:var(--text-muted); }
+.list-item .li-chev { margin-left:auto; color:var(--text-faint); font-size:16px; }
+.list-empty { padding:28px; text-align:center; color:var(--text-faint); font-size:13px; }
+.work-item { align-items:flex-start; }
+.work-item.attn { box-shadow:inset 3px 0 0 var(--warning); }
+.work-item.attn-fix { box-shadow:inset 3px 0 0 var(--danger); }
+.wr-projtag { display:inline-block; margin-left:8px; padding:1px 8px; border-radius:999px; background:#f1f5f9; border:1px solid var(--border); color:var(--text-muted); font-size:10.5px; font-weight:600; vertical-align:2px; }
+.wr-picon { width:32px; height:32px; border-radius:var(--radius); background:#f8fafc; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; margin-top:1px; }
+
+/* Agent avatar */
+.agent-avatar { width:32px; height:32px; border-radius:var(--radius); object-fit:cover; box-shadow:0 0 0 1px var(--border); flex-shrink:0; background:#fff; }
+.agent-avatar.lg { width:56px; height:56px; border-radius:10px; }
+.agent-avatar.hd { width:40px; height:40px; }
+.mini-av { width:20px; height:20px; border-radius:6px; object-fit:cover; box-shadow:0 0 0 1px var(--border); vertical-align:-5px; margin:0 4px 0 2px; background:#fff; }
+.mini-av-emoji { display:inline-flex; width:20px; height:20px; border-radius:6px; background:#f8fafc; border:1px solid var(--border); align-items:center; justify-content:center; font-size:11px; vertical-align:-5px; margin:0 4px 0 2px; }
+
+/* Icon picker */
+.icon-pick { display:flex; gap:6px; flex-wrap:wrap; }
+.icon-opt { width:38px; height:38px; border-radius:var(--radius); border:1px solid var(--border); background:#fff; display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer; transition:.15s; box-shadow:0 1px 2px rgba(2,6,23,.04); }
+.icon-opt:hover { border-color:var(--border-strong); }
+.icon-opt.sel { border-color:var(--primary); background:var(--primary-soft); box-shadow:0 0 0 2px rgba(129,140,248,.25); }
+.group-head { display:flex; align-items:center; gap:8px; margin:22px 0 8px; }
+.group-head h3 { font-size:13px; font-weight:700; letter-spacing:.02em; }
+.group-head .count { font-size:11.5px; color:var(--text-muted); background:#f1f5f9; padding:1px 8px; border-radius:999px; }
+.work-row { display:flex; align-items:flex-start; gap:14px; padding:13px 16px; border:1px solid var(--border); border-radius:var(--radius); background:#fff; margin-bottom:8px; transition:all .15s cubic-bezier(.4,0,.2,1); cursor:pointer; box-shadow:0 1px 2px rgba(2,6,23,.04); }
+.work-row:hover { border-color:var(--primary-line); background:#fafaff; transform:translateY(-1px); box-shadow:0 4px 12px -4px rgba(2,6,23,.1); }
+.work-row.attn { border-left:3px solid var(--warning); }
+.work-row.attn-fix { border-left:3px solid var(--danger); }
+.wr-body { flex:1; min-width:0; }
+.wr-title { font-weight:600; color:var(--text); font-size:14px; }
+.wr-sum { font-size:12.5px; color:var(--text-muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wr-side { display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0; }
+.wr-next { font-size:11.5px; color:var(--text-faint); }
+
+/* Confirm screen */
+.confirm-grid { display:flex; flex-direction:column; gap:12px; }
+.confirm-sec { padding:16px; }
+.confirm-sec h4 { font-size:12px; font-weight:700; letter-spacing:.06em; color:var(--text-muted); text-transform:uppercase; margin-bottom:8px; }
+.kv { display:flex; gap:10px; padding:3px 0; font-size:13.5px; }
+.kv .k { width:120px; flex-shrink:0; color:var(--text-muted); }
+.kv .v { color:var(--text); }
+.policy-opts { display:flex; gap:8px; }
+.policy { flex:1; border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; cursor:pointer; transition:.15s; }
+.policy:hover { border-color:var(--border-strong); }
+.policy.sel { border-color:var(--primary); background:var(--primary-soft); }
+.policy .p-name { font-weight:600; color:var(--text); font-size:13px; display:flex; align-items:center; gap:6px; }
+.policy .p-desc { font-size:11.5px; color:var(--text-muted); margin-top:3px; }
+.policy.sel .p-name::before { content:"●"; color:var(--primary); font-size:9px; }
+.policy:not(.sel) .p-name::before { content:"○"; color:var(--text-faint); font-size:9px; }
+
+/* Detail */
+.detail-head { display:flex; align-items:flex-start; gap:14px; margin-bottom:16px; }
+.detail-head h2 { font-size:18px; flex:1; }
+.tabs { display:flex; gap:2px; border-bottom:1px solid var(--border); margin-bottom:18px; }
+.tab { padding:8px 16px; border:none; background:none; color:var(--text-muted); font-weight:500; font-size:13.5px; border-bottom:2px solid transparent; margin-bottom:-1px; }
+.tab:hover { color:var(--text); background:linear-gradient(180deg,transparent,#f1f5f9); border-radius:var(--radius) var(--radius) 0 0; }
+.tab.active { color:var(--primary); border-bottom-color:var(--primary); font-weight:600; }
+.tabpane { display:none; }
+.tabpane.active { display:block; }
+.status-strip { display:flex; align-items:center; gap:16px; padding:13px 16px; margin-bottom:18px; }
+.status-strip .ss-main { flex:1; }
+.status-strip .ss-now { font-weight:600; color:var(--text); font-size:14px; }
+.status-strip .ss-next { font-size:12.5px; color:var(--text-muted); margin-top:1px; }
+.status-strip .ss-prog { font-size:12px; color:var(--text-muted); text-align:right; }
+.status-strip.strip-warn { background:var(--warning-soft); border-color:var(--warning-line); }
+.status-strip.strip-danger { background:var(--danger-soft); border-color:var(--danger-line); }
+.status-strip.strip-ok { background:var(--success-soft); border-color:var(--success-line); }
+
+/* Harness timeline */
+.trace { position:relative; padding-left:26px; }
+.trace::before { content:""; position:absolute; left:9px; top:8px; bottom:8px; width:2px; background:var(--border); }
+.step { position:relative; margin-bottom:12px; }
+.step::before { content:""; position:absolute; left:-23px; top:14px; width:10px; height:10px; border-radius:50%; background:#fff; border:2px solid var(--border-strong); }
+.step.done::before { background:var(--success); border-color:var(--success); }
+.step.now::before  { background:var(--primary); border-color:var(--primary); box-shadow:0 0 0 4px var(--primary-soft); }
+.step.wait::before { background:var(--warning); border-color:var(--warning); box-shadow:0 0 0 4px var(--warning-soft); }
+.step.fail::before { background:var(--danger); border-color:var(--danger); box-shadow:0 0 0 4px var(--danger-soft); }
+.step-card { padding:13px 16px; }
+.step.now .step-card { border-color:var(--primary-line); }
+.step.wait .step-card { border-color:var(--warning-line); }
+.step.fail .step-card { border-color:var(--danger-line); }
+.step-top { display:flex; align-items:center; gap:10px; }
+.step-top.st-click { cursor:pointer; user-select:none; }
+.step-top .st-toggle { color:var(--text-faint); font-size:10px; margin-left:4px; transition:transform .15s; display:inline-block; }
+.step.open .st-toggle { transform:rotate(180deg); }
+.step-body { display:none; }
+.step.open .step-body { display:block; }
+.step-top .st-name { font-weight:700; color:var(--text); font-size:13.5px; }
+.step-top .st-agent { font-size:12.5px; color:var(--text-muted); }
+.step-top .st-agent b { color:var(--text-body); font-weight:600; }
+.step-top .st-state { margin-left:auto; }
+.step-why { font-size:12px; color:var(--text-muted); margin-top:5px; padding:6px 10px; background:#f8fafc; border-radius:6px; border:1px solid var(--border); }
+.step-why b { color:var(--text-body); }
+.step-io { margin-top:8px; font-size:12.5px; display:flex; flex-direction:column; gap:3px; }
+.step-io .io-row { display:flex; gap:8px; }
+.step-io .io-k { width:52px; flex-shrink:0; color:var(--text-faint); font-size:11.5px; font-weight:600; padding-top:1px; }
+.step-io .io-v { color:var(--text-body); }
+.step-know { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; align-items:center; }
+.step-know .sk-label { font-size:11px; color:var(--text-faint); font-weight:600; }
+.step-detail-link { font-size:11.5px; color:var(--text-faint); margin-top:8px; }
+.step-detail-link a { color:var(--text-muted); text-decoration:none; border-bottom:1px dotted var(--border-strong); }
+.step-detail-link a:hover { color:var(--primary); }
+.mini-rubric { margin-top:10px; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; background:#fff; }
+.mr-row { display:flex; gap:8px; align-items:baseline; padding:6px 12px; border-bottom:1px solid var(--border); font-size:12.5px; }
+.mr-row:last-child { border-bottom:none; }
+.mr-row.warn { background:#fffdf5; }
+.mr-mark { font-weight:700; width:14px; flex-shrink:0; color:var(--success); }
+.mr-row.warn .mr-mark { color:var(--warning); }
+.mr-name { font-weight:600; color:var(--text); flex-shrink:0; }
+.mr-evi { color:var(--text-muted); flex:1; min-width:0; }
+.mr-score { font-weight:600; color:var(--text-muted); flex-shrink:0; font-variant-numeric:tabular-nums; }
+.mr-row.warn .mr-score { color:var(--warning); }
+
+/* Question / recovery panels */
+.action-panel { border:1px solid var(--warning-line); background:var(--warning-soft); border-radius:var(--radius); padding:16px; margin-top:6px; }
+.action-panel h4 { font-size:13.5px; margin-bottom:8px; display:flex; gap:8px; align-items:center; }
+.action-panel .q-body { background:#fff; border:1px solid var(--warning-line); border-radius:var(--radius); padding:12px 14px; font-size:13.5px; color:var(--text); margin-bottom:12px; }
+.opt { display:flex; gap:10px; align-items:flex-start; padding:10px 12px; background:#fff; border:1px solid var(--border); border-radius:var(--radius); margin-bottom:6px; cursor:pointer; }
+.field label.opt { display:flex; font-size:inherit; font-weight:normal; margin-bottom:6px; }
+.opt:hover { border-color:var(--focus); }
+.opt.sel { border-color:var(--primary); background:var(--primary-soft); }
+.opt input { margin-top:4px; accent-color:var(--primary); }
+.opt .o-name { font-weight:600; color:var(--text); font-size:13px; }
+.opt .o-desc { font-size:12px; color:var(--text-muted); }
+.recover-panel { border-color:var(--danger-line); background:var(--danger-soft); }
+.recover-panel .q-body { border-color:var(--danger-line); }
+
+/* Rubric */
+.rubric-head { display:flex; align-items:center; gap:14px; padding:16px; margin-bottom:12px; }
+.score-ring { width:64px; height:64px; border-radius:50%; background:conic-gradient(var(--success) 0 316deg, #e2e8f0 316deg 360deg); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.score-ring .inner { width:50px; height:50px; border-radius:50%; background:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.score-ring .num { font-size:17px; font-weight:700; color:var(--text); line-height:1.1; }
+.score-ring .of { font-size:9px; color:var(--text-faint); }
+.rubric-item { display:flex; gap:12px; padding:11px 16px; border:1px solid var(--border); border-radius:var(--radius); margin-bottom:6px; background:#fff; }
+.rubric-item .ri-mark { width:22px; height:22px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; margin-top:1px; }
+.rubric-item.pass .ri-mark { background:var(--success-soft); color:var(--success); border:1px solid var(--success-line); }
+.rubric-item.warn .ri-mark { background:var(--warning-soft); color:var(--warning); border:1px solid var(--warning-line); }
+.rubric-item.warn { border-color:var(--warning-line); background:#fffdf5; }
+.rubric-item .ri-name { font-weight:600; color:var(--text); font-size:13.5px; }
+.rubric-item .ri-evi { font-size:12.5px; color:var(--text-muted); margin-top:2px; }
+.rubric-item .ri-evi a { color:var(--primary); text-decoration:none; }
+.rubric-item .ri-score { margin-left:auto; font-size:12px; color:var(--text-faint); font-weight:600; flex-shrink:0; }
+
+/* Result */
+.artifact-row { display:flex; align-items:center; gap:12px; padding:11px 16px; border:1px solid var(--border); border-radius:var(--radius); margin-bottom:6px; background:#fff; }
+.artifact-row .a-icon { width:32px; height:32px; border-radius:6px; background:var(--primary-soft); color:var(--primary); display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+.artifact-row .a-path { font-family:var(--mono); font-size:12.5px; color:var(--text); }
+.artifact-row .a-meta { font-size:11.5px; color:var(--text-muted); }
+.answer-box { padding:16px; border-left:3px solid var(--primary); }
+.answer-box .ab-label { font-size:11px; font-weight:700; letter-spacing:.08em; color:var(--primary); text-transform:uppercase; margin-bottom:5px; }
+.answer-box p { color:var(--text); font-size:14px; }
+
+/* Modals */
+.overlay { display:none; position:fixed; inset:0; background:rgba(2,6,23,.4); backdrop-filter:blur(2px); z-index:50; align-items:center; justify-content:center; }
+.overlay.open { display:flex; }
+.modal { background:#fff; border:1px solid var(--border); border-radius:12px; width:480px; max-width:92vw; max-height:86vh; overflow-y:auto; box-shadow:0 24px 48px -12px rgba(2,6,23,.25), 0 4px 12px rgba(2,6,23,.08); }
+.modal-head { padding:18px 22px 0; }
+.modal-head .m-step { font-size:11px; font-weight:700; letter-spacing:.1em; color:#4f46e5; text-transform:uppercase; margin-bottom:4px; }
+.modal-head h3 { font-size:16px; }
+.modal-head .m-sub { font-size:12.5px; color:var(--text-muted); margin-top:3px; }
+.modal-body { padding:16px 22px; }
+.modal-foot { display:flex; justify-content:flex-end; gap:8px; padding:0 22px 20px; }
+.modal-foot .left { margin-right:auto; }
+.rt-opt { display:flex; align-items:center; gap:12px; padding:12px 14px; border:1px solid var(--border); border-radius:var(--radius); margin-bottom:8px; cursor:pointer; }
+.rt-opt:hover { border-color:var(--border-strong); }
+.rt-opt.sel { border-color:var(--primary); background:var(--primary-soft); }
+.rt-opt .rt-icon { width:34px; height:34px; border-radius:var(--radius); background:#f1f5f9; display:flex; align-items:center; justify-content:center; font-size:15px; }
+.rt-opt .rt-name { font-weight:600; color:var(--text); font-size:13.5px; }
+.rt-opt .rt-desc { font-size:11.5px; color:var(--text-muted); }
+.rt-opt .rt-state { margin-left:auto; }
+.conn-result { text-align:center; padding:18px 0 6px; }
+.conn-result .c-icon { width:52px; height:52px; margin:0 auto 12px; border-radius:50%; background:var(--success-soft); border:1px solid var(--success-line); color:var(--success); display:flex; align-items:center; justify-content:center; font-size:22px; }
+.conn-result h4 { font-size:15px; margin-bottom:4px; }
+.conn-result p { font-size:12.5px; color:var(--text-muted); }
+.conn-check { display:flex; align-items:center; gap:10px; padding:8px 12px; font-size:13px; color:var(--text-body); }
+.conn-check .ok { color:var(--success); font-weight:700; }
+
+/* Insights (分析・改善) */
+.kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:14px; }
+.stat-tile { padding:14px 16px; }
+.stat-tile .st-label { font-size:11.5px; font-weight:600; color:var(--text-muted); }
+.stat-tile .st-value { font-size:24px; font-weight:700; color:var(--text); line-height:1.3; margin-top:2px; }
+.stat-tile .st-value .unit { font-size:13px; font-weight:600; color:var(--text-muted); margin-left:2px; }
+.stat-tile .st-delta { font-size:11.5px; font-weight:600; margin-top:2px; }
+.st-delta.up { color:var(--success); }
+.st-delta.down { color:var(--danger); }
+.st-delta .vs { color:var(--text-faint); font-weight:500; }
+.chart-grid { display:grid; grid-template-columns:3fr 2fr; gap:10px; margin-bottom:14px; }
+.chart-card { padding:14px 16px; }
+.chart-card h4 { font-size:12px; font-weight:700; letter-spacing:.06em; color:var(--text-muted); text-transform:uppercase; margin-bottom:10px; }
+.bar-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.bar-row .b-label { width:150px; flex-shrink:0; font-size:12px; color:var(--text-body); text-align:right; }
+.bar-row .b-track { flex:1; height:14px; background:#f1f5f9; border-radius:4px; overflow:hidden; }
+.bar-row .b-fill { height:100%; background:#4f46e5; border-radius:0 4px 4px 0; }
+.bar-row .b-val { width:34px; font-size:12px; font-weight:600; color:var(--text); }
+.itable { width:100%; border-collapse:collapse; font-size:13px; }
+.itable th { text-align:left; font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--text-faint); text-transform:uppercase; padding:6px 12px; border-bottom:1px solid var(--border); }
+.itable td { padding:9px 12px; border-bottom:1px solid var(--border); color:var(--text-body); }
+.itable tr:last-child td { border-bottom:none; }
+.itable td.num, .itable th.num { text-align:right; font-variant-numeric:tabular-nums; }
+.itable td b { color:var(--text); }
+
+/* Diff */
+.diff { font-family:var(--mono); font-size:12px; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; background:#fff; }
+.diff .dl { padding:4px 12px 4px 30px; position:relative; white-space:pre-wrap; line-height:1.6; color:var(--text-body); }
+.diff .dl::before { position:absolute; left:11px; font-weight:700; }
+.diff .ctx::before { content:" "; }
+.diff .del { background:var(--danger-soft); }
+.diff .del::before { content:"−"; color:var(--danger); }
+.diff .add { background:var(--success-soft); }
+.diff .add::before { content:"+"; color:var(--success); }
+.diff .hunk { background:#f8fafc; color:var(--text-faint); font-size:11px; padding:3px 12px; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+.diff .dl:first-child.hunk { border-top:none; }
+
+/* Catalog */
+.cat-sec { margin-bottom:30px; }
+.cat-sec > h3 { font-size:14px; font-weight:700; margin-bottom:2px; }
+.cat-note { font-size:12px; color:var(--text-muted); margin-bottom:10px; }
+.cat-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; padding:18px; }
+.cat-col { display:flex; flex-direction:column; gap:8px; padding:18px; }
+.swatch { width:118px; }
+.swatch .sq { height:44px; border-radius:var(--radius); border:1px solid rgba(2,6,23,.07); box-shadow:inset 0 1px 0 rgba(255,255,255,.25); }
+.swatch .sw-name { font-size:11.5px; font-weight:600; color:var(--text); margin-top:6px; line-height:1.3; }
+.swatch .sw-val { font-family:var(--mono); font-size:10.5px; color:var(--text-muted); }
+.cat-well { background:#f1f5f9; border-radius:var(--radius); padding:24px; display:flex; justify-content:center; border:1px solid var(--border); }
+.cat-well .modal { position:static; }
+
+/* Prototype jump bar */
+.proto-bar { position:fixed; bottom:14px; right:14px; z-index:99; background:#0f172a; color:#cbd5e1; border-radius:10px; padding:8px 10px; font-size:11px; display:flex; gap:4px; align-items:center; box-shadow:0 8px 24px rgba(2,6,23,.35); flex-wrap:wrap; max-width:520px; }
+.proto-bar span { color:#64748b; font-weight:700; letter-spacing:.08em; margin-right:2px; }
+.proto-bar button { background:#1e293b; color:#cbd5e1; border:none; border-radius:6px; padding:4px 9px; font-size:11px; }
+.proto-bar button:hover { background:#334155; color:#fff; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ============ Sidebar ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <img src="logo.png" alt="Nagare">
+      <div>
+        <span class="name">NAGARE</span>
+        <span class="org">Hachiware Labs</span>
+      </div>
+    </div>
+    <nav class="nav">
+      <a href="#" class="active" onclick="go('home-active');return false;" id="nav-work">ワーク <span class="dot" id="attn-dot"></span></a>
+      <a href="#" onclick="go('project-list');return false;" id="nav-project">プロジェクト</a>
+      <a href="#" onclick="go('insights');return false;" id="nav-insights">分析・改善 <span class="dot" style="background:var(--primary);" title="未対応の改善提案があります"></span></a>
+      <div class="nav-label">エージェント</div>
+      <a href="#" onclick="go('agent-list');return false;" id="nav-agent">エージェント</a>
+      <a href="#" onclick="go('knowledge-list');return false;" id="nav-knowledge">ナレッジ</a>
+      <a href="#" onclick="go('settings-skills');return false;" id="nav-skills">スキル</a>
+      <a href="#" onclick="go('settings-mcp');return false;" id="nav-mcp">MCP接続</a>
+      <a href="#" onclick="go('settings-runtime');return false;" id="nav-runtime">実行環境</a>
+      <div class="nav-label">デザイン</div>
+      <a href="#" onclick="go('catalog');return false;" id="nav-catalog">カタログ</a>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb" id="crumb"><b>ワーク</b></div>
+      <div class="spacer"></div>
+      <span class="badge badge-neutral" id="proj-badge">プロジェクト未設定</span>
+    </div>
+    <div class="content"><div class="content-inner">
+
+    <!-- ============ SCREEN: 空状態ホーム ============ -->
+    <section class="screen" id="scr-home-empty">
+      <div class="hero-empty">
+        <img src="logo.png" alt="">
+        <h2>依頼を書くだけで、AIが作業を進めます</h2>
+        <p>Nagare は依頼を受け取り、適切なAIエージェントに割り当てて実行し、品質基準でレビューします。あなたの判断が必要なときだけ、質問と確認が届きます。</p>
+        <div class="flow-model">
+          <div class="flow-step">
+            <div class="fs-icon">✍️</div>
+            <div class="fs-name">依頼</div>
+            <div class="fs-desc">自然文で書く</div>
+          </div>
+          <div class="flow-step">
+            <div class="fs-icon">🧭</div>
+            <div class="fs-name">整理</div>
+            <div class="fs-desc">担当と基準を自動で選ぶ</div>
+          </div>
+          <div class="flow-step">
+            <div class="fs-icon">⚙️</div>
+            <div class="fs-name">実行</div>
+            <div class="fs-desc">エージェントが作業</div>
+          </div>
+          <div class="flow-step">
+            <div class="fs-icon">📋</div>
+            <div class="fs-name">レビュー</div>
+            <div class="fs-desc">ルーブリックで検証</div>
+          </div>
+          <div class="flow-step human">
+            <div class="fs-icon">👤</div>
+            <div class="fs-name">確認</div>
+            <div class="fs-desc">あなたが承認</div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="openModal('m-setup1')">セットアップを開始</button>
+        <p style="font-size:12px; color:var(--text-faint); margin-top:12px;">必要なのはプロジェクトと実行環境の2つだけ。約1分で完了します。</p>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN: ワークホーム ============ -->
+    <section class="screen" id="scr-home-active">
+      <div class="group-head" style="margin-top:0;"><h3>新規ワーク依頼</h3></div>
+      <div class="ask-box">
+        <textarea placeholder="依頼を書いてください。例: リリースノート v0.4 の下書きを作成して"></textarea>
+        <div class="ask-foot">
+          <div class="dd" id="dd-ask-proj">
+            <button class="dd-btn" onclick="ddToggle('dd-ask-proj');event.stopPropagation();"><span class="dd-pre">プロジェクト:</span> <b id="dd-ask-proj-val">🌊 Nagare UI 刷新</b><span class="chev"></span></button>
+            <div class="dd-menu">
+              <button class="dd-item active" onclick="ddPick('dd-ask-proj','p1','🌊 Nagare UI 刷新',this)">🌊 Nagare UI 刷新<span class="chk">✓</span></button>
+              <button class="dd-item" onclick="ddPick('dd-ask-proj','p2','🗂️ 社内ドキュメント',this)">🗂️ 社内ドキュメント<span class="chk">✓</span></button>
+            </div>
+          </div>
+          <span style="font-size:12px; color:var(--text-muted);">担当: 自動で選択</span>
+          <div style="flex:1"></div>
+          <button class="btn btn-primary" onclick="go('confirm')">内容を確認して開始</button>
+        </div>
+      </div>
+
+      <div class="filters">
+        <div class="dd" id="dd-status">
+          <button class="dd-btn" onclick="ddToggle('dd-status');event.stopPropagation();"><span class="dd-pre">状態:</span> <b id="dd-status-val">すべて</b><span class="chev"></span></button>
+          <div class="dd-menu">
+            <button class="dd-item active" onclick="ddPick('dd-status','all','すべて',this)">すべて<span class="dd-count">6</span><span class="chk">✓</span></button>
+            <button class="dd-item" onclick="ddPick('dd-status','attn','要対応',this)">要対応<span class="dd-count">3</span><span class="chk">✓</span></button>
+            <button class="dd-item" onclick="ddPick('dd-status','run','処理中',this)">処理中<span class="dd-count">1</span><span class="chk">✓</span></button>
+            <button class="dd-item" onclick="ddPick('dd-status','done','完了済み',this)">完了済み<span class="dd-count">2</span><span class="chk">✓</span></button>
+          </div>
+        </div>
+        <div class="dd" id="dd-project">
+          <button class="dd-btn" onclick="ddToggle('dd-project');event.stopPropagation();"><span class="dd-pre">プロジェクト:</span> <b id="dd-project-val">すべて</b><span class="chev"></span></button>
+          <div class="dd-menu">
+            <button class="dd-item active" onclick="ddPick('dd-project','all','すべて',this)">すべて<span class="chk">✓</span></button>
+            <button class="dd-item" onclick="ddPick('dd-project','p1','🌊 Nagare UI 刷新',this)">🌊 Nagare UI 刷新<span class="chk">✓</span></button>
+            <button class="dd-item" onclick="ddPick('dd-project','p2','🗂️ 社内ドキュメント',this)">🗂️ 社内ドキュメント<span class="chk">✓</span></button>
+          </div>
+        </div>
+        <span style="flex:1"></span>
+        <span class="filter-result" id="filter-result">6件を表示</span>
+      </div>
+
+      <div class="list" id="work-list">
+        <div class="list-item work-item attn" data-status="attn" data-project="p1" onclick="go('detail-review')">
+          <div class="wr-picon">🌊</div>
+          <div class="wr-body">
+            <div class="wr-title">リリースノート v0.4 の下書きを作成<span class="wr-projtag">Nagare UI 刷新</span></div>
+            <div class="wr-sum">レビュー完了 — 評価 88点・懸念1件。docs/release-notes/v0.4.md を生成済み</div>
+          </div>
+          <div class="wr-side">
+            <span class="badge badge-ask"><span class="bdot"></span>要対応・確認</span>
+            <span class="wr-next">次: 結果を確認して採用</span>
+          </div>
+        </div>
+        <div class="list-item work-item attn" data-status="attn" data-project="p1" onclick="go('detail-question')">
+          <div class="wr-picon">🌊</div>
+          <div class="wr-body">
+            <div class="wr-title">APIエラーコード一覧の整理<span class="wr-projtag">Nagare UI 刷新</span></div>
+            <div class="wr-sum">作成エージェントから質問が1件届いています</div>
+          </div>
+          <div class="wr-side">
+            <span class="badge badge-ask"><span class="bdot"></span>要対応・質問</span>
+            <span class="wr-next">次: 質問に回答</span>
+          </div>
+        </div>
+        <div class="list-item work-item attn-fix" data-status="attn" data-project="p1" onclick="go('detail-recover')">
+          <div class="wr-picon">🌊</div>
+          <div class="wr-body">
+            <div class="wr-title">依存パッケージの更新確認<span class="wr-projtag">Nagare UI 刷新</span></div>
+            <div class="wr-sum">実行環境への接続に失敗しました。回復案を選べます</div>
+          </div>
+          <div class="wr-side">
+            <span class="badge badge-fix"><span class="bdot"></span>要対応・回復</span>
+            <span class="wr-next">次: 回復方法を選択</span>
+          </div>
+        </div>
+        <div class="list-item work-item" data-status="run" data-project="p1" onclick="go('detail-running')">
+          <div class="wr-picon">🌊</div>
+          <div class="wr-body">
+            <div class="wr-title">画面フロー図の更新<span class="wr-projtag">Nagare UI 刷新</span></div>
+            <div class="wr-sum">作成中 — Writer が docs/design-assets/flow.svg を編集しています (工程 2/4)</div>
+          </div>
+          <div class="wr-side">
+            <span class="badge badge-run"><span class="bdot"></span>処理中</span>
+            <span class="wr-next">操作は不要です</span>
+          </div>
+        </div>
+        <div class="list-item work-item" data-status="done" data-project="p2" onclick="go('detail-done')">
+          <div class="wr-picon">🗂️</div>
+          <div class="wr-body">
+            <div class="wr-title">議事録テンプレートの整備<span class="wr-projtag">社内ドキュメント</span></div>
+            <div class="wr-sum">回答: 会議種別ごとのテンプレート3種を作成しました (評価 90点)</div>
+          </div>
+          <div class="wr-side">
+            <span class="badge badge-done">✓ 完了</span>
+            <span class="wr-next">今日 10:02</span>
+          </div>
+        </div>
+        <div class="list-item work-item" data-status="done" data-project="p1" onclick="go('detail-done')">
+          <div class="wr-picon">🌊</div>
+          <div class="wr-body">
+            <div class="wr-title">READMEの英訳<span class="wr-projtag">Nagare UI 刷新</span></div>
+            <div class="wr-sum">回答: README_en.md を作成し、10セクションを翻訳しました (評価 92点)</div>
+          </div>
+          <div class="wr-side">
+            <span class="badge badge-done">✓ 完了</span>
+            <span class="wr-next">昨日 16:24</span>
+          </div>
+        </div>
+        <div class="list-empty" id="work-empty" style="display:none;">条件に一致するワークはありません</div>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN: 開始確認 ============ -->
+    <section class="screen" id="scr-confirm">
+      <h2 class="page-title">この内容で作業を開始します</h2>
+      <p class="page-sub">開始前に、担当とレビュー基準を確認できます。あとから詳細画面でも確認できます。</p>
+      <div class="confirm-grid">
+        <div class="card confirm-sec">
+          <h4>依頼内容</h4>
+          <p style="color:var(--text); font-size:14.5px;">リリースノート v0.4 の下書きを作成して</p>
+          <div class="kv" style="margin-top:8px;"><div class="k">プロジェクト</div><div class="v">Nagare UI 刷新</div></div>
+          <div class="kv"><div class="k">成果物の種類</div><div class="v">リリースノート <span class="chip k" style="margin-left:6px;">リリースノート テンプレート</span></div></div>
+        </div>
+        <div class="card confirm-sec">
+          <h4>実行体制(自動で選択済み)</h4>
+          <div class="kv"><div class="k">整理</div><div class="v">オーガナイザー(内蔵) — 依頼の構造化と担当割り当て</div></div>
+          <div class="kv"><div class="k">作成</div><div class="v"><b>Writer</b> — 得意分野「ドキュメント作成」がドメイン「プロダクト文書」に一致</div></div>
+          <div class="kv"><div class="k">レビュー</div><div class="v"><b>Reviewer</b> — ルーブリック「リリースノート品質 v2」(6項目)で検証</div></div>
+          <div class="kv"><div class="k">実行環境</div><div class="v">Claude Code <span class="badge badge-done" style="margin-left:4px;">接続済み</span></div></div>
+        </div>
+        <div class="card confirm-sec">
+          <h4>確認ポリシー</h4>
+          <div class="policy-opts">
+            <div class="policy sel" onclick="selPolicy(this)">
+              <div class="p-name">最後に確認する</div>
+              <div class="p-desc">採用前に必ずあなたが確認します</div>
+            </div>
+            <div class="policy" onclick="selPolicy(this)">
+              <div class="p-name">重要時のみ確認</div>
+              <div class="p-desc">懸念がある場合だけ確認します</div>
+            </div>
+            <div class="policy" onclick="selPolicy(this)">
+              <div class="p-name">自動採用</div>
+              <div class="p-desc">レビュー合格なら自動で採用します</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button class="btn btn-secondary" onclick="go('home-active')">戻る</button>
+          <button class="btn btn-primary" onclick="go('detail-running')">作業を開始</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN: ワーク詳細 — 処理中 ============ -->
+    <section class="screen" id="scr-detail-running">
+      <div class="detail-head">
+        <h2>画面フロー図の更新</h2>
+        <span class="badge badge-run"><span class="bdot"></span>処理中</span>
+      </div>
+      <div class="card status-strip">
+        <div class="ss-main">
+          <div class="ss-now">いま: Writer が図の作成を実行中です</div>
+          <div class="ss-next">次: 完成後、Reviewer がルーブリックで検証します。あなたの操作は不要です</div>
+        </div>
+        <div class="ss-prog">工程 2 / 4<br>経過 3分12秒</div>
+      </div>
+      <div class="trace">
+        <div class="step done">
+          <div class="card step-card">
+            <div class="step-top">
+              <span class="st-name">1. 受付・整理</span>
+              <span class="st-agent">担当: <span class="mini-av-emoji">🧭</span><b>オーガナイザー(内蔵)</b></span>
+              <span class="st-state badge badge-done">✓ 完了</span>
+            </div>
+            <div class="step-why"><b>割り当ての根拠:</b> 依頼を「図の更新」と判定 → ドメイン「プロダクト文書」/ 成果物種別「フロー図」に割り当て。Writer を選択(得意分野: ドキュメント作成・図解)</div>
+            <div class="step-io">
+              <div class="io-row"><span class="io-k">入力</span><span class="io-v">依頼本文、プロジェクト文脈</span></div>
+              <div class="io-row"><span class="io-k">出力</span><span class="io-v">構造化された依頼、実行計画(4工程)、担当割り当て</span></div>
+            </div>
+            <div class="step-know"><span class="sk-label">使用した知識:</span><span class="chip k">プロダクト文書・共通知識</span><span class="chip k">フロー図の記法ルール</span></div>
+          </div>
+        </div>
+        <div class="step now">
+          <div class="card step-card">
+            <div class="step-top">
+              <span class="st-name">2. 作成</span>
+              <span class="st-agent">担当: <img class="mini-av" src="avatars/writer.svg" alt=""><b>Writer</b></span>
+              <span class="st-state badge badge-run"><span class="bdot"></span>実行中</span>
+            </div>
+            <div class="step-io">
+              <div class="io-row"><span class="io-k">入力</span><span class="io-v">構造化依頼、知識2件、既存の flow.svg</span></div>
+              <div class="io-row"><span class="io-k">実行中</span><span class="io-v">docs/design-assets/flow.svg を編集中 — 新しいセットアップ手順を反映</span></div>
+            </div>
+            <div class="step-know"><span class="sk-label">使用中の知識:</span><span class="chip k">フロー図の記法ルール</span></div>
+            <div class="step-detail-link"><a href="#" onclick="return false;">実行の詳細ログを開く(診断)</a></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="card step-card">
+            <div class="step-top">
+              <span class="st-name">3. レビュー</span>
+              <span class="st-agent">担当: <img class="mini-av" src="avatars/reviewer.svg" alt=""><b>Reviewer</b> — ルーブリック「図表品質 v1」</span>
+              <span class="st-state badge badge-neutral">待機</span>
+            </div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="card step-card">
+            <div class="step-top">
+              <span class="st-name">4. あなたの確認</span>
+              <span class="st-agent">確認ポリシー: 最後に確認する</span>
+              <span class="st-state badge badge-neutral">待機</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN: ワーク詳細 — 質問 ============ -->
+    <section class="screen" id="scr-detail-question">
+      <div class="detail-head">
+        <h2>APIエラーコード一覧の整理</h2>
+        <span class="badge badge-ask"><span class="bdot"></span>要対応・質問</span>
+      </div>
+      <div class="card status-strip strip-warn">
+        <div class="ss-main">
+          <div class="ss-now">Writer から質問が届いています</div>
+          <div class="ss-next">回答すると、この作業だけが再開されます。他の作業には影響しません</div>
+        </div>
+        <div class="ss-prog">工程 2 / 4<br>停止中</div>
+      </div>
+
+      <div class="group-head" style="margin-top:18px;"><h3>質問に回答</h3><span class="count">質問者: Writer(工程 2: 作成)</span></div>
+      <div class="action-panel" style="margin-top:0;">
+        <div class="q-body">エラーコード一覧の並び順は、番号順とカテゴリ順のどちらにしますか?既存の docs/api.md では混在しています。</div>
+        <label class="opt sel"><input type="radio" name="q1" checked>
+          <div><div class="o-name">カテゴリ順</div><div class="o-desc">認証 / リクエスト / サーバ内部 などの分類ごとにまとめる</div></div>
+        </label>
+        <label class="opt"><input type="radio" name="q1">
+          <div><div class="o-name">番号順</div><div class="o-desc">コード番号の昇順に単純に並べる</div></div>
+        </label>
+        <div class="field" style="margin:10px 0 12px;">
+          <textarea placeholder="補足があれば書いてください(任意)" style="min-height:48px;"></textarea>
+        </div>
+        <button class="btn btn-primary" onclick="go('detail-running')">回答して再開</button>
+      </div>
+
+      <div class="group-head" style="margin-top:24px;"><h3>実行の流れ</h3><span class="count">4工程 · 行をクリックで詳細</span></div>
+      <div class="trace">
+        <div class="step done">
+          <div class="card step-card">
+            <div class="step-top st-click" onclick="this.closest('.step').classList.toggle('open')">
+              <span class="st-name">1. 受付・整理</span>
+              <span class="st-agent">担当: <span class="mini-av-emoji">🧭</span><b>オーガナイザー(内蔵)</b></span>
+              <span class="st-state badge badge-done">✓ 完了</span><span class="st-toggle">▾</span>
+            </div>
+            <div class="step-body">
+              <div class="step-why"><b>割り当ての根拠:</b> 依頼を「文書整理」と判定 → ドメイン「プロダクト文書」。Writer を選択(得意分野: ドキュメント作成)</div>
+              <div class="step-know"><span class="sk-label">使用した知識:</span><span class="chip k">プロダクト文書・共通知識</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="step wait">
+          <div class="card step-card">
+            <div class="step-top st-click" onclick="this.closest('.step').classList.toggle('open')">
+              <span class="st-name">2. 作成</span>
+              <span class="st-agent">担当: <img class="mini-av" src="avatars/writer.svg" alt=""><b>Writer</b> — 上の質問に回答すると再開します</span>
+              <span class="st-state badge badge-ask"><span class="bdot"></span>回答待ち</span><span class="st-toggle">▾</span>
+            </div>
+            <div class="step-body">
+              <div class="step-io">
+                <div class="io-row"><span class="io-k">入力</span><span class="io-v">構造化依頼、既存の docs/api.md</span></div>
+                <div class="io-row"><span class="io-k">実行中</span><span class="io-v">エラーコード48件を抽出済み。並び順の判断で停止中</span></div>
+              </div>
+              <div class="step-detail-link"><a href="#" onclick="return false;">実行の詳細ログを開く(診断)</a></div>
+            </div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="card step-card">
+            <div class="step-top"><span class="st-name">3. レビュー</span><span class="st-agent">担当: <img class="mini-av" src="avatars/reviewer.svg" alt=""><b>Reviewer</b></span><span class="st-state badge badge-neutral">待機</span></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="card step-card">
+            <div class="step-top"><span class="st-name">4. あなたの確認</span><span class="st-agent">確認ポリシー: 最後に確認する</span><span class="st-state badge badge-neutral">待機</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN: ワーク詳細 — 回復 ============ -->
+    <section class="screen" id="scr-detail-recover">
+      <div class="detail-head">
+        <h2>依存パッケージの更新確認</h2>
+        <span class="badge badge-fix"><span class="bdot"></span>要対応・回復</span>
+      </div>
+      <div class="card status-strip strip-danger">
+        <div class="ss-main">
+          <div class="ss-now">実行環境への接続に失敗し、作業が停止しました</div>
+          <div class="ss-next">回復案を選ぶと、途中の成果を引き継いで再開します</div>
+        </div>
+        <div class="ss-prog">工程 2 / 4<br>停止中</div>
+      </div>
+
+      <div class="group-head" style="margin-top:18px;"><h3>回復方法を選ぶ</h3><span class="count">失敗箇所: 工程 2(作成 · Coder)</span></div>
+      <div class="action-panel recover-panel" style="margin-top:0;">
+        <div class="q-body">
+          <b>原因:</b> 実行環境 Claude Code が応答しませんでした(タイムアウト 60秒)。<br>
+          <b>影響:</b> パッケージ一覧の取得は完了済み。更新可否の判定が未実行です。<br>
+          <b>引き継ぎ:</b> 取得済みの一覧(23件)は保存されており、再開時に再利用されます。
+        </div>
+        <label class="opt sel"><input type="radio" name="r1" checked>
+          <div><div class="o-name">再接続して続きから再開(推奨)</div><div class="o-desc">同じ実行環境に再接続し、工程2の途中から再開します</div></div>
+        </label>
+        <label class="opt"><input type="radio" name="r1">
+          <div><div class="o-name">別の実行環境で再実行</div><div class="o-desc">Codex CLI に切り替えて工程2をやり直します</div></div>
+        </label>
+        <div style="display:flex; gap:8px; margin-top:12px;">
+          <button class="btn btn-primary" onclick="go('detail-running')">この方法で再開</button>
+          <button class="btn btn-secondary btn-sm" style="align-self:center;" onclick="go('settings-runtime')">実行環境の設定を開く</button>
+          <span style="flex:1"></span>
+          <button class="btn btn-ghost btn-sm">ログ要約を見る(診断)</button>
+        </div>
+      </div>
+
+      <div class="group-head" style="margin-top:24px;"><h3>実行の流れ</h3><span class="count">3工程 · 行をクリックで詳細</span></div>
+      <div class="trace">
+        <div class="step done">
+          <div class="card step-card">
+            <div class="step-top"><span class="st-name">1. 受付・整理</span><span class="st-agent">担当: <span class="mini-av-emoji">🧭</span><b>オーガナイザー(内蔵)</b></span><span class="st-state badge badge-done">✓ 完了</span></div>
+          </div>
+        </div>
+        <div class="step fail">
+          <div class="card step-card">
+            <div class="step-top st-click" onclick="this.closest('.step').classList.toggle('open')">
+              <span class="st-name">2. 作成</span>
+              <span class="st-agent">担当: <img class="mini-av" src="avatars/coder.svg" alt=""><b>Coder</b> — 上の回復方法を選ぶと再開します</span>
+              <span class="st-state badge badge-fix"><span class="bdot"></span>失敗</span><span class="st-toggle">▾</span>
+            </div>
+            <div class="step-body">
+              <div class="step-io">
+                <div class="io-row"><span class="io-k">入力</span><span class="io-v">package.json、ロックファイル</span></div>
+                <div class="io-row"><span class="io-k">完了分</span><span class="io-v">パッケージ一覧の取得(23件 · 保存済み)</span></div>
+                <div class="io-row"><span class="io-k">未実行</span><span class="io-v">更新可否の判定</span></div>
+              </div>
+              <div class="step-detail-link"><a href="#" onclick="return false;">失敗時のログ要約を開く(診断)</a></div>
+            </div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="card step-card">
+            <div class="step-top"><span class="st-name">3. レビュー</span><span class="st-agent">担当: <img class="mini-av" src="avatars/reviewer.svg" alt=""><b>Reviewer</b></span><span class="st-state badge badge-neutral">待機</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN: ワーク詳細 — 確認(結果+レビュー+実行の流れを1画面に) ============ -->
+    <section class="screen" id="scr-detail-review">
+      <div class="detail-head">
+        <h2>リリースノート v0.4 の下書きを作成</h2>
+        <span class="badge badge-ask"><span class="bdot"></span>要対応・確認</span>
+      </div>
+
+      <div class="card status-strip strip-warn">
+        <div class="ss-main">
+          <div class="ss-now">レビューが完了し、あなたの確認待ちです</div>
+          <div class="ss-next">下の結果を確認して、採用するか、コメントを付けて差し戻してください</div>
+        </div>
+        <div class="ss-prog">工程 4 / 4<br>所要 11分</div>
+      </div>
+
+      <div class="group-head" style="margin-top:18px;"><h3>結果</h3></div>
+      <div class="card answer-box" style="margin-bottom:8px;">
+        <div class="ab-label">回答</div>
+        <p>リリースノート v0.4 の下書きを作成しました。新機能5件・修正7件・破壊的変更1件を記載し、テンプレートの構成に合わせています。内部用語が2箇所残っているため、確認をお願いします。</p>
+      </div>
+      <div class="artifact-row">
+        <div class="a-icon">📄</div>
+        <div style="flex:1;">
+          <div class="a-path">docs/release-notes/v0.4.md</div>
+          <div class="a-meta">新規作成 · 214行 · Writer が生成</div>
+        </div>
+        <button class="btn btn-secondary btn-sm">内容を見る</button>
+      </div>
+      <div class="card" style="padding:13px 16px; margin-top:8px;">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span class="badge badge-done">88 / 100</span>
+          <span style="font-size:13px; color:var(--text-body); flex:1;">承認を推奨 — 懸念1件(読者向けの言い換え) · ルーブリック「リリースノート品質 v2」 · 評価: Reviewer</span>
+          <button class="btn btn-ghost btn-sm" id="rubric-fold-btn" onclick="toggleRubric()">項目別の判定を開く ▾</button>
+        </div>
+        <div id="rubric-fold" style="display:none; margin-top:12px;">
+          <div class="rubric-item pass">
+            <div class="ri-mark">✓</div>
+            <div style="flex:1;">
+              <div class="ri-name">変更点の網羅性</div>
+              <div class="ri-evi">根拠: v0.3以降のコミット12件すべてに対応する記載を確認 — <a href="#" onclick="return false;">対応表を見る</a></div>
+            </div>
+            <div class="ri-score">20 / 20</div>
+          </div>
+          <div class="rubric-item pass">
+            <div class="ri-mark">✓</div>
+            <div style="flex:1;">
+              <div class="ri-name">破壊的変更の明記</div>
+              <div class="ri-evi">根拠: 設定ファイル形式の変更を「Breaking Changes」節に記載、移行手順あり</div>
+            </div>
+            <div class="ri-score">20 / 20</div>
+          </div>
+          <div class="rubric-item warn">
+            <div class="ri-mark">!</div>
+            <div style="flex:1;">
+              <div class="ri-name">読者向けの言い換え</div>
+              <div class="ri-evi">懸念: 内部用語が2箇所残っています(「dispatch hint」「AgentRun」)。ユーザー向けの言葉への置き換えを推奨 — <a href="#" onclick="return false;">該当箇所を見る</a></div>
+            </div>
+            <div class="ri-score">8 / 20</div>
+          </div>
+          <div class="rubric-item pass">
+            <div class="ri-mark">✓</div>
+            <div style="flex:1;">
+              <div class="ri-name">形式の準拠</div>
+              <div class="ri-evi">根拠: 知識「リリースノート テンプレート」の見出し構成と一致</div>
+            </div>
+            <div class="ri-score">15 / 15</div>
+          </div>
+          <div class="rubric-item pass">
+            <div class="ri-mark">✓</div>
+            <div style="flex:1;">
+              <div class="ri-name">リンクの有効性</div>
+              <div class="ri-evi">根拠: 文中リンク6件すべて到達可能</div>
+            </div>
+            <div class="ri-score">15 / 15</div>
+          </div>
+          <div class="rubric-item pass">
+            <div class="ri-mark">✓</div>
+            <div style="flex:1;">
+              <div class="ri-name">日付・バージョン整合</div>
+              <div class="ri-evi">根拠: package.json のバージョンとリリース日付が一致</div>
+            </div>
+            <div class="ri-score">10 / 10</div>
+          </div>
+          <p style="font-size:12px; color:var(--text-faint); margin-top:8px;">このルーブリックはドメイン「プロダクト文書」で共有されています。繰り返し出る懸念は改善提案として記録されます — <a href="#" onclick="go('knowledge-rubric');return false;" style="color:var(--primary);">ルーブリックを編集</a></p>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px;">
+        <button class="btn btn-danger-soft" onclick="openModal('m-reject')">コメントを付けて差し戻す</button>
+        <button class="btn btn-primary" onclick="openModal('m-approve')">この結果を採用する</button>
+      </div>
+
+      <div class="group-head" style="margin-top:26px;"><h3>実行の流れ</h3><span class="count">4工程 · 行をクリックで詳細</span></div>
+      <div class="trace">
+        <div class="step done">
+          <div class="card step-card">
+            <div class="step-top st-click" onclick="this.closest('.step').classList.toggle('open')">
+              <span class="st-name">1. 受付・整理</span>
+              <span class="st-agent">担当: <span class="mini-av-emoji">🧭</span><b>オーガナイザー(内蔵)</b></span>
+              <span class="st-state badge badge-done">✓ 完了</span><span class="st-toggle">▾</span>
+            </div>
+            <div class="step-body">
+              <div class="step-why"><b>割り当ての根拠:</b> 依頼を「文書作成」と判定 → ドメイン「プロダクト文書」/ 成果物種別「リリースノート」に割り当て。Writer を選択(得意分野: ドキュメント作成)</div>
+              <div class="step-io">
+                <div class="io-row"><span class="io-k">入力</span><span class="io-v">依頼本文、プロジェクト文脈</span></div>
+                <div class="io-row"><span class="io-k">出力</span><span class="io-v">構造化された依頼、実行計画(4工程)、担当割り当て</span></div>
+              </div>
+              <div class="step-know"><span class="sk-label">使用した知識:</span><span class="chip k">プロダクト文書・共通知識</span><span class="chip k">リリースノート テンプレート</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="step done">
+          <div class="card step-card">
+            <div class="step-top st-click" onclick="this.closest('.step').classList.toggle('open')">
+              <span class="st-name">2. 作成</span>
+              <span class="st-agent">担当: <img class="mini-av" src="avatars/writer.svg" alt=""><b>Writer</b></span>
+              <span class="st-state badge badge-done">✓ 完了</span><span class="st-toggle">▾</span>
+            </div>
+            <div class="step-body">
+              <div class="step-io">
+                <div class="io-row"><span class="io-k">入力</span><span class="io-v">構造化依頼、知識2件、コミット履歴(GitHub MCP)</span></div>
+                <div class="io-row"><span class="io-k">出力</span><span class="io-v">docs/release-notes/v0.4.md(新規 · 214行)</span></div>
+              </div>
+              <div class="step-know"><span class="sk-label">使用した知識:</span><span class="chip k">リリースノート テンプレート</span><span class="chip k">プロダクト用語集</span></div>
+              <div class="step-detail-link"><a href="#" onclick="return false;">実行の詳細ログを開く(診断)</a></div>
+            </div>
+          </div>
+        </div>
+        <div class="step done">
+          <div class="card step-card">
+            <div class="step-top st-click" onclick="this.closest('.step').classList.toggle('open')">
+              <span class="st-name">3. レビュー</span>
+              <span class="st-agent">担当: <img class="mini-av" src="avatars/reviewer.svg" alt=""><b>Reviewer</b> — ルーブリック「リリースノート品質 v2」</span>
+              <span class="st-state badge badge-done">✓ 88点</span><span class="st-toggle">▾</span>
+            </div>
+            <div class="mini-rubric">
+              <div class="mr-row"><span class="mr-mark">✓</span><span class="mr-name">変更点の網羅性</span><span class="mr-evi">v0.3以降のコミット12件すべてに対応する記載を確認</span><span class="mr-score">20 / 20</span></div>
+              <div class="mr-row"><span class="mr-mark">✓</span><span class="mr-name">破壊的変更の明記</span><span class="mr-evi">「Breaking Changes」節に分離、移行手順あり</span><span class="mr-score">20 / 20</span></div>
+              <div class="mr-row warn"><span class="mr-mark">!</span><span class="mr-name">読者向けの言い換え</span><span class="mr-evi">内部用語が2箇所(「dispatch hint」「AgentRun」)。共通知識「プロダクト用語集」に定訳があるため、置き換えを推奨</span><span class="mr-score">8 / 20</span></div>
+              <div class="mr-row"><span class="mr-mark">✓</span><span class="mr-name">形式の準拠</span><span class="mr-evi">知識「リリースノート テンプレート」の見出し構成と一致</span><span class="mr-score">15 / 15</span></div>
+              <div class="mr-row"><span class="mr-mark">✓</span><span class="mr-name">リンクの有効性</span><span class="mr-evi">文中リンク6件すべて到達可能</span><span class="mr-score">15 / 15</span></div>
+              <div class="mr-row"><span class="mr-mark">✓</span><span class="mr-name">日付・バージョン整合</span><span class="mr-evi">package.json のバージョンとリリース日付が一致</span><span class="mr-score">10 / 10</span></div>
+            </div>
+            <div class="step-body">
+              <div class="step-io">
+                <div class="io-row"><span class="io-k">入力</span><span class="io-v">生成された v0.4.md、ルーブリック6項目、知識2件</span></div>
+                <div class="io-row"><span class="io-k">出力</span><span class="io-v">項目別判定(合格5・懸念1)、総合88点、承認推奨</span></div>
+              </div>
+              <div class="step-detail-link">判定の内訳は上の「結果」セクションで確認できます</div>
+            </div>
+          </div>
+        </div>
+        <div class="step wait">
+          <div class="card step-card">
+            <div class="step-top">
+              <span class="st-name">4. あなたの確認</span>
+              <span class="st-agent">確認ポリシー: 最後に確認する</span>
+              <span class="st-state badge badge-ask"><span class="bdot"></span>確認待ち</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p style="font-size:12px; color:var(--text-faint); margin-top:10px;">診断情報(生ログ・内部ID・完全なprovenance)は、各工程の「詳細ログ」から明示的に開きます</p>
+    </section>
+
+    <!-- ============ SCREEN: ワーク詳細 — 完了 ============ -->
+    <section class="screen" id="scr-detail-done">
+      <div class="detail-head">
+        <h2>READMEの英訳</h2>
+        <span class="badge badge-done">✓ 完了</span>
+      </div>
+      <div class="card status-strip strip-ok">
+        <div class="ss-main">
+          <div class="ss-now">この作業は完了し、結果は採用済みです</div>
+          <div class="ss-next">昨日 16:24 に承認されました · 所要 14分 · 4工程</div>
+        </div>
+      </div>
+      <div class="card answer-box" style="margin-bottom:14px;">
+        <div class="ab-label">最終サマリー</div>
+        <p>README_en.md を作成し、10セクションを翻訳しました。用語集「プロダクト用語(EN)」に沿って表記を統一しています。レビュー評価 92点で承認されました。</p>
+      </div>
+      <div class="artifact-row">
+        <div class="a-icon">📄</div>
+        <div style="flex:1;">
+          <div class="a-path">README_en.md</div>
+          <div class="a-meta">新規作成 · 186行 · 採用済み</div>
+        </div>
+        <button class="btn btn-secondary btn-sm">内容を見る</button>
+      </div>
+      <div class="card" style="padding:13px 16px; margin-top:8px; display:flex; align-items:center; gap:12px;">
+        <span class="badge badge-done">92 / 100</span>
+        <span style="font-size:13px; color:var(--text-body); flex:1;">全項目合格 · ルーブリック「README品質 v1」 · 評価: Reviewer</span>
+      </div>
+
+      <div class="group-head" style="margin-top:24px;"><h3>実行の流れ</h3><span class="count">4工程 · 所要 14分</span></div>
+      <div class="trace">
+        <div class="step done">
+          <div class="card step-card">
+            <div class="step-top"><span class="st-name">1. 受付・整理</span><span class="st-agent">担当: <span class="mini-av-emoji">🧭</span><b>オーガナイザー(内蔵)</b></span><span class="st-state badge badge-done">✓ 完了</span></div>
+          </div>
+        </div>
+        <div class="step done">
+          <div class="card step-card">
+            <div class="step-top"><span class="st-name">2. 作成</span><span class="st-agent">担当: <img class="mini-av" src="avatars/writer.svg" alt=""><b>Writer</b> · README_en.md を生成</span><span class="st-state badge badge-done">✓ 完了</span></div>
+          </div>
+        </div>
+        <div class="step done">
+          <div class="card step-card">
+            <div class="step-top"><span class="st-name">3. レビュー</span><span class="st-agent">担当: <img class="mini-av" src="avatars/reviewer.svg" alt=""><b>Reviewer</b> — 全項目合格</span><span class="st-state badge badge-done">✓ 92点</span></div>
+          </div>
+        </div>
+        <div class="step done">
+          <div class="card step-card">
+            <div class="step-top"><span class="st-name">4. あなたの確認</span><span class="st-agent">昨日 16:24 に承認</span><span class="st-state badge badge-done">✓ 採用</span></div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:16px;">
+        <button class="btn btn-secondary" onclick="go('home-active')">ワーク一覧へ戻る</button>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN: プロジェクト一覧 ============ -->
+    <section class="screen" id="scr-project-list">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <h2 class="page-title" style="margin-bottom:0;">プロジェクト</h2>
+        <span style="flex:1"></span>
+        <button class="btn btn-primary" onclick="openModal('m-proj-create')">新規プロジェクト</button>
+      </div>
+      <p class="page-sub" style="margin-top:4px;">作業フォルダごとに、参加エージェントと知識の範囲を持ちます</p>
+      <div class="list">
+        <div class="list-item" onclick="go('project-settings')">
+          <div class="li-icon">🌊</div>
+          <div style="flex:1;">
+            <div class="li-title">Nagare UI 刷新</div>
+            <div class="li-desc mono" style="font-size:11.5px;">C:\work\nagare</div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+            <span style="font-size:12px; color:var(--text-muted);">エージェント 3 · ドメイン 1</span>
+            <span class="wr-next">要対応 3件 · 処理中 1件</span>
+          </div>
+          <span class="li-chev">›</span>
+        </div>
+        <div class="list-item" onclick="go('project-settings')">
+          <div class="li-icon">🗂️</div>
+          <div style="flex:1;">
+            <div class="li-title">社内ドキュメント</div>
+            <div class="li-desc mono" style="font-size:11.5px;">C:\docs\internal</div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+            <span style="font-size:12px; color:var(--text-muted);">エージェント 2 · ドメイン 1</span>
+            <span class="wr-next">完了 1件</span>
+          </div>
+          <span class="li-chev">›</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN: プロジェクト設定 ============ -->
+    <section class="screen" id="scr-project-settings">
+      <div class="detail-head">
+        <div>
+          <h2>Nagare UI 刷新</h2>
+          <div class="mono" style="font-size:12px; color:var(--text-muted); margin-top:2px;">C:\work\nagare</div>
+        </div>
+        <span style="flex:1"></span>
+        <button class="btn btn-secondary btn-sm" onclick="go('project-list')">← プロジェクト一覧</button>
+      </div>
+      <div class="confirm-grid">
+        <div class="card confirm-sec">
+          <h4>基本情報</h4>
+          <div class="field">
+            <label>アイコン</label>
+            <div class="icon-pick">
+              <div class="icon-opt sel" onclick="selIcon(this)">🌊</div>
+              <div class="icon-opt" onclick="selIcon(this)">📘</div>
+              <div class="icon-opt" onclick="selIcon(this)">🗂️</div>
+              <div class="icon-opt" onclick="selIcon(this)">🚀</div>
+              <div class="icon-opt" onclick="selIcon(this)">🧪</div>
+              <div class="icon-opt" onclick="selIcon(this)">📦</div>
+              <div class="icon-opt" onclick="selIcon(this)">✍️</div>
+              <div class="icon-opt" onclick="selIcon(this)">⚙️</div>
+            </div>
+            <div class="hint">ワーク一覧やプロジェクト一覧で、このプロジェクトの目印になります</div>
+          </div>
+          <div class="field">
+            <label>プロジェクト名</label>
+            <input type="text" value="Nagare UI 刷新">
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>対象フォルダ</label>
+            <div style="display:flex; gap:8px;">
+              <input type="text" value="C:\work\nagare" class="mono" style="flex:1;">
+              <button class="btn btn-secondary">選択…</button>
+            </div>
+            <div class="hint">フォルダを変更しても、過去のワーク履歴は保持されます</div>
+          </div>
+        </div>
+
+        <div class="card confirm-sec">
+          <h4>整理役(オーガナイザー)</h4>
+          <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:10px;">依頼の構造化と、担当エージェントの割り当てを行います</p>
+          <label class="opt sel" style="margin-bottom:6px;"><input type="radio" name="org" checked>
+            <div>
+              <div class="o-name">内蔵オーガナイザーを使う(既定) <span class="badge badge-neutral" style="margin-left:6px;">使用中</span></div>
+              <div class="o-desc">Nagare の内蔵整理役。設定なしで動作します</div>
+            </div>
+          </label>
+          <label class="opt"><input type="radio" name="org">
+            <div style="flex:1;">
+              <div class="o-name">オーガナイザータイプのエージェントを使う</div>
+              <div class="o-desc">整理の方針を細かく調整したい場合に選びます。候補はエージェント一覧のオーガナイザータイプのみです</div>
+              <div style="margin-top:8px; display:flex; align-items:center; gap:10px;">
+                <div class="dd" id="dd-organizer">
+                  <button class="dd-btn" onclick="ddToggle('dd-organizer');event.stopPropagation();"><span class="dd-pre">エージェント:</span> <b id="dd-organizer-val">未選択</b><span class="chev"></span></button>
+                  <div class="dd-menu">
+                    <button class="dd-item" onclick="ddPick('dd-organizer','planner','Planner',this)"><img class="mini-av" src="avatars/planner.svg" alt="" style="margin-left:0;">Planner<span class="chk">✓</span></button>
+                  </div>
+                </div>
+                <span style="font-size:11.5px; color:var(--text-faint);">候補を増やすには <a href="#" onclick="go('agent-list');return false;" style="color:var(--primary);">エージェント一覧</a> でオーガナイザータイプを作成します</span>
+              </div>
+            </div>
+          </label>
+        </div>
+
+        <div class="card confirm-sec">
+          <h4>参加エージェント</h4>
+          <div class="list">
+            <div class="list-item">
+              <img class="agent-avatar" src="avatars/writer.svg" alt="">
+              <div style="flex:1;">
+                <div class="li-title">Writer</div>
+                <div class="li-desc">ワーカー · 得意: ドキュメント作成・図解</div>
+              </div>
+              <span class="badge badge-done">利用可能</span>
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();">編集</button>
+            </div>
+            <div class="list-item">
+              <img class="agent-avatar" src="avatars/reviewer.svg" alt="">
+              <div style="flex:1;">
+                <div class="li-title">Reviewer</div>
+                <div class="li-desc">レビュアー · ルーブリックによる検証</div>
+              </div>
+              <span class="badge badge-done">利用可能</span>
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();">編集</button>
+            </div>
+            <div class="list-item">
+              <img class="agent-avatar" src="avatars/coder.svg" alt="">
+              <div style="flex:1;">
+                <div class="li-title">Coder</div>
+                <div class="li-desc">ワーカー · 得意: コード変更・依存管理</div>
+              </div>
+              <span class="badge badge-neutral">実行環境 未確認</span>
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();">編集</button>
+            </div>
+          </div>
+          <div style="margin-top:10px;"><button class="btn btn-secondary btn-sm">エージェントを追加</button></div>
+        </div>
+
+        <div class="card confirm-sec">
+          <h4>知識・ドメイン</h4>
+          <div class="list">
+            <div class="list-item">
+              <div class="li-icon">📘</div>
+              <div style="flex:1;">
+                <div class="li-title">プロダクト文書</div>
+                <div class="li-desc">共通知識 2件 · ルーブリック 2種(リリースノート品質 v2、図表品質 v1)</div>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();">ナレッジで編集</button>
+            </div>
+          </div>
+          <div class="hint" style="margin-top:8px;">ドメインは複数のプロジェクトで共有できます。割り当てを外しても知識は削除されません</div>
+        </div>
+
+        <div class="card confirm-sec">
+          <h4>確認ポリシーの既定値</h4>
+          <div class="policy-opts">
+            <div class="policy sel" onclick="selPolicy(this)">
+              <div class="p-name">最後に確認する</div>
+              <div class="p-desc">採用前に必ずあなたが確認します</div>
+            </div>
+            <div class="policy" onclick="selPolicy(this)">
+              <div class="p-name">重要時のみ確認</div>
+              <div class="p-desc">懸念がある場合だけ確認します</div>
+            </div>
+            <div class="policy" onclick="selPolicy(this)">
+              <div class="p-name">自動採用</div>
+              <div class="p-desc">レビュー合格なら自動で採用します</div>
+            </div>
+          </div>
+          <div class="hint" style="margin-top:8px;">ワークの開始確認で個別に変更できます</div>
+        </div>
+
+        <div class="card confirm-sec" style="border-color:var(--danger-line);">
+          <h4 style="color:var(--danger);">危険な操作</h4>
+          <div style="display:flex; align-items:center; gap:16px;">
+            <div style="flex:1; font-size:12.5px; color:var(--text-muted);">プロジェクトを削除すると、ワーク履歴とプロジェクト設定が削除されます。対象フォルダ内のファイルは削除されません。</div>
+            <button class="btn btn-danger-soft">プロジェクトを削除</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button class="btn btn-secondary" onclick="go('project-list')">変更を破棄</button>
+          <button class="btn btn-primary" onclick="go('project-list')">変更を保存</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN: ナレッジ(ドメイン一覧) ============ -->
+    <section class="screen" id="scr-knowledge-list">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <h2 class="page-title" style="margin-bottom:0;">ナレッジ</h2>
+        <span style="flex:1"></span>
+        <button class="btn btn-primary" onclick="openModal('m-domain-create')">新規ドメイン</button>
+      </div>
+      <p class="page-sub" style="margin-top:4px;">ドメインは、共有知識と成果物の品質基準(ルーブリック)をまとめる単位です。複数のプロジェクトで共有できます</p>
+      <div class="list">
+        <div class="list-item" onclick="go('knowledge-domain')">
+          <div class="li-icon">📘</div>
+          <div style="flex:1;">
+            <div class="li-title">プロダクト文書 <span class="badge badge-ask" style="margin-left:6px;"><span class="bdot"></span>改善提案 1件</span></div>
+            <div class="li-desc">共通知識 2件 · 成果物種別 2種 · ルーブリック 2種</div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+            <span style="font-size:12px; color:var(--text-muted);">利用プロジェクト: Nagare UI 刷新</span>
+            <span class="wr-next">直近のレビュー 12件</span>
+          </div>
+          <span class="li-chev">›</span>
+        </div>
+        <div class="list-item" onclick="go('knowledge-domain')">
+          <div class="li-icon">📗</div>
+          <div style="flex:1;">
+            <div class="li-title">会議文書</div>
+            <div class="li-desc">共通知識 1件 · 成果物種別 1種 · ルーブリック 1種</div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+            <span style="font-size:12px; color:var(--text-muted);">利用プロジェクト: 社内ドキュメント</span>
+            <span class="wr-next">直近のレビュー 2件</span>
+          </div>
+          <span class="li-chev">›</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN: ドメイン詳細 ============ -->
+    <section class="screen" id="scr-knowledge-domain">
+      <div class="detail-head">
+        <div>
+          <h2>プロダクト文書</h2>
+          <div style="font-size:12.5px; color:var(--text-muted); margin-top:2px;">利用プロジェクト: Nagare UI 刷新</div>
+        </div>
+        <span style="flex:1"></span>
+        <button class="btn btn-secondary btn-sm" onclick="go('knowledge-list')">← ナレッジ一覧</button>
+      </div>
+      <div class="confirm-grid">
+        <div class="card confirm-sec">
+          <h4>基本情報</h4>
+          <div class="field">
+            <label>ドメイン名</label>
+            <input type="text" value="プロダクト文書">
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>説明</label>
+            <textarea style="min-height:52px;">リリースノート、README、画面フロー図など、ユーザー向けプロダクト文書の作成に使う知識と品質基準。</textarea>
+          </div>
+        </div>
+
+        <div class="card confirm-sec">
+          <h4>共通知識</h4>
+          <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:10px;">このドメインのすべての成果物種別に適用されます。作業時にエージェントへ自動で渡されます</p>
+          <div class="list">
+            <div class="list-item">
+              <div class="li-icon">📖</div>
+              <div style="flex:1;">
+                <div class="li-title">プロダクト用語集</div>
+                <div class="li-desc">用語と定訳 42語 · ユーザー向けの言い換えルールを含む</div>
+              </div>
+              <span class="wr-next">更新: 3日前</span>
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();">編集</button>
+            </div>
+            <div class="list-item">
+              <div class="li-icon">✍️</div>
+              <div style="flex:1;">
+                <div class="li-title">文体ガイド</div>
+                <div class="li-desc">です・ます調 · 見出しの付け方 · 禁則表現</div>
+              </div>
+              <span class="wr-next">更新: 2週間前</span>
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();">編集</button>
+            </div>
+          </div>
+          <div style="margin-top:10px;"><button class="btn btn-secondary btn-sm">知識を追加</button></div>
+        </div>
+
+        <div class="card confirm-sec">
+          <h4>成果物種別</h4>
+          <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:10px;">出力の種類ごとに、専用の知識と評価ルーブリックを持ちます</p>
+          <div class="list">
+            <div class="list-item" onclick="go('knowledge-rubric')">
+              <div class="li-icon">📄</div>
+              <div style="flex:1;">
+                <div class="li-title">リリースノート</div>
+                <div class="li-desc">知識: テンプレート 1件 · ルーブリック: リリースノート品質 v2(6項目 · 100点)</div>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); go('knowledge-rubric');">編集</button>
+              <span class="li-chev">›</span>
+            </div>
+            <div class="list-item" onclick="go('knowledge-rubric')">
+              <div class="li-icon">🗺️</div>
+              <div style="flex:1;">
+                <div class="li-title">フロー図</div>
+                <div class="li-desc">知識: 記法ルール 1件 · ルーブリック: 図表品質 v1(4項目 · 100点)</div>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); go('knowledge-rubric');">編集</button>
+              <span class="li-chev">›</span>
+            </div>
+          </div>
+          <div style="margin-top:10px;"><button class="btn btn-secondary btn-sm">成果物種別を追加</button></div>
+        </div>
+
+        <div class="card confirm-sec">
+          <h4>品質記録と改善提案</h4>
+          <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:10px;">直近のレビュー 12件から、繰り返し出ている懸念を検出します。提案は適用する前に必ずプレビューできます</p>
+          <div class="list">
+            <div class="list-item" style="background:#fffdf5;">
+              <div class="li-icon" style="background:var(--warning-soft); color:var(--warning);">!</div>
+              <div style="flex:1;">
+                <div class="li-title">「読者向けの言い換え」の懸念が繰り返し発生しています</div>
+                <div class="li-desc">直近5回のレビューで3回発生 · 対象: リリースノート品質 v2 · 根拠: W-1024 ほか2件</div>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); goAnchor('knowledge-rubric','rubric-ai-assist');">支援・改善案の欄へ</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button class="btn btn-secondary" onclick="go('knowledge-list')">変更を破棄</button>
+          <button class="btn btn-primary" onclick="go('knowledge-list')">変更を保存</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN: 成果物種別の編集(説明+Markdownルーブリック) ============ -->
+    <section class="screen" id="scr-knowledge-rubric">
+      <div class="detail-head">
+        <div>
+          <h2>リリースノート</h2>
+          <div style="font-size:12.5px; color:var(--text-muted); margin-top:2px;">成果物種別 · ドメイン: プロダクト文書 · ルーブリック: リリースノート品質 v2</div>
+        </div>
+        <span style="flex:1"></span>
+        <button class="btn btn-secondary btn-sm" onclick="go('knowledge-domain')">← ドメイン詳細</button>
+      </div>
+
+      <div class="card status-strip" style="margin-bottom:14px;">
+        <div class="ss-main">
+          <div class="ss-now">配点合計: 100 / 100 点 <span class="badge badge-done" style="margin-left:6px;">✓ 有効</span> <span style="font-size:12px; color:var(--text-muted); font-weight:400; margin-left:4px;">Markdownの見出しから 6項目を解析</span></div>
+          <div class="ss-next">ルーブリックの変更は新しいバージョン(v3)として保存されます。過去のレビュー結果には影響しません</div>
+        </div>
+        <div class="ss-prog">最終更新<br>2週間前</div>
+      </div>
+
+      <div class="card" style="padding:12px 16px; margin-bottom:14px; display:flex; align-items:center; gap:12px; background:#fffdf5; border-color:var(--warning-line);">
+        <div class="li-icon" style="background:var(--warning-soft); color:var(--warning); width:28px; height:28px; font-size:13px;">!</div>
+        <div style="flex:1; font-size:12.5px; color:var(--text-body);">
+          <b>このルーブリックへの改善提案が 1件あります</b> — 「読者向けの言い換え」の判定基準に対する提案です
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('rubric-ai-assist').scrollIntoView({behavior:'smooth', block:'center'})">支援・改善案の欄へ</button>
+      </div>
+
+      <div class="confirm-grid">
+        <div class="card confirm-sec">
+          <h4>成果物の説明</h4>
+          <div class="field">
+            <label>名前</label>
+            <input type="text" value="リリースノート">
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>説明(何を・誰に・どこへ出すか)</label>
+            <textarea style="min-height:64px;">バージョンごとの変更内容をユーザー向けに伝える文書。想定読者は利用者と導入担当者。docs/release-notes/ に vX.Y.md として出力する。</textarea>
+            <div class="hint">この説明は、オーガナイザーの割り当て判断とワーカーの生成時に渡されます</div>
+          </div>
+        </div>
+
+        <div class="card confirm-sec">
+          <h4>ルーブリック(Markdownで一括編集)</h4>
+          <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:10px;">形式: <code class="mono" style="background:#f1f5f9; padding:1px 6px; border-radius:4px;">## 項目名 (配点)</code> の見出し+判定基準の本文。保存時に解析して、配点合計と項目の重複を検証します</p>
+          <textarea class="mono" style="min-height:380px; font-size:12.5px; line-height:1.7;"># リリースノート品質 v2
+
+## 変更点の網羅性 (20点)
+対象バージョンの全コミット・全変更が記載に対応していること。対応表で確認できること。
+
+## 破壊的変更の明記 (20点)
+互換性が壊れる変更は「Breaking Changes」節に分離し、移行手順を添えること。
+
+## 読者向けの言い換え (20点)
+内部用語・実装用語を使わず、ユーザー向けの言葉で書くこと。
+
+## 形式の準拠 (15点)
+知識「リリースノート テンプレート」の見出し構成に従うこと。
+
+## リンクの有効性 (15点)
+文中のリンクがすべて到達可能であること。
+
+## 日付・バージョン整合 (10点)
+バージョン番号とリリース日付が package.json と一致すること。</textarea>
+          <div style="font-size:12px; font-weight:700; color:var(--text-muted); margin:14px 0 6px;" id="rubric-ai-assist">AIによる支援(2種類)</div>
+          <div class="list">
+            <div class="list-item" style="padding:10px 14px;">
+              <div class="li-icon" style="background:var(--primary-soft); color:var(--primary); width:28px; height:28px; font-size:13px;">✨</div>
+              <div style="flex:1;">
+                <div class="li-title" style="font-size:13px;">下書きを生成 — あなたが起動(いつでも)</div>
+                <div class="li-desc">説明・知識・レビュー履歴から同じ形式のMarkdownを作り、エディタに挿入して編集します</div>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); openModal('m-rubric-assist')">生成</button>
+            </div>
+            <div class="list-item" style="padding:10px 14px; background:#fffdf5;">
+              <div class="li-icon" style="background:var(--warning-soft); color:var(--warning); width:28px; height:28px; font-size:13px;">!</div>
+              <div style="flex:1;">
+                <div class="li-title" style="font-size:13px;">改善提案 1件 — Nagareが実績から検出</div>
+                <div class="li-desc">品質記録(繰り返し懸念)から自動生成。「読者向けの言い換え」への提案があります。全文Diffで確認し、受信箱で適用します</div>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); openModal('m-quality-preview')">Diffを見る</button>
+              <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); go('insights'); insTab('b');">受信箱へ</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button class="btn btn-secondary" onclick="go('knowledge-domain')">変更を破棄</button>
+          <button class="btn btn-primary" onclick="go('knowledge-domain')">保存(ルーブリックは v3 に)</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN: エージェント一覧 ============ -->
+    <section class="screen" id="scr-agent-list">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <h2 class="page-title" style="margin-bottom:0;">エージェント</h2>
+        <span style="flex:1"></span>
+        <button class="btn btn-primary" onclick="openModal('m-agent-create')">新規エージェント</button>
+      </div>
+      <p class="page-sub" style="margin-top:4px;">担当はワークごとにオーガナイザーが選びます。ここで書く説明と得意分野が、その選択の材料になります</p>
+      <div class="filters">
+        <div class="dd" id="dd-ag-role">
+          <button class="dd-btn" onclick="ddToggle('dd-ag-role');event.stopPropagation();"><span class="dd-pre">役割:</span> <b id="dd-ag-role-val">すべて</b><span class="chev"></span></button>
+          <div class="dd-menu">
+            <button class="dd-item active" onclick="agPick('dd-ag-role','all','すべて',this)">すべて<span class="dd-count">5</span><span class="chk">✓</span></button>
+            <button class="dd-item" onclick="agPick('dd-ag-role','organizer','オーガナイザー',this)">オーガナイザー<span class="dd-count">2</span><span class="chk">✓</span></button>
+            <button class="dd-item" onclick="agPick('dd-ag-role','worker','ワーカー',this)">ワーカー<span class="dd-count">2</span><span class="chk">✓</span></button>
+            <button class="dd-item" onclick="agPick('dd-ag-role','reviewer','レビュアー',this)">レビュアー<span class="dd-count">1</span><span class="chk">✓</span></button>
+          </div>
+        </div>
+        <div class="dd" id="dd-ag-proj">
+          <button class="dd-btn" onclick="ddToggle('dd-ag-proj');event.stopPropagation();"><span class="dd-pre">プロジェクト:</span> <b id="dd-ag-proj-val">すべて</b><span class="chev"></span></button>
+          <div class="dd-menu">
+            <button class="dd-item active" onclick="agPick('dd-ag-proj','all','すべて',this)">すべて<span class="chk">✓</span></button>
+            <button class="dd-item" onclick="agPick('dd-ag-proj','p1','🌊 Nagare UI 刷新',this)">🌊 Nagare UI 刷新<span class="chk">✓</span></button>
+            <button class="dd-item" onclick="agPick('dd-ag-proj','p2','🗂️ 社内ドキュメント',this)">🗂️ 社内ドキュメント<span class="chk">✓</span></button>
+          </div>
+        </div>
+        <span style="flex:1"></span>
+        <span class="filter-result" id="ag-filter-result">5件を表示</span>
+      </div>
+      <div class="list" id="agent-list-rows">
+        <div class="list-item" data-role="organizer" data-projects="p1 p2">
+          <div class="li-icon">🧭</div>
+          <div style="flex:1;">
+            <div class="li-title">オーガナイザー <span class="badge badge-neutral" style="margin-left:6px;">内蔵</span></div>
+            <div class="li-desc">整理役 · 依頼の構造化と担当割り当て · プロジェクト設定で専用エージェントに差し替えできます</div>
+          </div>
+          <span style="font-size:12px; color:var(--text-muted);">すべてのプロジェクト</span>
+        </div>
+        <div class="list-item" data-role="organizer" data-projects="p1" onclick="go('agent-settings')">
+          <img class="agent-avatar" src="avatars/planner.svg" alt="">
+          <div style="flex:1;">
+            <div class="li-title">Planner</div>
+            <div class="li-desc">オーガナイザー · 依頼の分解と担当割り当ての最適化 · 範囲: すべてのドメイン</div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+            <span class="badge badge-done">利用可能</span>
+            <span class="wr-next">Claude Code · 整理役: Nagare UI 刷新で使用可</span>
+          </div>
+          <span class="li-chev">›</span>
+        </div>
+        <div class="list-item" data-role="worker" data-projects="p1 p2" onclick="go('agent-settings')">
+          <img class="agent-avatar" src="avatars/writer.svg" alt="">
+          <div style="flex:1;">
+            <div class="li-title">Writer</div>
+            <div class="li-desc">ワーカー · 得意: ドキュメント作成・図解・翻訳 · 範囲: プロダクト文書</div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+            <span class="badge badge-done">利用可能</span>
+            <span class="wr-next">Claude Code · 直近30日 18ワーク</span>
+          </div>
+          <span class="li-chev">›</span>
+        </div>
+        <div class="list-item" data-role="reviewer" data-projects="p1 p2" onclick="go('agent-settings')">
+          <img class="agent-avatar" src="avatars/reviewer.svg" alt="">
+          <div style="flex:1;">
+            <div class="li-title">Reviewer</div>
+            <div class="li-desc">レビュアー · ルーブリックによる検証と根拠の記録 · 範囲: すべてのドメイン</div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+            <span class="badge badge-done">利用可能</span>
+            <span class="wr-next">Claude Code · 直近30日 15ワーク</span>
+          </div>
+          <span class="li-chev">›</span>
+        </div>
+        <div class="list-item" data-role="worker" data-projects="p1" onclick="go('agent-settings')">
+          <img class="agent-avatar" src="avatars/coder.svg" alt="">
+          <div style="flex:1;">
+            <div class="li-title">Coder <span class="badge" style="margin-left:6px; background:var(--primary-soft); color:var(--primary); border-color:var(--primary-line);">改善提案あり</span></div>
+            <div class="li-desc">ワーカー · 得意: コード変更・依存管理 · 範囲: 未設定</div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+            <span class="badge badge-fix"><span class="bdot"></span>実行環境 未接続</span>
+            <span class="wr-next">Codex CLI · 接続確認が必要です</span>
+          </div>
+          <span class="li-chev">›</span>
+        </div>
+        <div class="list-empty" id="agent-empty" style="display:none;">条件に一致するエージェントはいません</div>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN: エージェント設定 ============ -->
+    <section class="screen" id="scr-agent-settings">
+      <div class="detail-head">
+        <img class="agent-avatar hd" src="avatars/writer.svg" alt="">
+        <div>
+          <h2>Writer</h2>
+          <div style="font-size:12.5px; color:var(--text-muted); margin-top:2px;">ワーカー · Claude Code <span class="badge badge-done" style="margin-left:4px;">利用可能</span></div>
+        </div>
+        <span style="flex:1"></span>
+        <button class="btn btn-secondary btn-sm" onclick="go('agent-list')">← エージェント一覧</button>
+      </div>
+
+      <div class="card" style="padding:12px 16px; margin-bottom:14px; display:flex; align-items:center; gap:12px; background:#fffdf5; border-color:var(--warning-line);">
+        <div class="li-icon" style="background:var(--warning-soft); color:var(--warning); width:28px; height:28px; font-size:13px;">!</div>
+        <div style="flex:1; font-size:12.5px; color:var(--text-body);">
+          <b>このエージェントに関連する改善提案が 1件あります</b> — 最多失点項目「読者向けの言い換え」(獲得率 72%)に対する、ルーブリック「リリースノート品質 v2」の改善提案です
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="goAnchor('knowledge-rubric','rubric-ai-assist')">ルーブリックの支援・改善案欄へ</button>
+      </div>
+
+      <div class="confirm-grid">
+        <div class="card confirm-sec">
+          <h4>基本情報</h4>
+          <div class="field">
+            <label>名前</label>
+            <input type="text" value="Writer">
+          </div>
+          <div class="field">
+            <label>役割</label>
+            <div class="dd" id="dd-role">
+              <button class="dd-btn" onclick="ddToggle('dd-role');event.stopPropagation();"><span class="dd-pre">役割:</span> <b id="dd-role-val">ワーカー</b><span class="chev"></span></button>
+              <div class="dd-menu">
+                <button class="dd-item active" onclick="ddPick('dd-role','worker','ワーカー',this)">ワーカー<span class="chk">✓</span></button>
+                <button class="dd-item" onclick="ddPick('dd-role','reviewer','レビュアー',this)">レビュアー<span class="chk">✓</span></button>
+                <button class="dd-item" onclick="ddPick('dd-role','organizer','オーガナイザー',this)">オーガナイザー<span class="chk">✓</span></button>
+              </div>
+            </div>
+          </div>
+          <div class="field">
+            <label>説明</label>
+            <textarea style="min-height:48px;">ドキュメントと図の作成が得意。ユーザー向けの言葉遣いを重視し、テンプレートに忠実に書く。</textarea>
+            <div class="hint">この説明と得意分野は、オーガナイザーが担当を選ぶときの比較材料になります</div>
+          </div>
+          <div class="field">
+            <label>得意分野</label>
+            <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+              <span class="chip">ドキュメント作成 <span style="opacity:.55; cursor:pointer;">×</span></span>
+              <span class="chip">図解 <span style="opacity:.55; cursor:pointer;">×</span></span>
+              <span class="chip">翻訳 <span style="opacity:.55; cursor:pointer;">×</span></span>
+              <input type="text" placeholder="追加…" style="width:110px; padding:3px 10px; font-size:12.5px;">
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>アイコン画像</label>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <img class="agent-avatar lg" src="avatars/writer.svg" alt="">
+              <button class="btn btn-secondary btn-sm">画像を選択…</button>
+              <button class="btn btn-ghost btn-sm">削除</button>
+            </div>
+            <div class="hint">PNG / JPG / SVG · 正方形推奨。未設定の場合は名前のイニシャルを表示します</div>
+          </div>
+        </div>
+
+        <div class="card confirm-sec">
+          <h4>実行環境</h4>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:6px;">
+            <div class="dd" id="dd-agent-rt">
+              <button class="dd-btn" onclick="ddToggle('dd-agent-rt');event.stopPropagation();"><span class="dd-pre">実行環境:</span> <b id="dd-agent-rt-val">Claude Code</b><span class="chev"></span></button>
+              <div class="dd-menu">
+                <button class="dd-item active" onclick="pickAgentRt('cc','Claude Code',this)">Claude Code<span class="chk">✓</span></button>
+                <button class="dd-item" onclick="pickAgentRt('cx','Codex CLI',this)">Codex CLI<span class="chk">✓</span></button>
+                <button class="dd-item" onclick="pickAgentRt('oc','OpenCode',this)">OpenCode<span class="chk">✓</span></button>
+                <button class="dd-item" onclick="pickAgentRt('ocl','OpenClaw',this)">OpenClaw<span class="chk">✓</span></button>
+              </div>
+            </div>
+            <div class="dd" id="dd-agent-model">
+              <button class="dd-btn" onclick="ddToggle('dd-agent-model');event.stopPropagation();"><span class="dd-pre">モデル:</span> <b id="dd-agent-model-val">既定</b><span class="chev"></span></button>
+              <div class="dd-menu" id="dd-agent-model-menu">
+                <button class="dd-item active" onclick="ddPick('dd-agent-model','m0','既定',this)">既定<span class="chk">✓</span></button>
+                <button class="dd-item" onclick="ddPick('dd-agent-model','m1','Fable 5',this)">Fable 5<span class="chk">✓</span></button>
+                <button class="dd-item" onclick="ddPick('dd-agent-model','m2','Opus 4.8',this)">Opus 4.8<span class="chk">✓</span></button>
+                <button class="dd-item" onclick="ddPick('dd-agent-model','m3','Haiku 4.5',this)">Haiku 4.5<span class="chk">✓</span></button>
+              </div>
+            </div>
+          </div>
+          <div class="hint" id="model-note">モデルの選択肢は実行環境に連動します。「既定」は実行環境側の設定を使います。作業フォルダは参加プロジェクトの対象フォルダが使われます</div>
+        </div>
+
+        <div class="card confirm-sec">
+          <h4>担当範囲(ドメイン)</h4>
+          <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:10px;">範囲外のドメインの依頼には割り当てられません</p>
+          <label class="opt sel" style="margin-bottom:6px;"><input type="checkbox" checked>
+            <div><div class="o-name">プロダクト文書</div><div class="o-desc">すべての成果物種別(リリースノート、フロー図)</div></div>
+          </label>
+          <label class="opt"><input type="checkbox">
+            <div><div class="o-name">会議文書</div><div class="o-desc">議事録</div></div>
+          </label>
+        </div>
+
+        <div class="card confirm-sec">
+          <h4>プロンプト(振る舞い)</h4>
+          <textarea style="min-height:88px;" class="mono">あなたはプロダクト文書の専門ライターです。
+- 共通知識「プロダクト用語集」の定訳を必ず使う
+- 成果物種別のテンプレートに従う
+- 不明点は推測せず、質問として返す</textarea>
+          <div class="hint">実行時にシステムプロンプトへ追記されます。知識やルーブリックはここに書かなくても自動で渡されます</div>
+          <div style="font-size:12px; font-weight:700; color:var(--text-muted); margin:14px 0 6px;" id="agent-ai-assist">AIによる支援(2種類)</div>
+          <div class="list">
+            <div class="list-item" style="padding:10px 14px;">
+              <div class="li-icon" style="background:var(--primary-soft); color:var(--primary); width:28px; height:28px; font-size:13px;">✨</div>
+              <div style="flex:1;">
+                <div class="li-title" style="font-size:13px;">下書きを生成 — あなたが起動(いつでも)</div>
+                <div class="li-desc">役割・得意分野・担当ドメインの知識・評価履歴から下書きを作り、プロンプト欄に挿入して編集します</div>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); openModal('m-prompt-assist')">生成</button>
+            </div>
+            <div class="list-item" style="padding:10px 14px;">
+              <div class="li-icon" style="width:28px; height:28px; font-size:13px;">!</div>
+              <div style="flex:1;">
+                <div class="li-title" style="font-size:13px; color:var(--text-muted);">このプロンプトへの改善提案 — 現在なし</div>
+                <div class="li-desc">実績(評価履歴・差し戻し)から検出されると、ここと受信箱に全文Diffで届きます。適用するかはあなたが判断します</div>
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); go('insights'); insTab('b');">受信箱を見る</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card confirm-sec">
+          <h4>スキルと MCP 接続</h4>
+          <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:10px;">スキルと MCP はグローバルライブラリです。割り当てたものだけが、このエージェントから使えます</p>
+          <div class="list">
+            <div class="list-item">
+              <div class="li-icon">🧩</div>
+              <div style="flex:1;">
+                <div class="li-title">markdown-tools</div>
+                <div class="li-desc">スキル · 表・図・リンクの整形</div>
+              </div>
+              <span class="badge badge-done">割り当て済み</span>
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();">解除</button>
+            </div>
+            <div class="list-item">
+              <div class="li-icon">🔌</div>
+              <div style="flex:1;">
+                <div class="li-title">GitHub MCP</div>
+                <div class="li-desc">MCP 接続 · コミット履歴・PRの参照</div>
+              </div>
+              <span class="badge badge-done">接続テスト済み</span>
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();">解除</button>
+            </div>
+          </div>
+          <div style="margin-top:10px; display:flex; gap:8px;">
+            <button class="btn btn-secondary btn-sm">スキルを割り当て</button>
+            <button class="btn btn-secondary btn-sm">MCP を割り当て</button>
+          </div>
+          <div class="hint" style="margin-top:8px;">MCP は接続テストに成功したものだけ割り当てできます</div>
+        </div>
+
+        <div class="card confirm-sec" style="border-color:var(--danger-line);">
+          <h4 style="color:var(--danger);">危険な操作</h4>
+          <div style="display:flex; align-items:center; gap:16px;">
+            <div style="flex:1; font-size:12.5px; color:var(--text-muted);">エージェントを削除すると、今後の割り当て候補から外れます。過去のワーク履歴と実行記録は保持されます。</div>
+            <button class="btn btn-danger-soft">エージェントを削除</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button class="btn btn-secondary" onclick="go('agent-list')">変更を破棄</button>
+          <button class="btn btn-primary" onclick="go('agent-list')">変更を保存</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN: 設定 — スキル ============ -->
+    <section class="screen" id="scr-settings-skills">
+      <h2 class="page-title">スキル</h2>
+      <p class="page-sub">Nagare 全体で使うスキルのライブラリです</p>
+      <div class="card" style="padding:12px 16px; margin-bottom:16px; display:flex; align-items:center; gap:10px; background:var(--primary-soft); border-color:var(--primary-line);">
+        <span style="font-size:14px;">💡</span>
+        <span style="font-size:12.5px; color:var(--text-body);">スキルの登録は Nagare 全体で1回だけ。<b>割り当ては各エージェントの設定画面で行います</b>。この画面では追加・削除と、割り当て状況の確認ができます</span>
+      </div>
+      <div style="display:flex; align-items:center; margin-bottom:10px;">
+        <span style="font-size:12px; color:var(--text-faint);">登録済み 3件</span>
+        <span style="flex:1"></span>
+        <button class="btn btn-primary" onclick="openModal('m-skill-add')">スキルを追加</button>
+      </div>
+      <div class="list">
+        <div class="list-item">
+          <div class="li-icon">🧩</div>
+          <div style="flex:1;">
+            <div class="li-title">markdown-tools <span class="badge badge-done" style="margin-left:6px;">検証済み</span></div>
+            <div class="li-desc">表・図・リンクの整形 · v1.2 · ClawHub</div>
+            <div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">割り当て: Writer → 利用可能: Nagare UI 刷新</div>
+          </div>
+          <button class="btn btn-danger-soft btn-sm" onclick="event.stopPropagation(); openModal('m-skill-delete')">削除</button>
+        </div>
+        <div class="list-item">
+          <div class="li-icon">🧩</div>
+          <div style="flex:1;">
+            <div class="li-title">minutes-format <span class="badge badge-done" style="margin-left:6px;">検証済み</span></div>
+            <div class="li-desc">議事録の整形と決定事項の抽出 · v0.9 · GitHub</div>
+            <div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">割り当て: Writer → 利用可能: Nagare UI 刷新、社内ドキュメント</div>
+          </div>
+          <button class="btn btn-danger-soft btn-sm" onclick="event.stopPropagation(); openModal('m-skill-delete')">削除</button>
+        </div>
+        <div class="list-item">
+          <div class="li-icon">🧩</div>
+          <div style="flex:1;">
+            <div class="li-title">svg-tools <span class="badge badge-neutral" style="margin-left:6px;">未割り当て</span></div>
+            <div class="li-desc">SVG図の生成と最適化 · v0.4 · ローカル</div>
+            <div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">どのエージェントにも割り当てられていません。割り当てはエージェント設定から行います</div>
+          </div>
+          <button class="btn btn-danger-soft btn-sm" onclick="event.stopPropagation(); openModal('m-skill-delete')">削除</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN: 設定 — MCP ============ -->
+    <section class="screen" id="scr-settings-mcp">
+      <h2 class="page-title">MCP接続</h2>
+      <p class="page-sub">外部ツール・データへの接続を管理します</p>
+      <div class="card" style="padding:12px 16px; margin-bottom:16px; display:flex; align-items:center; gap:10px; background:var(--primary-soft); border-color:var(--primary-line);">
+        <span style="font-size:14px;">💡</span>
+        <span style="font-size:12.5px; color:var(--text-body);">MCP はスキルとは別に管理します。<b>接続テストに成功したものだけ</b>エージェントへ割り当てできます。<b>割り当ては各エージェントの設定画面で行います</b>(追加直後のみ、この画面から割り当てに進めます)</span>
+      </div>
+      <div style="display:flex; align-items:center; margin-bottom:10px;">
+        <span style="font-size:12px; color:var(--text-faint);">登録済み 2件</span>
+        <span style="flex:1"></span>
+        <button class="btn btn-primary" onclick="openModal('m-mcp-add')">MCP を追加</button>
+      </div>
+      <div class="list">
+        <div class="list-item">
+          <div class="li-icon">🔌</div>
+          <div style="flex:1;">
+            <div class="li-title">GitHub MCP <span class="badge badge-done" style="margin-left:6px;">接続テスト済み</span></div>
+            <div class="li-desc mono" style="font-size:11.5px;">npx @modelcontextprotocol/server-github</div>
+            <div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">割り当て: Writer → 利用可能: Nagare UI 刷新 · 最終テスト: 今日 09:12</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();">再テスト</button>
+          <button class="btn btn-danger-soft btn-sm" onclick="event.stopPropagation(); openModal('m-mcp-delete')">削除</button>
+        </div>
+        <div class="list-item">
+          <div class="li-icon">🔌</div>
+          <div style="flex:1;">
+            <div class="li-title">Postgres MCP <span class="badge badge-fix" style="margin-left:6px;"><span class="bdot"></span>接続テスト失敗</span></div>
+            <div class="li-desc mono" style="font-size:11.5px;">npx @modelcontextprotocol/server-postgres</div>
+            <div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">認証エラー(環境変数 DATABASE_URL 未設定)。テストに成功するまで割り当てできません</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();">設定を修正</button>
+          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();">再テスト</button>
+          <button class="btn btn-danger-soft btn-sm" onclick="event.stopPropagation(); openModal('m-mcp-delete')">削除</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN: 設定 — 実行環境 ============ -->
+    <section class="screen" id="scr-settings-runtime">
+      <h2 class="page-title">実行環境</h2>
+      <p class="page-sub">この端末で検出されたAI実行環境です。未検出のものは表示されません</p>
+      <div class="list">
+        <div class="list-item">
+          <div class="li-icon">🤖</div>
+          <div style="flex:1;">
+            <div class="li-title">Claude Code <span class="badge badge-done" style="margin-left:6px;">接続済み</span> <span class="badge badge-neutral" style="margin-left:4px;">既定</span></div>
+            <div class="li-desc">CLI · v2.1 · 応答 1.2秒 · モデル切替: 対応(Fable 5 / Opus 4.8 / Haiku 4.5)</div>
+            <div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">利用エージェント: Writer、Reviewer · 最終確認: 今日 09:10</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();">再テスト</button>
+        </div>
+        <div class="list-item">
+          <div class="li-icon">⌨️</div>
+          <div style="flex:1;">
+            <div class="li-title">Codex CLI <span class="badge badge-neutral" style="margin-left:6px;">未確認</span></div>
+            <div class="li-desc">CLI · v0.9 · 検出済み · モデル切替: 対応(gpt-5-codex / gpt-5-mini)</div>
+            <div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">利用エージェント: Coder(テスト成功までワークに割り当てられません)</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();">接続テスト</button>
+        </div>
+        <div class="list-item">
+          <div class="li-icon">🧰</div>
+          <div style="flex:1;">
+            <div class="li-title">OpenCode <span class="badge badge-done" style="margin-left:6px;">接続済み</span></div>
+            <div class="li-desc">CLI · v0.6 · 応答 1.8秒 · モデル切替: 対応(マルチプロバイダ: Fable 5 / gpt-5-codex / Qwen3-Coder)</div>
+            <div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">利用エージェント: なし · 最終確認: 今日 09:14</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();">再テスト</button>
+        </div>
+        <div class="list-item">
+          <div class="li-icon">🐾</div>
+          <div style="flex:1;">
+            <div class="li-title">OpenClaw <span class="badge badge-neutral" style="margin-left:6px;">未確認</span></div>
+            <div class="li-desc">CLI · v0.2 · 検出済み · モデル切替: 非対応(実行環境側の設定を使用)</div>
+            <div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">利用エージェント: なし</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();">接続テスト</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN: 分析・改善 ============ -->
+    <section class="screen" id="scr-insights">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <h2 class="page-title" style="margin-bottom:0;">分析・改善</h2>
+        <span style="flex:1"></span>
+        <div class="dd" id="dd-ins-range">
+          <button class="dd-btn" onclick="ddToggle('dd-ins-range');event.stopPropagation();"><span class="dd-pre">期間:</span> <b id="dd-ins-range-val">直近30日</b><span class="chev"></span></button>
+          <div class="dd-menu">
+            <button class="dd-item active" onclick="ddPick('dd-ins-range','30','直近30日',this)">直近30日<span class="chk">✓</span></button>
+            <button class="dd-item" onclick="ddPick('dd-ins-range','90','直近90日',this)">直近90日<span class="chk">✓</span></button>
+            <button class="dd-item" onclick="ddPick('dd-ins-range','all','すべて',this)">すべて<span class="chk">✓</span></button>
+          </div>
+        </div>
+        <div class="dd" id="dd-ins-proj">
+          <button class="dd-btn" onclick="ddToggle('dd-ins-proj');event.stopPropagation();"><span class="dd-pre">プロジェクト:</span> <b id="dd-ins-proj-val">すべて</b><span class="chev"></span></button>
+          <div class="dd-menu">
+            <button class="dd-item active" onclick="ddPick('dd-ins-proj','all','すべて',this)">すべて<span class="chk">✓</span></button>
+            <button class="dd-item" onclick="ddPick('dd-ins-proj','p1','Nagare UI 刷新',this)">Nagare UI 刷新<span class="chk">✓</span></button>
+            <button class="dd-item" onclick="ddPick('dd-ins-proj','p2','社内ドキュメント',this)">社内ドキュメント<span class="chk">✓</span></button>
+          </div>
+        </div>
+      </div>
+      <p class="page-sub" style="margin-top:4px;">レビューエージェントの評価履歴から、成績が落ちているエージェントと失点の原因を見つけ、プロンプトやルーブリックの改善につなげます(将来機能のプレビュー · サンプルデータ)</p>
+
+      <div class="tabs">
+        <button class="tab active" id="ins-tab-a" onclick="insTab('a')">分析</button>
+        <button class="tab" id="ins-tab-b" onclick="insTab('b')">改善 <span class="badge badge-ask" style="margin-left:4px;"><span class="bdot"></span>4件</span></button>
+      </div>
+
+      <!-- 分析タブ -->
+      <div class="tabpane active" id="ins-pane-a">
+        <div class="kpi-row">
+          <div class="card stat-tile">
+            <div class="st-label">完了ワーク</div>
+            <div class="st-value">24<span class="unit">件</span></div>
+            <div class="st-delta up">▲ +8 <span class="vs">前30日比</span></div>
+          </div>
+          <div class="card stat-tile">
+            <div class="st-label">平均評価点</div>
+            <div class="st-value">87.5</div>
+            <div class="st-delta up">▲ +2.1 <span class="vs">前30日比</span></div>
+          </div>
+          <div class="card stat-tile">
+            <div class="st-label">自動採用率</div>
+            <div class="st-value">25<span class="unit">%</span></div>
+            <div class="st-delta up">▲ +10pt <span class="vs">前30日比</span></div>
+          </div>
+          <div class="card stat-tile">
+            <div class="st-label">差し戻し率</div>
+            <div class="st-value">12<span class="unit">%</span></div>
+            <div class="st-delta up">▼ -5pt <span class="vs">前30日比 · 改善</span></div>
+          </div>
+        </div>
+
+        <div class="group-head" style="margin-top:6px;"><h3>エージェント別成績</h3></div>
+        <div class="card" style="overflow:hidden; margin-bottom:16px;">
+          <table class="itable">
+            <thead>
+              <tr><th>エージェント</th><th class="num">完了</th><th class="num">平均評価点</th><th class="num">傾向(30日)</th><th class="num">差し戻し</th><th>最も失点する項目</th><th></th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>Writer</b> · ワーカー</td><td class="num">18</td><td class="num"><b>88.2</b></td>
+                <td class="num" style="color:var(--success); font-weight:600;">▲ +2.4</td>
+                <td class="num">2</td><td>読者向けの言い換え(72%)</td><td></td>
+              </tr>
+              <tr style="background:#fffdf5;">
+                <td><b>Coder</b> · ワーカー <span class="badge badge-ask" style="margin-left:6px;"><span class="bdot"></span>要改善</span></td>
+                <td class="num">6</td><td class="num"><b>84.0</b></td>
+                <td class="num" style="color:var(--danger); font-weight:600;">▼ -3.5</td>
+                <td class="num">1</td><td><b>形式の準拠(60%)</b></td>
+                <td style="text-align:right;"><button class="btn btn-primary btn-sm" onclick="insTab('b')">改善案を見る</button></td>
+              </tr>
+              <tr>
+                <td><b>Reviewer</b> · レビュアー</td><td class="num">15</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td style="color:var(--text-faint);">(評価する側)</td><td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="group-head"><h3>失点の内訳(エージェント × ルーブリック項目)</h3><span class="count">配点に対する獲得率</span></div>
+        <div class="card" style="overflow:hidden;">
+          <table class="itable">
+            <thead>
+              <tr><th>エージェント</th><th class="num">網羅性</th><th class="num">破壊的変更</th><th class="num">言い換え</th><th class="num">形式</th><th class="num">リンク</th><th class="num">整合</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>Writer</b></td><td class="num">95%</td><td class="num">100%</td>
+                <td class="num" style="background:var(--warning-soft); font-weight:700; color:var(--warning);">72%</td>
+                <td class="num">98%</td><td class="num">96%</td><td class="num">100%</td>
+              </tr>
+              <tr>
+                <td><b>Coder</b></td><td class="num">88%</td><td class="num">90%</td><td class="num">85%</td>
+                <td class="num" style="background:var(--danger-soft); font-weight:700; color:var(--danger);">60%</td>
+                <td class="num" style="background:var(--warning-soft); font-weight:700; color:var(--warning);">70%</td>
+                <td class="num">95%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:11.5px; color:var(--text-faint); margin:6px 0 16px;">75%未満をハイライトしています。特定のエージェントだけ低い項目はプロンプト改善、全員が低い項目はルーブリックの判定基準見直しの候補です</p>
+
+        <div class="card chart-card">
+            <h4>全体の平均評価点の推移(週次)</h4>
+            <svg viewBox="0 0 560 190" style="width:100%; height:auto; display:block;" role="img" aria-label="平均評価点の週次推移。82点から88点へ上昇">
+              <line x1="40" y1="128.3" x2="540" y2="128.3" stroke="#e2e8f0" stroke-width="1"/>
+              <line x1="40" y1="74.2"  x2="540" y2="74.2"  stroke="#e2e8f0" stroke-width="1"/>
+              <line x1="40" y1="20"    x2="540" y2="20"    stroke="#e2e8f0" stroke-width="1"/>
+              <text x="32" y="131" text-anchor="end" font-size="10" fill="#94a3b8">80</text>
+              <text x="32" y="77"  text-anchor="end" font-size="10" fill="#94a3b8">85</text>
+              <text x="32" y="23"  text-anchor="end" font-size="10" fill="#94a3b8">90</text>
+              <path d="M40,106.7 L111.4,85 L182.9,95.8 L254.3,74.2 L325.7,63.3 L397.1,41.7 L468.6,52.5 L540,41.7 L540,160 L40,160 Z" fill="#eef2ff"/>
+              <path d="M40,106.7 L111.4,85 L182.9,95.8 L254.3,74.2 L325.7,63.3 L397.1,41.7 L468.6,52.5 L540,41.7" fill="none" stroke="#4338ca" stroke-width="2" stroke-linejoin="round"/>
+              <circle cx="40" cy="106.7" r="4" fill="#fff" stroke="#4338ca" stroke-width="2"><title>5/11週: 82点</title></circle>
+              <circle cx="111.4" cy="85" r="4" fill="#fff" stroke="#4338ca" stroke-width="2"><title>5/18週: 84点</title></circle>
+              <circle cx="182.9" cy="95.8" r="4" fill="#fff" stroke="#4338ca" stroke-width="2"><title>5/25週: 83点</title></circle>
+              <circle cx="254.3" cy="74.2" r="4" fill="#fff" stroke="#4338ca" stroke-width="2"><title>6/1週: 85点</title></circle>
+              <circle cx="325.7" cy="63.3" r="4" fill="#fff" stroke="#4338ca" stroke-width="2"><title>6/8週: 86点</title></circle>
+              <circle cx="397.1" cy="41.7" r="4" fill="#fff" stroke="#4338ca" stroke-width="2"><title>6/15週: 88点</title></circle>
+              <circle cx="468.6" cy="52.5" r="4" fill="#fff" stroke="#4338ca" stroke-width="2"><title>6/22週: 87点</title></circle>
+              <circle cx="540" cy="41.7" r="4" fill="#fff" stroke="#4338ca" stroke-width="2"><title>6/29週: 88点</title></circle>
+              <text x="40" y="98" text-anchor="middle" font-size="11" font-weight="700" fill="#020617">82</text>
+              <text x="540" y="33" text-anchor="middle" font-size="11" font-weight="700" fill="#020617">88</text>
+              <text x="40" y="180" text-anchor="middle" font-size="10" fill="#94a3b8">5/11</text>
+              <text x="182.9" y="180" text-anchor="middle" font-size="10" fill="#94a3b8">5/25</text>
+              <text x="325.7" y="180" text-anchor="middle" font-size="10" fill="#94a3b8">6/8</text>
+              <text x="468.6" y="180" text-anchor="middle" font-size="10" fill="#94a3b8">6/22</text>
+            </svg>
+          </div>
+      </div>
+
+      <!-- 改善タブ -->
+      <div class="tabpane" id="ins-pane-b">
+        <div class="card" style="padding:12px 16px; margin:4px 0 14px; display:flex; gap:10px; align-items:center; background:var(--primary-soft); border-color:var(--primary-line);">
+          <span style="font-size:14px;">💡</span>
+          <span style="font-size:12.5px; color:var(--text-body);">提案は <b>閾値(懸念・質問・差し戻しの繰り返し)</b>・<b>節目(ワーク10件ごとのふりかえり)</b>・<b>手動</b>で作られます。自動適用はされません。適用後は5ワークで効果を測定し、悪化すればロールバックを提案します</span>
+        </div>
+        <div class="group-head" style="margin-top:4px;"><h3>未対応の改善提案</h3><span class="count">4件</span><span style="flex:1"></span><button class="btn btn-secondary btn-sm">今すぐ見直す</button></div>
+        <div class="list" style="margin-bottom:20px;">
+          <div class="list-item" style="background:#fffdf5;">
+            <div class="li-icon" style="background:var(--warning-soft); color:var(--warning);">!</div>
+            <div style="flex:1;">
+              <div class="li-title">Coder のプロンプト改善 — 形式の準拠 <span class="badge badge-neutral" style="margin-left:4px;">エージェント</span></div>
+              <div class="li-desc">出力前に形式基準でセルフチェックするルールを追加する提案 · 根拠: 「形式の準拠」の獲得率 60%(直近6ワーク · 評価: Reviewer)</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openModal('m-prompt-preview');">プレビュー</button>
+          </div>
+          <div class="list-item" style="background:#fffdf5;">
+            <div class="li-icon" style="background:var(--warning-soft); color:var(--warning);">!</div>
+            <div style="flex:1;">
+              <div class="li-title">ルーブリック「リリースノート品質 v2」— 読者向けの言い換え <span class="badge badge-neutral" style="margin-left:4px;">ルーブリック</span></div>
+              <div class="li-desc">用語集の定訳参照を必須化する提案 · 根拠: 直近5回のレビューで懸念3回(W-1024 ほか2件)</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openModal('m-quality-preview');">プレビュー</button>
+          </div>
+          <div class="list-item" style="background:#fffdf5;">
+            <div class="li-icon" style="background:var(--warning-soft); color:var(--warning);">!</div>
+            <div style="flex:1;">
+              <div class="li-title">知識「プロダクト用語集」への追記 <span class="badge badge-neutral" style="margin-left:4px;">知識</span></div>
+              <div class="li-desc">未定義の3語(dispatch、AgentRun、handoff)の定訳を追加する提案 · 根拠: エージェントからの質問 2回</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();">プレビュー</button>
+          </div>
+          <div class="list-item">
+            <div class="li-icon" style="background:var(--primary-soft); color:var(--primary);">↑</div>
+            <div style="flex:1;">
+              <div class="li-title">確認ポリシーの緩和 — 社内ドキュメント <span class="badge badge-neutral" style="margin-left:4px;">運用</span></div>
+              <div class="li-desc">直近10件連続でレビュー合格・差し戻しなし(平均91点)。「最後に確認する」→「重要時のみ確認」への切り替えを提案</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openModal('m-policy-preview');">プレビュー</button>
+          </div>
+        </div>
+
+        <div class="group-head"><h3>適用済みの改善</h3><span class="count">2件</span></div>
+        <div class="list">
+          <div class="list-item">
+            <div class="li-icon" style="background:var(--success-soft); color:var(--success);">✓</div>
+            <div style="flex:1;">
+              <div class="li-title">ルーブリック「リリースノート品質」 v1 → v2</div>
+              <div class="li-desc">形式基準を明文化 · 適用: 2週間前</div>
+            </div>
+            <span style="font-size:12px; color:var(--success); font-weight:600;">効果: 「形式の準拠」懸念 3件 → 0件</span>
+          </div>
+          <div class="list-item">
+            <div class="li-icon" style="background:var(--success-soft); color:var(--success);">✓</div>
+            <div style="flex:1;">
+              <div class="li-title">Writer のプロンプト改善</div>
+              <div class="li-desc">不明点を推測せず質問として返すルールを追加 · 適用: 1ヶ月前</div>
+            </div>
+            <span style="font-size:12px; color:var(--success); font-weight:600;">効果: 差し戻し率 22% → 12%</span>
+          </div>
+        </div>
+        <p style="font-size:12px; color:var(--text-faint); margin-top:12px;">提案が自動で適用されることはありません。すべて適用前にプレビューし、あなたが判断します。</p>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN: カタログ ============ -->
+    <section class="screen" id="scr-catalog">
+      <h2 class="page-title">UIカタログ</h2>
+      <p class="page-sub">Nagare のデザイントークンとコンポーネント一覧。hachiware-labs.com のテイストに準拠する。</p>
+
+      <div class="cat-sec">
+        <h3>カラートークン</h3>
+        <div class="cat-note">色は意味にだけ使う: primary / selection、success、warning、danger、disabled</div>
+        <div class="card cat-row">
+          <div class="swatch"><div class="sq" style="background:#4338ca;"></div><div class="sw-name">primary</div><div class="sw-val">#4338CA</div></div>
+          <div class="swatch"><div class="sq" style="background:#3730a3;"></div><div class="sw-name">primary hover</div><div class="sw-val">#3730A3</div></div>
+          <div class="swatch"><div class="sq" style="background:#eef2ff;"></div><div class="sw-name">primary soft</div><div class="sw-val">#EEF2FF</div></div>
+          <div class="swatch"><div class="sq" style="background:#020617;"></div><div class="sw-name">text</div><div class="sw-val">#020617</div></div>
+          <div class="swatch"><div class="sq" style="background:#334155;"></div><div class="sw-name">text body</div><div class="sw-val">#334155</div></div>
+          <div class="swatch"><div class="sq" style="background:#64748b;"></div><div class="sw-name">text muted</div><div class="sw-val">#64748B</div></div>
+          <div class="swatch"><div class="sq" style="background:#e2e8f0;"></div><div class="sw-name">border</div><div class="sw-val">#E2E8F0</div></div>
+          <div class="swatch"><div class="sq" style="background:#15803d;"></div><div class="sw-name">success</div><div class="sw-val">#15803D</div></div>
+          <div class="swatch"><div class="sq" style="background:#b45309;"></div><div class="sw-name">warning</div><div class="sw-val">#B45309</div></div>
+          <div class="swatch"><div class="sq" style="background:#b91c1c;"></div><div class="sw-name">danger</div><div class="sw-val">#B91C1C</div></div>
+        </div>
+      </div>
+
+      <div class="cat-sec">
+        <h3>タイポグラフィ</h3>
+        <div class="cat-note">Geist / システムフォント。角丸8px、境界線1pxと合わせてコンパクトな密度を保つ</div>
+        <div class="card cat-col">
+          <div style="font-size:19px; font-weight:700; color:var(--text);">ページタイトル 19px / 700</div>
+          <div style="font-size:15px; font-weight:700; color:var(--text);">セクション見出し 15px / 700</div>
+          <div style="font-size:14px; color:var(--text-body);">本文 14px — この作業は今どうなっていて、次に自分は何をすればよいか。</div>
+          <div style="font-size:12.5px; color:var(--text-muted);">補足・メタ情報 12.5px — 状態や根拠の説明に使う</div>
+          <div class="mono" style="color:var(--text);">mono 12px — docs/release-notes/v0.4.md</div>
+        </div>
+      </div>
+
+      <div class="cat-sec">
+        <h3>ボタン</h3>
+        <div class="cat-note">primaryは1画面に原則1つ。押下で沈み、フォーカスリングはindigo-400</div>
+        <div class="card cat-row">
+          <button class="btn btn-primary">主要アクション</button>
+          <button class="btn btn-secondary">副次アクション</button>
+          <button class="btn btn-ghost">ゴースト</button>
+          <button class="btn btn-danger-soft">差し戻し系</button>
+          <button class="btn btn-primary btn-sm">小 primary</button>
+          <button class="btn btn-secondary btn-sm">小 secondary</button>
+          <button class="btn btn-primary" disabled>無効状態</button>
+        </div>
+      </div>
+
+      <div class="cat-sec">
+        <h3>状態バッジ・チップ</h3>
+        <div class="cat-note">作業状態は「人間が対応すべきか」が分かる言葉で示す</div>
+        <div class="card cat-row">
+          <span class="badge badge-run"><span class="bdot"></span>処理中</span>
+          <span class="badge badge-ask"><span class="bdot"></span>要対応・質問</span>
+          <span class="badge badge-ask"><span class="bdot"></span>要対応・確認</span>
+          <span class="badge badge-fix"><span class="bdot"></span>要対応・回復</span>
+          <span class="badge badge-done">✓ 完了</span>
+          <span class="badge badge-neutral">待機</span>
+          <span style="width:14px;"></span>
+          <span class="chip k">ドメイン知識チップ</span>
+          <button class="filter-btn active">フィルタ選択中</button>
+          <button class="filter-btn">フィルタ</button>
+        </div>
+      </div>
+
+      <div class="cat-sec">
+        <h3>ドロップダウン</h3>
+        <div class="cat-note">一覧の絞り込みや設定値の選択に使う。ラベル+選択値をボタン内に併記し、選択中は✓で示す</div>
+        <div class="card cat-row" style="align-items:flex-start; gap:48px;">
+          <div>
+            <div class="cat-note" style="margin-bottom:8px;">閉じた状態(クリックで開閉できます)</div>
+            <div class="dd" id="dd-demo">
+              <button class="dd-btn" onclick="ddToggle('dd-demo');event.stopPropagation();"><span class="dd-pre">状態:</span> <b id="dd-demo-val">すべて</b><span class="chev"></span></button>
+              <div class="dd-menu">
+                <button class="dd-item active" onclick="ddPick('dd-demo','all','すべて',this)">すべて<span class="dd-count">6</span><span class="chk">✓</span></button>
+                <button class="dd-item" onclick="ddPick('dd-demo','attn','要対応',this)">要対応<span class="dd-count">3</span><span class="chk">✓</span></button>
+                <button class="dd-item" onclick="ddPick('dd-demo','done','完了済み',this)">完了済み<span class="dd-count">2</span><span class="chk">✓</span></button>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="cat-note" style="margin-bottom:8px;">開いた状態(メニューは選択値に✓、件数は右寄せ)</div>
+            <div class="dd demo-open">
+              <button class="dd-btn" style="border-color:var(--focus); box-shadow:0 0 0 3px rgba(129,140,248,.22);"><span class="dd-pre">プロジェクト:</span> <b>すべて</b><span class="chev" style="transform:rotate(225deg) translateY(-2px);"></span></button>
+              <div class="dd-menu">
+                <button class="dd-item active">すべて<span class="chk">✓</span></button>
+                <button class="dd-item">Nagare UI 刷新<span class="chk">✓</span></button>
+                <button class="dd-item">社内ドキュメント<span class="chk">✓</span></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cat-sec">
+        <h3>リスト</h3>
+        <div class="cat-note">同種の項目は1つの枠にまとめ、行間は境界線で区切る。行全体がクリック対象</div>
+        <div class="list" style="max-width:560px;">
+          <div class="list-item">
+            <div class="li-icon">📘</div>
+            <div style="flex:1;">
+              <div class="li-title">標準リスト行</div>
+              <div class="li-desc">アイコン+タイトル+説明+右端の遷移シェブロン</div>
+            </div>
+            <span class="li-chev">›</span>
+          </div>
+          <div class="list-item">
+            <div class="li-icon">🤖</div>
+            <div style="flex:1;">
+              <div class="li-title">バッジ付きの行</div>
+              <div class="li-desc">状態を右側に示す</div>
+            </div>
+            <span class="badge badge-done">接続済み</span>
+            <span class="li-chev">›</span>
+          </div>
+          <div class="list-item">
+            <div class="li-icon">⚙️</div>
+            <div style="flex:1;">
+              <div class="li-title">操作付きの行</div>
+              <div class="li-desc">行内に副次ボタンを置ける</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();">編集</button>
+          </div>
+          <div class="list-empty">条件に一致する項目がない時の空状態</div>
+        </div>
+      </div>
+
+      <div class="cat-sec">
+        <h3>AI支援の2形態</h3>
+        <div class="cat-note">同じ対象(ルーブリック / プロンプト / 知識)に2種類のAI支援が存在する。編集画面ではこの2行を必ず並置し、同じ語彙・同じ配置で示す。提案が0件でも枠を出して仕組みを予告する</div>
+        <div class="list" style="max-width:680px;">
+          <div class="list-item" style="padding:10px 14px;">
+            <div class="li-icon" style="background:var(--primary-soft); color:var(--primary); width:28px; height:28px; font-size:13px;">✨</div>
+            <div style="flex:1;">
+              <div class="li-title" style="font-size:13px;">生成支援 — あなたが起動(いつでも)</div>
+              <div class="li-desc">下書きをその場で生成 → 挿入 → 編集。適用は保存時</div>
+            </div>
+            <button class="btn btn-secondary btn-sm">生成</button>
+          </div>
+          <div class="list-item" style="padding:10px 14px; background:#fffdf5;">
+            <div class="li-icon" style="background:var(--warning-soft); color:var(--warning); width:28px; height:28px; font-size:13px;">!</div>
+            <div style="flex:1;">
+              <div class="li-title" style="font-size:13px;">改善提案 — Nagareが実績から検出</div>
+              <div class="li-desc">品質記録が起点。全文Diff+根拠 → 受信箱で適用/却下。自動適用しない</div>
+            </div>
+            <button class="btn btn-secondary btn-sm">Diffを見る</button>
+            <button class="btn btn-primary btn-sm">受信箱へ</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="cat-sec">
+        <h3>フォーム</h3>
+        <div class="card cat-col" style="max-width:520px;">
+          <div class="field" style="margin:0;">
+            <label>テキスト入力</label>
+            <input type="text" placeholder="プロジェクト名を入力">
+            <div class="hint">補足のヒントテキスト</div>
+          </div>
+          <div class="field" style="margin:0;">
+            <label>複数行入力</label>
+            <textarea placeholder="依頼を書いてください"></textarea>
+          </div>
+          <label class="opt sel"><input type="radio" checked>
+            <div><div class="o-name">選択肢カード(選択中)</div><div class="o-desc">質問回答・回復案の選択に使う</div></div>
+          </label>
+          <label class="opt"><input type="radio">
+            <div><div class="o-name">選択肢カード</div><div class="o-desc">未選択の状態</div></div>
+          </label>
+        </div>
+      </div>
+
+      <div class="cat-sec">
+        <h3>ステータスストリップ</h3>
+        <div class="cat-note">詳細画面の最上部で「いま」と「次」を必ず答える</div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div class="card status-strip" style="margin:0;"><div class="ss-main"><div class="ss-now">いま: Writer が作成を実行中です</div><div class="ss-next">次: Reviewer が検証します。操作は不要です</div></div><div class="ss-prog">工程 2 / 4</div></div>
+          <div class="card status-strip strip-warn" style="margin:0;"><div class="ss-main"><div class="ss-now">質問が届いています</div><div class="ss-next">回答するとこの作業だけが再開されます</div></div><div class="ss-prog">停止中</div></div>
+          <div class="card status-strip strip-danger" style="margin:0;"><div class="ss-main"><div class="ss-now">接続に失敗し停止しました</div><div class="ss-next">回復案を選ぶと途中から再開します</div></div><div class="ss-prog">停止中</div></div>
+          <div class="card status-strip strip-ok" style="margin:0;"><div class="ss-main"><div class="ss-now">完了し、結果は採用済みです</div><div class="ss-next">所要 14分 · 4工程</div></div></div>
+        </div>
+      </div>
+
+      <div class="cat-sec">
+        <h3>実行トレース(ハーネス)</h3>
+        <div class="cat-note">工程ドット: 完了=green / 実行中=indigo+リング / 回答待ち=amber / 失敗=red</div>
+        <div class="trace">
+          <div class="step done"><div class="card step-card"><div class="step-top"><span class="st-name">完了した工程</span><span class="st-agent">担当: <span class="mini-av-emoji">🧭</span><b>オーガナイザー</b></span><span class="st-state badge badge-done">✓ 完了</span></div></div></div>
+          <div class="step now"><div class="card step-card"><div class="step-top"><span class="st-name">実行中の工程</span><span class="st-agent">担当: <img class="mini-av" src="avatars/writer.svg" alt=""><b>Writer</b></span><span class="st-state badge badge-run"><span class="bdot"></span>実行中</span></div>
+            <div class="step-why"><b>割り当ての根拠:</b> なぜこのエージェントが選ばれたかを1行で示す</div>
+            <div class="step-know"><span class="sk-label">使用中の知識:</span><span class="chip k">ドメイン共通知識</span></div>
+          </div></div>
+          <div class="step wait"><div class="card step-card"><div class="step-top"><span class="st-name">回答待ちの工程</span><span class="st-agent">担当: <img class="mini-av" src="avatars/writer.svg" alt=""><b>Writer</b></span><span class="st-state badge badge-ask"><span class="bdot"></span>回答待ち</span></div></div></div>
+          <div class="step fail"><div class="card step-card"><div class="step-top"><span class="st-name">失敗した工程</span><span class="st-agent">担当: <img class="mini-av" src="avatars/coder.svg" alt=""><b>Coder</b></span><span class="st-state badge badge-fix"><span class="bdot"></span>失敗</span></div></div></div>
+        </div>
+      </div>
+
+      <div class="cat-sec">
+        <h3>ルーブリック判定</h3>
+        <div class="cat-note">レビューは項目単位で判定・根拠・懸念を示し、総合点は集計として見せる</div>
+        <div class="card rubric-head" style="margin-bottom:8px;">
+          <div class="score-ring"><div class="inner"><span class="num">88</span><span class="of">/ 100</span></div></div>
+          <div style="flex:1;"><div style="font-weight:700; color:var(--text); font-size:15px;">承認を推奨 — 懸念1件</div><div style="font-size:12.5px; color:var(--text-muted);">総合スコアリング</div></div>
+        </div>
+        <div class="rubric-item pass"><div class="ri-mark">✓</div><div style="flex:1;"><div class="ri-name">合格項目</div><div class="ri-evi">根拠: 判定の根拠を必ず添える</div></div><div class="ri-score">20 / 20</div></div>
+        <div class="rubric-item warn"><div class="ri-mark">!</div><div style="flex:1;"><div class="ri-name">懸念項目</div><div class="ri-evi">懸念: 何が足りないか+該当箇所へのリンク</div></div><div class="ri-score">8 / 20</div></div>
+      </div>
+
+      <div class="cat-sec">
+        <h3>成果物・回答</h3>
+        <div class="card answer-box" style="margin-bottom:8px;"><div class="ab-label">回答</div><p>作業の最終回答は左のindigoラインで示す。</p></div>
+        <div class="artifact-row"><div class="a-icon">📄</div><div style="flex:1;"><div class="a-path">docs/example.md</div><div class="a-meta">新規作成 · 214行 · Writer が生成</div></div><button class="btn btn-secondary btn-sm">内容を見る</button></div>
+      </div>
+
+      <div class="cat-sec">
+        <h3>モーダル</h3>
+        <div class="cat-note">一時的なセットアップ・確認だけに使い、必ずフルページ画面へ戻る</div>
+        <div class="cat-well">
+          <div class="modal">
+            <div class="modal-head"><div class="m-step">セットアップ 1 / 3</div><h3>モーダルタイトル</h3><div class="m-sub">目的を1行で説明する</div></div>
+            <div class="modal-body"><div class="field" style="margin:0;"><label>入力項目</label><input type="text" placeholder="値を入力"></div></div>
+            <div class="modal-foot"><button class="btn btn-secondary">戻る</button><button class="btn btn-primary">次へ</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    </div></div>
+  </div>
+</div>
+
+<!-- ============ MODAL: セットアップ 1/3 プロジェクト ============ -->
+<div class="overlay" id="m-setup1">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="m-step">セットアップ 1 / 3</div>
+      <h3>プロジェクトをつくる</h3>
+      <div class="m-sub">作業の対象になるフォルダを選びます。あとから追加・変更できます</div>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>プロジェクト名</label>
+        <input type="text" value="Nagare UI 刷新">
+      </div>
+      <div class="field">
+        <label>対象フォルダ</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" value="C:\work\nagare" class="mono" style="flex:1;">
+          <button class="btn btn-secondary">選択…</button>
+        </div>
+        <div class="hint">評価基準やエージェント構成は、最初は自動で用意されます。設定はいつでも変更できます</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModals()">閉じる</button>
+      <button class="btn btn-primary" onclick="closeModals(); openModal('m-setup2')">次へ</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: セットアップ 2/3 実行環境 ============ -->
+<div class="overlay" id="m-setup2">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="m-step">セットアップ 2 / 3</div>
+      <h3>実行環境をえらぶ</h3>
+      <div class="m-sub">この端末で見つかったAI実行環境から選びます</div>
+    </div>
+    <div class="modal-body">
+      <div class="rt-opt sel" onclick="selRt(this)">
+        <div class="rt-icon">🤖</div>
+        <div>
+          <div class="rt-name">Claude Code</div>
+          <div class="rt-desc">検出済み · v2.1 · 既定のモデルを使用</div>
+        </div>
+        <span class="rt-state badge badge-done">利用可能</span>
+      </div>
+      <div class="rt-opt" onclick="selRt(this)">
+        <div class="rt-icon">⌨️</div>
+        <div>
+          <div class="rt-name">Codex CLI</div>
+          <div class="rt-desc">検出済み · v0.9 · モデル切替: 対応</div>
+        </div>
+        <span class="rt-state badge badge-neutral">未確認</span>
+      </div>
+      <div class="rt-opt" onclick="selRt(this)">
+        <div class="rt-icon">🧰</div>
+        <div>
+          <div class="rt-name">OpenCode</div>
+          <div class="rt-desc">検出済み · v0.6 · モデル切替: 対応(マルチプロバイダ)</div>
+        </div>
+        <span class="rt-state badge badge-neutral">未確認</span>
+      </div>
+      <div class="rt-opt" onclick="selRt(this)">
+        <div class="rt-icon">🐾</div>
+        <div>
+          <div class="rt-name">OpenClaw</div>
+          <div class="rt-desc">検出済み · v0.2 · モデル切替: 非対応</div>
+        </div>
+        <span class="rt-state badge badge-neutral">未確認</span>
+      </div>
+      <p style="font-size:12px; color:var(--text-faint); margin-top:6px;">未検出の実行環境はここに表示されません。設定画面から手動で追加できます</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary left" onclick="closeModals(); openModal('m-setup1')">戻る</button>
+      <button class="btn btn-primary" onclick="closeModals(); openModal('m-setup3')">保存して接続確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: セットアップ 3/3 接続確認 ============ -->
+<div class="overlay" id="m-setup3">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="m-step">セットアップ 3 / 3</div>
+      <h3>接続確認</h3>
+    </div>
+    <div class="modal-body">
+      <div class="conn-result">
+        <div class="c-icon">✓</div>
+        <h4>Claude Code に接続できました</h4>
+        <p>これで依頼を作成できます</p>
+      </div>
+      <div style="margin-top:14px; border-top:1px solid var(--border); padding-top:8px;">
+        <div class="conn-check"><span class="ok">✓</span> 実行ファイルを確認 (claude v2.1)</div>
+        <div class="conn-check"><span class="ok">✓</span> 認証状態を確認</div>
+        <div class="conn-check"><span class="ok">✓</span> 応答テスト (1.2秒)</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary left" onclick="closeModals(); openModal('m-setup2')">実行環境へ戻る</button>
+      <button class="btn btn-primary" onclick="finishSetup()">はじめる</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: 新規プロジェクト ============ -->
+<div class="overlay" id="m-proj-create">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>新規プロジェクト</h3>
+      <div class="m-sub">名前と作業フォルダだけで作成できます。詳細はあとから設定できます</div>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>アイコンと名前</label>
+        <div class="icon-pick" style="margin-bottom:8px;">
+          <div class="icon-opt sel" onclick="selIcon(this)">📘</div>
+          <div class="icon-opt" onclick="selIcon(this)">🌊</div>
+          <div class="icon-opt" onclick="selIcon(this)">🗂️</div>
+          <div class="icon-opt" onclick="selIcon(this)">🚀</div>
+          <div class="icon-opt" onclick="selIcon(this)">🧪</div>
+          <div class="icon-opt" onclick="selIcon(this)">📦</div>
+        </div>
+        <input type="text" placeholder="例: 社内ドキュメント">
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label>対象フォルダ</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" placeholder="フォルダを選択" class="mono" style="flex:1;">
+          <button class="btn btn-secondary">選択…</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModals()">閉じる</button>
+      <button class="btn btn-primary" onclick="closeModals()">作成</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: 新規ドメイン ============ -->
+<div class="overlay" id="m-domain-create">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>新規ドメイン</h3>
+      <div class="m-sub">まず名前と説明だけで作成できます。知識とルーブリックはあとから追加できます</div>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>ドメイン名</label>
+        <input type="text" placeholder="例: 会議文書">
+      </div>
+      <div class="field">
+        <label>説明(任意)</label>
+        <textarea placeholder="このドメインが扱う文書や成果物の範囲" style="min-height:52px;"></textarea>
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label>作成支援</label>
+        <label class="opt sel" style="margin-bottom:0;"><input type="checkbox" checked>
+          <div>
+            <div class="o-name">ルーブリックのたたき台をAIで作成する</div>
+            <div class="o-desc">内蔵オーガナイザーが、ドメイン名・説明から成果物種別とルーブリック案(項目・配点・判定基準)を生成します。適用前に必ずプレビューして編集できます</div>
+          </div>
+        </label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModals()">閉じる</button>
+      <button class="btn btn-primary" onclick="closeModals(); openModal('m-rubric-assist')">作成してたたき台を生成</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: 品質変更プレビュー ============ -->
+<div class="overlay" id="m-quality-preview">
+  <div class="modal" style="width:640px;">
+    <div class="modal-head">
+      <div class="m-step">品質変更プレビュー</div>
+      <h3>ルーブリック改善の提案</h3>
+      <div class="m-sub">対象: リリースノート品質 v2 「読者向けの言い換え」の判定基準</div>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:12px;">
+        <div style="font-size:11px; font-weight:700; letter-spacing:.08em; color:var(--text-faint); text-transform:uppercase; margin-bottom:5px;">変更内容 (v2 → v3) — ファイル全文 · 変更は1箇所</div>
+        <div class="diff" style="max-height:340px; overflow-y:auto;">
+          <div class="dl hunk">rubric.md(全文)</div>
+          <div class="dl ctx"># リリースノート品質 v2</div>
+          <div class="dl ctx">&nbsp;</div>
+          <div class="dl ctx">## 変更点の網羅性 (20点)</div>
+          <div class="dl ctx">対象バージョンの全コミット・全変更が記載に対応していること。対応表で確認できること。</div>
+          <div class="dl ctx">&nbsp;</div>
+          <div class="dl ctx">## 破壊的変更の明記 (20点)</div>
+          <div class="dl ctx">互換性が壊れる変更は「Breaking Changes」節に分離し、移行手順を添えること。</div>
+          <div class="dl ctx">&nbsp;</div>
+          <div class="dl ctx">## 読者向けの言い換え (20点)</div>
+          <div class="dl del">内部用語・実装用語を使わず、ユーザー向けの言葉で書くこと。</div>
+          <div class="dl add">内部用語・実装用語を使わず、ユーザー向けの言葉で書くこと。共通知識「プロダクト用語集」の定訳を必ず参照し、対訳がない用語は懸念として報告すること。</div>
+          <div class="dl ctx">&nbsp;</div>
+          <div class="dl ctx">## 形式の準拠 (15点)</div>
+          <div class="dl ctx">知識「リリースノート テンプレート」の見出し構成に従うこと。</div>
+          <div class="dl ctx">&nbsp;</div>
+          <div class="dl ctx">## リンクの有効性 (15点)</div>
+          <div class="dl ctx">文中のリンクがすべて到達可能であること。</div>
+          <div class="dl ctx">&nbsp;</div>
+          <div class="dl ctx">## 日付・バージョン整合 (10点)</div>
+          <div class="dl ctx">バージョン番号とリリース日付が package.json と一致すること。</div>
+        </div>
+      </div>
+      <div style="font-size:12.5px; color:var(--text-muted); border-top:1px solid var(--border); padding-top:10px;">
+        <b style="color:var(--text-body);">提案の根拠:</b> 直近5回のレビューで「内部用語の残存」が3回発生(W-1024、W-1019、W-1015)。いずれも用語集に定訳が存在していました。
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModals()">却下</button>
+      <button class="btn btn-primary" onclick="closeModals(); go('knowledge-rubric')">適用して v3 として保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: 新規エージェント ============ -->
+<div class="overlay" id="m-agent-create">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>新規エージェント</h3>
+      <div class="m-sub">名前・役割・実行環境だけで作成できます。得意分野や範囲はあとから設定できます</div>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>名前</label>
+        <input type="text" placeholder="例: Translator">
+      </div>
+      <div class="field">
+        <label>役割</label>
+        <label class="opt sel" style="margin-bottom:6px;"><input type="radio" name="new-agent-role" checked>
+          <div><div class="o-name">ワーカー</div><div class="o-desc">成果物の作成・変更を行います</div></div>
+        </label>
+        <label class="opt" style="margin-bottom:6px;"><input type="radio" name="new-agent-role">
+          <div><div class="o-name">レビュアー</div><div class="o-desc">ルーブリックで検証し、根拠を記録します</div></div>
+        </label>
+        <label class="opt"><input type="radio" name="new-agent-role">
+          <div><div class="o-name">オーガナイザー</div><div class="o-desc">依頼の構造化と担当割り当てを行います。プロジェクトの整理役として指定できます(未指定時は内蔵オーガナイザー)</div></div>
+        </label>
+      </div>
+      <div class="field">
+        <label>実行環境</label>
+        <div class="dd" id="dd-new-agent-rt">
+          <button class="dd-btn" onclick="ddToggle('dd-new-agent-rt');event.stopPropagation();"><span class="dd-pre">実行環境:</span> <b id="dd-new-agent-rt-val">Claude Code</b><span class="chev"></span></button>
+          <div class="dd-menu">
+            <button class="dd-item active" onclick="ddPick('dd-new-agent-rt','cc','Claude Code',this)">Claude Code<span class="chk">✓</span></button>
+            <button class="dd-item" onclick="ddPick('dd-new-agent-rt','cx','Codex CLI',this)">Codex CLI<span class="chk">✓</span></button>
+            <button class="dd-item" onclick="ddPick('dd-new-agent-rt','oc','OpenCode',this)">OpenCode<span class="chk">✓</span></button>
+            <button class="dd-item" onclick="ddPick('dd-new-agent-rt','ocl','OpenClaw',this)">OpenClaw<span class="chk">✓</span></button>
+          </div>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label>アイコン画像(任意)</label>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div style="width:56px; height:56px; border-radius:10px; border:1px dashed var(--border-strong); background:#f8fafc; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:700; color:var(--text-faint);">T</div>
+          <button class="btn btn-secondary btn-sm">画像を選択…</button>
+        </div>
+        <div class="hint">未設定の場合は名前のイニシャルを表示します</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModals()">閉じる</button>
+      <button class="btn btn-primary" onclick="closeModals(); go('agent-settings')">作成して設定を開く</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: スキル追加 ============ -->
+<div class="overlay" id="m-skill-add">
+  <div class="modal" style="width:540px;">
+    <div class="modal-head">
+      <h3>スキルを追加</h3>
+      <div class="m-sub">Nagare 全体のライブラリに追加します。追加しただけでは使われません — エージェントへの割り当てが必要です</div>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>ClawHub で検索</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" value="diagram" style="flex:1;">
+          <button class="btn btn-secondary">検索</button>
+        </div>
+        <div class="list" style="margin-top:8px;">
+          <div class="list-item">
+            <div class="li-icon">🧩</div>
+            <div style="flex:1;">
+              <div class="li-title">mermaid-diagrams</div>
+              <div class="li-desc">v2.0 · ★ 1.2k · フロー図・シーケンス図の生成</div>
+            </div>
+            <button class="btn btn-primary btn-sm">インストール</button>
+          </div>
+          <div class="list-item">
+            <div class="li-icon">🧩</div>
+            <div style="flex:1;">
+              <div class="li-title">diagram-lint</div>
+              <div class="li-desc">v0.7 · ★ 340 · 図の整合性チェック</div>
+            </div>
+            <button class="btn btn-primary btn-sm">インストール</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; margin:14px 0;">
+        <div style="flex:1; height:1px; background:var(--border);"></div>
+        <span style="font-size:11px; color:var(--text-faint); font-weight:600;">または</span>
+        <div style="flex:1; height:1px; background:var(--border);"></div>
+      </div>
+      <div class="field">
+        <label>GitHub リポジトリ URL から</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" placeholder="https://github.com/owner/skill-repo" class="mono" style="flex:1;">
+          <button class="btn btn-secondary">追加</button>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label>ローカルフォルダから</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" placeholder="スキル定義フォルダを選択" class="mono" style="flex:1;">
+          <button class="btn btn-secondary">選択…</button>
+        </div>
+        <div class="hint">追加時に定義を検証します。検証に失敗したスキルは割り当てできません</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModals()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: スキル削除確認 ============ -->
+<div class="overlay" id="m-skill-delete">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>スキルを削除しますか?</h3>
+      <div class="m-sub">Nagare のライブラリから削除します</div>
+    </div>
+    <div class="modal-body">
+      <div class="kv"><div class="k">対象</div><div class="v">markdown-tools v1.2</div></div>
+      <div class="kv"><div class="k">割り当て</div><div class="v">Writer から自動的に解除されます</div></div>
+      <div class="kv"><div class="k">影響</div><div class="v">以後のワークでは使われません。過去のワーク履歴と実行記録は保持されます</div></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModals()">閉じる</button>
+      <button class="btn btn-danger-soft" onclick="closeModals()">削除する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: MCP追加 ============ -->
+<div class="overlay" id="m-mcp-add">
+  <div class="modal" style="width:540px;">
+    <div class="modal-head">
+      <div class="m-step">手順: 登録 → 接続テスト → 割り当て</div>
+      <h3>MCP を追加</h3>
+      <div class="m-sub">接続テストに成功すると、エージェントへ割り当てできるようになります</div>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>名前</label>
+        <input type="text" value="GitHub MCP">
+      </div>
+      <div class="field">
+        <label>起動コマンド</label>
+        <input type="text" value="npx @modelcontextprotocol/server-github" class="mono">
+      </div>
+      <div class="field">
+        <label>環境変数(任意)</label>
+        <input type="text" value="GITHUB_TOKEN=●●●●●●●●" class="mono">
+        <div class="hint">認証情報はこの端末にのみ保存されます</div>
+      </div>
+      <div style="border:1px solid var(--success-line); background:var(--success-soft); border-radius:var(--radius); padding:10px 14px;">
+        <div class="conn-check" style="padding:2px 0;"><span class="ok">✓</span> 起動確認 (0.8秒)</div>
+        <div class="conn-check" style="padding:2px 0;"><span class="ok">✓</span> 認証確認</div>
+        <div class="conn-check" style="padding:2px 0;"><span class="ok">✓</span> ツール一覧を取得 (12件)</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModals()">閉じる</button>
+      <button class="btn btn-secondary" onclick="event.stopPropagation();">再テスト</button>
+      <button class="btn btn-primary" onclick="closeModals(); openModal('m-assign')">保存してエージェントへ割り当て</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: MCP削除確認 ============ -->
+<div class="overlay" id="m-mcp-delete">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>MCP 接続を削除しますか?</h3>
+      <div class="m-sub">Nagare のライブラリから削除します</div>
+    </div>
+    <div class="modal-body">
+      <div class="kv"><div class="k">対象</div><div class="v">GitHub MCP</div></div>
+      <div class="kv"><div class="k">割り当て</div><div class="v">Writer から自動的に解除されます</div></div>
+      <div class="kv"><div class="k">認証情報</div><div class="v">この端末に保存された認証情報も削除されます</div></div>
+      <div class="kv"><div class="k">影響</div><div class="v">以後のワークでは使われません。過去のワーク履歴と実行記録は保持されます</div></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModals()">閉じる</button>
+      <button class="btn btn-danger-soft" onclick="closeModals()">削除する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: エージェントへ割り当て ============ -->
+<div class="overlay" id="m-assign">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>エージェントへ割り当て</h3>
+      <div class="m-sub">割り当てたエージェントが参加するプロジェクトで、自動的に利用可能になります</div>
+    </div>
+    <div class="modal-body">
+      <label class="opt sel" style="margin-bottom:6px;"><input type="checkbox" checked>
+        <div style="flex:1;">
+          <div class="o-name">Writer</div>
+          <div class="o-desc">ワーカー · 参加プロジェクト: Nagare UI 刷新、社内ドキュメント</div>
+        </div>
+      </label>
+      <label class="opt" style="margin-bottom:6px;"><input type="checkbox">
+        <div style="flex:1;">
+          <div class="o-name">Reviewer</div>
+          <div class="o-desc">レビュアー · 参加プロジェクト: Nagare UI 刷新</div>
+        </div>
+      </label>
+      <label class="opt"><input type="checkbox">
+        <div style="flex:1;">
+          <div class="o-name">Coder <span class="badge badge-fix" style="margin-left:4px;"><span class="bdot"></span>実行環境 未接続</span></div>
+          <div class="o-desc">割り当ては可能ですが、実行環境が未接続のためワークでは使われません</div>
+        </div>
+      </label>
+      <div style="border-top:1px solid var(--border); margin-top:12px; padding-top:10px; font-size:12.5px; color:var(--text-muted);">
+        この割り当てで利用可能になるプロジェクト: <b style="color:var(--text-body);">Nagare UI 刷新、社内ドキュメント</b>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModals()">閉じる</button>
+      <button class="btn btn-primary" onclick="closeModals()">割り当てを保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: ルーブリック作成支援 ============ -->
+<div class="overlay" id="m-rubric-assist">
+  <div class="modal" style="width:580px;">
+    <div class="modal-head">
+      <div class="m-step">作成支援 · 内蔵オーガナイザー</div>
+      <h3>ルーブリックのたたき台</h3>
+      <div class="m-sub">材料: ドメイン「プロダクト文書」の説明 · 知識「リリースノート テンプレート」 · 類似ドメインの標準構成</div>
+    </div>
+    <div class="modal-body">
+      <div class="mono" style="border:1px solid var(--primary-line); border-radius:var(--radius); background:var(--primary-soft); padding:12px 14px; margin-bottom:12px; font-size:12px; line-height:1.7; white-space:pre-wrap; max-height:320px; overflow-y:auto;"># リリースノート品質 v1(下書き · 全文)
+
+## 変更点の網羅性 (20点)
+対象バージョンの全変更が記載に対応していること。
+
+## 破壊的変更の明記 (20点)
+互換性が壊れる変更は節を分け、移行手順を添えること。
+
+## 読者向けの言い換え (20点)
+内部用語を使わず、ユーザー向けの言葉で書くこと。
+
+## 形式の準拠 (15点)
+テンプレート知識の見出し構成に従うこと。
+
+## リンクの有効性 (15点)
+文中のリンクがすべて到達可能であること。
+
+## 日付・バージョン整合 (10点)
+バージョン番号と日付が package.json と一致すること。</div>
+      <div style="font-size:12.5px; color:var(--text-muted);">
+        <b style="color:var(--text-body);">生成の根拠:</b> テンプレート知識の見出し構成から「形式の準拠」を、文書系ドメインの標準から網羅性・リンク検証を採用しました。各項目の判定基準も下書き済みです。
+      </div>
+      <div class="hint" style="margin-top:8px;">これは下書きです。編集画面のMarkdown(形式: <code>## 項目名 (配点)</code>)に挿入されるので、調整してから保存してください</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModals()">破棄</button>
+      <button class="btn btn-secondary" onclick="event.stopPropagation();">条件を変えて再生成</button>
+      <button class="btn btn-primary" onclick="closeModals(); go('knowledge-rubric')">編集画面に挿入</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: プロンプト作成支援 ============ -->
+<div class="overlay" id="m-prompt-assist">
+  <div class="modal" style="width:560px;">
+    <div class="modal-head">
+      <div class="m-step">作成支援 · 内蔵オーガナイザー</div>
+      <h3>プロンプトの下書き</h3>
+      <div class="m-sub">材料: Writer の役割(ワーカー)・得意分野 · 担当ドメイン「プロダクト文書」の知識 · 直近の評価履歴</div>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:12px;">
+        <div style="font-size:11px; font-weight:700; letter-spacing:.08em; color:var(--primary); text-transform:uppercase; margin-bottom:5px;">生成された下書き</div>
+        <div class="mono" style="border:1px solid var(--primary-line); border-radius:var(--radius); padding:10px 12px; font-size:12px; color:var(--text); background:var(--primary-soft);">
+          あなたはプロダクト文書の専門ライターです。<br>
+          - 共通知識「プロダクト用語集」の定訳を必ず使う<br>
+          - 成果物種別のテンプレートに従う<br>
+          - 不明点は推測せず、質問として返す<br>
+          <b>- 提出前に、ルーブリックの各項目を自分で点検し、懸念があれば出力に明記する</b>
+        </div>
+      </div>
+      <div style="font-size:12.5px; color:var(--text-muted); border-top:1px solid var(--border); padding-top:10px;">
+        <b style="color:var(--text-body);">生成の根拠:</b> 最終行は、評価履歴で「読者向けの言い換え」の懸念が繰り返し出ていること(獲得率72%)への対策として追加しました。
+      </div>
+      <div class="hint" style="margin-top:8px;">挿入後も自由に編集できます。適用は保存時です</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModals()">破棄</button>
+      <button class="btn btn-secondary" onclick="event.stopPropagation();">再生成</button>
+      <button class="btn btn-primary" onclick="closeModals()">プロンプト欄に挿入</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: 確認ポリシー緩和プレビュー ============ -->
+<div class="overlay" id="m-policy-preview">
+  <div class="modal" style="width:540px;">
+    <div class="modal-head">
+      <div class="m-step">運用調整の提案</div>
+      <h3>確認ポリシー緩和の提案</h3>
+      <div class="m-sub">対象: プロジェクト「社内ドキュメント」の既定確認ポリシー</div>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:12px;">
+        <div style="font-size:11px; font-weight:700; letter-spacing:.08em; color:var(--text-faint); text-transform:uppercase; margin-bottom:5px;">変更内容</div>
+        <div class="diff">
+          <div class="dl hunk">project.toml — 社内ドキュメント</div>
+          <div class="dl del">確認ポリシー: 最後に確認する(毎回あなたが確認)</div>
+          <div class="dl add">確認ポリシー: 重要時のみ確認(懸念がある場合だけ確認)</div>
+        </div>
+      </div>
+      <div style="font-size:12.5px; color:var(--text-muted); border-top:1px solid var(--border); padding-top:10px;">
+        <b style="color:var(--text-body);">提案の根拠:</b> 直近10ワーク連続でレビュー合格(平均91点)・差し戻し0件・質問0件。<br>
+        <b style="color:var(--text-body);">見込み:</b> 確認の操作は懸念発生時のみになります(直近実績では10件中0回)。
+      </div>
+      <div class="hint" style="margin-top:8px;">適用後も、各ワークの開始確認で個別に変更できます。成績が悪化した場合は引き締めを提案します</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModals()">却下</button>
+      <button class="btn btn-primary" onclick="closeModals(); go('project-settings')">適用してポリシーを変更</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: プロンプト改善プレビュー ============ -->
+<div class="overlay" id="m-prompt-preview">
+  <div class="modal" style="width:560px;">
+    <div class="modal-head">
+      <div class="m-step">改善プレビュー</div>
+      <h3>エージェントプロンプト改善の提案</h3>
+      <div class="m-sub">対象: Coder のシステムプロンプト(振る舞い)</div>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:12px;">
+        <div style="font-size:11px; font-weight:700; letter-spacing:.08em; color:var(--text-faint); text-transform:uppercase; margin-bottom:5px;">変更内容 — プロンプト全文 · 追加は1行</div>
+        <div class="diff">
+          <div class="dl hunk">Coder — システムプロンプト(全文)</div>
+          <div class="dl ctx">あなたはコード変更の担当です。</div>
+          <div class="dl ctx">- 依存関係の更新は最小差分で行う</div>
+          <div class="dl ctx">- 変更理由を出力に含める</div>
+          <div class="dl add">- 提出前に、成果物種別の形式基準(テンプレート・命名規則)と照合してセルフチェックし、逸脱を修正してから提出する</div>
+        </div>
+      </div>
+      <div style="font-size:12.5px; color:var(--text-muted); border-top:1px solid var(--border); padding-top:10px;">
+        <b style="color:var(--text-body);">提案の根拠:</b> Reviewer の評価履歴で「形式の準拠」の獲得率が直近6ワーク平均 60%(W-1020 ほか)。失点理由5件のうち4件がテンプレート逸脱でした。
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModals()">却下</button>
+      <button class="btn btn-primary" onclick="closeModals(); go('agent-settings')">適用してエージェントを更新</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: 採用確認 ============ -->
+<div class="overlay" id="m-approve">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>この結果を採用しますか?</h3>
+      <div class="m-sub">採用すると作業は完了になり、成果物が確定します</div>
+    </div>
+    <div class="modal-body">
+      <div class="kv"><div class="k">成果物</div><div class="v mono">docs/release-notes/v0.4.md</div></div>
+      <div class="kv"><div class="k">レビュー</div><div class="v">88 / 100 · 承認を推奨 · 懸念1件</div></div>
+      <div class="kv"><div class="k">懸念の扱い</div><div class="v">内部用語2箇所は採用後も履歴に記録されます</div></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModals()">戻る</button>
+      <button class="btn btn-primary" onclick="closeModals(); go('detail-done2')">採用して完了</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: 差し戻し ============ -->
+<div class="overlay" id="m-reject">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>コメントを付けて差し戻す</h3>
+      <div class="m-sub">コメントは次の実行で Writer への指示として使われます</div>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>差し戻しの理由</label>
+        <label class="opt sel" style="margin-bottom:6px;"><input type="checkbox" checked>
+          <div><div class="o-name">レビュー懸念に対応してほしい</div><div class="o-desc">読者向けの言い換え: 内部用語2箇所(自動で引用されます)</div></div>
+        </label>
+        <label class="opt"><input type="checkbox">
+          <div><div class="o-name">その他の修正点</div></div>
+        </label>
+      </div>
+      <div class="field">
+        <label>コメント</label>
+        <textarea placeholder="不足している点、直してほしい点を書いてください">「dispatch hint」「AgentRun」はユーザー向けの言葉に置き換えてください。</textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModals()">戻る</button>
+      <button class="btn btn-primary" onclick="closeModals(); go('detail-running')">差し戻して再実行</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SCREEN: 採用後の完了(結果画面の完了版) ============ -->
+<div style="display:none;">
+  <section class="screen" id="scr-detail-done2"></section>
+</div>
+
+<!-- ============ Prototype jump bar ============ -->
+<div class="proto-bar">
+  <span>PROTO</span>
+  <button onclick="go('home-empty')">空状態</button>
+  <button onclick="openModal('m-setup1')">セットアップ</button>
+  <button onclick="go('home-active')">ホーム</button>
+  <button onclick="go('confirm')">開始確認</button>
+  <button onclick="go('detail-running')">処理中</button>
+  <button onclick="go('detail-question')">質問</button>
+  <button onclick="go('detail-recover')">回復</button>
+  <button onclick="go('detail-review')">確認</button>
+  <button onclick="go('detail-done')">完了</button>
+  <button onclick="go('project-list')">プロジェクト</button>
+  <button onclick="go('project-settings')">プロジェクト設定</button>
+  <button onclick="go('knowledge-list')">ナレッジ</button>
+  <button onclick="go('knowledge-domain')">ドメイン</button>
+  <button onclick="go('knowledge-rubric')">ルーブリック</button>
+  <button onclick="go('agent-list')">エージェント</button>
+  <button onclick="go('agent-settings')">エージェント設定</button>
+  <button onclick="go('settings-skills')">設定</button>
+  <button onclick="go('insights')">分析・改善</button>
+  <button onclick="go('catalog')">カタログ</button>
+</div>
+
+<script>
+const crumbs = {
+  'home-empty':'<b>ワーク</b>',
+  'home-active':'<b>ワーク</b>',
+  'confirm':'ワーク / <b>開始確認</b>',
+  'detail-running':'ワーク / <b>画面フロー図の更新</b>',
+  'detail-question':'ワーク / <b>APIエラーコード一覧の整理</b>',
+  'detail-recover':'ワーク / <b>依存パッケージの更新確認</b>',
+  'detail-review':'ワーク / <b>リリースノート v0.4</b>',
+  'detail-result':'ワーク / <b>リリースノート v0.4</b>',
+  'detail-done':'ワーク / <b>READMEの英訳</b>',
+  'detail-done2':'ワーク / <b>リリースノート v0.4</b>',
+  'catalog':'デザイン / <b>UIカタログ</b>',
+  'project-list':'<b>プロジェクト</b>',
+  'project-settings':'プロジェクト / <b>Nagare UI 刷新</b>',
+  'knowledge-list':'<b>ナレッジ</b>',
+  'knowledge-domain':'ナレッジ / <b>プロダクト文書</b>',
+  'knowledge-rubric':'ナレッジ / プロダクト文書 / <b>リリースノート</b>',
+  'agent-list':'<b>エージェント</b>',
+  'agent-settings':'エージェント / <b>Writer</b>',
+  'insights':'<b>分析・改善</b>',
+  'settings-skills':'エージェント / <b>スキル</b>',
+  'settings-mcp':'エージェント / <b>MCP接続</b>',
+  'settings-runtime':'エージェント / <b>実行環境</b>',
+};
+const navMap = {
+  'catalog':'nav-catalog',
+  'project-list':'nav-project', 'project-settings':'nav-project',
+  'knowledge-list':'nav-knowledge', 'knowledge-domain':'nav-knowledge', 'knowledge-rubric':'nav-knowledge',
+  'agent-list':'nav-agent', 'agent-settings':'nav-agent',
+  'settings-skills':'nav-skills', 'settings-mcp':'nav-mcp', 'settings-runtime':'nav-runtime',
+  'insights':'nav-insights',
+};
+function go(id) {
+  if (id === 'detail-done2') id = 'detail-done'; // 簡易: 採用後は完了画面の見た目を共用
+  if (id === 'detail-result') id = 'detail-review'; // 旧「結果」タブは確認画面へ統合
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById('scr-' + id);
+  if (el) el.classList.add('active');
+  document.getElementById('crumb').innerHTML = crumbs[id] || '<b>ワーク</b>';
+  document.querySelector('.content').scrollTop = 0;
+}
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModals() { document.querySelectorAll('.overlay').forEach(o => o.classList.remove('open')); }
+function finishSetup() {
+  closeModals();
+  document.getElementById('proj-badge').textContent = 'Nagare UI 刷新';
+  document.getElementById('proj-badge').className = 'badge badge-neutral';
+  go('home-active');
+}
+const ddState = { 'dd-status':'all', 'dd-project':'all' };
+function ddToggle(id) {
+  const dd = document.getElementById(id);
+  const wasOpen = dd.classList.contains('open');
+  document.querySelectorAll('.dd').forEach(d => d.classList.remove('open'));
+  if (!wasOpen) dd.classList.add('open');
+}
+function ddPick(id, val, label, btn) {
+  ddState[id] = val;
+  const valEl = document.getElementById(id + '-val');
+  if (valEl) valEl.textContent = label;
+  btn.parentElement.querySelectorAll('.dd-item').forEach(i => i.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(id).classList.remove('open');
+  applyWorkFilters();
+  event.stopPropagation();
+}
+function applyWorkFilters() {
+  let n = 0;
+  document.querySelectorAll('#work-list .work-item').forEach(r => {
+    const ok = (ddState['dd-status'] === 'all' || r.dataset.status === ddState['dd-status'])
+            && (ddState['dd-project'] === 'all' || r.dataset.project === ddState['dd-project']);
+    r.style.display = ok ? '' : 'none';
+    if (ok) n++;
+  });
+  document.getElementById('work-empty').style.display = n ? 'none' : '';
+  document.getElementById('filter-result').textContent = n + '件を表示';
+}
+document.addEventListener('click', () => document.querySelectorAll('.dd').forEach(d => d.classList.remove('open')));
+ddState['dd-ag-role'] = 'all';
+ddState['dd-ag-proj'] = 'all';
+function agPick(id, val, label, btn) {
+  ddPick(id, val, label, btn);
+  applyAgentFilters();
+}
+function applyAgentFilters() {
+  let n = 0;
+  document.querySelectorAll('#agent-list-rows .list-item[data-role]').forEach(r => {
+    const ok = (ddState['dd-ag-role'] === 'all' || r.dataset.role === ddState['dd-ag-role'])
+            && (ddState['dd-ag-proj'] === 'all' || r.dataset.projects.split(' ').includes(ddState['dd-ag-proj']));
+    r.style.display = ok ? '' : 'none';
+    if (ok) n++;
+  });
+  document.getElementById('agent-empty').style.display = n ? 'none' : '';
+  document.getElementById('ag-filter-result').textContent = n + '件を表示';
+}
+// 実行環境ごとの選択可能モデル。null = モデル切り替え非対応
+const rtModels = {
+  cc:  { name:'Claude Code', models:['既定','Fable 5','Opus 4.8','Haiku 4.5'] },
+  cx:  { name:'Codex CLI',   models:['既定','gpt-5-codex','gpt-5-mini'] },
+  oc:  { name:'OpenCode',    models:['既定','Fable 5','gpt-5-codex','Qwen3-Coder'] },
+  ocl: { name:'OpenClaw',    models:null },
+};
+function pickAgentRt(val, label, btn) {
+  ddPick('dd-agent-rt', val, label, btn);
+  const rt = rtModels[val];
+  const modelBtn = document.querySelector('#dd-agent-model .dd-btn');
+  const note = document.getElementById('model-note');
+  if (!rt.models) {
+    modelBtn.disabled = true;
+    modelBtn.style.opacity = '.5';
+    document.getElementById('dd-agent-model-val').textContent = '—';
+    note.textContent = label + ' はモデル切り替えに対応していません。実行環境側の設定を使います';
+  } else {
+    modelBtn.disabled = false;
+    modelBtn.style.opacity = '';
+    document.getElementById('dd-agent-model-menu').innerHTML = rt.models.map((m, i) =>
+      `<button class="dd-item${i === 0 ? ' active' : ''}" onclick="ddPick('dd-agent-model','m${i}','${m}',this)">${m}<span class="chk">✓</span></button>`
+    ).join('');
+    document.getElementById('dd-agent-model-val').textContent = '既定';
+    note.textContent = 'モデルの選択肢は実行環境に連動します。「既定」は実行環境側の設定を使います';
+  }
+}
+// 画面遷移+ページ内の「AI支援」欄へスクロール(知らせ→欄→受信箱の導線)
+function goAnchor(screen, anchorId) {
+  go(screen);
+  setTimeout(() => {
+    const el = document.getElementById(anchorId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 60);
+}
+function toggleRubric() {
+  const el = document.getElementById('rubric-fold');
+  const btn = document.getElementById('rubric-fold-btn');
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : '';
+  btn.textContent = open ? '項目別の判定を開く ▾' : '項目別の判定を閉じる ▴';
+}
+function insTab(which) {
+  document.getElementById('ins-tab-a').classList.toggle('active', which === 'a');
+  document.getElementById('ins-tab-b').classList.toggle('active', which === 'b');
+  document.getElementById('ins-pane-a').classList.toggle('active', which === 'a');
+  document.getElementById('ins-pane-b').classList.toggle('active', which === 'b');
+}
+function selPolicy(el) { el.parentElement.querySelectorAll('.policy').forEach(p => p.classList.remove('sel')); el.classList.add('sel'); }
+function selRt(el) { el.parentElement.querySelectorAll('.rt-opt').forEach(p => p.classList.remove('sel')); el.classList.add('sel'); }
+function selIcon(el) { el.parentElement.querySelectorAll('.icon-opt').forEach(o => o.classList.remove('sel')); el.classList.add('sel'); }
+document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) closeModals(); }));
+document.querySelectorAll('.opt input[type=radio]').forEach(r => r.addEventListener('change', e => {
+  const scope = e.target.closest('.action-panel') || e.target.closest('.card') || document;
+  scope.querySelectorAll('.opt input[type=radio]').forEach(i => {
+    if (i.name === e.target.name) i.closest('.opt').classList.toggle('sel', i.checked);
+  });
+}));
+// 空状態では要対応ドットを隠す
+const _goOrig = go;
+go = function(id) {
+  _goOrig(id);
+  const empty = (id === 'home-empty');
+  document.getElementById('attn-dot').style.display = empty ? 'none' : '';
+  document.getElementById('proj-badge').textContent = empty ? 'プロジェクト未設定' : '🌊 Nagare UI 刷新';
+  document.querySelectorAll('.nav a').forEach(a => a.classList.remove('active'));
+  document.getElementById(navMap[id] || 'nav-work').classList.add('active');
+};
+// 初期表示: URLハッシュ (#detail-review など) があればその画面、なければ空状態
+// #画面!モーダルID の形式でモーダルも開ける (例: #knowledge-domain!m-quality-preview)
+function route(h) {
+  const [scr, extra] = h.split('!');
+  go(scr || 'home-empty');
+  closeModals();
+  if (extra === 'ins-b') insTab('b');
+  else if (extra === 'rubric') toggleRubric();
+  else if (extra) openModal(extra);
+}
+route((location.hash || '#home-empty').slice(1));
+window.addEventListener('hashchange', () => route(location.hash.slice(1)));
+</script>
+</body>
+</html>
