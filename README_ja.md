@@ -2,11 +2,51 @@
 
 ![Nagare ロゴ](logo.png)
 
-[English README](README.md) | [仕様書](docs/spec.md) | [設計書](docs/architecture.md) | [Tutorial](docs/tutorial.md) | [チュートリアル](docs/tutorial_ja.md)
+[English README](README.md) | [PRD](docs/nagare_prd_v1_0.md) | [UIプロトタイプ](docs/design-assets/prototype/) | [トレーススキーマ (NF-2)](docs/nagare_trace_schema_v1_0.md) | [過去文書](docs/archive/)
 
 Nagare は、コーディング Agent のための adapter-first な Execution Ledger です。
 
 目的は、Agent 基盤が入れ替わっても、Work Item、Run Packet、Agent Run、Artifact、Evidence、Verification Result、Handoff、Human Decision を local-first な制御レイヤーに残すことです。
+
+## エージェントスキルとして使う
+
+このリポジトリは、Claude Code や Codex CLI などのコーディングエージェントに
+`nagare` 台帳の使い方を教えるスキル(`skills/nagare/SKILL.md`)を同梱しています。
+
+**このスキルの目的** — エージェントの作業を「監査可能」にすることです。
+すべてのタスクについて、誰が・何を入力に・何を作り・どうレビューされ・
+人間が何を承認したかが、構造化されたローカル記録として残ります。
+Nagare が記録するのは判断であり、通信ではありません(生のAPIやりとりは保存しません)。
+
+**インストール**
+
+```bash
+# 1. スキルをエージェント環境に追加
+npx skills add hachiware-labs/nagare
+
+# 2. スキルが操作する CLI を導入
+npm install -g @hachiware-labs/nagare
+nagare doctor
+```
+
+**使い方** — インストール後、エージェントに次のように頼みます。
+
+- 「このリファクタリングを Nagare で記録しながら進めて、完了前にレビューを通して」
+- 「この作業を Work Item にして実行し、失敗したら別のエージェントに引き継いで」
+- 「work_0001 の台帳の状態を見せて」
+
+エージェントは台帳の初期化(`nagare init`)、Agent Profile の登録、Work Item の
+作成、実行と失敗の Evidence 記録、エージェント間 Handoff、レビュー実行までを行い、
+`done` にする前には必ずあなたの明示的な承認を求めて停止します。
+
+**どういうことに使うとよいか**
+
+- **証跡が必要な作業**: 納品物、リリース作業など、後から「なぜこうなったか」を
+  説明する必要があるタスク。
+- **複数エージェントの併用**: Claude Code / Codex などを切り替えながら、
+  失敗の引き継ぎ文脈も含めて1本の履歴を保ちたいとき。
+- **レビューゲート付きの作業**: 結果を黙って受け入れず、レビューと人間の
+  明示的な承認を通してから完了にしたいとき。
 
 ## 現在のスライス
 
@@ -96,12 +136,15 @@ npm package は install / distribution の経路に限定し、製品として�
 
 ## ドキュメント言語ポリシー
 
-ユーザー向け README とチュートリアルは、英語版と日本語版をペアで管理します。
+ユーザー向け README は、英語版と日本語版をペアで管理します。
 
 - `README.md` / `README_ja.md`
-- `docs/tutorial.md` / `docs/tutorial_ja.md`
 
-実装設計の正本は日本語で管理します。
+プロダクト設計の正本は日本語で管理します。
 
-- `docs/architecture.md`
-- `docs/spec.md`
+- `docs/nagare_prd_v1_0.md`(PRD・機能一覧)
+- `docs/nagare_trace_schema_v1_0.md`(NF-2 トレーススキーマ)
+- `docs/design-assets/prototype/`(UIの正)
+
+再設計以前の文書(spec、architecture、チュートリアル、旧wireframe)は
+`docs/archive/` に保管しています。

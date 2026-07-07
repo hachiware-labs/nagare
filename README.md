@@ -2,13 +2,54 @@
 
 ![Nagare logo](logo.png)
 
-[日本語 README](README_ja.md) | [Spec](docs/spec.md) | [Architecture](docs/architecture.md) | [Tutorial](docs/tutorial.md) | [日本語チュートリアル](docs/tutorial_ja.md)
+[日本語 README](README_ja.md) | [PRD](docs/nagare_prd_v1_0.md) | [UI Prototype](docs/design-assets/prototype/) | [Trace Schema (NF-2)](docs/nagare_trace_schema_v1_0.md) | [Archived docs](docs/archive/)
 
 Nagare is an adapter-first execution ledger for coding agents.
 
 The goal is to keep work items, run packets, agent runs, artifacts, evidence,
 review results, handoffs, and human decisions in one local-first control
 layer while letting agent backends change underneath.
+
+## Use Nagare as an Agent Skill
+
+This repository ships a skill (`skills/nagare/SKILL.md`) that teaches coding
+agents such as Claude Code or Codex CLI how to drive the `nagare` ledger.
+
+**What the skill is for** — it makes agent work *auditable*: every task leaves
+a structured local record of who ran what, with which inputs and artifacts,
+how the result was reviewed, and what the human decided. Nagare records
+decisions, not transport: no raw API traffic is captured.
+
+**Install**
+
+```bash
+# 1. Install the skill into your agent environment
+npx skills add hachiware-labs/nagare
+
+# 2. Install the CLI the skill drives
+npm install -g @hachiware-labs/nagare
+nagare doctor
+```
+
+**How to use** — after installing, ask your agent things like:
+
+- "Track this refactoring in Nagare and get it reviewed before finishing."
+- "Record this task as a work item, run it, and hand off to another agent if it fails."
+- "Show me the Nagare ledger state for work_0001."
+
+The agent will initialize the ledger (`nagare init`), register agent
+profiles, create work items, record runs and failures as evidence, create
+handoffs between agents, run reviews, and stop for your explicit approval
+before a work item reaches `done`.
+
+**When it pays off**
+
+- Work that needs a paper trail: client deliverables, release tasks,
+  anything you may need to explain afterwards.
+- Multi-agent setups: switching between Claude Code / Codex etc. while
+  keeping one continuous history, including failure handoffs with context.
+- Review-gated work: results must pass a review and an explicit human
+  decision instead of being silently accepted.
 
 ## Current Slice
 
@@ -102,13 +143,15 @@ interface is the `nagare` command.
 
 ## Documentation Language Policy
 
-User-facing README and tutorial documents are maintained in English and
-Japanese pairs:
+User-facing README documents are maintained in English and Japanese pairs:
 
 - `README.md` / `README_ja.md`
-- `docs/tutorial.md` / `docs/tutorial_ja.md`
 
-The canonical implementation architecture is maintained in Japanese:
+The canonical product design is maintained in Japanese:
 
-- `docs/architecture.md`
-- `docs/spec.md`
+- `docs/nagare_prd_v1_0.md` (PRD and feature list)
+- `docs/nagare_trace_schema_v1_0.md` (NF-2 trace schema)
+- `docs/design-assets/prototype/` (UI source of truth)
+
+Pre-redesign documents (spec, architecture, tutorials, old wireframes) are
+kept under `docs/archive/`.
