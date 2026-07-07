@@ -12,6 +12,7 @@ mod result_types;
 mod review;
 mod scenario;
 mod snapshot;
+mod trace;
 mod ui;
 mod usecases;
 mod util;
@@ -34,9 +35,10 @@ pub use result_types::*;
 pub use review::*;
 pub use scenario::*;
 pub use snapshot::{
-    WorkItemApprovalGate, WorkItemHistoryFact, WorkItemHistoryLink, WorkItemHistoryStep,
-    WorkItemSnapshot, WorkItemTimelineEvent,
+    WorkItemApprovalGate, WorkItemCompletion, WorkItemHistoryFact, WorkItemHistoryLink,
+    WorkItemHistoryStep, WorkItemSnapshot, WorkItemTimelineEvent,
 };
+pub use trace::*;
 pub use ui::*;
 pub use usecases::*;
 pub use work_items::*;

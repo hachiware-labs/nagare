@@ -104,6 +104,7 @@ pub fn create_work_item_with_input(
     };
     ledger.work_items.push(item.clone());
     save_ledger(&layout, &ledger)?;
+    append_work_header_trace(&layout, &item)?;
     Ok(CreateItemResult { item })
 }
 
@@ -219,6 +220,7 @@ pub fn answer_work_item(
     item.updated_at = timestamp();
     let item_status = item.status;
     save_ledger(&layout, &ledger)?;
+    append_human_feedback_trace(&layout, &feedback)?;
     Ok(AnswerWorkItemResult {
         feedback,
         item_status,

@@ -10,13 +10,10 @@ Fable-5 向けの文脈選択境界として扱う。
 
 ### 詳細なビジュアルデザイン文脈
 
-機能構造が固まった後、見た目の磨き込みや過去判断の根拠が必要な時だけ読む。
+Fable-5 再設計以前の画面資産は削除済み。見た目や画面構造の根拠には使わない。
 
 - `docs/design.md`
-- `docs/design-assets/DESIGN.md`
-- `docs/design-assets/UI_PLAN.md`
 - `docs/create-new-item-ui-evaluation.md`
-- `docs/design-assets/` 配下の個別SVG / PNG wireframe
 
 ### 実装アーキテクチャ
 
@@ -63,8 +60,10 @@ package配布、CLI onboarding、公開ドキュメントを扱う時だけ読�
 Fable-5 の初回UI再作成では、次の文書だけをアクティブ文脈として扱う。
 
 - `docs/fable-5-ui-context.md`
-- `docs/design-assets/nagare_screen_flow_summary.md`
-- `logo.png`
+- `docs/design-assets/prototype/index.html`
+- `docs/design-assets/prototype/README.md`
+- `docs/nagare_prd_v1_0.md`
+- `docs/design-assets/prototype/logo.png`
 
 ## 限定的なデータ参照
 
@@ -74,4 +73,4 @@ Fable-5 の初回UI再作成では、次の文書だけをアクティブ文脈�
 - `docs/architecture.md`
 
 これらを視覚階層の入力にしない。UI階層は
-`docs/fable-5-ui-context.md` と `docs/design-assets/nagare_screen_flow_summary.md` を優先する。
+`docs/design-assets/prototype/` と `docs/nagare_prd_v1_0.md` を優先する。

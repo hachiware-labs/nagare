@@ -203,6 +203,18 @@ command = "codex"
 args = ["app-server", "--listen", "stdio://"]
 healthcheck = ["codex", "app-server", "--help"]
 
+[runtimes.claude-local]
+kind = "process"
+command = "claude"
+args = ["-p"]
+healthcheck = ["claude", "--version"]
+
+[runtimes.opencode-local]
+kind = "process"
+command = "opencode"
+args = ["run"]
+healthcheck = ["opencode", "--version"]
+
 [runtimes.openclaw-local]
 kind = "process"
 command = "openclaw"
@@ -218,6 +230,16 @@ known_capabilities = ["repo_read", "file_edit", "shell_command", "stdin_prompt"]
 kind = "stdio.codex-app-server"
 runtime_kind = "stdio"
 known_capabilities = ["repo_read", "file_edit", "shell_command", "thread_state", "approval_flow", "event_stream"]
+
+[adapters.process-claude-code]
+kind = "process.claude-code"
+runtime_kind = "process"
+known_capabilities = ["repo_read", "file_edit", "shell_command", "stdin_prompt", "provider_model_selection"]
+
+[adapters.process-opencode]
+kind = "process.opencode"
+runtime_kind = "process"
+known_capabilities = ["repo_read", "file_edit", "shell_command", "stdin_prompt", "provider_model_selection"]
 
 [adapters.process-openclaw-agent]
 kind = "process.openclaw-agent"

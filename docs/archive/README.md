@@ -28,7 +28,7 @@ Fable-5 によるUIプロトタイプ再設計(2026-07)の設計判断を**反�
   — バックエンド実装時の参照は可。UI階層の入力にはしない。
 - **決定記録**: `delta/`(DR-*)
 - **配布・チュートリアル(旧UI前提)**: `tutorial.md`、`tutorial_ja.md`
-- **旧デザイン資産**: `design-assets/`(wireframe SVG/PNG、DESIGN.md、UI_PLAN.md、
-  ai_ui_design_rubric_v3.md、nagare_screen_flow_summary.md)
+- **旧デザイン資産**: 削除済み。古い画面資産は現在のUI判断と矛盾しやすいため、
+  archiveにも残さない。
 - **Fable-5準備時の文脈境界メモ**: `fable-5-non-ui-context.md`(当時は「移動しない」方針
   だったが、本整理で物理移動に切り替えた)

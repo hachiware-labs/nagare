@@ -91,6 +91,7 @@ body:has(.flow-app){background:#f8fafc}
 .flow-app .brand-text{position:static;width:auto;height:auto;overflow:visible;clip:auto;white-space:normal;font-size:24px;line-height:1.05;font-weight:800;color:var(--text)}
 .flow-app .brand-text::after{content:"hachiware-labs";display:block;margin-top:4px;color:var(--muted);font-size:11px;line-height:1.2;font-weight:600}
 .flow-app nav a{min-height:36px;display:flex;align-items:center;gap:10px;margin-bottom:7px}
+.nav-section-label{margin:18px 0 7px;padding:0 14px;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:0;text-transform:none}
 .nav-icon{position:relative;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;flex:0 0 18px;color:currentColor}
 .nav-icon::before,.nav-icon::after{content:"";position:absolute;box-sizing:border-box}
 .nav-icon-work::before{left:2px;right:2px;top:5px;bottom:3px;border:1.8px solid currentColor;border-radius:2px}
@@ -101,6 +102,16 @@ body:has(.flow-app){background:#f8fafc}
 .nav-icon-knowledge::after{left:6px;top:6px;width:6px;height:1.8px;background:currentColor;box-shadow:0 4px 0 currentColor}
 .nav-icon-agent::before{left:6px;top:2px;width:6px;height:6px;border:1.8px solid currentColor;border-radius:50%}
 .nav-icon-agent::after{left:3px;right:3px;bottom:3px;height:7px;border:1.8px solid currentColor;border-radius:3px}
+.nav-icon-insights::before{left:2px;right:2px;bottom:3px;height:12px;border-left:1.8px solid currentColor;border-bottom:1.8px solid currentColor}
+.nav-icon-insights::after{left:5px;bottom:5px;width:9px;height:8px;border-left:1.8px solid currentColor;border-top:1.8px solid currentColor;transform:skew(-18deg)}
+.nav-icon-skills::before{left:3px;top:3px;width:12px;height:12px;border:1.8px solid currentColor;border-radius:3px;transform:rotate(45deg)}
+.nav-icon-skills::after{left:7px;top:7px;width:4px;height:4px;background:currentColor;border-radius:50%}
+.nav-icon-mcp::before{left:2px;top:5px;width:6px;height:6px;border:1.8px solid currentColor;border-radius:50%;box-shadow:8px 0 0 -1.8px #fff,8px 0 0 0 currentColor}
+.nav-icon-mcp::after{left:7px;top:8px;width:4px;height:1.8px;background:currentColor}
+.nav-icon-runtime::before{left:2px;right:2px;top:4px;bottom:4px;border:1.8px solid currentColor;border-radius:3px}
+.nav-icon-runtime::after{left:5px;right:5px;bottom:1px;height:1.8px;background:currentColor;box-shadow:0 -5px 0 currentColor}
+.nav-icon-catalog::before{left:2px;top:3px;width:6px;height:6px;border:1.8px solid currentColor;border-radius:2px;box-shadow:8px 0 0 -1.8px #fff,8px 0 0 0 currentColor,0 8px 0 -1.8px #fff,0 8px 0 0 currentColor,8px 8px 0 -1.8px #fff,8px 8px 0 0 currentColor}
+.nav-icon-catalog::after{display:none}
 .nav-icon-settings::before{left:4px;top:4px;width:10px;height:10px;border:1.8px solid currentColor;border-radius:50%}
 .nav-icon-settings::after{left:8px;top:1px;width:1.8px;height:16px;background:currentColor;box-shadow:-5px 5px 0 -1px currentColor,5px 5px 0 -1px currentColor;transform:rotate(45deg)}
 .sidebar-project{border-top:1px solid var(--line);margin-top:28px;padding-top:18px;display:grid;gap:5px}
@@ -1055,6 +1066,21 @@ if(skillPackageForm){
   const skillSourceLabel=skillPackageForm.querySelector('[data-skill-source-label]');
   const skillPathLabel=skillPackageForm.querySelector('[data-skill-path-label]');
   const skillSourceGuidance={
+    'openai':{
+      title:'OpenAI',
+      copy:'OpenAIの定義済みスキル参照を登録します。ローカル実体は不要で、必要なエージェントへ割り当てて使います。',
+      fields:'必要: スキルID。例: openai/code-review'
+    },
+    'anthropic':{
+      title:'Anthropic',
+      copy:'Anthropicの定義済みスキル参照を登録します。ローカル実体は不要で、必要なエージェントへ割り当てて使います。',
+      fields:'必要: スキルID。例: anthropic/research'
+    },
+    'manual':{
+      title:'Manual',
+      copy:'配布元が固定されていないスキル参照を手入力で登録します。ローカル実体がない場合は実行時に参照スキルとして扱います。',
+      fields:'必要: パッケージIDまたは参照元'
+    },
     'skill-creator':{
       title:'Skill Creator',
       copy:'作成済みのスキルフォルダを登録します。SKILL.mdのnameを使えるため、通常はPathだけで足ります。',
@@ -1091,6 +1117,9 @@ if(skillPackageForm){
   function syncSkillSourceFields(){
     const kind=skillSourceKind ? skillSourceKind.value : 'skill-creator';
     const visibleByKind={
+      'openai':[],
+      'anthropic':[],
+      'manual':['source'],
       'skill-creator':['path'],
       'local':['path'],
       'clawhub':[],
@@ -1102,21 +1131,31 @@ if(skillPackageForm){
     const sourceInput=skillPackageForm.querySelector('input[name="source"]');
     const pathInput=skillPackageForm.querySelector('input[name="path"]');
     if(skillIdInput){
-      const idRequired=kind==='clawhub' || kind==='vercel' || kind==='git';
+      const idRequired=kind==='openai' || kind==='anthropic' || kind==='manual' || kind==='clawhub' || kind==='vercel' || kind==='git';
       skillIdInput.required=idRequired;
       if(kind==='local' || kind==='skill-creator'){
         skillIdInput.placeholder='SKILL.mdから自動取得…';
+      }else if(kind==='openai'){
+        skillIdInput.placeholder='openai/code-review…';
+      }else if(kind==='anthropic'){
+        skillIdInput.placeholder='anthropic/research…';
+      }else if(kind==='manual'){
+        skillIdInput.placeholder='owner/package または custom-skill…';
       }else if(kind==='vercel'){
         skillIdInput.placeholder='hachiware-labs/hachi-search…';
       }else{
         skillIdInput.placeholder='react-review…';
       }
     }
-    if(sourceInput){sourceInput.required=kind==='git';}
+    if(sourceInput){sourceInput.required=kind==='git' || kind==='manual';}
     if(pathInput){pathInput.required=visible.has('path') && (kind==='skill-creator' || kind==='local');}
     if(skillPrimaryLabel){
       if(kind==='local' || kind==='skill-creator'){
         skillPrimaryLabel.textContent='スキル名（任意）';
+      }else if(kind==='openai' || kind==='anthropic'){
+        skillPrimaryLabel.textContent='スキルID';
+      }else if(kind==='manual'){
+        skillPrimaryLabel.textContent='Package ID';
       }else if(kind==='vercel'){
         skillPrimaryLabel.textContent='Package ID';
       }else{
@@ -1124,7 +1163,7 @@ if(skillPackageForm){
       }
     }
     if(skillSourceLabel){
-      skillSourceLabel.textContent=kind==='git' ? 'Repo URL' : 'Source';
+      skillSourceLabel.textContent=kind==='git' ? 'Repo URL' : kind==='manual' ? '参照元' : 'Source';
     }
     if(skillPathLabel){
       skillPathLabel.textContent=(kind==='local' || kind==='skill-creator') ? 'フォルダPath' : 'Path';

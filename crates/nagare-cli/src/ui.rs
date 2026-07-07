@@ -33,8 +33,10 @@ use crate::ui_form::{
 };
 use crate::ui_pages::{
     render_serve_agent_form, render_serve_artifact_type_form, render_serve_design_catalog,
-    render_serve_domain_form, render_serve_home, render_serve_new_item, render_serve_runtime_setup,
+    render_serve_domain_form, render_serve_home, render_serve_insights, render_serve_mcp_settings,
+    render_serve_new_item, render_serve_runtime_settings, render_serve_runtime_setup,
     render_serve_settings, render_serve_setup_entry, render_serve_skill_form,
+    render_serve_skill_library,
 };
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -184,8 +186,24 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
         let html = render_serve_settings(root)?;
         return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
     }
+    if request.method == "GET" && request.path == "/insights" {
+        let html = render_serve_insights(root)?;
+        return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
+    }
     if request.method == "GET" && request.path == "/design-catalog" {
         let html = render_serve_design_catalog()?;
+        return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
+    }
+    if request.method == "GET" && request.path == "/settings/skills" {
+        let html = render_serve_skill_library(root)?;
+        return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
+    }
+    if request.method == "GET" && request.path == "/settings/mcp" {
+        let html = render_serve_mcp_settings(root)?;
+        return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
+    }
+    if request.method == "GET" && request.path == "/settings/runtime" {
+        let html = render_serve_runtime_settings(root)?;
         return write_response(stream, "200 OK", "text/html; charset=utf-8", &html);
     }
     if request.method == "GET" && request.path == "/settings/agents/new" {
@@ -431,6 +449,7 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                 skill_set_ids: split_list(fields.get("skill_set_ids").map(String::as_str)),
                 domain_ids: split_list(fields.get("domain_ids").map(String::as_str)),
                 artifact_type_ids: split_list(fields.get("artifact_type_ids").map(String::as_str)),
+                mcp_connection_ids: Vec::new(),
                 managed_by: Some("nagare"),
                 model: agent_model_from_fields(&fields),
                 external,
@@ -795,6 +814,7 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                 agent_profile_id,
                 UpdateAgentProfileInput {
                     display_name: fields.get("display_name").map(String::as_str),
+                    avatar: None,
                     runtime: fields.get("runtime").map(String::as_str),
                     adapter: fields.get("adapter").map(String::as_str),
                     role: fields.get("role").map(String::as_str),
@@ -808,6 +828,8 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                     artifact_type_ids: Some(split_list(
                         fields.get("artifact_type_ids").map(String::as_str),
                     )),
+                    mcp_connection_ids: None,
+                    prompt: None,
                     output_contract: None,
                     managed_by: Some("nagare"),
                     model: Some(agent_model_from_fields(&fields)),
@@ -1153,6 +1175,7 @@ fn setup_codex_project(root: &Path, model: &str) -> Result<(), String> {
                 skill_set_ids: Vec::new(),
                 domain_ids: vec!["general".to_string()],
                 artifact_type_ids: vec!["general".to_string()],
+                mcp_connection_ids: Vec::new(),
                 managed_by: Some("nagare"),
                 model: AgentModelSelection {
                     provider: selected_model

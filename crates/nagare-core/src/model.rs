@@ -513,6 +513,8 @@ pub struct AgentProfile {
     pub id: String,
     pub display_name: String,
     #[serde(default)]
+    pub avatar: String,
+    #[serde(default)]
     pub tool_kind: AgentToolKind,
     pub runtime: String,
     pub adapter: String,
@@ -528,6 +530,8 @@ pub struct AgentProfile {
     pub domain_ids: Vec<String>,
     #[serde(default)]
     pub artifact_type_ids: Vec<String>,
+    #[serde(default)]
+    pub mcp_connection_ids: Vec<String>,
     #[serde(default)]
     pub managed_by: String,
     #[serde(default)]
@@ -548,6 +552,8 @@ pub enum AgentToolKind {
     Codex,
     #[default]
     CodexCli,
+    ClaudeCode,
+    OpenCode,
     OpenClaw,
 }
 
@@ -556,6 +562,8 @@ impl fmt::Display for AgentToolKind {
         match self {
             Self::Codex => f.write_str("codex"),
             Self::CodexCli => f.write_str("codex_cli"),
+            Self::ClaudeCode => f.write_str("claude_code"),
+            Self::OpenCode => f.write_str("opencode"),
             Self::OpenClaw => f.write_str("openclaw"),
         }
     }
@@ -566,6 +574,8 @@ impl AgentToolKind {
         match value.trim() {
             "codex" | "codex_app" | "codex_app_server" => Ok(Self::Codex),
             "codex_cli" | "codex-cli" => Ok(Self::CodexCli),
+            "claude" | "claude_code" | "claude-code" => Ok(Self::ClaudeCode),
+            "opencode" | "open_code" | "open-code" => Ok(Self::OpenCode),
             "openclaw" => Ok(Self::OpenClaw),
             other => Err(NagareError::InvalidState(format!(
                 "unknown agent tool kind `{other}`"
@@ -576,6 +586,8 @@ impl AgentToolKind {
     pub fn infer(runtime: &str, adapter: &str) -> Self {
         match (runtime, adapter) {
             ("codex-app-local", _) | (_, "stdio.codex-app-server") => Self::Codex,
+            ("claude-local", _) | (_, "process.claude-code") => Self::ClaudeCode,
+            ("opencode-local", _) | (_, "process.opencode") => Self::OpenCode,
             ("openclaw-local", _) | (_, "process.openclaw-agent") => Self::OpenClaw,
             _ => Self::CodexCli,
         }
@@ -629,6 +641,20 @@ pub const RUNTIME_MCP_CAPABILITIES: &[RuntimeMcpCapability] = &[
         note: "project-scoped MCP settings can be materialized for the selected agent",
     },
     RuntimeMcpCapability {
+        tool_kind: AgentToolKind::ClaudeCode,
+        runtime_label: "Claude Code",
+        scope: RuntimeMcpScope::Project,
+        agent_assignable: false,
+        note: "runtime is selectable, but agent-scoped MCP materialization for Claude Code is not wired yet",
+    },
+    RuntimeMcpCapability {
+        tool_kind: AgentToolKind::OpenCode,
+        runtime_label: "OpenCode",
+        scope: RuntimeMcpScope::Project,
+        agent_assignable: false,
+        note: "runtime is selectable, but agent-scoped MCP materialization for OpenCode is not wired yet",
+    },
+    RuntimeMcpCapability {
         tool_kind: AgentToolKind::OpenClaw,
         runtime_label: "OpenClaw",
         scope: RuntimeMcpScope::GlobalOnly,
@@ -649,6 +675,70 @@ pub fn runtime_mcp_capability(tool_kind: AgentToolKind) -> RuntimeMcpCapability 
             agent_assignable: false,
             note: "runtime MCP capability is not registered",
         })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpConnectionDeclaration {
+    pub display_name: String,
+    pub tool_kind: AgentToolKind,
+    pub command: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default)]
+    pub env: BTreeMap<String, String>,
+    #[serde(default)]
+    pub test_args: Vec<String>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub last_test_status: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub last_test_detail: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub last_tested_at: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct McpConnectionCatalogEntry {
+    pub id: String,
+    pub display_name: String,
+    pub tool_kind: AgentToolKind,
+    pub runtime_label: String,
+    pub scope: RuntimeMcpScope,
+    pub agent_assignable: bool,
+    pub command: String,
+    pub args: Vec<String>,
+    pub env: BTreeMap<String, String>,
+    pub test_args: Vec<String>,
+    pub last_test_status: String,
+    pub last_test_detail: String,
+    pub last_tested_at: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct AddMcpConnectionInput<'a> {
+    pub id: &'a str,
+    pub display_name: &'a str,
+    pub tool_kind: AgentToolKind,
+    pub command: &'a str,
+    pub args: Vec<String>,
+    pub env: BTreeMap<String, String>,
+    pub test_args: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct UpdateMcpConnectionInput<'a> {
+    pub display_name: Option<&'a str>,
+    pub tool_kind: Option<AgentToolKind>,
+    pub command: Option<&'a str>,
+    pub args: Option<Vec<String>>,
+    pub env: Option<BTreeMap<String, String>>,
+    pub test_args: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct McpConnectionTestResult {
+    pub connection: McpConnectionCatalogEntry,
+    pub success: bool,
+    pub detail: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -854,6 +944,7 @@ pub struct ArtifactType {
     pub description: String,
     pub artifact_types: Vec<String>,
     pub rubric: Vec<String>,
+    pub rubric_version: u32,
     pub dispatch_hints: Vec<String>,
     pub workflow: DomainWorkflowOverride,
     pub source: ArtifactTypeSource,
@@ -980,6 +1071,7 @@ pub struct AddAgentProfileInput<'a> {
     pub skill_set_ids: Vec<String>,
     pub domain_ids: Vec<String>,
     pub artifact_type_ids: Vec<String>,
+    pub mcp_connection_ids: Vec<String>,
     pub managed_by: Option<&'a str>,
     pub model: AgentModelSelection,
     pub external: ExternalAgentBinding,
@@ -994,6 +1086,7 @@ pub struct AddAgentProfileResult {
 #[derive(Debug, Clone, Default)]
 pub struct UpdateAgentProfileInput<'a> {
     pub display_name: Option<&'a str>,
+    pub avatar: Option<&'a str>,
     pub runtime: Option<&'a str>,
     pub adapter: Option<&'a str>,
     pub role: Option<&'a str>,
@@ -1003,6 +1096,8 @@ pub struct UpdateAgentProfileInput<'a> {
     pub skill_set_ids: Option<Vec<String>>,
     pub domain_ids: Option<Vec<String>>,
     pub artifact_type_ids: Option<Vec<String>>,
+    pub mcp_connection_ids: Option<Vec<String>>,
+    pub prompt: Option<&'a str>,
     pub managed_by: Option<&'a str>,
     pub model: Option<AgentModelSelection>,
     pub external: Option<ExternalAgentBinding>,
@@ -1044,6 +1139,67 @@ pub struct AgentOutputContractUpdate<'a> {
 pub struct UpdateAgentProfileResult {
     pub profile: AgentProfile,
     pub path: PathBuf,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectMetadata {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub icon: String,
+    #[serde(default)]
+    pub default_domain_id: String,
+    #[serde(default)]
+    pub default_artifact_type_id: String,
+}
+
+impl Default for ProjectMetadata {
+    fn default() -> Self {
+        Self {
+            name: "nagare-local".to_string(),
+            icon: String::new(),
+            default_domain_id: String::new(),
+            default_artifact_type_id: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SetProjectMetadataInput<'a> {
+    pub name: Option<&'a str>,
+    pub icon: Option<&'a str>,
+    pub default_domain_id: Option<&'a str>,
+    pub default_artifact_type_id: Option<&'a str>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImprovementHistoryEntry {
+    pub id: String,
+    pub proposal_id: String,
+    #[serde(default = "default_improvement_status")]
+    pub status: String,
+    pub kind: String,
+    pub title: String,
+    pub target_label: String,
+    pub summary: String,
+    pub evidence: String,
+    pub applied_at: String,
+    #[serde(default)]
+    pub effect_label: String,
+}
+
+fn default_improvement_status() -> String {
+    "applied".to_string()
+}
+
+#[derive(Debug, Clone)]
+pub struct RecordImprovementInput<'a> {
+    pub proposal_id: &'a str,
+    pub kind: &'a str,
+    pub title: &'a str,
+    pub target_label: &'a str,
+    pub summary: &'a str,
+    pub evidence: &'a str,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1216,6 +1372,21 @@ pub struct UninstallAgentSkillPackageResult {
     pub removed_from_agent: bool,
     pub package_removed: bool,
     pub installed_path_removed: bool,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DeleteSkillPackageInput<'a> {
+    pub package_id: &'a str,
+    pub remove_installed_body: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct DeleteSkillPackageResult {
+    pub package_id: String,
+    pub removed_skill_sets: Vec<String>,
+    pub detached_agents: Vec<String>,
+    pub installed_body_removed: bool,
     pub warnings: Vec<String>,
 }
 

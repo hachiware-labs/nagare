@@ -60,6 +60,162 @@ pub fn get_domain(root: impl Into<PathBuf>, domain_id: &str) -> Result<Domain, N
         .ok_or_else(|| NagareError::NotFound(format!("Domain `{domain_id}`")))
 }
 
+pub fn get_project_metadata(root: impl Into<PathBuf>) -> Result<ProjectMetadata, NagareError> {
+    let layout = ensure_project(root)?;
+    Ok(load_project_config(&layout)?.project)
+}
+
+pub fn set_project_metadata(
+    root: impl Into<PathBuf>,
+    input: SetProjectMetadataInput<'_>,
+) -> Result<ProjectMetadata, NagareError> {
+    let layout = ensure_project(root)?;
+    let mut metadata = load_project_config(&layout)?.project;
+    if let Some(name) = input.name {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(NagareError::InvalidState(
+                "project name must not be empty".to_string(),
+            ));
+        }
+        metadata.name = name.to_string();
+    }
+    if let Some(icon) = input.icon {
+        metadata.icon = icon.trim().to_string();
+    }
+    if let Some(domain_id) = input.default_domain_id {
+        let domain_id = domain_id.trim();
+        if domain_id.is_empty() {
+            metadata.default_domain_id.clear();
+        } else {
+            validate_existing_domain(&layout, domain_id)?;
+            metadata.default_domain_id = domain_id.to_string();
+        }
+    }
+    if let Some(artifact_type_id) = input.default_artifact_type_id {
+        let artifact_type_id = artifact_type_id.trim();
+        if artifact_type_id.is_empty() {
+            metadata.default_artifact_type_id.clear();
+        } else {
+            let artifact_type = get_artifact_type(&layout.root, artifact_type_id)?;
+            if !metadata.default_domain_id.trim().is_empty()
+                && artifact_type.domain_id.as_deref() != Some(metadata.default_domain_id.as_str())
+            {
+                return Err(NagareError::InvalidState(format!(
+                    "Artifact Type `{artifact_type_id}` does not belong to Domain `{}`",
+                    metadata.default_domain_id
+                )));
+            }
+            metadata.default_artifact_type_id = artifact_type_id.to_string();
+            if metadata.default_domain_id.trim().is_empty() {
+                metadata.default_domain_id = artifact_type.domain_id.unwrap_or_default();
+            }
+        }
+    }
+    write_project_metadata(&layout, &metadata)?;
+    Ok(metadata)
+}
+
+pub fn list_improvement_history(
+    root: impl Into<PathBuf>,
+) -> Result<Vec<ImprovementHistoryEntry>, NagareError> {
+    let layout = ensure_project(root)?;
+    Ok(load_project_config(&layout)?.improvement_history)
+}
+
+pub fn record_improvement_applied(
+    root: impl Into<PathBuf>,
+    input: RecordImprovementInput<'_>,
+) -> Result<ImprovementHistoryEntry, NagareError> {
+    let layout = ensure_project(root)?;
+    let proposal_id = input.proposal_id.trim();
+    if proposal_id.is_empty() {
+        return Err(NagareError::InvalidState(
+            "improvement proposal id must not be empty".to_string(),
+        ));
+    }
+    let mut config = load_project_config(&layout)?;
+    let entry = ImprovementHistoryEntry {
+        id: format!("applied-{proposal_id}"),
+        proposal_id: proposal_id.to_string(),
+        status: "applied".to_string(),
+        kind: input.kind.trim().to_string(),
+        title: input.title.trim().to_string(),
+        target_label: input.target_label.trim().to_string(),
+        summary: input.summary.trim().to_string(),
+        evidence: input.evidence.trim().to_string(),
+        applied_at: "今".to_string(),
+        effect_label: "効果測定中".to_string(),
+    };
+    config
+        .improvement_history
+        .retain(|item| item.proposal_id != entry.proposal_id);
+    config.improvement_history.insert(0, entry.clone());
+    config.improvement_history.truncate(20);
+    write_improvement_history(&layout, &config.improvement_history)?;
+    Ok(entry)
+}
+
+pub fn record_improvement_dismissed(
+    root: impl Into<PathBuf>,
+    input: RecordImprovementInput<'_>,
+) -> Result<ImprovementHistoryEntry, NagareError> {
+    let layout = ensure_project(root)?;
+    let proposal_id = input.proposal_id.trim();
+    if proposal_id.is_empty() {
+        return Err(NagareError::InvalidState(
+            "improvement proposal id must not be empty".to_string(),
+        ));
+    }
+    let mut config = load_project_config(&layout)?;
+    let entry = ImprovementHistoryEntry {
+        id: format!("dismissed-{proposal_id}"),
+        proposal_id: proposal_id.to_string(),
+        status: "dismissed".to_string(),
+        kind: input.kind.trim().to_string(),
+        title: input.title.trim().to_string(),
+        target_label: input.target_label.trim().to_string(),
+        summary: input.summary.trim().to_string(),
+        evidence: input.evidence.trim().to_string(),
+        applied_at: "今".to_string(),
+        effect_label: "見送り済み".to_string(),
+    };
+    config
+        .improvement_history
+        .retain(|item| item.proposal_id != entry.proposal_id);
+    config.improvement_history.insert(0, entry.clone());
+    config.improvement_history.truncate(20);
+    write_improvement_history(&layout, &config.improvement_history)?;
+    Ok(entry)
+}
+
+pub fn delete_project_state(root: impl Into<PathBuf>) -> Result<bool, NagareError> {
+    let layout = ProjectLayout::new(root);
+    if layout.root.as_os_str().is_empty() {
+        return Err(NagareError::InvalidState(
+            "project root must not be empty".to_string(),
+        ));
+    }
+    if layout.nagare_dir == layout.root
+        || layout.nagare_dir.file_name().and_then(|name| name.to_str()) != Some(".nagare")
+    {
+        return Err(NagareError::InvalidState(
+            "refusing to delete a path that is not a project .nagare directory".to_string(),
+        ));
+    }
+    if !layout.nagare_dir.exists() {
+        return Ok(false);
+    }
+    if !layout.nagare_dir.is_dir() {
+        return Err(NagareError::InvalidState(format!(
+            "`{}` is not a directory",
+            layout.nagare_dir.display()
+        )));
+    }
+    fs::remove_dir_all(&layout.nagare_dir)?;
+    Ok(true)
+}
+
 pub fn get_workflow_settings(root: impl Into<PathBuf>) -> Result<WorkflowSettings, NagareError> {
     let layout = ensure_project(root)?;
     Ok(load_project_config(&layout)?.workflow)
@@ -72,6 +228,151 @@ pub fn set_workflow_settings(
     let layout = ensure_project(root)?;
     save_workflow_settings(&layout, settings)?;
     Ok(settings)
+}
+
+pub fn list_mcp_connections(
+    root: impl Into<PathBuf>,
+) -> Result<Vec<McpConnectionCatalogEntry>, NagareError> {
+    let layout = ensure_project(root)?;
+    let config = load_project_config(&layout)?;
+    Ok(config
+        .mcp_connections
+        .into_iter()
+        .map(|(id, connection)| mcp_connection_catalog_entry(id, connection))
+        .collect())
+}
+
+pub fn add_mcp_connection(
+    root: impl Into<PathBuf>,
+    input: AddMcpConnectionInput<'_>,
+) -> Result<McpConnectionCatalogEntry, NagareError> {
+    let layout = ensure_project(root)?;
+    validate_mcp_connection_id(input.id)?;
+    let config = load_project_config(&layout)?;
+    if config.mcp_connections.contains_key(input.id) {
+        return Err(NagareError::InvalidState(format!(
+            "MCP connection `{}` already exists",
+            input.id
+        )));
+    }
+    let connection = mcp_connection_from_parts(
+        input.display_name,
+        input.tool_kind,
+        input.command,
+        input.args,
+        input.env,
+        input.test_args,
+    )?;
+    write_mcp_connection_to_project_config(&layout, input.id, &connection)?;
+    Ok(mcp_connection_catalog_entry(
+        input.id.to_string(),
+        connection,
+    ))
+}
+
+pub fn update_mcp_connection(
+    root: impl Into<PathBuf>,
+    connection_id: &str,
+    input: UpdateMcpConnectionInput<'_>,
+) -> Result<McpConnectionCatalogEntry, NagareError> {
+    let layout = ensure_project(root)?;
+    validate_mcp_connection_id(connection_id)?;
+    let mut config = load_project_config(&layout)?;
+    let mut connection = config
+        .mcp_connections
+        .remove(connection_id)
+        .ok_or_else(|| NagareError::NotFound(format!("MCP connection `{connection_id}`")))?;
+    let mut needs_retest = false;
+    if let Some(display_name) = input.display_name {
+        connection.display_name = if display_name.trim().is_empty() {
+            connection_id.to_string()
+        } else {
+            display_name.trim().to_string()
+        };
+    }
+    if let Some(tool_kind) = input.tool_kind {
+        connection.tool_kind = tool_kind;
+        needs_retest = true;
+    }
+    if let Some(command) = input.command {
+        let command = command.trim();
+        if command.is_empty() {
+            return Err(NagareError::InvalidState(
+                "MCP command is required".to_string(),
+            ));
+        }
+        connection.command = command.to_string();
+        needs_retest = true;
+    }
+    if let Some(args) = input.args {
+        connection.args = normalize_specialties(args);
+        needs_retest = true;
+    }
+    if let Some(env) = input.env {
+        connection.env = normalize_env_map(env);
+        needs_retest = true;
+    }
+    if let Some(test_args) = input.test_args {
+        connection.test_args = normalize_specialties(test_args);
+        needs_retest = true;
+    }
+    if needs_retest {
+        connection.last_test_status.clear();
+        connection.last_test_detail.clear();
+        connection.last_tested_at.clear();
+    }
+    write_mcp_connection_to_project_config(&layout, connection_id, &connection)?;
+    Ok(mcp_connection_catalog_entry(
+        connection_id.to_string(),
+        connection,
+    ))
+}
+
+pub fn delete_mcp_connection(
+    root: impl Into<PathBuf>,
+    connection_id: &str,
+) -> Result<McpConnectionCatalogEntry, NagareError> {
+    let layout = ensure_project(root)?;
+    validate_mcp_connection_id(connection_id)?;
+    let config = load_project_config(&layout)?;
+    let connection = config
+        .mcp_connections
+        .get(connection_id)
+        .cloned()
+        .ok_or_else(|| NagareError::NotFound(format!("MCP connection `{connection_id}`")))?;
+    let detached_agents = detach_mcp_connection_from_agents(&layout, connection_id)?;
+    if let Err(error) = remove_mcp_connection_from_project_config(&layout, connection_id) {
+        restore_mcp_connection_agent_assignments(&layout, detached_agents)?;
+        return Err(error);
+    }
+    Ok(mcp_connection_catalog_entry(
+        connection_id.to_string(),
+        connection,
+    ))
+}
+
+pub fn test_mcp_connection(
+    root: impl Into<PathBuf>,
+    connection_id: &str,
+) -> Result<McpConnectionTestResult, NagareError> {
+    let layout = ensure_project(root)?;
+    validate_mcp_connection_id(connection_id)?;
+    let config = load_project_config(&layout)?;
+    let mut connection = config
+        .mcp_connections
+        .get(connection_id)
+        .cloned()
+        .ok_or_else(|| NagareError::NotFound(format!("MCP connection `{connection_id}`")))?;
+    let (success, detail) = run_mcp_connection_test(&layout, &connection);
+    connection.last_test_status = if success { "passed" } else { "failed" }.to_string();
+    connection.last_test_detail = detail.clone();
+    connection.last_tested_at = timestamp();
+    write_mcp_connection_to_project_config(&layout, connection_id, &connection)?;
+    Ok(McpConnectionTestResult {
+        connection: mcp_connection_catalog_entry(connection_id.to_string(), connection),
+        success,
+        detail,
+    })
 }
 
 pub fn add_artifact_type(
@@ -106,6 +407,7 @@ pub fn add_artifact_type(
         description: input.description.trim().to_string(),
         artifact_types: normalize_specialties(input.artifact_types),
         rubric: normalize_specialties(input.rubric),
+        rubric_version: 1,
         dispatch_hints: normalize_specialties(input.dispatch_hints),
         workflow: input.workflow,
         source: ArtifactTypeSource::ProjectArtifactTypeDirectory,
@@ -143,7 +445,11 @@ pub fn update_artifact_type(
         domain.artifact_types = normalize_specialties(artifact_types);
     }
     if let Some(rubric) = input.rubric {
-        domain.rubric = normalize_specialties(rubric);
+        let next_rubric = normalize_specialties(rubric);
+        if next_rubric != domain.rubric {
+            domain.rubric_version = domain.rubric_version.saturating_add(1).max(1);
+            domain.rubric = next_rubric;
+        }
     }
     if let Some(dispatch_hints) = input.dispatch_hints {
         domain.dispatch_hints = normalize_specialties(dispatch_hints);
@@ -297,9 +603,11 @@ pub fn add_agent_profile(
     let domain_ids = normalize_domain_ids(input.domain_ids)?;
     let artifact_type_ids = normalize_artifact_type_ids(input.artifact_type_ids)?;
     let skill_set_ids = normalize_skill_set_ids(input.skill_set_ids)?;
+    let mcp_connection_ids = normalize_mcp_connection_ids(input.mcp_connection_ids)?;
     validate_existing_skill_set_ids(&layout, &skill_set_ids)?;
     validate_existing_domain_ids(&layout, &domain_ids)?;
     validate_existing_artifact_type_ids(&layout, &artifact_type_ids)?;
+    validate_agent_mcp_connection_ids(&layout, tool_kind, &mcp_connection_ids)?;
     let prompt = AgentPromptConfig {
         instructions: input.description.trim().to_string(),
         version: default_agent_prompt_version(),
@@ -311,6 +619,7 @@ pub fn add_agent_profile(
         } else {
             input.display_name.to_string()
         },
+        avatar: String::new(),
         tool_kind,
         runtime: input.runtime.to_string(),
         adapter: adapter.to_string(),
@@ -325,6 +634,7 @@ pub fn add_agent_profile(
         skill_set_ids,
         domain_ids,
         artifact_type_ids,
+        mcp_connection_ids,
         managed_by,
         model,
         external,
@@ -382,6 +692,9 @@ pub fn update_agent_profile(
             display_name.trim().to_string()
         };
     }
+    if let Some(avatar) = input.avatar {
+        profile.avatar = avatar.trim().to_string();
+    }
     if let Some(runtime) = input.runtime {
         profile.runtime = runtime.trim().to_string();
     }
@@ -406,6 +719,9 @@ pub fn update_agent_profile(
             profile.prompt.instructions = profile.description.clone();
         }
     }
+    if let Some(prompt) = input.prompt {
+        profile.prompt.instructions = prompt.trim().to_string();
+    }
     if let Some(specialties) = input.specialties {
         profile.specialties = normalize_specialties(specialties);
     }
@@ -421,6 +737,10 @@ pub fn update_agent_profile(
         profile.artifact_type_ids = normalize_artifact_type_ids(artifact_type_ids)?;
         validate_existing_artifact_type_ids(&layout, &profile.artifact_type_ids)?;
     }
+    if let Some(mcp_connection_ids) = input.mcp_connection_ids {
+        profile.mcp_connection_ids = normalize_mcp_connection_ids(mcp_connection_ids)?;
+    }
+    validate_agent_mcp_connection_ids(&layout, profile.tool_kind, &profile.mcp_connection_ids)?;
     if let Some(managed_by) = input.managed_by {
         profile.managed_by = normalize_managed_by(managed_by)?;
     }
@@ -448,6 +768,13 @@ fn merge_agent_model_selection(
     current: &AgentModelSelection,
     update: AgentModelSelection,
 ) -> AgentModelSelection {
+    if update.provider.is_empty()
+        && update.id.is_empty()
+        && update.base_url.is_empty()
+        && update.api_key_env.is_empty()
+    {
+        return AgentModelSelection::default();
+    }
     AgentModelSelection {
         provider: if update.provider.is_empty() {
             current.provider.clone()
@@ -777,6 +1104,127 @@ pub fn uninstall_agent_skill_package(
     })
 }
 
+pub fn delete_skill_package(
+    root: impl Into<PathBuf>,
+    input: DeleteSkillPackageInput<'_>,
+) -> Result<DeleteSkillPackageResult, NagareError> {
+    let layout = ensure_project(root)?;
+    let package_id = input.package_id.trim();
+    validate_skill_package_id(package_id)?;
+    let config = load_project_config(&layout)?;
+    let package = config
+        .skill_packages
+        .get(package_id)
+        .cloned()
+        .ok_or_else(|| NagareError::NotFound(format!("skill package `{package_id}`")))?;
+    let removed_skill_sets = if package.provided_skill_sets.is_empty() {
+        vec![package_id.to_string()]
+    } else {
+        package.provided_skill_sets.clone()
+    };
+    let ids = removed_skill_sets.iter().collect::<BTreeSet<_>>();
+    if config.project_rules.iter().any(|rule| {
+        rule.skill_sets
+            .iter()
+            .any(|skill_set_id| ids.contains(skill_set_id))
+    }) {
+        return Err(NagareError::InvalidState(format!(
+            "skill package `{package_id}` is still referenced by a project rule"
+        )));
+    }
+
+    let detached_assignments = detach_skill_sets_from_agents(&layout, &ids)?;
+    let detached_agents = detached_assignments
+        .iter()
+        .map(|(agent_id, _)| agent_id.clone())
+        .collect::<Vec<_>>();
+    if let Err(error) = remove_skill_package_from_project_config(&layout, package_id, &package) {
+        restore_skill_set_agent_assignments(&layout, detached_assignments)?;
+        return Err(error);
+    }
+
+    let mut warnings = Vec::new();
+    let mut installed_body_removed = false;
+    if input.remove_installed_body {
+        for path in package_installed_paths(&package) {
+            let path = skill_package_path_for_uninstall(&layout, path);
+            match safe_remove_skill_dir(&layout, &path) {
+                Ok(removed) => installed_body_removed |= removed,
+                Err(error) => warnings.push(error.to_string()),
+            }
+        }
+        for skill_set_id in &removed_skill_sets {
+            if let Err(error) = remove_skill_from_skills_lock(&layout, skill_set_id, package_id) {
+                warnings.push(error.to_string());
+            }
+        }
+        if package.source_kind == "vercel" || package.source_kind == "clawhub" {
+            warnings.push(
+                "external tool uninstall is scoped to agent removal; removed Nagare registration and project-local skill files only"
+                    .to_string(),
+            );
+        }
+    }
+
+    Ok(DeleteSkillPackageResult {
+        package_id: package_id.to_string(),
+        removed_skill_sets,
+        detached_agents,
+        installed_body_removed,
+        warnings,
+    })
+}
+
+fn detach_skill_sets_from_agents(
+    layout: &ProjectLayout,
+    skill_set_ids: &BTreeSet<&String>,
+) -> Result<Vec<(String, Vec<String>)>, NagareError> {
+    let profiles = load_agent_profiles(layout)?;
+    let mut detached = Vec::new();
+    for profile in profiles.values() {
+        if !profile
+            .skill_set_ids
+            .iter()
+            .any(|skill_set_id| skill_set_ids.contains(skill_set_id))
+        {
+            continue;
+        }
+        let next_skill_set_ids = profile
+            .skill_set_ids
+            .iter()
+            .filter(|skill_set_id| !skill_set_ids.contains(skill_set_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        update_agent_profile(
+            &layout.root,
+            &profile.id,
+            UpdateAgentProfileInput {
+                skill_set_ids: Some(next_skill_set_ids),
+                ..UpdateAgentProfileInput::default()
+            },
+        )?;
+        detached.push((profile.id.clone(), profile.skill_set_ids.clone()));
+    }
+    Ok(detached)
+}
+
+fn restore_skill_set_agent_assignments(
+    layout: &ProjectLayout,
+    assignments: Vec<(String, Vec<String>)>,
+) -> Result<(), NagareError> {
+    for (agent_id, skill_set_ids) in assignments {
+        update_agent_profile(
+            &layout.root,
+            &agent_id,
+            UpdateAgentProfileInput {
+                skill_set_ids: Some(skill_set_ids),
+                ..UpdateAgentProfileInput::default()
+            },
+        )?;
+    }
+    Ok(())
+}
+
 fn create_external_agent_if_needed(
     layout: &ProjectLayout,
     profile: &AgentProfile,
@@ -1014,6 +1462,7 @@ fn write_agent_profile_file(
         agent_profile: Some(AgentProfileFileEntry {
             id: Some(profile.id.clone()),
             display_name: profile.display_name.clone(),
+            avatar: profile.avatar.clone(),
             tool_kind: Some(profile.tool_kind),
             runtime: profile.runtime.clone(),
             adapter: profile.adapter.clone(),
@@ -1024,6 +1473,7 @@ fn write_agent_profile_file(
             skill_set_ids: profile.skill_set_ids.clone(),
             domain_ids: profile.domain_ids.clone(),
             artifact_type_ids: profile.artifact_type_ids.clone(),
+            mcp_connection_ids: profile.mcp_connection_ids.clone(),
             managed_by: profile.managed_by.clone(),
             model: profile.model.clone(),
             external: profile.external.clone(),
@@ -1053,6 +1503,7 @@ fn write_artifact_type_file(
             description: domain.description.clone(),
             artifact_types: domain.artifact_types.clone(),
             rubric: domain.rubric.clone(),
+            rubric_version: domain.rubric_version.max(1),
             dispatch_hints: domain.dispatch_hints.clone(),
             workflow: domain.workflow,
         }),
@@ -1117,6 +1568,269 @@ fn empty_marker(value: &str) -> &str {
     if value.trim().is_empty() { "-" } else { value }
 }
 
+fn validate_mcp_connection_id(id: &str) -> Result<(), NagareError> {
+    let id = id.trim();
+    if id.is_empty()
+        || !id
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
+    {
+        return Err(NagareError::InvalidState(format!(
+            "MCP connection id `{id}` must use only ASCII letters, numbers, '-', '_' or '.'"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_agent_mcp_connection_ids(
+    layout: &ProjectLayout,
+    tool_kind: AgentToolKind,
+    mcp_connection_ids: &[String],
+) -> Result<(), NagareError> {
+    if mcp_connection_ids.is_empty() {
+        return Ok(());
+    }
+    let config = load_project_config(layout)?;
+    for connection_id in mcp_connection_ids {
+        validate_mcp_connection_id(connection_id)?;
+        let connection = config
+            .mcp_connections
+            .get(connection_id)
+            .ok_or_else(|| NagareError::NotFound(format!("MCP connection `{connection_id}`")))?;
+        if connection.tool_kind != tool_kind {
+            return Err(NagareError::InvalidState(format!(
+                "MCP connection `{connection_id}` targets `{}` but agent uses `{tool_kind}`",
+                connection.tool_kind
+            )));
+        }
+        let capability = runtime_mcp_capability(connection.tool_kind);
+        if !capability.agent_assignable {
+            return Err(NagareError::InvalidState(format!(
+                "MCP connection `{connection_id}` cannot be assigned to individual agents for `{}`",
+                connection.tool_kind
+            )));
+        }
+        if connection.last_test_status != "passed" {
+            return Err(NagareError::InvalidState(format!(
+                "MCP connection `{connection_id}` must pass connection test before assignment"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn detach_mcp_connection_from_agents(
+    layout: &ProjectLayout,
+    connection_id: &str,
+) -> Result<Vec<(String, Vec<String>)>, NagareError> {
+    let profiles = load_agent_profiles(layout)?;
+    let mut detached = Vec::new();
+    for profile in profiles.values() {
+        if !profile
+            .mcp_connection_ids
+            .iter()
+            .any(|id| id == connection_id)
+        {
+            continue;
+        }
+        let next_ids = profile
+            .mcp_connection_ids
+            .iter()
+            .filter(|id| id.as_str() != connection_id)
+            .cloned()
+            .collect::<Vec<_>>();
+        update_agent_profile(
+            &layout.root,
+            &profile.id,
+            UpdateAgentProfileInput {
+                mcp_connection_ids: Some(next_ids),
+                ..UpdateAgentProfileInput::default()
+            },
+        )?;
+        detached.push((profile.id.clone(), profile.mcp_connection_ids.clone()));
+    }
+    Ok(detached)
+}
+
+fn restore_mcp_connection_agent_assignments(
+    layout: &ProjectLayout,
+    assignments: Vec<(String, Vec<String>)>,
+) -> Result<(), NagareError> {
+    for (agent_id, mcp_connection_ids) in assignments {
+        update_agent_profile(
+            &layout.root,
+            &agent_id,
+            UpdateAgentProfileInput {
+                mcp_connection_ids: Some(mcp_connection_ids),
+                ..UpdateAgentProfileInput::default()
+            },
+        )?;
+    }
+    Ok(())
+}
+
+fn mcp_connection_from_parts(
+    display_name: &str,
+    tool_kind: AgentToolKind,
+    command: &str,
+    args: Vec<String>,
+    env: BTreeMap<String, String>,
+    test_args: Vec<String>,
+) -> Result<McpConnectionDeclaration, NagareError> {
+    let command = command.trim();
+    if command.is_empty() {
+        return Err(NagareError::InvalidState(
+            "MCP command is required".to_string(),
+        ));
+    }
+    Ok(McpConnectionDeclaration {
+        display_name: if display_name.trim().is_empty() {
+            command.to_string()
+        } else {
+            display_name.trim().to_string()
+        },
+        tool_kind,
+        command: command.to_string(),
+        args: normalize_specialties(args),
+        env: normalize_env_map(env),
+        test_args: normalize_specialties(test_args),
+        last_test_status: String::new(),
+        last_test_detail: String::new(),
+        last_tested_at: String::new(),
+    })
+}
+
+fn normalize_env_map(values: BTreeMap<String, String>) -> BTreeMap<String, String> {
+    values
+        .into_iter()
+        .filter_map(|(key, value)| {
+            let key = key.trim();
+            if key.is_empty() {
+                None
+            } else {
+                Some((key.to_string(), value.trim().to_string()))
+            }
+        })
+        .collect()
+}
+
+fn mcp_connection_catalog_entry(
+    id: String,
+    connection: McpConnectionDeclaration,
+) -> McpConnectionCatalogEntry {
+    let capability = runtime_mcp_capability(connection.tool_kind);
+    McpConnectionCatalogEntry {
+        id,
+        display_name: connection.display_name,
+        tool_kind: connection.tool_kind,
+        runtime_label: capability.runtime_label.to_string(),
+        scope: capability.scope,
+        agent_assignable: capability.agent_assignable && connection.last_test_status == "passed",
+        command: connection.command,
+        args: connection.args,
+        env: connection.env,
+        test_args: connection.test_args,
+        last_test_status: connection.last_test_status,
+        last_test_detail: connection.last_test_detail,
+        last_tested_at: connection.last_tested_at,
+    }
+}
+
+fn run_mcp_connection_test(
+    layout: &ProjectLayout,
+    connection: &McpConnectionDeclaration,
+) -> (bool, String) {
+    let args = if connection.test_args.is_empty() {
+        vec!["--version".to_string()]
+    } else {
+        connection.test_args.clone()
+    };
+    match run_mcp_command(&connection.command, &args, &connection.env, &layout.root) {
+        Ok(output) => {
+            let detail = command_output_summary(&output);
+            if output.status.success() {
+                (true, detail)
+            } else {
+                (false, format!("exit status {}. {detail}", output.status))
+            }
+        }
+        Err(error) => (false, error.to_string()),
+    }
+}
+
+fn run_mcp_command(
+    command: &str,
+    args: &[String],
+    envs: &BTreeMap<String, String>,
+    current_dir: &Path,
+) -> io::Result<std::process::Output> {
+    let mut process = Command::new(command);
+    process.args(args).envs(envs).current_dir(current_dir);
+    match process.output() {
+        Ok(output) => Ok(output),
+        Err(error) if cfg!(windows) && error.kind() == io::ErrorKind::NotFound => {
+            let mut process = Command::new(format!("{command}.cmd"));
+            process.args(args).envs(envs).current_dir(current_dir);
+            process.output()
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn command_output_summary(output: &std::process::Output) -> String {
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let detail = stdout
+        .lines()
+        .chain(stderr.lines())
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .unwrap_or("no output")
+        .to_string();
+    detail.chars().take(500).collect()
+}
+
+fn write_mcp_connection_to_project_config(
+    layout: &ProjectLayout,
+    connection_id: &str,
+    connection: &McpConnectionDeclaration,
+) -> Result<(), NagareError> {
+    let raw = fs::read_to_string(&layout.config_path)?;
+    let mut value = raw.parse::<toml::Value>()?;
+    let root_table = value.as_table_mut().ok_or_else(|| {
+        NagareError::InvalidState("project config must be a TOML table".to_string())
+    })?;
+    let connections = root_table
+        .entry("mcp_connections".to_string())
+        .or_insert_with(|| toml::Value::Table(toml::map::Map::new()))
+        .as_table_mut()
+        .ok_or_else(|| {
+            NagareError::InvalidState("mcp_connections must be a TOML table".to_string())
+        })?;
+    connections.insert(
+        connection_id.to_string(),
+        toml::Value::try_from(connection.clone())?,
+    );
+    fs::write(&layout.config_path, toml::to_string_pretty(&value)?)?;
+    Ok(())
+}
+
+fn remove_mcp_connection_from_project_config(
+    layout: &ProjectLayout,
+    connection_id: &str,
+) -> Result<(), NagareError> {
+    let raw = fs::read_to_string(&layout.config_path)?;
+    let mut value = raw.parse::<toml::Value>()?;
+    if let Some(connections) = value
+        .get_mut("mcp_connections")
+        .and_then(toml::Value::as_table_mut)
+    {
+        connections.remove(connection_id);
+    }
+    fs::write(&layout.config_path, toml::to_string_pretty(&value)?)?;
+    Ok(())
+}
+
 #[derive(Default)]
 struct SkillMdMetadata {
     name: Option<String>,
@@ -1126,11 +1840,14 @@ fn normalize_skill_source_kind(kind: &str) -> Result<&'static str, NagareError> 
     match kind.trim().to_ascii_lowercase().replace('_', "-").as_str() {
         "local" => Ok("local"),
         "git" => Ok("git"),
+        "openai" => Ok("openai"),
+        "anthropic" => Ok("anthropic"),
+        "manual" | "reference" => Ok("manual"),
         "clawhub" | "claw-hub" => Ok("clawhub"),
         "vercel" | "vercel-skills" => Ok("vercel"),
         "skill-creator" | "skillcreator" => Ok("skill_creator"),
         other => Err(NagareError::InvalidState(format!(
-            "unsupported skill source kind `{other}`; expected local, git, clawhub, vercel, or skill-creator"
+            "unsupported skill source kind `{other}`; expected local, git, openai, anthropic, manual, clawhub, vercel, or skill-creator"
         ))),
     }
 }
@@ -1602,6 +2319,8 @@ fn uninstall_skill_from_external_tool(
 fn external_skill_agent_key(tool_kind: AgentToolKind) -> &'static str {
     match tool_kind {
         AgentToolKind::Codex | AgentToolKind::CodexCli => "codex",
+        AgentToolKind::ClaudeCode => "claude",
+        AgentToolKind::OpenCode => "opencode",
         AgentToolKind::OpenClaw => "openclaw",
     }
 }
@@ -1840,7 +2559,10 @@ fn path_matches_tool_kind(layout: &ProjectLayout, path: &Path, tool_kind: AgentT
 
 fn tool_skill_roots(layout: &ProjectLayout, tool_kind: AgentToolKind) -> Vec<PathBuf> {
     let mut roots = match tool_kind {
-        AgentToolKind::Codex | AgentToolKind::CodexCli => {
+        AgentToolKind::Codex
+        | AgentToolKind::CodexCli
+        | AgentToolKind::ClaudeCode
+        | AgentToolKind::OpenCode => {
             vec![layout.root.join(".agents").join("skills")]
         }
         AgentToolKind::OpenClaw => vec![
@@ -1850,7 +2572,10 @@ fn tool_skill_roots(layout: &ProjectLayout, tool_kind: AgentToolKind) -> Vec<Pat
     };
     if let Some(home) = home_dir() {
         match tool_kind {
-            AgentToolKind::Codex | AgentToolKind::CodexCli => {
+            AgentToolKind::Codex
+            | AgentToolKind::CodexCli
+            | AgentToolKind::ClaudeCode
+            | AgentToolKind::OpenCode => {
                 roots.push(home.join(".agents").join("skills"));
             }
             AgentToolKind::OpenClaw => {
@@ -3011,6 +3736,10 @@ pub fn run_work_item_with_input(
         }
     });
 
+    let agent_output_for_trace = agent_output.clone();
+    let review_result_for_trace = review_result.clone();
+    let dispatch_plan_for_trace = dispatch_plan.clone();
+
     ledger.runs.push(run.clone());
     ledger.execution_records.push(execution_record);
     ledger.execution_records.extend(collected_execution_records);
@@ -3062,6 +3791,18 @@ pub fn run_work_item_with_input(
         item.status = item_status;
         item.updated_at = timestamp();
     }
+    append_agent_run_trace(
+        &layout,
+        &item,
+        &run,
+        &agent_profile,
+        &resolved_run_packet,
+        &resolved_skill_context,
+        agent_output_for_trace.as_ref(),
+        review_result_for_trace.as_ref(),
+        dispatch_plan_for_trace.as_ref(),
+        &ledger.artifacts,
+    )?;
     save_ledger(&layout, &ledger)?;
 
     Ok(RunWorkItemResult {
@@ -3259,6 +4000,7 @@ pub fn approve_work_item(
         item.updated_at = timestamp();
     }
     save_ledger(&layout, &ledger)?;
+    append_human_decision_trace(&layout, &decision)?;
     Ok(DecisionResult {
         decision,
         item_status: WorkItemStatus::Done,
@@ -3314,6 +4056,7 @@ pub fn reject_work_item(
         item.updated_at = timestamp();
     }
     save_ledger(&layout, &ledger)?;
+    append_human_decision_trace(&layout, &decision)?;
     Ok(DecisionResult {
         decision,
         item_status: WorkItemStatus::Ready,

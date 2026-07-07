@@ -38,6 +38,9 @@ fn default_config_declares_initial_adapters() {
     let config = default_config();
     assert!(config.contains("process.codex-cli"));
     assert!(config.contains("stdio.codex-app-server"));
+    assert!(config.contains("process.claude-code"));
+    assert!(config.contains("process.opencode"));
+    assert!(config.contains("process.openclaw-agent"));
     assert!(config.contains("role = \"worker\""));
     assert!(config.contains("role = \"reviewer\""));
     assert!(config.contains("role = \"dispatcher\""));
@@ -53,9 +56,208 @@ fn runtime_mcp_capability_table_drives_agent_choices() {
     assert_eq!(codex_cli.scope, RuntimeMcpScope::Project);
     assert!(codex_cli.agent_assignable);
 
+    let claude = runtime_mcp_capability(AgentToolKind::ClaudeCode);
+    assert_eq!(claude.scope, RuntimeMcpScope::Project);
+    assert!(!claude.agent_assignable);
+
+    let opencode = runtime_mcp_capability(AgentToolKind::OpenCode);
+    assert_eq!(opencode.scope, RuntimeMcpScope::Project);
+    assert!(!opencode.agent_assignable);
+
     let openclaw = runtime_mcp_capability(AgentToolKind::OpenClaw);
     assert_eq!(openclaw.scope, RuntimeMcpScope::GlobalOnly);
     assert!(!openclaw.agent_assignable);
+}
+
+#[test]
+fn mcp_connection_crud_records_test_status() {
+    let root = test_root("mcp-connection-crud");
+    init_project(&root).expect("project should init");
+
+    let connection = add_mcp_connection(
+        &root,
+        AddMcpConnectionInput {
+            id: "rustc-version",
+            display_name: "Rustc Version MCP",
+            tool_kind: AgentToolKind::CodexCli,
+            command: "rustc",
+            args: Vec::new(),
+            env: Default::default(),
+            test_args: vec!["--version".to_string()],
+        },
+    )
+    .expect("connection should add");
+    assert_eq!(connection.last_test_status, "");
+    assert!(!connection.agent_assignable);
+
+    let tested = test_mcp_connection(&root, "rustc-version").expect("connection should test");
+    assert!(tested.success, "{}", tested.detail);
+    assert_eq!(tested.connection.last_test_status, "passed");
+    assert!(tested.connection.agent_assignable);
+
+    let listed = list_mcp_connections(&root).expect("connections should list");
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].id, "rustc-version");
+    assert_eq!(listed[0].last_test_status, "passed");
+
+    let deleted = delete_mcp_connection(&root, "rustc-version").expect("connection should delete");
+    assert_eq!(deleted.id, "rustc-version");
+    assert!(
+        list_mcp_connections(&root)
+            .expect("connections should list")
+            .is_empty()
+    );
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn tested_mcp_connection_can_be_assigned_to_agent_and_detaches_on_delete() {
+    let root = test_root("mcp-agent-assignment");
+    init_project(&root).expect("project should init");
+
+    add_mcp_connection(
+        &root,
+        AddMcpConnectionInput {
+            id: "rustc-version",
+            display_name: "Rustc Version MCP",
+            tool_kind: AgentToolKind::CodexCli,
+            command: "rustc",
+            args: Vec::new(),
+            env: Default::default(),
+            test_args: vec!["--version".to_string()],
+        },
+    )
+    .expect("connection should add");
+
+    let untested_assignment = add_agent_profile(
+        &root,
+        AddAgentProfileInput {
+            id: "codex-with-untested-mcp",
+            display_name: "Codex Untested MCP",
+            runtime: "codex-local",
+            adapter: "process.codex-cli",
+            role: "worker",
+            working_dir: ".",
+            description: "",
+            specialties: Vec::new(),
+            skill_set_ids: Vec::new(),
+            domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
+            mcp_connection_ids: vec!["rustc-version".to_string()],
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
+        },
+    );
+    assert!(
+        untested_assignment.is_err(),
+        "untested MCP connections must not be assignable"
+    );
+
+    let tested = test_mcp_connection(&root, "rustc-version").expect("connection should test");
+    assert!(tested.success, "{}", tested.detail);
+
+    add_agent_profile(
+        &root,
+        AddAgentProfileInput {
+            id: "codex-with-mcp",
+            display_name: "Codex With MCP",
+            runtime: "codex-local",
+            adapter: "process.codex-cli",
+            role: "worker",
+            working_dir: ".",
+            description: "",
+            specialties: Vec::new(),
+            skill_set_ids: Vec::new(),
+            domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
+            mcp_connection_ids: vec!["rustc-version".to_string()],
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
+        },
+    )
+    .expect("tested MCP should assign to agent");
+
+    let agent = get_agent_profile(&root, "codex-with-mcp").expect("agent should load");
+    assert_eq!(agent.mcp_connection_ids, vec!["rustc-version".to_string()]);
+
+    delete_mcp_connection(&root, "rustc-version").expect("connection should delete");
+    let agent = get_agent_profile(&root, "codex-with-mcp").expect("agent should load");
+    assert!(agent.mcp_connection_ids.is_empty());
+
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn failed_mcp_connection_delete_restores_agent_assignments() {
+    let root = test_root("mcp-delete-rollback");
+    init_project(&root).expect("project should init");
+
+    add_mcp_connection(
+        &root,
+        AddMcpConnectionInput {
+            id: "rustc-version",
+            display_name: "Rustc Version MCP",
+            tool_kind: AgentToolKind::CodexCli,
+            command: "rustc",
+            args: Vec::new(),
+            env: Default::default(),
+            test_args: vec!["--version".to_string()],
+        },
+    )
+    .expect("connection should add");
+    let tested = test_mcp_connection(&root, "rustc-version").expect("connection should test");
+    assert!(tested.success, "{}", tested.detail);
+
+    add_agent_profile(
+        &root,
+        AddAgentProfileInput {
+            id: "codex-with-mcp",
+            display_name: "Codex With MCP",
+            runtime: "codex-local",
+            adapter: "process.codex-cli",
+            role: "worker",
+            working_dir: ".",
+            description: "",
+            specialties: Vec::new(),
+            skill_set_ids: Vec::new(),
+            domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
+            mcp_connection_ids: vec!["rustc-version".to_string()],
+            managed_by: None,
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
+        },
+    )
+    .expect("tested MCP should assign to agent");
+
+    let layout = ProjectLayout::new(&root);
+    let mut permissions = fs::metadata(&layout.config_path)
+        .expect("config metadata")
+        .permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(&layout.config_path, permissions).expect("config should become readonly");
+
+    let result = delete_mcp_connection(&root, "rustc-version");
+
+    let mut permissions = fs::metadata(&layout.config_path)
+        .expect("config metadata")
+        .permissions();
+    permissions.set_readonly(false);
+    fs::set_permissions(&layout.config_path, permissions).expect("config should become writable");
+
+    assert!(
+        result.is_err(),
+        "readonly project config should make MCP deletion fail"
+    );
+    let connections = list_mcp_connections(&root).expect("connections should list");
+    assert_eq!(connections.len(), 1);
+    assert_eq!(connections[0].id, "rustc-version");
+    let agent = get_agent_profile(&root, "codex-with-mcp").expect("agent should load");
+    assert_eq!(agent.mcp_connection_ids, vec!["rustc-version".to_string()]);
+
+    fs::remove_dir_all(root).ok();
 }
 
 #[test]
@@ -128,7 +330,7 @@ fn first_scenario_reaches_done() {
     assert_eq!(result.final_status, WorkItemStatus::Done);
     let snapshot =
         get_work_item_snapshot(&root, &result.work_item_id).expect("snapshot should load");
-    assert_eq!(snapshot.runs.len(), 3);
+    assert_eq!(snapshot.runs.len(), 4);
     assert_eq!(snapshot.handoffs.len(), 1);
     assert_eq!(snapshot.review_results.len(), 1);
     assert_eq!(snapshot.decisions.len(), 1);
@@ -277,6 +479,7 @@ fn agent_profile_working_dir_is_used_for_runs() {
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -321,6 +524,7 @@ fn agent_profile_routing_hints_are_persisted() {
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -355,6 +559,7 @@ fn agent_profile_can_be_updated_as_project_local_override() {
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -367,6 +572,7 @@ fn agent_profile_can_be_updated_as_project_local_override() {
         "draft-agent",
         UpdateAgentProfileInput {
             display_name: Some("Research Writer"),
+            avatar: Some("data:image/svg+xml;base64,PHN2Zy8+"),
             runtime: None,
             adapter: None,
             role: Some("researcher"),
@@ -376,6 +582,8 @@ fn agent_profile_can_be_updated_as_project_local_override() {
             skill_set_ids: None,
             domain_ids: None,
             artifact_type_ids: None,
+            mcp_connection_ids: None,
+            prompt: None,
             output_contract: None,
             managed_by: None,
             model: None,
@@ -388,9 +596,112 @@ fn agent_profile_can_be_updated_as_project_local_override() {
     let profile = get_agent_profile(&root, "draft-agent").expect("profile should load");
     assert_eq!(profile.display_name, "Research Writer");
     assert_eq!(profile.role, "researcher");
+    assert_eq!(profile.avatar, "data:image/svg+xml;base64,PHN2Zy8+");
     assert_eq!(profile.description, "Research and writing profile.");
     assert_eq!(profile.specialties, vec!["research", "writing"]);
     assert_eq!(profile.source, AgentProfileSource::ProjectAgentDirectory);
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn agent_profile_model_update_can_reset_to_runtime_default() {
+    let root = test_root("agent-model-reset");
+    init_project(&root).expect("project should init");
+    add_agent_profile(
+        &root,
+        AddAgentProfileInput {
+            id: "model-agent",
+            display_name: "Model Agent",
+            runtime: "codex-local",
+            adapter: "process.codex-cli",
+            role: "worker",
+            working_dir: ".",
+            description: "Uses a selected model.",
+            specialties: Vec::new(),
+            skill_set_ids: Vec::new(),
+            domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
+            managed_by: None,
+            model: AgentModelSelection {
+                provider: "openai".to_string(),
+                id: "gpt-5-codex".to_string(),
+                base_url: String::new(),
+                api_key_env: String::new(),
+            },
+            external: ExternalAgentBinding::default(),
+        },
+    )
+    .expect("profile should be added");
+
+    update_agent_profile(
+        &root,
+        "model-agent",
+        UpdateAgentProfileInput {
+            model: Some(AgentModelSelection::default()),
+            ..UpdateAgentProfileInput::default()
+        },
+    )
+    .expect("profile should update");
+
+    let profile = get_agent_profile(&root, "model-agent").expect("profile should load");
+    assert_eq!(profile.model, AgentModelSelection::default());
+    assert_eq!(profile.model.model_ref(), None);
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn artifact_type_rubric_version_increments_only_when_rubric_changes() {
+    let root = test_root("artifact-rubric-version");
+    init_project(&root).expect("project should init");
+    add_artifact_type(
+        &root,
+        AddArtifactTypeInput {
+            id: "faq",
+            domain_id: None,
+            display_name: "FAQ",
+            description: "Question and answer document.",
+            artifact_types: Vec::new(),
+            rubric: vec![
+                "## 目的適合性 (100)".to_string(),
+                "- 回答が質問に対応している。".to_string(),
+            ],
+            dispatch_hints: Vec::new(),
+            workflow: DomainWorkflowOverride::default(),
+        },
+    )
+    .expect("artifact type should be added");
+    let profile = get_artifact_type(&root, "faq").expect("artifact type should load");
+    assert_eq!(profile.rubric_version, 1);
+
+    update_artifact_type(
+        &root,
+        "faq",
+        UpdateArtifactTypeInput {
+            description: Some("Updated description."),
+            ..UpdateArtifactTypeInput::default()
+        },
+    )
+    .expect("non-rubric update should save");
+    let profile = get_artifact_type(&root, "faq").expect("artifact type should load");
+    assert_eq!(profile.rubric_version, 1);
+
+    update_artifact_type(
+        &root,
+        "faq",
+        UpdateArtifactTypeInput {
+            rubric: Some(vec![
+                "## 目的適合性 (60)".to_string(),
+                "- 回答が質問に対応している。".to_string(),
+                "## 再利用性 (40)".to_string(),
+                "- 他の問い合わせにも参照しやすい。".to_string(),
+            ]),
+            ..UpdateArtifactTypeInput::default()
+        },
+    )
+    .expect("rubric update should save");
+    let profile = get_artifact_type(&root, "faq").expect("artifact type should load");
+    assert_eq!(profile.rubric_version, 2);
     fs::remove_dir_all(root).ok();
 }
 
@@ -520,6 +831,7 @@ fn domain_defaults_domain_override_and_agent_scope_are_persisted() {
             skill_set_ids: Vec::new(),
             domain_ids: vec!["software-development".to_string()],
             artifact_type_ids: vec!["frontend-ui".to_string()],
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -577,6 +889,7 @@ fn agent_profile_output_contracts_can_be_updated() {
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -631,6 +944,7 @@ fn nagare_agent_settings_can_select_default_work_agent() {
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -698,6 +1012,7 @@ fn workflow_dispatch_uses_project_organizer_with_dispatch_fallback() {
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -751,6 +1066,7 @@ fn project_organizer_setting_can_be_cleared_to_builtin_fallback() {
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -772,6 +1088,99 @@ fn project_organizer_setting_can_be_cleared_to_builtin_fallback() {
     let loaded = get_nagare_agent_settings(&root).expect("settings should load");
     assert_eq!(loaded.organizer_agent, None);
     assert_eq!(loaded.dispatch_agent, "dispatcher");
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn project_metadata_can_be_saved_and_loaded() {
+    let root = test_root("project-metadata");
+    init_project(&root).expect("project should init");
+
+    let metadata = set_project_metadata(
+        &root,
+        SetProjectMetadataInput {
+            name: Some("Docs Site"),
+            icon: Some("📘"),
+            default_domain_id: Some("general"),
+            default_artifact_type_id: Some("general"),
+        },
+    )
+    .expect("metadata should save");
+    assert_eq!(metadata.name, "Docs Site");
+    assert_eq!(metadata.icon, "📘");
+    assert_eq!(metadata.default_domain_id, "general");
+    assert_eq!(metadata.default_artifact_type_id, "general");
+
+    let loaded = get_project_metadata(&root).expect("metadata should load");
+    assert_eq!(loaded.name, "Docs Site");
+    assert_eq!(loaded.icon, "📘");
+    assert_eq!(loaded.default_domain_id, "general");
+    assert_eq!(loaded.default_artifact_type_id, "general");
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn improvement_history_can_be_recorded_and_replaced() {
+    let root = test_root("improvement-history");
+    init_project(&root).expect("project should init");
+
+    let first = record_improvement_applied(
+        &root,
+        RecordImprovementInput {
+            proposal_id: "proposal-prompt-reviewer",
+            kind: "プロンプト",
+            title: "Reviewer のプロンプト改善",
+            target_label: "Reviewer / 形式の準拠",
+            summary: "形式基準を先に確認する手順を追加します",
+            evidence: "形式の準拠が直近2件で60%",
+        },
+    )
+    .expect("improvement should record");
+    assert_eq!(first.proposal_id, "proposal-prompt-reviewer");
+    assert_eq!(first.status, "applied");
+    assert_eq!(first.effect_label, "効果測定中");
+
+    let dismissed = record_improvement_dismissed(
+        &root,
+        RecordImprovementInput {
+            proposal_id: "proposal-prompt-reviewer",
+            kind: "プロンプト",
+            title: "Reviewer のプロンプト改善を見送り",
+            target_label: "Reviewer / 形式の準拠",
+            summary: "今回は見送ります",
+            evidence: "手動判断",
+        },
+    )
+    .expect("same proposal should be dismissed");
+    assert_eq!(dismissed.status, "dismissed");
+    assert_eq!(dismissed.effect_label, "見送り済み");
+
+    let history = list_improvement_history(&root).expect("history should load");
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].proposal_id, "proposal-prompt-reviewer");
+    assert_eq!(history[0].status, "dismissed");
+    assert_eq!(history[0].title, "Reviewer のプロンプト改善を見送り");
+    assert_eq!(history[0].target_label, "Reviewer / 形式の準拠");
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn delete_project_state_removes_only_nagare_directory() {
+    let root = test_root("delete-project-state");
+    init_project(&root).expect("project should init");
+    let layout = ProjectLayout::new(&root);
+    let ordinary_file = root.join("kept.txt");
+    fs::write(&ordinary_file, "keep").expect("ordinary file should write");
+    assert!(layout.nagare_dir.exists());
+
+    let removed = delete_project_state(&root).expect("project state should delete");
+    assert!(removed);
+    assert!(!layout.nagare_dir.exists());
+    assert_eq!(
+        fs::read_to_string(&ordinary_file).expect("ordinary file should remain"),
+        "keep"
+    );
+    assert!(!delete_project_state(&root).expect("second delete is a no-op"));
     fs::remove_dir_all(root).ok();
 }
 
@@ -846,6 +1255,7 @@ fn handoff_dispatch_uses_same_plan_lifecycle() {
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -928,6 +1338,7 @@ fn accepted_dispatch_plan_selects_target_for_work_run() {
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -1032,6 +1443,7 @@ fn dispatch_agent_json_can_choose_between_writing_and_research_agents() {
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -1052,6 +1464,7 @@ fn dispatch_agent_json_can_choose_between_writing_and_research_agents() {
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -1219,6 +1632,7 @@ fn dispatch_preview_requires_human_confirmation_when_domain_agent_is_missing() {
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -1399,6 +1813,7 @@ fn dispatch_preview_uses_general_fallback_without_confirmation_by_default() {
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -1498,6 +1913,7 @@ fn dispatch_preview_does_not_block_when_domain_agent_exists() {
             skill_set_ids: Vec::new(),
             domain_ids: vec!["software-development".to_string()],
             artifact_type_ids: vec!["frontend-ui".to_string()],
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -1627,6 +2043,7 @@ fn project_rule_resolution_selects_most_specific_rule() {
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -1829,6 +2246,7 @@ skill_sets = ["rule-rust"]
             skill_set_ids: vec!["agent-review".to_string()],
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: Some("nagare"),
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -1902,6 +2320,7 @@ optional_capabilities = []
             skill_set_ids: vec!["hachiware-labs/hachi-search".to_string()],
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: Some("nagare"),
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -1942,6 +2361,100 @@ optional_capabilities = []
             .constraints
             .iter()
             .any(|constraint| constraint.contains("registered but not installed locally"))
+    );
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn reference_skill_sources_register_and_skip_without_local_install() {
+    let root = test_root("reference-skill-sources");
+    init_project(&root).expect("project should init");
+
+    for (id, source_kind) in [
+        ("openai/code-review", "openai"),
+        ("anthropic/research", "anthropic"),
+        ("manual/custom-skill", "manual"),
+    ] {
+        let result = add_skill_package(
+            &root,
+            AddSkillPackageInput {
+                id: Some(id),
+                source_kind,
+                source: Some(id),
+                path: None,
+                install: true,
+                install_scope: Some("project"),
+                install_targets: vec!["codex".to_string()],
+                reference: None,
+                checksum: None,
+                skill_set_id: Some(id),
+                skill_paths: Vec::new(),
+                required_capabilities: Vec::new(),
+                optional_capabilities: Vec::new(),
+            },
+        )
+        .expect("reference skill should register without invoking a local installer");
+        assert_eq!(result.package.source_kind, source_kind);
+        assert!(result.package.installed_paths.is_empty());
+        assert_eq!(result.package.provided_skill_sets, vec![id.to_string()]);
+    }
+
+    add_agent_profile(
+        &root,
+        AddAgentProfileInput {
+            id: "reference-skill-agent",
+            display_name: "Reference Skill Agent",
+            runtime: "codex-local",
+            adapter: "process.codex-cli",
+            role: "worker",
+            working_dir: ".",
+            description: "Uses reference skills.",
+            specialties: Vec::new(),
+            skill_set_ids: vec!["openai/code-review".to_string()],
+            domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
+            managed_by: Some("nagare"),
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
+        },
+    )
+    .expect("profile should be added");
+
+    let item = create_work_item(&root, "Use reference skill", "")
+        .expect("item should create")
+        .item;
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "reference-skill-agent",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(scenario_command("reference skill missing", true).as_str()),
+            purpose: AgentRunPurpose::DispatchPreview,
+        },
+    )
+    .expect("run should succeed with reference skill skipped");
+
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot should load");
+    let context = &snapshot.resolved_skill_contexts[0];
+    assert_eq!(
+        context.declared_skill_set_ids,
+        vec!["openai/code-review".to_string()]
+    );
+    assert!(context.applied_skill_set_ids.is_empty());
+    assert_eq!(
+        context.skipped_skill_set_ids,
+        vec!["openai/code-review".to_string()]
+    );
+    assert!(
+        snapshot.resolved_run_packets[0]
+            .constraints
+            .iter()
+            .any(|constraint| constraint
+                .contains("package source `openai` is registered but not installed locally"))
     );
     fs::remove_dir_all(root).ok();
 }
@@ -2025,6 +2538,7 @@ optional_capabilities = []
                 skill_set_ids: vec!["search-tools".to_string()],
                 domain_ids: Vec::new(),
                 artifact_type_ids: Vec::new(),
+                mcp_connection_ids: Vec::new(),
                 managed_by: Some("nagare"),
                 model: AgentModelSelection::default(),
                 external: ExternalAgentBinding::default(),
@@ -2075,6 +2589,211 @@ optional_capabilities = []
     assert!(lock.contains("search-tools"));
     let agent = get_agent_profile(&root, "search-b").expect("agent should load");
     assert!(agent.skill_set_ids.is_empty());
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn delete_skill_package_detaches_agents_and_removes_library_entry() {
+    let root = test_root("delete-skill-package");
+    init_project(&root).expect("project should init");
+    let layout = ProjectLayout::new(&root);
+    let skill_dir = root.join(".agents").join("skills").join("delete-me");
+    fs::create_dir_all(&skill_dir).expect("skill dir should create");
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        r#"---
+name: delete-me
+description: Temporary skill.
+---
+
+# Delete Me
+"#,
+    )
+    .expect("skill should write");
+    let mut config = fs::read_to_string(&layout.config_path).expect("config should read");
+    config.push_str(
+        r#"
+
+[skill_packages.delete-me]
+source_kind = "local"
+source = ".agents/skills/delete-me"
+installed_path = ".agents/skills/delete-me"
+installed_paths = [".agents/skills/delete-me"]
+install_scope = "project"
+installed_targets = ["codex"]
+provided_skill_sets = ["delete-me"]
+
+[skill_sets.delete-me]
+paths = [".agents/skills/delete-me"]
+required_capabilities = []
+optional_capabilities = []
+"#,
+    );
+    fs::write(&layout.config_path, config).expect("config should write");
+    fs::write(
+        root.join("skills-lock.json"),
+        r#"{
+  "version": 1,
+  "skills": {
+    "delete-me": {
+      "source": ".agents/skills/delete-me"
+    }
+  }
+}
+"#,
+    )
+    .expect("lock file should write");
+    add_agent_profile(
+        &root,
+        AddAgentProfileInput {
+            id: "uses-delete-me",
+            display_name: "Uses Delete Me",
+            runtime: "codex-local",
+            adapter: "process.codex-cli",
+            role: "worker",
+            working_dir: ".",
+            description: "Uses a temporary skill.",
+            specialties: Vec::new(),
+            skill_set_ids: vec!["delete-me".to_string()],
+            domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
+            managed_by: Some("nagare"),
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
+        },
+    )
+    .expect("profile should be added");
+
+    let result = delete_skill_package(
+        &root,
+        DeleteSkillPackageInput {
+            package_id: "delete-me",
+            remove_installed_body: true,
+        },
+    )
+    .expect("package should delete");
+    assert_eq!(result.detached_agents, vec!["uses-delete-me".to_string()]);
+    assert_eq!(result.removed_skill_sets, vec!["delete-me".to_string()]);
+    assert!(result.installed_body_removed);
+    assert!(result.warnings.is_empty());
+    assert!(!skill_dir.exists());
+
+    let config = fs::read_to_string(&layout.config_path).expect("config should read");
+    assert!(!config.contains("[skill_packages.delete-me]"));
+    assert!(!config.contains("[skill_sets.delete-me]"));
+    let agent = get_agent_profile(&root, "uses-delete-me").expect("agent should load");
+    assert!(agent.skill_set_ids.is_empty());
+    let lock = fs::read_to_string(root.join("skills-lock.json")).expect("lock should read");
+    assert!(!lock.contains("delete-me"));
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn failed_skill_package_delete_restores_agent_assignments_before_body_removal() {
+    let root = test_root("delete-skill-package-rollback");
+    init_project(&root).expect("project should init");
+    let layout = ProjectLayout::new(&root);
+    let skill_dir = root.join(".agents").join("skills").join("delete-me");
+    fs::create_dir_all(&skill_dir).expect("skill dir should create");
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        r#"---
+name: delete-me
+description: Temporary skill.
+---
+
+# Delete Me
+"#,
+    )
+    .expect("skill should write");
+    let mut config = fs::read_to_string(&layout.config_path).expect("config should read");
+    config.push_str(
+        r#"
+
+[skill_packages.delete-me]
+source_kind = "local"
+source = ".agents/skills/delete-me"
+installed_path = ".agents/skills/delete-me"
+installed_paths = [".agents/skills/delete-me"]
+install_scope = "project"
+installed_targets = ["codex"]
+provided_skill_sets = ["delete-me"]
+
+[skill_sets.delete-me]
+paths = [".agents/skills/delete-me"]
+required_capabilities = []
+optional_capabilities = []
+"#,
+    );
+    fs::write(&layout.config_path, config).expect("config should write");
+    fs::write(
+        root.join("skills-lock.json"),
+        r#"{
+  "version": 1,
+  "skills": {
+    "delete-me": {
+      "source": ".agents/skills/delete-me"
+    }
+  }
+}
+"#,
+    )
+    .expect("lock file should write");
+    add_agent_profile(
+        &root,
+        AddAgentProfileInput {
+            id: "uses-delete-me",
+            display_name: "Uses Delete Me",
+            runtime: "codex-local",
+            adapter: "process.codex-cli",
+            role: "worker",
+            working_dir: ".",
+            description: "Uses a temporary skill.",
+            specialties: Vec::new(),
+            skill_set_ids: vec!["delete-me".to_string()],
+            domain_ids: Vec::new(),
+            artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
+            managed_by: Some("nagare"),
+            model: AgentModelSelection::default(),
+            external: ExternalAgentBinding::default(),
+        },
+    )
+    .expect("profile should be added");
+
+    let mut permissions = fs::metadata(&layout.config_path)
+        .expect("config metadata")
+        .permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(&layout.config_path, permissions).expect("config should become readonly");
+
+    let result = delete_skill_package(
+        &root,
+        DeleteSkillPackageInput {
+            package_id: "delete-me",
+            remove_installed_body: true,
+        },
+    );
+
+    let mut permissions = fs::metadata(&layout.config_path)
+        .expect("config metadata")
+        .permissions();
+    permissions.set_readonly(false);
+    fs::set_permissions(&layout.config_path, permissions).expect("config should become writable");
+
+    assert!(
+        result.is_err(),
+        "readonly project config should make skill package deletion fail"
+    );
+    assert!(skill_dir.exists(), "skill body should not be removed");
+    let config = fs::read_to_string(&layout.config_path).expect("config should read");
+    assert!(config.contains("[skill_packages.delete-me]"));
+    assert!(config.contains("[skill_sets.delete-me]"));
+    let agent = get_agent_profile(&root, "uses-delete-me").expect("agent should load");
+    assert_eq!(agent.skill_set_ids, vec!["delete-me".to_string()]);
+    let lock = fs::read_to_string(root.join("skills-lock.json")).expect("lock should read");
+    assert!(lock.contains("delete-me"));
     fs::remove_dir_all(root).ok();
 }
 

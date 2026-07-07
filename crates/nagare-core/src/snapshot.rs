@@ -436,18 +436,6 @@ pub(crate) fn work_item_needs_synthesis(snapshot: &WorkItemSnapshot) -> bool {
     let Some(latest_review) = latest_review_pass_after_latest_work(snapshot) else {
         return false;
     };
-    let distinct_workers = snapshot
-        .runs
-        .iter()
-        .filter(|run| {
-            run.purpose == AgentRunPurpose::Work && run.status == AgentRunStatus::Succeeded
-        })
-        .map(|run| run.agent_profile_id.as_str())
-        .collect::<std::collections::BTreeSet<_>>()
-        .len();
-    if distinct_workers < 2 {
-        return false;
-    }
     let latest_review_sequence = id_sequence(&latest_review.id);
     !snapshot.runs.iter().any(|run| {
         run.purpose == AgentRunPurpose::Synthesis

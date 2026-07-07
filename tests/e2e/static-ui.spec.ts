@@ -157,6 +157,112 @@ test.beforeAll(() => {
   });
 });
 
+test("first-run Codex setup completes the first work item", async ({ page }) => {
+  const root = mkdtempSync(path.join(tmpdir(), "nagare-first-run-e2e-"));
+  writeFileSync(
+    path.join(root, "first-work.md"),
+    [
+      "## Nagare Result",
+      "status: completed",
+      "summary:",
+      "- first prototype work completed",
+      "completed:",
+      "- created first result from the setup flow",
+      "- confirmed the browser can create a work item after runtime setup",
+      "questions:",
+      "next_notes:",
+      "- ready for review",
+      "next_action: review",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  writeFileSync(
+    path.join(root, "first-review.md"),
+    [
+      "## Nagare Review",
+      "verdict: pass",
+      "summary:",
+      "- first prototype review passed",
+      "completed:",
+      "- reviewed the first work result",
+      "criteria:",
+      "- 初回セットアップ後に依頼を作れる: pass",
+      "- レビュー後に承認待ちになる: pass",
+      "findings:",
+      "referenced_artifacts:",
+      "requested_changes:",
+      "questions:",
+      "next_notes:",
+      "- ready for approval",
+      "next_action: approve",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  const port = await getFreePort();
+  const server = startUiServer(root, port);
+  try {
+    await waitForServer(`http://127.0.0.1:${port}/`);
+
+    await test.step("初回起動でセットアップに誘導する", async () => {
+      await page.goto(`http://127.0.0.1:${port}/`);
+      await expect(page.getByRole("heading", { name: "さぁ、セットアップを始めましょう。" })).toBeVisible();
+      await expect(page.getByText("既存の作業場所")).toHaveCount(0);
+      await page.getByRole("link", { name: "セットアップを始める" }).click();
+      await expect(page.getByRole("heading", { name: "実行環境設定" })).toBeVisible();
+      await expect(page.locator("#setup-codex-form")).toBeVisible();
+    });
+
+    await test.step("Codexランタイムと既定エージェントを作成する", async () => {
+      await page.locator('#setup-codex-form select[name="effort"]').selectOption("high");
+      await page.getByRole("button", { name: "次へ" }).click();
+      await expect(page.getByRole("heading", { level: 1, name: "ワーク", exact: true })).toBeVisible();
+      await expect(page.locator("#home-work-form")).toBeVisible();
+
+      const worker = runNagare(["agent", "show", "worker", "--root", root]);
+      expect(worker).toContain("adapter: process.codex-cli");
+      expect(worker).not.toContain("model.id: gpt-5.5-codex");
+      const organizer = runNagare(["agent", "show", "organizer", "--root", root]);
+      expect(organizer).toContain("role: organizer");
+      expect(organizer).not.toContain("model.id: gpt-5.5-codex");
+    });
+
+    await test.step("最初の依頼を作成し、レビューまで自動で進める", async () => {
+      await page
+        .locator('#home-work-form textarea[name="description"]')
+        .fill("最初のワークを完了まで通す");
+      await page.locator('#home-work-form input[name="acceptance"]').evaluate((node, value) => {
+        (node as HTMLInputElement).value = value as string;
+      }, "初回セットアップ後に依頼を作れる\nレビュー後に承認待ちになる");
+      await page.locator('#home-work-form input[name="command"]').evaluate((node, value) => {
+        (node as HTMLInputElement).value = value as string;
+      }, typeCommand(path.join(root, "first-work.md")));
+      await page.locator('#home-work-form input[name="review_command"]').evaluate((node, value) => {
+        (node as HTMLInputElement).value = value as string;
+      }, typeCommand(path.join(root, "first-review.md")));
+      await page.locator('#home-work-form button[type="submit"]').click();
+
+      await expect(page.getByRole("heading", { level: 1, name: "最初のワークを完了まで通す" })).toBeVisible();
+      await expect(page.locator("#detail")).toContainText("承認待ち");
+      await expect(page.locator("#detail")).toContainText("first prototype work completed");
+      await expect(page.locator(".step-detail-panel")).toContainText("first prototype review passed");
+    });
+
+    await test.step("ユーザーが承認して最初のワークを完了する", async () => {
+      await page.getByRole("button", { name: /承認して完了|Approve/ }).click();
+      await expect.poll(() => runNagare(["item", "list", "--root", root])).toContain("done");
+      await expect(page.locator("#detail")).toContainText("完了しています");
+      const listOutput = runNagare(["item", "list", "--root", root]);
+      expect(listOutput).toContain("最初のワークを完了まで通す");
+      expect(listOutput).toContain("done");
+    });
+  } finally {
+    await stopProcess(server);
+  }
+});
+
 test("static UI exposes attention queue and command builder interaction", async ({ page }) => {
   const root = mkdtempSync(path.join(tmpdir(), "nagare-ui-e2e-"));
   runNagare(["init", "--root", root]);
@@ -305,9 +411,10 @@ test("local UI server creates a work item from the browser", async ({ page }) =>
     await waitForServer(`http://127.0.0.1:${port}/`);
     await page.goto(`http://127.0.0.1:${port}/`);
     await expect(page.getByRole("heading", { name: "Nagare" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Work Itemを作成" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "ワーク", exact: true })).toBeVisible();
+    await expect(page.locator("#home-work-form")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Agent Defaults" })).toHaveCount(0);
-    await page.getByRole("link", { name: /Settings|設定/ }).click();
+    await page.getByRole("link", { name: "プロジェクト" }).click();
     await expect(page.getByRole("heading", { name: "Agent Defaults" })).toHaveCount(0);
     await expect(page.locator("#agent-defaults-form")).toHaveCount(0);
     await expect(page.getByRole("tab", { name: /Workflow|ワークフロー/ })).toHaveAttribute("aria-selected", "true");
@@ -418,10 +525,10 @@ test("local UI server creates a work item from the browser", async ({ page }) =>
     });
     await page.locator("#delete-agent-button").click();
     await expect(page.locator("#agent-profiles")).not.toContainText("UI Agent");
-    await page.getByRole("link", { name: /Work Queue|作業キュー/ }).click();
-    await expect(page.getByRole("link", { name: "Work Itemを作成" })).toBeVisible();
+    await page.getByRole("link", { name: "ワーク" }).click();
+    await expect(page.locator("#home-work-form")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Selected Work" })).toHaveCount(0);
-    await expect(page.getByText(/Needs attention|確認が必要/)).toBeVisible();
+    await expect(page.locator(".history-counts")).toContainText("要対応");
     await expect(page.locator("#create-work-form")).toHaveCount(0);
     writeFileSync(
       path.join(root, "agent-success.md"),
@@ -463,11 +570,17 @@ test("local UI server creates a work item from the browser", async ({ page }) =>
       ].join("\n"),
       "utf8",
     );
-    await page.locator('a[href="/new"]').click();
+    await page.goto(`http://127.0.0.1:${port}/new`);
     await expect(page.locator("#create-work-form")).toBeVisible();
     await page.locator('#create-work-form textarea[name="description"]').fill("ブラウザフォームから作る");
-    await page.locator('#create-work-form select[name="domain_id"]').selectOption("software-development");
-    await page.locator('#create-work-form select[name="artifact_type_id"]').selectOption("frontend-ui");
+    await page.locator('#create-work-form select[name="domain_id"]').evaluate((node, value) => {
+      (node as HTMLSelectElement).value = value as string;
+      node.dispatchEvent(new Event("change", { bubbles: true }));
+    }, "software-development");
+    await page.locator('#create-work-form select[name="artifact_type_id"]').evaluate((node, value) => {
+      (node as HTMLSelectElement).value = value as string;
+      node.dispatchEvent(new Event("change", { bubbles: true }));
+    }, "frontend-ui");
     await page
       .locator('#create-work-form textarea[name="acceptance"]')
       .fill("一覧に表示される\nconfirm_firstで保存される");
@@ -526,27 +639,16 @@ test("local UI server creates a work item from the browser", async ({ page }) =>
     await expect(page.getByRole("heading", { name: "Human Feedback" })).toHaveCount(0);
     const listOutput = runNagare(["item", "list", "--root", root]);
     expect(listOutput).toContain("ブラウザフォームから作る");
-    await page.getByRole("link", { name: "Work Queue" }).first().click();
+    await page.getByRole("link", { name: "ワーク" }).first().click();
     await expect(page.locator("#work-items")).toContainText("最終結果");
     await expect(page.locator("#work-items")).toContainText("workflow run completed");
-    await expect(page.locator("#work-items")).toContainText("承認待ち");
-    await expect(page.locator("#work-items")).toContainText("approve");
-    await page.getByRole("button", { name: /Approval|承認/ }).click();
+    await expect(page.locator("#work-items")).toContainText("要対応・確認");
     const createdRow = page.locator("tr", { hasText: "ブラウザフォームから作る" });
     await expect(createdRow).toBeVisible();
-    await page.getByRole("button", { name: /Failed|失敗/ }).click();
+    await page.locator('[data-work-status-filter][value="attention"]').uncheck();
     await expect(createdRow).toBeHidden();
-    await page.getByRole("button", { name: /All|すべて/ }).click();
+    await page.locator('[data-work-status-filter][value="attention"]').check();
     await expect(createdRow).toBeVisible();
-    page.once("dialog", async (dialog) => {
-      expect(dialog.message()).toContain("ブラウザフォームから作る");
-      await dialog.accept();
-    });
-    await page
-      .locator("tr", { hasText: "ブラウザフォームから作る" })
-      .getByRole("button", { name: /Delete|削除/ })
-      .click();
-    await expect(page.locator("#work-items")).not.toContainText("ブラウザフォームから作る");
   } finally {
     await stopProcess(server);
   }
@@ -641,11 +743,10 @@ test("local UI server answers a needs_input work item from the browser", async (
     await expect(page.locator("#detail")).toContainText("承認待ち");
     await expect(page.locator("#detail")).toContainText("最終結果を承認");
     await expect(page.getByRole("heading", { name: "Human Feedback" })).toHaveCount(0);
-    await page.getByRole("link", { name: /Work Queue|作業キュー/ }).first().click();
+    await page.getByRole("link", { name: "ワーク" }).first().click();
     await expect(page.locator("#work-items")).toContainText("最終結果");
     await expect(page.locator("#work-items")).toContainText("browser server run completed");
-    await expect(page.locator("#work-items")).toContainText("承認待ち");
-    await expect(page.locator("#work-items")).toContainText("approve");
+    await expect(page.locator("#work-items")).toContainText("要対応・確認");
     const showOutput = runNagare(["item", "show", workItemId!, "--root", root]);
     expect(showOutput).toContain("human_feedback");
     expect(showOutput).toContain("ブラウザから回答しました");

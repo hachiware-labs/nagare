@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 use std::path::Path;
+use std::process::Command;
 
 use nagare_core::{
     AgentProfile, ApprovalPolicy, I18n, NagareAgentSettings, UiTextKey, WorkItemStatus,
@@ -33,13 +34,20 @@ fn serve_main_nav(active: &str) -> String {
             h(label)
         )
     };
+    let section = |label: &str| format!(r#"<div class="nav-section-label">{}</div>"#, h(label));
     format!(
-        "{}{}{}{}{}",
+        "{}{}{}{}{}{}{}{}{}{}{}",
         item("work", "/", "ワーク"),
-        item("project", "/settings", "プロジェクト"),
-        item("knowledge", "/settings", "知識"),
-        item("agent", "/settings", "エージェント"),
-        item("settings", "/settings", "設定")
+        item("project", "/settings#workflow", "プロジェクト"),
+        item("insights", "/insights", "分析・改善"),
+        section("エージェント"),
+        item("agent", "/settings#agents", "エージェント"),
+        item("knowledge", "/settings#domains", "ナレッジ"),
+        item("skills", "/settings/skills", "スキル"),
+        item("mcp", "/settings/mcp", "MCP接続"),
+        item("runtime", "/settings/runtime", "実行環境"),
+        section("デザイン"),
+        item("catalog", "/design-catalog", "カタログ")
     )
 }
 
@@ -215,7 +223,7 @@ pub(crate) fn render_serve_home(root: &Path) -> Result<String, String> {
       <section class="panel home-composer-panel">
         <div class="panel-head">
           <div>
-            <h2>新しい依頼</h2>
+            <h2>新規ワーク依頼</h2>
             <p class="muted">プロジェクトを選び、やりたいことを書きます。確認条件は作成時に提案されます。</p>
           </div>
         </div>
@@ -234,7 +242,6 @@ pub(crate) fn render_serve_home(root: &Path) -> Result<String, String> {
           <input type="hidden" name="review_command" value="">
           <div class="home-work-actions">
             <button type="submit">依頼を作成</button>
-            <button class="secondary-button" type="button">下書き保存</button>
           </div>
           <p id="home-form-status" class="muted" role="status"></p>
         </form>
@@ -333,7 +340,7 @@ pub(crate) fn render_serve_runtime_setup() -> Result<String, String> {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Runtime Setup</title>
+  <title>実行環境設定</title>
   <style>{}{}</style>
 </head>
 <body class="setup-page">
@@ -343,13 +350,13 @@ pub(crate) fn render_serve_runtime_setup() -> Result<String, String> {
       <nav>{}</nav>
       <div class="sidebar-project setup-side-note">
         <span>セットアップ</span>
-        <b>Runtime Setup</b>
+        <b>実行環境設定</b>
       </div>
     </aside>
     <section class="content runtime-setup-content">
       <header class="runtime-page-header">
         <div>
-          <h1>Runtime Setup</h1>
+          <h1>実行環境設定</h1>
           <p class="muted">エージェントツール、モデル、エフォートを選び、接続できることを確認します</p>
         </div>
       </header>
@@ -682,7 +689,7 @@ pub(crate) fn render_serve_design_catalog() -> Result<String, String> {
 </html>"##,
         serve_stylesheet(),
         serve_responsive_stylesheet(),
-        serve_main_nav("settings"),
+        serve_main_nav("catalog"),
         serve_script()
     ))
 }
@@ -972,6 +979,275 @@ pub(crate) fn render_serve_new_item(root: &Path) -> Result<String, String> {
     ))
 }
 
+pub(crate) fn render_serve_insights(root: &Path) -> Result<String, String> {
+    let _i18n = i18n_for_root(root)?;
+    Ok(format!(
+        r##"<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>分析・改善</title>
+  <style>{}{}</style>
+</head>
+<body>
+  <main class="app flow-app">
+    <aside class="sidebar">
+      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
+      <nav>{}</nav>
+    </aside>
+    <section class="content flow-content">
+      <header class="topbar">
+        <div>
+          <h1>分析・改善</h1>
+          <p class="muted">レビュー履歴から、エージェント・知識・ルーブリックの改善候補を見つけます。</p>
+        </div>
+      </header>
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>改善提案</h2>
+            <p class="muted">現在は提案対象の評価履歴がありません。ワーク完了後のレビュー結果から候補を生成します。</p>
+          </div>
+          <span class="badge gray">0件</span>
+        </div>
+        <p class="muted">提案は自動適用せず、差分と根拠を確認してから人が適用します。</p>
+      </section>
+      <section class="panel">
+        <h2>今後ここに表示するもの</h2>
+        <div class="grid four">
+          <div><b>平均評価点</b><span>レビュー点の推移</span></div>
+          <div><b>差し戻し率</b><span>確認で戻った割合</span></div>
+          <div><b>失点項目</b><span>ルーブリックごとの懸念</span></div>
+          <div><b>改善効果</b><span>適用前後の比較</span></div>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script>{}</script>
+</body>
+</html>"##,
+        serve_stylesheet(),
+        serve_responsive_stylesheet(),
+        serve_main_nav("insights"),
+        serve_script()
+    ))
+}
+
+pub(crate) fn render_serve_skill_library(root: &Path) -> Result<String, String> {
+    let i18n = i18n_for_root(root)?;
+    let skills = list_skill_set_catalog(root).map_err(|error| error.to_string())?;
+    let rows = if skills.is_empty() {
+        "<tr><td colspan=\"4\" class=\"muted\">登録済みスキルはありません。</td></tr>".to_string()
+    } else {
+        let mut skills = skills;
+        skills.sort_by_key(|skill| skill.id.clone());
+        skills
+            .iter()
+            .map(|skill| {
+                let capabilities = skill_set_option_details(skill, &i18n);
+                let paths = if skill.paths.is_empty() {
+                    "-".to_string()
+                } else {
+                    h(&skill.paths.join(", "))
+                };
+                format!(
+                    r#"<tr>
+  <td><b translate="no">{}</b></td>
+  <td>{}</td>
+  <td><code>{}</code></td>
+  <td><a class="button-link secondary" href="/settings#agents">エージェントで割り当て</a></td>
+</tr>"#,
+                    h(&skill.id),
+                    capabilities,
+                    paths
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    Ok(format!(
+        r##"<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>スキル</title>
+  <style>{}{}</style>
+</head>
+<body>
+  <main class="app flow-app">
+    <aside class="sidebar">
+      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
+      <nav>{}</nav>
+    </aside>
+    <section class="content flow-content">
+      <header class="topbar">
+        <div>
+          <h1>スキル</h1>
+          <p class="muted">グローバルライブラリとして登録し、利用はエージェント設定から割り当てます。</p>
+        </div>
+        <div class="actions">
+          <a class="button-link" href="/settings/skills/new">スキルを追加</a>
+        </div>
+      </header>
+      <section class="panel">
+        <div class="routing-preview compact">
+          <div><span>能力の流れ</span><b>登録 → エージェント割り当て → 参加プロジェクトへ反映</b></div>
+          <p>この画面では追加・確認だけを行います。どのエージェントで使うかはエージェント設定で選びます。</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>登録済みスキル</h2>
+            <p class="muted">削除と割り当て解除は、利用中エージェントの確認を挟んで行います。</p>
+          </div>
+        </div>
+        <table><thead><tr><th>スキル</th><th>能力</th><th>Path</th><th>操作</th></tr></thead><tbody>{}</tbody></table>
+      </section>
+    </section>
+  </main>
+  <script>{}</script>
+</body>
+</html>"##,
+        serve_stylesheet(),
+        serve_responsive_stylesheet(),
+        serve_main_nav("skills"),
+        rows,
+        serve_script()
+    ))
+}
+
+pub(crate) fn render_serve_mcp_settings(_root: &Path) -> Result<String, String> {
+    Ok(format!(
+        r##"<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MCP接続</title>
+  <style>{}{}</style>
+</head>
+<body>
+  <main class="app flow-app">
+    <aside class="sidebar">
+      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
+      <nav>{}</nav>
+    </aside>
+    <section class="content flow-content">
+      <header class="topbar">
+        <div>
+          <h1>MCP接続</h1>
+          <p class="muted">MCPは接続テスト済みのものだけを、エージェント設定から割り当てます。</p>
+        </div>
+      </header>
+      <section class="panel">
+        <div class="routing-preview compact">
+          <div><span>能力の流れ</span><b>登録 → 接続テスト → エージェント割り当て</b></div>
+          <p>接続できないMCPは割り当て候補に出しません。認証情報はローカルに保存します。</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>登録済みMCP</h2>
+            <p class="muted">MCP登録データモデルはこれから接続します。現時点では未登録です。</p>
+          </div>
+          <button class="secondary-button" type="button" disabled>追加は未実装</button>
+        </div>
+        <table><thead><tr><th>名前</th><th>状態</th><th>利用エージェント</th><th>操作</th></tr></thead><tbody><tr><td colspan="4" class="muted">登録済みMCPはありません。</td></tr></tbody></table>
+      </section>
+    </section>
+  </main>
+  <script>{}</script>
+</body>
+</html>"##,
+        serve_stylesheet(),
+        serve_responsive_stylesheet(),
+        serve_main_nav("mcp"),
+        serve_script()
+    ))
+}
+
+pub(crate) fn render_serve_runtime_settings(_root: &Path) -> Result<String, String> {
+    let runtimes = [
+        (
+            "claude",
+            "Claude Code",
+            "環境側設定または既定モデル",
+            "一部対応",
+        ),
+        ("codex", "Codex CLI", "Codex既定 / gpt-5-codex系", "対応"),
+        ("opencode", "OpenCode", "Provider別モデル", "対応"),
+        ("openclaw", "OpenClaw", "実行環境側の設定を使用", "非対応"),
+    ];
+    let mut rows = Vec::new();
+    for (command, label, model, model_switch) in runtimes {
+        if runtime_command_available(command) {
+            rows.push(format!(
+                r#"<tr><td><b>{}</b><div class="muted"><code>{}</code></div></td><td><span class="badge green">接続候補</span></td><td>{}</td><td>{}</td><td><button class="secondary-button" type="button" disabled>再テストは未接続</button></td></tr>"#,
+                h(label),
+                h(command),
+                h(model),
+                h(model_switch)
+            ));
+        }
+    }
+    let rows = if rows.is_empty() {
+        "<tr><td colspan=\"5\" class=\"muted\">検出済みの実行環境はありません。セットアップでは検出済みのみ表示します。</td></tr>".to_string()
+    } else {
+        rows.join("\n")
+    };
+    Ok(format!(
+        r##"<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>実行環境</title>
+  <style>{}{}</style>
+</head>
+<body>
+  <main class="app flow-app">
+    <aside class="sidebar">
+      <h1 class="brand"><img class="brand-logo" src="/assets/logo.png" width="1254" height="1254" alt=""><span class="brand-text">Nagare</span></h1>
+      <nav>{}</nav>
+    </aside>
+    <section class="content flow-content">
+      <header class="topbar">
+        <div>
+          <h1>実行環境</h1>
+          <p class="muted">検出済みのCLI実行環境だけを表示します。未検出の環境は選択肢に出しません。</p>
+        </div>
+        <div class="actions">
+          <a class="button-link secondary" href="/setup/runtime">初期設定を開く</a>
+        </div>
+      </header>
+      <section class="panel">
+        <table><thead><tr><th>実行環境</th><th>状態</th><th>モデル</th><th>モデル切替</th><th>操作</th></tr></thead><tbody>{}</tbody></table>
+      </section>
+    </section>
+  </main>
+  <script>{}</script>
+</body>
+</html>"##,
+        serve_stylesheet(),
+        serve_responsive_stylesheet(),
+        serve_main_nav("runtime"),
+        rows,
+        serve_script()
+    ))
+}
+
+fn runtime_command_available(command: &str) -> bool {
+    Command::new(command)
+        .arg("--version")
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
 pub(crate) fn render_serve_settings(root: &Path) -> Result<String, String> {
     let i18n = i18n_for_root(root)?;
     let agents = list_agent_profiles(root).map_err(|error| error.to_string())?;
@@ -1052,7 +1328,7 @@ pub(crate) fn render_serve_settings(root: &Path) -> Result<String, String> {
         i18n.ui(UiTextKey::Settings),
         serve_stylesheet(),
         serve_responsive_stylesheet(),
-        serve_main_nav("settings"),
+        serve_main_nav("project"),
         i18n.ui(UiTextKey::Settings),
         i18n.ui(UiTextKey::SettingsLead),
         i18n.ui(UiTextKey::Settings),
@@ -1473,6 +1749,7 @@ fn approval_policy_options(
     }
     for policy in [
         ApprovalPolicy::ManualFinalApproval,
+        ApprovalPolicy::ManualOnReviewConcern,
         ApprovalPolicy::AutoCompleteOnReviewPass,
     ] {
         let selected_attr = if selected == Some(policy) {
@@ -1506,6 +1783,7 @@ fn approval_policy_label(policy: ApprovalPolicy, i18n: &I18n) -> String {
     if i18n.language().is_ja() {
         match policy {
             ApprovalPolicy::ManualFinalApproval => "最終承認を手動で行う",
+            ApprovalPolicy::ManualOnReviewConcern => "重要時のみ確認する",
             ApprovalPolicy::AutoCompleteOnReviewPass => "レビュー通過で自動完了",
         }
         .to_string()
@@ -2092,7 +2370,7 @@ pub(crate) fn render_serve_artifact_type_form(
         h(&title),
         serve_stylesheet(),
         serve_responsive_stylesheet(),
-        serve_main_nav("settings"),
+        serve_main_nav("knowledge"),
         h(&title),
         i18n.ui(UiTextKey::ArtifactTypeFormLead),
         i18n.ui(UiTextKey::Settings),
@@ -2222,7 +2500,7 @@ pub(crate) fn render_serve_domain_form(
         h(&title),
         serve_stylesheet(),
         serve_responsive_stylesheet(),
-        serve_main_nav("settings"),
+        serve_main_nav("knowledge"),
         h(&title),
         i18n.ui(UiTextKey::DomainFormLead),
         i18n.ui(UiTextKey::Settings),
@@ -2433,7 +2711,7 @@ pub(crate) fn render_serve_agent_form(
         h(&title),
         serve_stylesheet(),
         serve_responsive_stylesheet(),
-        serve_main_nav("settings"),
+        serve_main_nav("agent"),
         h(&title),
         i18n.ui(UiTextKey::AgentFormLead),
         i18n.ui(UiTextKey::Agents),
@@ -2586,7 +2864,7 @@ pub(crate) fn render_serve_skill_form(root: &Path) -> Result<String, String> {
         h(localized(&i18n, "スキルを追加", "Add Skill")),
         serve_stylesheet(),
         serve_responsive_stylesheet(),
-        serve_main_nav("settings"),
+        serve_main_nav("skills"),
         h(localized(&i18n, "スキルを追加", "Add Skill")),
         h(localized(
             &i18n,
@@ -2637,6 +2915,9 @@ pub(crate) fn render_serve_skill_form(root: &Path) -> Result<String, String> {
 
 fn skill_source_options() -> String {
     [
+        ("openai", "OpenAI"),
+        ("anthropic", "Anthropic"),
+        ("manual", "Manual"),
         ("skill-creator", "Skill Creator"),
         ("clawhub", "ClawHub"),
         ("vercel", "Vercel Skills"),
@@ -2651,6 +2932,21 @@ fn skill_source_options() -> String {
 
 fn skill_source_choice_cards() -> String {
     [
+        (
+            "openai",
+            "OpenAI",
+            "OpenAIの定義済みスキル参照を登録する",
+        ),
+        (
+            "anthropic",
+            "Anthropic",
+            "Anthropicの定義済みスキル参照を登録する",
+        ),
+        (
+            "manual",
+            "Manual",
+            "パッケージIDまたは参照元を直接登録する",
+        ),
         (
             "skill-creator",
             "Skill Creator",

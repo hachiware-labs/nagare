@@ -93,7 +93,7 @@ fn work_and_review_output_notes_are_parsed() {
         &vec!["reviewer found the result ready for approval".to_string()]
     );
     assert_eq!(snapshot.item.status, WorkItemStatus::ReadyForReview);
-    assert_eq!(snapshot.completion.next_action, "approve");
+    assert_eq!(snapshot.completion.next_action, "synthesize");
     fs::remove_dir_all(root).ok();
 }
 
@@ -196,7 +196,7 @@ fn missing_review_notes_keep_review_transition_but_warn() {
 
     let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
     assert_eq!(snapshot.item.status, WorkItemStatus::ReadyForReview);
-    assert_eq!(snapshot.completion.next_action, "approve");
+    assert_eq!(snapshot.completion.next_action, "synthesize");
     let output = snapshot
         .agent_outputs
         .iter()

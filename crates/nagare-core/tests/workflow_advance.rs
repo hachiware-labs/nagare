@@ -242,6 +242,11 @@ fn advance_until_blocked_runs_to_human_approval_gate() {
         "## Nagare Review\nverdict: pass\nsummary:\n- criteria satisfied\nfindings:\n- no blockers\nquestions:\nnext_action: approve\n",
     )
     .expect("review should write");
+    fs::write(
+        root.join("synthesis.md"),
+        "## Nagare Result\nstatus: succeeded\nsummary:\n- final answer prepared by organizer\ncompleted:\n- summarized the worker result and review\nnext_action: approve\n",
+    )
+    .expect("synthesis should write");
     let item = create_work_item_with_input(
         &root,
         CreateWorkItemInput {
@@ -260,6 +265,7 @@ fn advance_until_blocked_runs_to_human_approval_gate() {
                 dispatch_dev_command: Some(cat_command("dispatch.json").as_str()),
                 dev_command: Some(cat_command("result.md").as_str()),
                 review_dev_command: Some(cat_command("review.md").as_str()),
+                synthesis_dev_command: Some(cat_command("synthesis.md").as_str()),
                 ..AdvanceWorkItemInput::default()
             },
             max_steps: 8,
@@ -299,6 +305,7 @@ fn multiple_workers_require_synthesis_before_approval() {
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -482,6 +489,113 @@ fn auto_complete_policy_finishes_after_passing_review() {
 }
 
 #[test]
+fn important_only_policy_auto_completes_review_without_concerns() {
+    let root = test_root("important-only-policy-clean");
+    init_project(&root).expect("project should init");
+    fs::write(
+        root.join("dispatch.json"),
+        r#"{"target_agent_profile_id":"worker","summary":"Use default work agent.","risks":[],"missing_information":[]}"#,
+    )
+    .expect("dispatch output should write");
+    fs::write(
+        root.join("result.md"),
+        "## Nagare Result\nstatus: succeeded\nsummary:\n- work done\nnext_action: review\n",
+    )
+    .expect("result should write");
+    fs::write(
+        root.join("review.md"),
+        "## Nagare Review\nverdict: pass\nsummary:\n- criteria satisfied\nfindings:\n- no blockers\nquestions:\nnext_action: approve\n",
+    )
+    .expect("review should write");
+    let item = create_work_item_with_input(
+        &root,
+        CreateWorkItemInput {
+            title: "Important only clean".to_string(),
+            approval_policy: Some(ApprovalPolicy::ManualOnReviewConcern),
+            ..CreateWorkItemInput::default()
+        },
+    )
+    .expect("item")
+    .item;
+
+    let result = advance_work_item_until_blocked(
+        &root,
+        &item.id,
+        AdvanceUntilBlockedInput {
+            step: AdvanceWorkItemInput {
+                dispatch_dev_command: Some(cat_command("dispatch.json").as_str()),
+                dev_command: Some(cat_command("result.md").as_str()),
+                review_dev_command: Some(cat_command("review.md").as_str()),
+                ..AdvanceWorkItemInput::default()
+            },
+            max_steps: 8,
+        },
+    )
+    .expect("workflow should auto complete without concerns");
+
+    assert_eq!(result.final_status, WorkItemStatus::Done);
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
+    assert!(snapshot.decisions.iter().any(|decision| {
+        decision.decision_type == "approve"
+            && decision.rationale.contains("manual_on_review_concern")
+    }));
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn important_only_policy_stops_for_review_findings() {
+    let root = test_root("important-only-policy-finding");
+    init_project(&root).expect("project should init");
+    fs::write(
+        root.join("dispatch.json"),
+        r#"{"target_agent_profile_id":"worker","summary":"Use default work agent.","risks":[],"missing_information":[]}"#,
+    )
+    .expect("dispatch output should write");
+    fs::write(
+        root.join("result.md"),
+        "## Nagare Result\nstatus: succeeded\nsummary:\n- work done\nnext_action: review\n",
+    )
+    .expect("result should write");
+    fs::write(
+        root.join("review.md"),
+        "## Nagare Review\nverdict: pass\nsummary:\n- pass with a finding\nfindings:\n- verify wording before release\nquestions:\nnext_action: approve\n",
+    )
+    .expect("review should write");
+    let item = create_work_item_with_input(
+        &root,
+        CreateWorkItemInput {
+            title: "Important only finding".to_string(),
+            approval_policy: Some(ApprovalPolicy::ManualOnReviewConcern),
+            ..CreateWorkItemInput::default()
+        },
+    )
+    .expect("item")
+    .item;
+
+    let result = advance_work_item_until_blocked(
+        &root,
+        &item.id,
+        AdvanceUntilBlockedInput {
+            step: AdvanceWorkItemInput {
+                dispatch_dev_command: Some(cat_command("dispatch.json").as_str()),
+                dev_command: Some(cat_command("result.md").as_str()),
+                review_dev_command: Some(cat_command("review.md").as_str()),
+                ..AdvanceWorkItemInput::default()
+            },
+            max_steps: 8,
+        },
+    )
+    .expect("workflow should stop for manual approval");
+
+    assert_eq!(result.final_status, WorkItemStatus::ReadyForReview);
+    assert_eq!(
+        result.steps.last().expect("last step").decision.action,
+        WorkflowDecisionAction::Approve
+    );
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
 fn recovery_classifies_missing_artifact_and_no_diff_candidates() {
     let root = test_root("recovery-intelligence");
     init_project(&root).expect("project should init");
@@ -571,6 +685,11 @@ fn criteria_aware_review_blocks_and_then_allows_approval() {
         "## Nagare Review\nverdict: pass\nsummary:\n- Criteria covered.\ncriteria:\n- docs mention locale: pass\nfindings:\n- no blockers\nquestions:\nnext_action: approve\n",
     )
     .expect("review should write");
+    fs::write(
+        root.join("synthesis.md"),
+        "## Nagare Result\nstatus: succeeded\nsummary:\n- criteria-aware final answer is ready\ncompleted:\n- summarized criteria review result\nnext_action: approve\n",
+    )
+    .expect("synthesis should write");
     run_work_item_with_input(
         &root,
         &item.id,
@@ -584,6 +703,19 @@ fn criteria_aware_review_blocks_and_then_allows_approval() {
         },
     )
     .expect("criteria review should run");
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "supervisor",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(cat_command("synthesis.md").as_str()),
+            purpose: AgentRunPurpose::Synthesis,
+        },
+    )
+    .expect("synthesis should run");
     approve_work_item(&root, &item.id, "criteria passed").expect("approval should pass");
     let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
     assert_eq!(snapshot.item.status, WorkItemStatus::Done);
@@ -628,6 +760,11 @@ fn complex_workflow_recovers_from_review_changes_to_approval() {
         "## Nagare Review\nverdict: pass\nsummary:\n- criteria covered\ncriteria:\n- final artifact recorded: pass\nfindings:\n- no blockers\nquestions:\nnext_action: approve\n",
     )
     .expect("review pass should write");
+    fs::write(
+        root.join("synthesis.md"),
+        "## Nagare Result\nstatus: succeeded\nsummary:\n- complex recovered final answer is ready\ncompleted:\n- summarized recovered work and review\nnext_action: approve\n",
+    )
+    .expect("synthesis should write");
     let item = create_work_item_with_input(
         &root,
         CreateWorkItemInput {
@@ -687,6 +824,7 @@ fn complex_workflow_recovers_from_review_changes_to_approval() {
         AdvanceUntilBlockedInput {
             step: AdvanceWorkItemInput {
                 review_dev_command: Some(cat_command("review_pass.md").as_str()),
+                synthesis_dev_command: Some(cat_command("synthesis.md").as_str()),
                 ..AdvanceWorkItemInput::default()
             },
             max_steps: 5,
@@ -742,6 +880,11 @@ fn finish_first_workflow_auto_recovers_to_approval_gate() {
         "## Nagare Review\nverdict: pass\nsummary:\n- criteria covered\ncriteria:\n- evidence recorded: pass\nfindings:\n- no blockers\nquestions:\nnext_action: approve\n",
     )
     .expect("review pass should write");
+    fs::write(
+        root.join("synthesis.md"),
+        "## Nagare Result\nstatus: succeeded\nsummary:\n- auto recovery final answer is ready\ncompleted:\n- summarized recovered output and review\nnext_action: approve\n",
+    )
+    .expect("synthesis should write");
     let item = create_work_item_with_input(
         &root,
         CreateWorkItemInput {
@@ -789,6 +932,7 @@ fn finish_first_workflow_auto_recovers_to_approval_gate() {
         AdvanceUntilBlockedInput {
             step: AdvanceWorkItemInput {
                 review_dev_command: Some(cat_command("review_pass.md").as_str()),
+                synthesis_dev_command: Some(cat_command("synthesis.md").as_str()),
                 ..AdvanceWorkItemInput::default()
             },
             max_steps: 8,

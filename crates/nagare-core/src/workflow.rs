@@ -238,7 +238,7 @@ pub fn advance_work_item_once(
             let approved = approve_work_item(
                 &root,
                 work_item_id,
-                "review passed and approval_policy=auto_complete_on_review_pass",
+                &auto_approval_rationale(snapshot.item.approval_policy),
             )?;
             Ok(AdvanceWorkItemResult {
                 decision,
@@ -659,17 +659,15 @@ pub(crate) fn workflow_decision_for_snapshot(
                     if work_item_needs_synthesis(snapshot) {
                         (
                             WorkflowDecisionAction::RunSynthesis,
-                            "multiple_workers_require_synthesis".to_string(),
+                            "final_organizer_summary_required".to_string(),
                             false,
                             Some(settings.supervisor_agent.clone()),
                             Some(format!("nagare item synthesize {}", snapshot.item.id)),
                         )
-                    } else if snapshot.item.approval_policy
-                        == ApprovalPolicy::AutoCompleteOnReviewPass
-                    {
+                    } else if should_auto_approve_review(snapshot) {
                         (
                             WorkflowDecisionAction::Done,
-                            "review_passed_auto_complete".to_string(),
+                            auto_approval_reason(snapshot.item.approval_policy).to_string(),
                             false,
                             None,
                             Some(format!("nagare item advance {}", snapshot.item.id)),
@@ -736,6 +734,64 @@ pub(crate) fn workflow_decision_for_snapshot(
         warnings: Vec::new(),
         locale,
         created_at: timestamp(),
+    }
+}
+
+fn should_auto_approve_review(snapshot: &WorkItemSnapshot) -> bool {
+    match snapshot.item.approval_policy {
+        ApprovalPolicy::ManualFinalApproval => false,
+        ApprovalPolicy::AutoCompleteOnReviewPass => true,
+        ApprovalPolicy::ManualOnReviewConcern => snapshot
+            .review_results
+            .last()
+            .map(review_has_no_concerns)
+            .unwrap_or(false),
+    }
+}
+
+fn review_has_no_concerns(review: &ReviewResult) -> bool {
+    review
+        .findings
+        .iter()
+        .all(|finding| is_empty_or_none(finding))
+        && review
+            .requested_changes
+            .iter()
+            .all(|change| is_empty_or_none(change))
+        && review.questions.is_empty()
+        && review
+            .criteria_results
+            .iter()
+            .all(|result| result.status == CriteriaReviewStatus::Passed)
+}
+
+fn is_empty_or_none(value: &str) -> bool {
+    let normalized = value.trim().to_ascii_lowercase();
+    normalized.is_empty()
+        || matches!(
+            normalized.as_str(),
+            "none" | "no blockers" | "no blocker" | "no issues" | "no issue" | "なし" | "無し"
+        )
+}
+
+fn auto_approval_reason(policy: ApprovalPolicy) -> &'static str {
+    match policy {
+        ApprovalPolicy::AutoCompleteOnReviewPass => "review_passed_auto_complete",
+        ApprovalPolicy::ManualOnReviewConcern => "review_passed_no_concern_auto_complete",
+        ApprovalPolicy::ManualFinalApproval => "review_passed",
+    }
+}
+
+fn auto_approval_rationale(policy: ApprovalPolicy) -> String {
+    match policy {
+        ApprovalPolicy::AutoCompleteOnReviewPass => {
+            "review passed and approval_policy=auto_complete_on_review_pass".to_string()
+        }
+        ApprovalPolicy::ManualOnReviewConcern => {
+            "review passed without concerns and approval_policy=manual_on_review_concern"
+                .to_string()
+        }
+        ApprovalPolicy::ManualFinalApproval => "review passed".to_string(),
     }
 }
 

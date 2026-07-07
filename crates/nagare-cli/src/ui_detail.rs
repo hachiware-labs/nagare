@@ -15,10 +15,16 @@ use crate::ui_html::{h, is_empty_display_value};
 
 fn detail_main_nav() -> &'static str {
     r#"<a class="active" href="/"><span class="nav-icon nav-icon-work" aria-hidden="true"></span><span>ワーク</span></a>
-        <a href="/settings"><span class="nav-icon nav-icon-project" aria-hidden="true"></span><span>プロジェクト</span></a>
-        <a href="/settings"><span class="nav-icon nav-icon-knowledge" aria-hidden="true"></span><span>知識</span></a>
-        <a href="/settings"><span class="nav-icon nav-icon-agent" aria-hidden="true"></span><span>エージェント</span></a>
-        <a href="/settings"><span class="nav-icon nav-icon-settings" aria-hidden="true"></span><span>設定</span></a>"#
+        <a href="/settings#workflow"><span class="nav-icon nav-icon-project" aria-hidden="true"></span><span>プロジェクト</span></a>
+        <a href="/insights"><span class="nav-icon nav-icon-insights" aria-hidden="true"></span><span>分析・改善</span></a>
+        <div class="nav-section-label">エージェント</div>
+        <a href="/settings#agents"><span class="nav-icon nav-icon-agent" aria-hidden="true"></span><span>エージェント</span></a>
+        <a href="/settings#domains"><span class="nav-icon nav-icon-knowledge" aria-hidden="true"></span><span>ナレッジ</span></a>
+        <a href="/settings/skills"><span class="nav-icon nav-icon-skills" aria-hidden="true"></span><span>スキル</span></a>
+        <a href="/settings/mcp"><span class="nav-icon nav-icon-mcp" aria-hidden="true"></span><span>MCP接続</span></a>
+        <a href="/settings/runtime"><span class="nav-icon nav-icon-runtime" aria-hidden="true"></span><span>実行環境</span></a>
+        <div class="nav-section-label">デザイン</div>
+        <a href="/design-catalog"><span class="nav-icon nav-icon-catalog" aria-hidden="true"></span><span>カタログ</span></a>"#
 }
 
 fn current_processing_state(

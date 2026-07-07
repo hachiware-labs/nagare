@@ -2,6 +2,7 @@
   "name": "@hachiware-labs/nagare-repo",
   "private": true,
   "workspaces": [
+    "apps/*",
     "packages/*"
   ],
   "scripts": {
@@ -10,6 +11,10 @@
     "build:release": "cargo build --release -p nagare-cli",
     "test": "cargo test --workspace",
     "test:e2e": "playwright test",
+    "test:integration:codex": "powershell -ExecutionPolicy Bypass -File tests/integration/codex-real-flow.ps1",
+    "test:e2e:desktop-window": "node tests/e2e/tauri-window-smoke.mjs",
+    "desktop:dev": "npm run dev --workspace @hachiware-labs/nagare-desktop",
+    "desktop:build": "npm run build --workspace @hachiware-labs/nagare-desktop",
     "nagare": "node scripts/nagare-dev.js",
     "doctor": "node scripts/nagare-dev.js doctor",
     "init": "node scripts/nagare-dev.js init",

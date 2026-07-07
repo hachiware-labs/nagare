@@ -117,6 +117,7 @@ pub fn create_recovery_plan(
         .ok_or_else(|| NagareError::InvalidState("no recovery plan candidate".to_string()))?;
     ledger.recovery_plans.extend(plans);
     save_ledger(&layout, &ledger)?;
+    append_recovery_event_trace(&layout, &plan)?;
     Ok(CreateRecoveryPlanResult { plan })
 }
 
@@ -153,6 +154,7 @@ pub fn accept_recovery_plan(
     }
     let plan = ledger.recovery_plans[selected_index].clone();
     save_ledger(&layout, &ledger)?;
+    append_recovery_choice_trace(&layout, &plan)?;
     Ok(AcceptRecoveryPlanResult { plan })
 }
 

@@ -46,6 +46,18 @@ pub fn run_first_scenario(root: impl Into<PathBuf>) -> Result<ScenarioResult, Na
             purpose: AgentRunPurpose::Review,
         },
     )?;
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "supervisor",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(scenario_synthesis_command("scenario result summarized").as_str()),
+            purpose: AgentRunPurpose::Synthesis,
+        },
+    )?;
     let review = get_work_item_snapshot(&root, &item.id)?
         .review_results
         .last()
@@ -89,6 +101,7 @@ pub fn run_registered_agent_scenario(
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: Some("nagare"),
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding {
@@ -113,6 +126,7 @@ pub fn run_registered_agent_scenario(
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: Some("nagare"),
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding {
@@ -163,6 +177,20 @@ pub fn run_registered_agent_scenario(
             prompt: None,
             dev_command: Some(scenario_review_command("registered review passed").as_str()),
             purpose: AgentRunPurpose::Review,
+        },
+    )?;
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "supervisor",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(
+                scenario_synthesis_command("registered scenario result summarized").as_str(),
+            ),
+            purpose: AgentRunPurpose::Synthesis,
         },
     )?;
     let review = get_work_item_snapshot(&root, &item.id)?

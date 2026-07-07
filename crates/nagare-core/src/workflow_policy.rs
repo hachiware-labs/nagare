@@ -44,6 +44,7 @@ pub fn default_workflow_mode() -> WorkflowMode {
 #[serde(rename_all = "snake_case")]
 pub enum ApprovalPolicy {
     ManualFinalApproval,
+    ManualOnReviewConcern,
     AutoCompleteOnReviewPass,
 }
 
@@ -51,11 +52,14 @@ impl ApprovalPolicy {
     pub fn parse(value: &str) -> Result<Self, String> {
         match value.trim().to_ascii_lowercase().replace('-', "_").as_str() {
             "manual_final_approval" | "manual" | "approve" => Ok(Self::ManualFinalApproval),
+            "manual_on_review_concern" | "important_only" | "important" | "review_concern" => {
+                Ok(Self::ManualOnReviewConcern)
+            }
             "auto_complete_on_review_pass" | "auto_complete" | "auto" => {
                 Ok(Self::AutoCompleteOnReviewPass)
             }
             other => Err(format!(
-                "unknown approval policy `{other}`; expected manual_final_approval or auto_complete_on_review_pass"
+                "unknown approval policy `{other}`; expected manual_final_approval, manual_on_review_concern, or auto_complete_on_review_pass"
             )),
         }
     }
@@ -71,6 +75,7 @@ impl fmt::Display for ApprovalPolicy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let value = match self {
             Self::ManualFinalApproval => "manual_final_approval",
+            Self::ManualOnReviewConcern => "manual_on_review_concern",
             Self::AutoCompleteOnReviewPass => "auto_complete_on_review_pass",
         };
         f.write_str(value)

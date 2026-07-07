@@ -154,11 +154,7 @@ fn criteria_results_from_output(
     acceptance_criteria
         .iter()
         .map(|criterion| {
-            let note = lines
-                .iter()
-                .find(|line| contains_normalized(line, criterion))
-                .cloned()
-                .unwrap_or_default();
+            let note = best_criteria_note(&lines, criterion).unwrap_or_default();
             CriteriaReviewResult {
                 criterion: criterion.clone(),
                 status: parse_criteria_status(&note),
@@ -168,9 +164,54 @@ fn criteria_results_from_output(
         .collect()
 }
 
+fn best_criteria_note(lines: &[String], criterion: &str) -> Option<String> {
+    lines
+        .iter()
+        .find(|line| contains_normalized(line, criterion))
+        .cloned()
+        .or_else(|| {
+            lines
+                .iter()
+                .filter(|line| parse_criteria_status(line) != CriteriaReviewStatus::Unknown)
+                .filter_map(|line| {
+                    let score = token_overlap_score(line, criterion);
+                    (score >= minimum_overlap_score(criterion)).then(|| (score, line.clone()))
+                })
+                .max_by_key(|(score, _)| *score)
+                .map(|(_, line)| line)
+        })
+}
+
 fn contains_normalized(line: &str, needle: &str) -> bool {
     line.to_ascii_lowercase()
         .contains(&needle.to_ascii_lowercase())
+}
+
+fn token_overlap_score(line: &str, criterion: &str) -> usize {
+    let line_tokens = normalized_tokens(line);
+    normalized_tokens(criterion)
+        .into_iter()
+        .filter(|token| line_tokens.contains(token))
+        .count()
+}
+
+fn minimum_overlap_score(criterion: &str) -> usize {
+    let token_count = normalized_tokens(criterion).len();
+    if token_count <= 2 { token_count } else { 2 }
+}
+
+fn normalized_tokens(value: &str) -> Vec<String> {
+    value
+        .split(|ch: char| !ch.is_ascii_alphanumeric())
+        .map(|token| token.trim().to_ascii_lowercase())
+        .filter(|token| token.len() > 2)
+        .filter(|token| {
+            !matches!(
+                token.as_str(),
+                "the" | "and" | "for" | "with" | "that" | "this" | "from" | "into"
+            )
+        })
+        .collect()
 }
 
 fn parse_criteria_status(value: &str) -> CriteriaReviewStatus {
@@ -200,5 +241,52 @@ fn parse_review_verdict(value: &str) -> ReviewVerdict {
         "request_changes" | "changes_requested" | "needs_changes" => ReviewVerdict::RequestChanges,
         "blocked" | "block" | "needs_input" => ReviewVerdict::Blocked,
         _ => ReviewVerdict::Unknown,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn criteria_result_matches_natural_review_wording() {
+        let output = AgentOutputRecord {
+            id: "out_test".to_string(),
+            work_item_id: "work_test".to_string(),
+            agent_run_id: "run_test".to_string(),
+            agent_profile_id: "reviewer".to_string(),
+            purpose: AgentRunPurpose::Review,
+            contract: "nagare.review.v1".to_string(),
+            instruction_pack: "nagare-review-writer.v1".to_string(),
+            parse_status: AgentOutputParseStatus::Parsed,
+            fields: BTreeMap::from([
+                ("verdict".to_string(), vec!["pass".to_string()]),
+                (
+                    "criteria".to_string(),
+                    vec![
+                        "No more than three steps: passed - `## Steps` contains exactly three numbered steps.".to_string(),
+                    ],
+                ),
+            ]),
+            questions: Vec::new(),
+            next_action: Some("approve".to_string()),
+            warnings: Vec::new(),
+            execution_record_id: "exec_test".to_string(),
+            locale: "en-US".to_string(),
+            created_at: "1".to_string(),
+        };
+
+        let review = review_result_from_agent_output(
+            "review_test".to_string(),
+            &output,
+            &["The guide includes no more than three steps".to_string()],
+        );
+
+        assert_eq!(review.criteria_results.len(), 1);
+        assert_eq!(
+            review.criteria_results[0].status,
+            CriteriaReviewStatus::Passed
+        );
     }
 }

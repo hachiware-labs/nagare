@@ -444,7 +444,7 @@ Usage:
   nagare doctor [--root <path>]
   nagare locale show [--root <path>]
   nagare locale use [--language <locale>] [--timezone <timezone>] [--root <path>]
-  nagare skill add --from local|git|clawhub|vercel|skill-creator [--id <package_id>] [--source <name-or-url>] [--path <path>] [--install true|false] [--scope project|global] [--targets codex,openclaw] [--ref <ref>] [--checksum <sha>] [--skill-id <skill_set_id>] [--paths <csv>] [--requires <csv>] [--optional <csv>] [--root <path>]
+  nagare skill add --from local|git|openai|anthropic|manual|clawhub|vercel|skill-creator [--id <package_id>] [--source <name-or-url>] [--path <path>] [--install true|false] [--scope project|global] [--targets codex,openclaw] [--ref <ref>] [--checksum <sha>] [--skill-id <skill_set_id>] [--paths <csv>] [--requires <csv>] [--optional <csv>] [--root <path>]
   nagare skill install ... (alias of skill add)
   nagare skill uninstall --agent <agent_profile_id> --skill <skill_set_id> [--package true|false] [--root <path>]
   nagare skill list [--root <path>]
@@ -456,7 +456,7 @@ Usage:
   nagare agent use [--work-agent <agent_profile_id>] [--review-agent <agent_profile_id>] [--dispatch-agent <agent_profile_id>] [--supervisor-agent <agent_profile_id>] [--root <path>]
   nagare agent doctor <agent_profile_id> [--root <path>]
   nagare agent probe <agent_profile_id> [--root <path>]
-  nagare item create --title <title> [--description <text>] [--acceptance <csv>] [--artifact <csv>] [--work-folder <relative_path>] [--constraint <csv>] [--domain <domain_id>] [--artifact-type <artifact_type_id>] [--domain-agent-policy auto_general_fallback|confirm_general_fallback|require_domain_agent] [--workflow-mode confirm_first|finish_first] [--approval-policy manual_final_approval|auto_complete_on_review_pass] [--root <path>]
+  nagare item create --title <title> [--description <text>] [--acceptance <csv>] [--artifact <csv>] [--work-folder <relative_path>] [--constraint <csv>] [--domain <domain_id>] [--artifact-type <artifact_type_id>] [--domain-agent-policy auto_general_fallback|confirm_general_fallback|require_domain_agent] [--workflow-mode confirm_first|finish_first] [--approval-policy manual_final_approval|manual_on_review_concern|auto_complete_on_review_pass] [--root <path>]
   nagare item list [--root <path>]
   nagare item show <work_id> [--root <path>]
   nagare item answer <work_id> --answer <text> [--question <text>] [--root <path>]

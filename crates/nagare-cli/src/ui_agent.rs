@@ -41,6 +41,8 @@ fn tool_label(tool_kind: nagare_core::AgentToolKind) -> &'static str {
     match tool_kind {
         nagare_core::AgentToolKind::Codex => "Codex",
         nagare_core::AgentToolKind::CodexCli => "Codex CLI",
+        nagare_core::AgentToolKind::ClaudeCode => "Claude Code",
+        nagare_core::AgentToolKind::OpenCode => "OpenCode",
         nagare_core::AgentToolKind::OpenClaw => "OpenClaw",
     }
 }

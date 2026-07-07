@@ -127,6 +127,70 @@ impl AgentAdapter for ProcessOpenClawAgentAdapter {
     }
 }
 
+pub(crate) struct ProcessClaudeCodeAdapter;
+
+impl AgentAdapter for ProcessClaudeCodeAdapter {
+    fn run(&self, request: &AdapterRunRequest<'_>) -> Result<AdapterRunOutput, NagareError> {
+        if let Some(command) = request.dev_command {
+            return run_dev_command(command, request.working_dir);
+        }
+
+        let command =
+            std::env::var("NAGARE_CLAUDE_COMMAND").unwrap_or_else(|_| "claude".to_string());
+        let mut args = vec![
+            "-p".to_string(),
+            "--permission-mode".to_string(),
+            "auto".to_string(),
+            "--no-session-persistence".to_string(),
+        ];
+        if let Some(model) = request.run_packet.model.model_ref() {
+            args.push("--model".to_string());
+            args.push(model);
+        }
+        args.push(request.prompt.to_string());
+        let output = Command::new(&command)
+            .args(&args)
+            .current_dir(request.working_dir)
+            .output()?;
+        Ok(AdapterRunOutput {
+            command: format!("{} {}", command, args.join(" ")),
+            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+            exit_code: output.status.code(),
+        })
+    }
+}
+
+pub(crate) struct ProcessOpenCodeAdapter;
+
+impl AgentAdapter for ProcessOpenCodeAdapter {
+    fn run(&self, request: &AdapterRunRequest<'_>) -> Result<AdapterRunOutput, NagareError> {
+        if let Some(command) = request.dev_command {
+            return run_dev_command(command, request.working_dir);
+        }
+
+        let command =
+            std::env::var("NAGARE_OPENCODE_COMMAND").unwrap_or_else(|_| "opencode".to_string());
+        let mut args = Vec::new();
+        if let Some(model) = request.run_packet.model.model_ref() {
+            args.push("--model".to_string());
+            args.push(model);
+        }
+        args.push("run".to_string());
+        args.push(request.prompt.to_string());
+        let output = Command::new(&command)
+            .args(&args)
+            .current_dir(request.working_dir)
+            .output()?;
+        Ok(AdapterRunOutput {
+            command: format!("{} {}", command, args.join(" ")),
+            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+            exit_code: output.status.code(),
+        })
+    }
+}
+
 fn run_codex_app_server(request: &AdapterRunRequest<'_>) -> Result<AdapterRunOutput, NagareError> {
     let mut session = CodexAppServerSession::spawn(request.working_dir)?;
     let cwd = absolute_path_string(request.working_dir)?;

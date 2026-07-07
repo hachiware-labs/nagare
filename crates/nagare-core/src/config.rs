@@ -44,6 +44,8 @@ pub(crate) struct DomainFile {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct ProjectConfigFile {
     #[serde(default)]
+    pub(crate) project: ProjectMetadata,
+    #[serde(default)]
     pub(crate) locale: LocaleSettings,
     #[serde(default)]
     pub(crate) workflow: WorkflowSettings,
@@ -56,11 +58,15 @@ pub(crate) struct ProjectConfigFile {
     #[serde(default)]
     pub(crate) skill_packages: BTreeMap<String, SkillPackageDeclaration>,
     #[serde(default)]
+    pub(crate) mcp_connections: BTreeMap<String, McpConnectionDeclaration>,
+    #[serde(default)]
     pub(crate) permission_policies: BTreeMap<String, PermissionPolicyDeclaration>,
     #[serde(default)]
     pub(crate) workspace_policies: BTreeMap<String, WorkspacePolicyDeclaration>,
     #[serde(default)]
     pub(crate) project_rules: Vec<ProjectRule>,
+    #[serde(default)]
+    pub(crate) improvement_history: Vec<ImprovementHistoryEntry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,6 +74,8 @@ pub(crate) struct AgentProfileFileEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) id: Option<String>,
     pub(crate) display_name: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub(crate) avatar: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) tool_kind: Option<AgentToolKind>,
     pub(crate) runtime: String,
@@ -86,6 +94,8 @@ pub(crate) struct AgentProfileFileEntry {
     pub(crate) domain_ids: Vec<String>,
     #[serde(default)]
     pub(crate) artifact_type_ids: Vec<String>,
+    #[serde(default)]
+    pub(crate) mcp_connection_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub(crate) managed_by: String,
     #[serde(default)]
@@ -111,6 +121,8 @@ pub(crate) struct ArtifactTypeFileEntry {
     pub(crate) artifact_types: Vec<String>,
     #[serde(default)]
     pub(crate) rubric: Vec<String>,
+    #[serde(default = "default_rubric_version")]
+    pub(crate) rubric_version: u32,
     #[serde(default)]
     pub(crate) dispatch_hints: Vec<String>,
     #[serde(default)]
@@ -301,6 +313,7 @@ impl AgentProfileFileEntry {
         Ok(AgentProfile {
             id,
             display_name: self.display_name,
+            avatar: self.avatar.trim().to_string(),
             tool_kind,
             runtime: self.runtime,
             adapter: adapter.to_string(),
@@ -311,6 +324,7 @@ impl AgentProfileFileEntry {
             skill_set_ids: normalize_skill_set_ids(self.skill_set_ids)?,
             domain_ids: normalize_domain_ids(self.domain_ids)?,
             artifact_type_ids: normalize_artifact_type_ids(self.artifact_type_ids)?,
+            mcp_connection_ids: normalize_mcp_connection_ids(self.mcp_connection_ids)?,
             managed_by: normalize_managed_by(&self.managed_by)?,
             model: normalize_agent_model_selection(self.model)?,
             external: normalize_external_agent_binding(self.external)?,
@@ -338,11 +352,16 @@ impl ArtifactTypeFileEntry {
             description: self.description.trim().to_string(),
             artifact_types: normalize_specialties(self.artifact_types),
             rubric: normalize_specialties(self.rubric),
+            rubric_version: self.rubric_version.max(1),
             dispatch_hints: normalize_specialties(self.dispatch_hints),
             workflow: self.workflow,
             source,
         })
     }
+}
+
+fn default_rubric_version() -> u32 {
+    1
 }
 
 impl DomainFileEntry {
@@ -427,7 +446,7 @@ fn migrate_legacy_default_agents(layout: &ProjectLayout) -> Result<(), NagareErr
     raw = ensure_default_agent_management(raw, "reviewer", "codex-cli");
     raw = ensure_default_agent_management(raw, "dispatcher", "codex-cli");
     raw = ensure_default_agent_management(raw, "supervisor", "codex-cli");
-    raw = ensure_openclaw_runtime_and_adapter(raw);
+    raw = ensure_cli_runtime_and_adapter(raw);
     fs::write(&layout.config_path, raw)?;
     Ok(())
 }
@@ -523,7 +542,27 @@ fn ensure_default_agent_management(mut raw: String, agent_id: &str, provider: &s
     raw
 }
 
-fn ensure_openclaw_runtime_and_adapter(mut raw: String) -> String {
+fn ensure_cli_runtime_and_adapter(mut raw: String) -> String {
+    if !raw.contains("[runtimes.claude-local]") {
+        raw.push_str(
+            "\n\n[runtimes.claude-local]\nkind = \"process\"\ncommand = \"claude\"\nargs = [\"-p\"]\nhealthcheck = [\"claude\", \"--version\"]",
+        );
+    }
+    if !raw.contains("[adapters.process-claude-code]") {
+        raw.push_str(
+            "\n\n[adapters.process-claude-code]\nkind = \"process.claude-code\"\nruntime_kind = \"process\"\nknown_capabilities = [\"repo_read\", \"file_edit\", \"shell_command\", \"stdin_prompt\", \"provider_model_selection\"]",
+        );
+    }
+    if !raw.contains("[runtimes.opencode-local]") {
+        raw.push_str(
+            "\n\n[runtimes.opencode-local]\nkind = \"process\"\ncommand = \"opencode\"\nargs = [\"run\"]\nhealthcheck = [\"opencode\", \"--version\"]",
+        );
+    }
+    if !raw.contains("[adapters.process-opencode]") {
+        raw.push_str(
+            "\n\n[adapters.process-opencode]\nkind = \"process.opencode\"\nruntime_kind = \"process\"\nknown_capabilities = [\"repo_read\", \"file_edit\", \"shell_command\", \"stdin_prompt\", \"provider_model_selection\"]",
+        );
+    }
     if !raw.contains("[runtimes.openclaw-local]") {
         raw.push_str(
             "\n\n[runtimes.openclaw-local]\nkind = \"process\"\ncommand = \"openclaw\"\nargs = [\"agent\"]\nhealthcheck = [\"openclaw\", \"--version\"]",
@@ -586,6 +625,22 @@ pub(crate) fn save_workflow_settings(
     let rendered = render_workflow_settings_toml(settings);
     let updated = replace_or_append_table(&raw, "workflow", &rendered);
     fs::write(&layout.config_path, updated)?;
+    Ok(())
+}
+
+pub(crate) fn write_project_metadata(
+    layout: &ProjectLayout,
+    metadata: &ProjectMetadata,
+) -> Result<(), NagareError> {
+    let raw = fs::read_to_string(&layout.config_path)?;
+    let mut value = raw.parse::<toml::Value>()?;
+    let root_table = value.as_table_mut().ok_or_else(|| {
+        NagareError::InvalidState("project config must be a TOML table".to_string())
+    })?;
+    let metadata_value = toml::Value::try_from(metadata.clone())?;
+    root_table.insert("project".to_string(), metadata_value);
+    let rendered = toml::to_string_pretty(&value)?;
+    fs::write(&layout.config_path, rendered)?;
     Ok(())
 }
 
@@ -801,6 +856,22 @@ pub(crate) fn write_locale_settings(
     Ok(())
 }
 
+pub(crate) fn write_improvement_history(
+    layout: &ProjectLayout,
+    history: &[ImprovementHistoryEntry],
+) -> Result<(), NagareError> {
+    let raw = fs::read_to_string(&layout.config_path)?;
+    let mut value = raw.parse::<toml::Value>()?;
+    let root_table = value.as_table_mut().ok_or_else(|| {
+        NagareError::InvalidState("project config must be a TOML table".to_string())
+    })?;
+    let history_value = toml::Value::try_from(history.to_vec())?;
+    root_table.insert("improvement_history".to_string(), history_value);
+    let rendered = toml::to_string_pretty(&value)?;
+    fs::write(&layout.config_path, rendered)?;
+    Ok(())
+}
+
 pub(crate) fn validate_existing_agent_profile(
     layout: &ProjectLayout,
     agent_profile_id: &str,
@@ -905,7 +976,10 @@ pub(crate) fn resolve_skill_sets_for_run(
                 .any(|id| id == skill_set_id)
         }) {
             let source_kind = package.source_kind.trim();
-            let is_remote_reference = matches!(source_kind, "clawhub" | "vercel" | "git");
+            let is_remote_reference = matches!(
+                source_kind,
+                "clawhub" | "vercel" | "git" | "openai" | "anthropic" | "manual"
+            );
             if is_remote_reference && package.installed_path.trim().is_empty() {
                 skipped_skill_set_ids.push(skill_set_id.clone());
                 warnings.push(format!(
@@ -975,6 +1049,29 @@ pub(crate) fn normalize_skill_set_ids(ids: Vec<String>) -> Result<Vec<String>, N
         {
             return Err(NagareError::InvalidState(format!(
                 "skill set id `{id}` contains unsupported characters"
+            )));
+        }
+        if seen.insert(id.to_string()) {
+            normalized.push(id.to_string());
+        }
+    }
+    Ok(normalized)
+}
+
+pub(crate) fn normalize_mcp_connection_ids(ids: Vec<String>) -> Result<Vec<String>, NagareError> {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut normalized = Vec::new();
+    for id in ids {
+        let id = id.trim();
+        if id.is_empty() {
+            continue;
+        }
+        if !id
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
+        {
+            return Err(NagareError::InvalidState(format!(
+                "MCP connection id `{id}` contains unsupported characters"
             )));
         }
         if seen.insert(id.to_string()) {
@@ -1145,7 +1242,7 @@ pub(crate) fn normalize_external_agent_binding(
         return Ok(external);
     }
     match external.provider.as_str() {
-        "codex" | "codex-cli" | "openclaw" => {}
+        "codex" | "codex-cli" | "claude" | "claude-code" | "opencode" | "openclaw" => {}
         other => {
             return Err(NagareError::InvalidState(format!(
                 "external provider `{other}` is not supported"
@@ -1221,6 +1318,22 @@ pub(crate) fn validate_model_for_adapter(
                 )));
             }
         }
+        "process.claude-code" => {
+            if !matches!(
+                model.provider.as_str(),
+                "" | "anthropic" | "claude" | "claude-code"
+            ) {
+                return Err(NagareError::InvalidState(format!(
+                    "adapter `{adapter_id}` only supports Anthropic/Claude model providers"
+                )));
+            }
+            if !model.base_url.is_empty() {
+                return Err(NagareError::InvalidState(format!(
+                    "adapter `{adapter_id}` does not support model.base_url"
+                )));
+            }
+        }
+        "process.opencode" => {}
         "process.openclaw-agent" => {
             if !model.id.is_empty() && model.provider.is_empty() && !model.base_url.is_empty() {
                 return Err(NagareError::InvalidState(

@@ -153,6 +153,24 @@ fn nagare_result_questions_set_work_item_needs_input() {
         },
     )
     .expect("review should pass");
+    fs::write(
+        root.join("synthesis_after_answer.md"),
+        "## Nagare Result\nstatus: succeeded\nsummary:\n- final answer after human feedback is ready\ncompleted:\n- summarized answered output and review\nnext_action: approve\n",
+    )
+    .expect("synthesis should write");
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "supervisor",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(cat_command("synthesis_after_answer.md").as_str()),
+            purpose: AgentRunPurpose::Synthesis,
+        },
+    )
+    .expect("synthesis should pass");
     approve_work_item(&root, &item.id, "contract output flow completed")
         .expect("approval should complete item");
     let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
@@ -566,10 +584,30 @@ fn review_pass_and_request_changes_drive_work_item_status() {
     .expect("pass review should run");
     let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
     assert_eq!(snapshot.item.status, WorkItemStatus::ReadyForReview);
-    assert_eq!(snapshot.completion.next_action, "approve");
+    assert_eq!(snapshot.completion.next_action, "synthesize");
     assert_eq!(snapshot.review_results.len(), 2);
     assert_eq!(snapshot.review_results[1].verdict, ReviewVerdict::Pass);
     assert_eq!(event_count(&snapshot, "review"), 2);
+    fs::write(
+        root.join("synthesis_pass.md"),
+        "## Nagare Result\nstatus: succeeded\nsummary:\n- final reviewed answer is ready\ncompleted:\n- summarized passing review result\nnext_action: approve\n",
+    )
+    .expect("synthesis output should write");
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "supervisor",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(cat_command("synthesis_pass.md").as_str()),
+            purpose: AgentRunPurpose::Synthesis,
+        },
+    )
+    .expect("synthesis should run");
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot after synthesis");
+    assert_eq!(snapshot.completion.next_action, "approve");
     fs::remove_dir_all(root).ok();
 }
 
@@ -591,6 +629,7 @@ fn dispatch_preview_selects_registered_agent_and_records_timeline() {
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -651,6 +690,7 @@ fn multi_agent_question_handoff_review_and_approval_workflow_completes() {
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),
@@ -671,6 +711,7 @@ fn multi_agent_question_handoff_review_and_approval_workflow_completes() {
             skill_set_ids: Vec::new(),
             domain_ids: Vec::new(),
             artifact_type_ids: Vec::new(),
+            mcp_connection_ids: Vec::new(),
             managed_by: None,
             model: AgentModelSelection::default(),
             external: ExternalAgentBinding::default(),

@@ -99,13 +99,16 @@ UI が最優先で答えるべき問いは次の1つである。
 - 派手なAIダッシュボード、マーケティングhero、装飾的なグラデーション、
   飾りのカード群にはしない。
 
-既存の wireframe は、必須の見た目ではなく、機能フローと情報階層の参考資料として扱う。
+Fable-5 再設計以前の wireframe は削除済み。機能フローと情報階層の参照は
+`docs/design-assets/prototype/` と PRD に限定する。
 
 ## Fable-5 が読むアクティブ参照
 
 - `docs/fable-5-ui-context.md`: この機能概要。
-- `docs/design-assets/nagare_screen_flow_summary.md`: 現在のエンドツーエンドフロー。
-- `logo.png`: ブランドマーク参照。
+- `docs/design-assets/prototype/index.html`: 現在のクリック遷移プロトタイプ。
+- `docs/design-assets/prototype/README.md`: 画面一覧・トークン・設計方針。
+- `docs/nagare_prd_v1_0.md`: 機能IDと画面の対応。
+- `docs/design-assets/prototype/logo.png`: ブランドマーク参照。
 
 ## データ参照のみ
 

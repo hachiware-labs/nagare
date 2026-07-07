@@ -34,6 +34,11 @@ fn approval_gate_ready_after_current_review() {
         "## Nagare Review\nverdict: pass\nsummary:\n- criteria satisfied\ncriteria:\n- evidence recorded: pass\nfindings:\n- no blockers\nquestions:\nnext_action: approve\n",
     )
     .expect("review should write");
+    fs::write(
+        root.join("synthesis.md"),
+        "## Nagare Result\nstatus: succeeded\nsummary:\n- organizer final answer is ready\ncompleted:\n- summarized the passing review\nnext_action: approve\n",
+    )
+    .expect("synthesis should write");
     let item = create_work_item_with_input(
         &root,
         CreateWorkItemInput {
@@ -71,6 +76,19 @@ fn approval_gate_ready_after_current_review() {
         },
     )
     .expect("review should run");
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "supervisor",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(cat_command("synthesis.md").as_str()),
+            purpose: AgentRunPurpose::Synthesis,
+        },
+    )
+    .expect("synthesis should run");
     let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
     assert_eq!(snapshot.item.status, WorkItemStatus::ReadyForReview);
     assert!(snapshot.approval_gate.ready);
@@ -106,6 +124,11 @@ fn approval_reject_records_reason_and_returns_to_dispatch() {
         "## Nagare Review\nverdict: pass\nsummary:\n- result passes\nfindings:\n- no blockers\nquestions:\nnext_action: approve\n",
     )
     .expect("review should write");
+    fs::write(
+        root.join("synthesis.md"),
+        "## Nagare Result\nstatus: succeeded\nsummary:\n- organizer final answer is ready\ncompleted:\n- summarized implementation and review\nnext_action: approve\n",
+    )
+    .expect("synthesis should write");
     let item = create_work_item(&root, "Reject approved-looking result", "")
         .expect("item should create")
         .item;
@@ -150,6 +173,19 @@ fn approval_reject_records_reason_and_returns_to_dispatch() {
         },
     )
     .expect("review should run");
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "supervisor",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(cat_command("synthesis.md").as_str()),
+            purpose: AgentRunPurpose::Synthesis,
+        },
+    )
+    .expect("synthesis should run");
 
     let result = reject_work_item(&root, &item.id, "方向性が違うため再選定する")
         .expect("reject should record decision");

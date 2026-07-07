@@ -268,6 +268,7 @@ fn agent_add_command(args: &[String]) -> Result<(), String> {
             skill_set_ids,
             domain_ids: parse_comma_list(parsed.optional("--domains")),
             artifact_type_ids: parse_comma_list(parsed.optional("--artifact-types")),
+            mcp_connection_ids: Vec::new(),
             managed_by,
             model: model_selection_from_args(&parsed),
             external,
@@ -395,6 +396,7 @@ fn agent_update_command(args: &[String]) -> Result<(), String> {
         agent_profile_id,
         UpdateAgentProfileInput {
             display_name: parsed.optional("--display-name"),
+            avatar: None,
             runtime: None,
             adapter: None,
             role: parsed.optional("--role"),
@@ -412,6 +414,8 @@ fn agent_update_command(args: &[String]) -> Result<(), String> {
             artifact_type_ids: parsed
                 .optional("--artifact-types")
                 .map(|value| parse_comma_list(Some(value))),
+            mcp_connection_ids: None,
+            prompt: None,
             managed_by: parsed.optional("--managed-by"),
             model: any_model_option(&parsed).then(|| model_selection_from_args(&parsed)),
             external: any_external_option(&parsed).then(|| external_binding_from_update(&parsed)),

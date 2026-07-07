@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::adapters::{
-    ProcessCodexCliAdapter, ProcessOpenClawAgentAdapter, StdioCodexAppServerAdapter,
+    ProcessClaudeCodeAdapter, ProcessCodexCliAdapter, ProcessOpenClawAgentAdapter,
+    ProcessOpenCodeAdapter, StdioCodexAppServerAdapter,
 };
 use crate::model::AgentAdapter;
 use crate::*;
@@ -320,6 +321,8 @@ pub(crate) fn normalize_adapter_id(adapter_id: &str) -> Result<&'static str, Nag
     match adapter_id {
         "process.codex-cli" | "process-codex-cli" => Ok("process.codex-cli"),
         "stdio.codex-app-server" | "stdio-codex-app-server" => Ok("stdio.codex-app-server"),
+        "process.claude-code" | "process-claude-code" => Ok("process.claude-code"),
+        "process.opencode" | "process-opencode" => Ok("process.opencode"),
         "process.openclaw-agent" | "process-openclaw-agent" => Ok("process.openclaw-agent"),
         _ => Err(NagareError::InvalidState(format!(
             "unsupported adapter `{adapter_id}`"
@@ -331,6 +334,8 @@ pub(crate) fn adapter_for_id(adapter_id: &str) -> Result<Box<dyn AgentAdapter>, 
     match adapter_id {
         "process.codex-cli" => Ok(Box::new(ProcessCodexCliAdapter)),
         "stdio.codex-app-server" => Ok(Box::new(StdioCodexAppServerAdapter)),
+        "process.claude-code" => Ok(Box::new(ProcessClaudeCodeAdapter)),
+        "process.opencode" => Ok(Box::new(ProcessOpenCodeAdapter)),
         "process.openclaw-agent" => Ok(Box::new(ProcessOpenClawAgentAdapter)),
         _ => Err(NagareError::InvalidState(format!(
             "unsupported adapter `{adapter_id}`"
@@ -379,6 +384,18 @@ pub(crate) fn scenario_review_command(summary: &str) -> String {
     } else {
         format!(
             "printf '## Nagare Review\nverdict: pass\nsummary:\n- {summary}\ncompleted:\n- reviewed scenario result\nfindings:\n- none\nquestions:\nnext_notes:\n- ready for approval\nnext_action: approve\n'; exit 0"
+        )
+    }
+}
+
+pub(crate) fn scenario_synthesis_command(summary: &str) -> String {
+    if cfg!(windows) {
+        format!(
+            "echo ## Nagare Result && echo status: succeeded && echo summary: && echo - {summary} && echo completed: && echo - summarized reviewed result && echo questions: && echo next_notes: && echo - ready for approval && echo next_action: approve && exit /B 0"
+        )
+    } else {
+        format!(
+            "printf '## Nagare Result\nstatus: succeeded\nsummary:\n- {summary}\ncompleted:\n- summarized reviewed result\nquestions:\nnext_notes:\n- ready for approval\nnext_action: approve\n'; exit 0"
         )
     }
 }
