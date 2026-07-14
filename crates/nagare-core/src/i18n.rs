@@ -44,6 +44,18 @@ impl I18n {
         ui_text(self.language, key)
     }
 
+    pub fn agent_default_name(&self, agent_id: &str) -> &'static str {
+        match (self.language, agent_id) {
+            (NagareLanguage::Ja, "organizer") => "汎用オーガナイザー",
+            (NagareLanguage::Ja, "worker") => "汎用ワーカー",
+            (NagareLanguage::Ja, "reviewer") => "汎用レビュアー",
+            (_, "organizer") => "General Organizer",
+            (_, "worker") => "General Worker",
+            (_, "reviewer") => "General Reviewer",
+            _ => "",
+        }
+    }
+
     pub fn agent_default_description(&self, agent_id: &str) -> &'static str {
         match (self.language, agent_id) {
             (NagareLanguage::Ja, "worker") => {
@@ -51,6 +63,9 @@ impl I18n {
             }
             (NagareLanguage::Ja, "reviewer") => {
                 "現在のWork Itemを受け入れ条件、成果物、テスト証跡に照らしてレビューします。条件ごとのpass/failと具体的なフォローアップを報告します。"
+            }
+            (NagareLanguage::Ja, "organizer") => {
+                "依頼を整理して適切な担当を選び、進行判断と最終結果のまとめを行います。担当選定、判断理由、依頼者への結果を簡潔に返します。"
             }
             (NagareLanguage::Ja, "dispatcher") => {
                 "次の作業ステップに最も適したAgent Profileを選びます。必要なdispatch JSONだけを返し、理由は簡潔にします。"
@@ -63,6 +78,9 @@ impl I18n {
             }
             (_, "reviewer") => {
                 "Review the current work item against acceptance criteria, artifacts, and test evidence. Report pass/fail per criterion and concrete follow-up notes."
+            }
+            (_, "organizer") => {
+                "Organize the request, select the appropriate agent, make workflow decisions, and summarize the final result for the requester. Keep the selection rationale and result concise."
             }
             (_, "dispatcher") => {
                 "Choose the most suitable target agent profile for the next work step. Return only the required dispatch JSON and keep the rationale concise."
@@ -117,7 +135,7 @@ dispatch_hints = [
 
     pub fn general_artifact_type_toml(&self) -> String {
         match self.language {
-            NagareLanguage::Ja => r#"[artifact_type]
+            NagareLanguage::Ja => r###"[artifact_type]
 id = "general"
 domain_id = "general"
 display_name = "汎用"
@@ -129,16 +147,21 @@ artifact_types = [
     "notes",
 ]
 rubric = [
+    "## 完了度 (40)",
     "要求された振る舞いまたは回答が、指定範囲に対して完了している。",
+    "",
+    "## 変更の適切さ (35)",
     "変更はWork Itemの範囲に収まり、無関係な変更を避けている。",
+    "",
+    "## 検証と残リスク (25)",
     "最終結果に実施した検証と残リスクが含まれている。",
 ]
 dispatch_hints = [
     "複合的または未分類の作業にはこのDomainを使う。",
 ]
-"#
+"###
             .to_string(),
-            NagareLanguage::En => r#"[artifact_type]
+            NagareLanguage::En => r###"[artifact_type]
 id = "general"
 domain_id = "general"
 display_name = "General"
@@ -150,14 +173,19 @@ artifact_types = [
     "notes",
 ]
 rubric = [
+    "## Completeness (40)",
     "The requested behavior or answer is complete for the stated scope.",
+    "",
+    "## Change Scope (35)",
     "Changes are scoped to the work item and avoid unrelated churn.",
+    "",
+    "## Verification and Residual Risk (25)",
     "The final result includes the verification performed and any remaining risk.",
 ]
 dispatch_hints = [
     "Use this domain for mixed or uncategorized work.",
 ]
-"#
+"###
             .to_string(),
         }
     }
@@ -185,11 +213,9 @@ approval_policy = "manual_final_approval"
 [nagare_agents]
 work_agent = "worker"
 review_agent = "reviewer"
-# When omitted, Nagare uses dispatch_agent as the built-in project organizer.
-# Set this to an organizer-role Agent Profile for project-specific routing.
-# organizer_agent = "dispatcher"
-dispatch_agent = "dispatcher"
-supervisor_agent = "supervisor"
+# These internal workflow references use the standard organizer profile.
+dispatch_agent = "organizer"
+supervisor_agent = "organizer"
 
 [runtimes.codex-local]
 kind = "process"
@@ -280,37 +306,20 @@ agent_id = "reviewer"
 managed = true
 source = "created"
 
-[agent_profiles.dispatcher]
-display_name = "{dispatcher_name}"
+[agent_profiles.organizer]
+display_name = "{organizer_name}"
 runtime = "codex-local"
 adapter = "process-codex-cli"
-role = "dispatcher"
+role = "organizer"
 working_dir = "."
 managed_by = "nagare"
-description = "{dispatcher_description}"
+description = "{organizer_description}"
 domain_ids = ["general"]
 artifact_type_ids = ["general"]
 
-[agent_profiles.dispatcher.external]
+[agent_profiles.organizer.external]
 provider = "codex-cli"
-agent_id = "dispatcher"
-managed = true
-source = "created"
-
-[agent_profiles.supervisor]
-display_name = "{supervisor_name}"
-runtime = "codex-local"
-adapter = "process-codex-cli"
-role = "supervisor"
-working_dir = "."
-managed_by = "nagare"
-description = "{supervisor_description}"
-domain_ids = ["general"]
-artifact_type_ids = ["general"]
-
-[agent_profiles.supervisor.external]
-provider = "codex-cli"
-agent_id = "supervisor"
+agent_id = "organizer"
 managed = true
 source = "created"
 
@@ -326,14 +335,12 @@ cleanup = "keep"
 "#,
             language = toml_escape(self.locale()),
             timezone = toml_escape(timezone),
-            worker_name = toml_escape(self.ui(UiTextKey::Worker)),
-            reviewer_name = toml_escape(self.ui(UiTextKey::Reviewer)),
-            dispatcher_name = toml_escape(self.ui(UiTextKey::Dispatcher)),
-            supervisor_name = toml_escape(self.ui(UiTextKey::Supervisor)),
+            worker_name = toml_escape(self.agent_default_name("worker")),
+            reviewer_name = toml_escape(self.agent_default_name("reviewer")),
+            organizer_name = toml_escape(self.agent_default_name("organizer")),
             worker_description = toml_escape(self.agent_default_description("worker")),
             reviewer_description = toml_escape(self.agent_default_description("reviewer")),
-            dispatcher_description = toml_escape(self.agent_default_description("dispatcher")),
-            supervisor_description = toml_escape(self.agent_default_description("supervisor")),
+            organizer_description = toml_escape(self.agent_default_description("organizer")),
         )
     }
 }
@@ -371,6 +378,7 @@ pub enum UiTextKey {
     DispatchHints,
     Group,
     General,
+    Organizer,
     Worker,
     Reviewer,
     Dispatcher,
@@ -444,13 +452,13 @@ pub fn ui_text(language: NagareLanguage, key: UiTextKey) -> &'static str {
             UiTextKey::Agents => "エージェント",
             UiTextKey::Domains => "ドメイン",
             UiTextKey::Domain => "ドメイン",
-            UiTextKey::ArtifactTypes => "成果物種別",
-            UiTextKey::ArtifactType => "成果物種別",
+            UiTextKey::ArtifactTypes => "成果物",
+            UiTextKey::ArtifactType => "成果物",
             UiTextKey::Workflow => "ワークフロー",
             UiTextKey::Profiles => "プロファイル",
             UiTextKey::Registered => "登録済み",
             UiTextKey::CreateNewDomain => "ドメインを作成",
-            UiTextKey::CreateNewArtifactType => "成果物種別を作成",
+            UiTextKey::CreateNewArtifactType => "成果物を作成",
             UiTextKey::ClearFilters => "フィルタ解除",
             UiTextKey::Agent => "エージェント",
             UiTextKey::Type => "種別",
@@ -468,6 +476,7 @@ pub fn ui_text(language: NagareLanguage, key: UiTextKey) -> &'static str {
             UiTextKey::DispatchHints => "振り分けヒント",
             UiTextKey::Group => "グループ",
             UiTextKey::General => "汎用",
+            UiTextKey::Organizer => "オーガナイザー",
             UiTextKey::Worker => "Worker",
             UiTextKey::Reviewer => "Reviewer",
             UiTextKey::Dispatcher => "Dispatcher",
@@ -504,17 +513,15 @@ pub fn ui_text(language: NagareLanguage, key: UiTextKey) -> &'static str {
             UiTextKey::Dispatch => "振り分け",
             UiTextKey::CreateDomain => "ドメインを作成",
             UiTextKey::SaveDomain => "ドメインを保存",
-            UiTextKey::CreateArtifactType => "成果物種別を作成",
-            UiTextKey::SaveArtifactType => "成果物種別を保存",
+            UiTextKey::CreateArtifactType => "成果物を作成",
+            UiTextKey::SaveArtifactType => "成果物を保存",
             UiTextKey::CreateAgent => "エージェントを作成",
             UiTextKey::SaveAgent => "エージェントを保存",
             UiTextKey::DeleteAgent => "エージェントを削除",
             UiTextKey::DomainFormLead => {
                 "ドメインの共通知識、評価基準、ワークフロー既定値を設定します"
             }
-            UiTextKey::ArtifactTypeFormLead => {
-                "成果物種別ごとの評価基準とDispatchヒントを設定します"
-            }
+            UiTextKey::ArtifactTypeFormLead => "成果物ごとの評価基準とDispatchヒントを設定します",
             UiTextKey::AgentFormLead => "エージェントプロファイルを設定します",
             UiTextKey::CommonRubric => "共通評価基準",
             UiTextKey::ProgressModeOverride => "進行モードの上書き",
@@ -570,6 +577,7 @@ pub fn ui_text(language: NagareLanguage, key: UiTextKey) -> &'static str {
             UiTextKey::DispatchHints => "Dispatch hints",
             UiTextKey::Group => "Group",
             UiTextKey::General => "General",
+            UiTextKey::Organizer => "Organizer",
             UiTextKey::Worker => "Worker",
             UiTextKey::Reviewer => "Reviewer",
             UiTextKey::Dispatcher => "Dispatcher",
@@ -675,7 +683,7 @@ pub(crate) fn localized_output_contract_instruction(
             ),
         },
         AgentRunPurpose::Review => format!(
-            "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\n{common}\n\n## Nagare Review\nverdict: pass|request_changes|blocked\nsummary:\n- concise review summary\ncompleted:\n- what you reviewed, including CI/tests/checks when applicable\ncriteria:\n- <criterion>: passed|failed|unknown - note\nfindings:\n- finding or none\nreferenced_artifacts:\n- requested deliverable artifact id/path or none\nrequested_changes:\n- requested change or none\nquestions:\n- question or none\nnext_notes:\n- handoff hint for the next dispatch or agent\nnext_action: approve|run_agent|answer_question|stop",
+            "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\n{common}\n\n## Nagare Review\nverdict: pass|request_changes|blocked\noverall_score: 0-100\nsummary:\n- concise review summary\ncompleted:\n- what you reviewed, including CI/tests/checks when applicable\ncriteria:\n- <criterion>: passed|failed|unknown - note\nfindings:\n- finding or none\nreferenced_artifacts:\n- requested deliverable artifact id/path or none\nrequested_changes:\n- requested change or none\nquestions:\n- question or none\nnext_notes:\n- handoff hint for the next dispatch or agent\nnext_action: approve|run_agent|answer_question|stop",
             contract_id = contract.contract,
             pack = contract.instruction_pack,
         ),

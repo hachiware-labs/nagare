@@ -1494,7 +1494,7 @@ fn source_label(source: &str, i18n: &I18n) -> String {
     if i18n.language().is_ja() {
         match source {
             "project_domain_directory" => "プロジェクトのドメイン定義",
-            "project_artifact_type_directory" => "プロジェクトの成果物種別定義",
+            "project_artifact_type_directory" => "プロジェクトの成果物定義",
             "project_config" => "プロジェクト設定",
             "default_config" => "既定設定",
             other => other,
@@ -1845,7 +1845,7 @@ fn agent_filters(
         domain_filters,
         localized(
             i18n,
-            "ドメインを選択すると成果物種別の候補が表示されます。",
+            "ドメインを選択すると成果物の候補が表示されます。",
             "Select a domain to show artifact type choices."
         ),
         i18n.ui(UiTextKey::ClearFilters)

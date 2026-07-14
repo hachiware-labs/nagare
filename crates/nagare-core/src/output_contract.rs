@@ -51,6 +51,7 @@ pub(crate) fn parse_agent_output_record(input: AgentOutputRecordInput<'_>) -> Ag
             warnings.push("next_action_without_question".to_string());
         }
     }
+    let mut review_score_contract_invalid = false;
     if section.is_some()
         && matches!(
             input.purpose,
@@ -66,6 +67,23 @@ pub(crate) fn parse_agent_output_record(input: AgentOutputRecordInput<'_>) -> Ag
         if !has_contract_field(&fields, "next_notes") {
             warnings.push("missing_next_notes".to_string());
         }
+        if input.purpose == AgentRunPurpose::Review {
+            match fields
+                .get("overall_score")
+                .and_then(|values| values.first())
+                .and_then(|value| value.trim().parse::<u8>().ok())
+            {
+                Some(score) if score <= 100 => {}
+                Some(_) => {
+                    warnings.push("invalid_overall_score".to_string());
+                    review_score_contract_invalid = true;
+                }
+                None => {
+                    warnings.push("missing_overall_score".to_string());
+                    review_score_contract_invalid = true;
+                }
+            }
+        }
     }
     AgentOutputRecord {
         id: input.id,
@@ -75,7 +93,7 @@ pub(crate) fn parse_agent_output_record(input: AgentOutputRecordInput<'_>) -> Ag
         purpose: input.purpose,
         contract: input.contract.contract.clone(),
         instruction_pack: input.contract.instruction_pack.clone(),
-        parse_status: if section.is_some() {
+        parse_status: if section.is_some() && !review_score_contract_invalid {
             AgentOutputParseStatus::Parsed
         } else {
             AgentOutputParseStatus::Unparsed
@@ -250,7 +268,7 @@ fn parse_contract_fields(section: &str) -> BTreeMap<String, Vec<String>> {
 fn fallback_contract_section(output: &str, section_name: &str) -> Option<String> {
     let required_keys = match section_name {
         "nagare result" => &["status", "summary", "next_action"][..],
-        "nagare review" => &["verdict", "summary", "next_action"][..],
+        "nagare review" => &["verdict", "overall_score", "summary", "next_action"][..],
         "nagare workflow decision" => &["action", "reason"][..],
         _ => return None,
     };
@@ -288,6 +306,7 @@ fn known_contract_key(key: &str) -> bool {
             | "next_notes"
             | "next_action"
             | "verdict"
+            | "overall_score"
             | "findings"
             | "requested_changes"
             | "referenced_artifacts"
@@ -330,6 +349,7 @@ fn has_nested_contract_keys(fields: &BTreeMap<String, Vec<String>>) -> bool {
         "next_notes:",
         "next_action:",
         "verdict:",
+        "overall_score:",
         "findings:",
         "requested_changes:",
         "referenced_artifacts:",
@@ -415,7 +435,7 @@ mod tests {
             agent_profile_id: "reviewer",
             purpose: AgentRunPurpose::Review,
             contract: &contract,
-            stdout: "verdict: pass\nsummary:\n- answer is acceptable\ncompleted:\n- reviewed the answer\nfindings:\n- none\nquestions:\n- none\nnext_notes:\n- ready for approval\nnext_action: approve\n",
+            stdout: "verdict: pass\noverall_score: 95\nsummary:\n- answer is acceptable\ncompleted:\n- reviewed the answer\nfindings:\n- none\nquestions:\n- none\nnext_notes:\n- ready for approval\nnext_action: approve\n",
             execution_record_id: "exec_test",
             locale: "en-US",
             created_at: "1",
@@ -427,10 +447,38 @@ mod tests {
             Some(&vec!["pass".to_string()])
         );
         assert_eq!(output.next_action.as_deref(), Some("approve"));
+        assert_eq!(
+            output.fields.get("overall_score"),
+            Some(&vec!["95".to_string()])
+        );
         assert!(
             !output
                 .warnings
                 .contains(&"output_contract_unparsed".to_string())
+        );
+    }
+
+    #[test]
+    fn review_contract_without_overall_score_is_unparsed() {
+        let contract = default_review_output_contract();
+        let output = parse_agent_output_record(AgentOutputRecordInput {
+            id: "out_test".to_string(),
+            work_item_id: "work_test",
+            agent_run_id: "run_test",
+            agent_profile_id: "reviewer",
+            purpose: AgentRunPurpose::Review,
+            contract: &contract,
+            stdout: "## Nagare Review\nverdict: pass\nsummary:\n- answer is acceptable\ncompleted:\n- reviewed the answer\nfindings:\n- none\nquestions:\n- none\nnext_notes:\n- ready for approval\nnext_action: approve\n",
+            execution_record_id: "exec_test",
+            locale: "en-US",
+            created_at: "1",
+        });
+
+        assert_eq!(output.parse_status, AgentOutputParseStatus::Unparsed);
+        assert!(
+            output
+                .warnings
+                .contains(&"missing_overall_score".to_string())
         );
     }
 }

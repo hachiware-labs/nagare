@@ -50,7 +50,7 @@ pub fn run_first_scenario(root: impl Into<PathBuf>) -> Result<ScenarioResult, Na
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "supervisor",
+            agent_profile_id: "organizer",
             dispatch_plan_id: None,
             path: None,
             prompt: None,
@@ -183,7 +183,7 @@ pub fn run_registered_agent_scenario(
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "supervisor",
+            agent_profile_id: "organizer",
             dispatch_plan_id: None,
             path: None,
             prompt: None,

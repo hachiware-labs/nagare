@@ -9,7 +9,8 @@ use nagare_core::{
     AcceptRecoveryPlanResult, AddAgentProfileInput, AddArtifactTypeInput, AddDomainInput,
     AddMcpConnectionInput, AddSkillPackageInput, AdvanceUntilBlockedInput, AdvanceWorkItemInput,
     AgentModelSelection, AgentOutputRecord, AgentProfile, AgentProfileSource, AgentRunPurpose,
-    AgentToolKind, ApplyRecoveryPlanInput, ApprovalPolicy, ArtifactType, CreateRecoveryPlanResult,
+    AgentToolKind, ApplyRecoveryPlanInput, ApprovalPolicy, Artifact, ArtifactType,
+    CreateRecoveryPlanResult,
     CreateWorkItemInput, DeleteSkillPackageInput, DeleteSkillPackageResult, Domain,
     DomainWorkflowOverride, ExternalAgentBinding, ImprovementHistoryEntry,
     McpConnectionCatalogEntry, McpConnectionTestResult, NagareAgentSettings, ProjectLayout,
@@ -107,6 +108,7 @@ struct AgentView {
     mcp_connection_ids: Vec<String>,
     source: String,
     builtin: bool,
+    usage_count: usize,
     mcp_assignable: bool,
     mcp_note: String,
 }
@@ -246,11 +248,14 @@ struct StepView {
     kind: String,
     title: String,
     state: String,
+    outcome: String,
     actor: String,
     summary: String,
     rationale: String,
     input: String,
     output: String,
+    score_label: String,
+    criteria_label: String,
     knowledge_refs: Vec<String>,
     diagnostics: String,
     review_items: Vec<ReviewItemView>,
@@ -282,11 +287,7 @@ struct RuntimeView {
     detail: String,
     model_note: &'static str,
     model_mode: &'static str,
-    model_choices: Vec<&'static str>,
-    configured_model: String,
-    configured_provider: String,
-    configured_base_url: String,
-    configured_agent_count: usize,
+    model_choices: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -624,15 +625,6 @@ struct RuntimeStatusRequest {
     runtime_id: String,
 }
 
-#[derive(Deserialize)]
-struct SaveRuntimeModelDefaultsRequest {
-    root: Option<String>,
-    runtime_id: String,
-    model_provider: Option<String>,
-    model: Option<String>,
-    model_base_url: Option<String>,
-}
-
 #[derive(Serialize)]
 struct RuntimeStatusResponse {
     runtime: RuntimeView,
@@ -656,6 +648,14 @@ struct ArtifactContentResponse {
 #[tauri::command]
 fn app_info() -> AppInfo {
     app_info_value()
+}
+
+#[tauri::command]
+fn launch_root() -> Option<String> {
+    env::var_os("NAGARE_ROOT")
+        .map(PathBuf::from)
+        .filter(|root| root.is_dir())
+        .map(|root| root_to_string(&root))
 }
 
 #[tauri::command]
@@ -764,76 +764,6 @@ fn refresh_runtime_status(request: RuntimeStatusRequest) -> Result<RuntimeStatus
 }
 
 #[tauri::command]
-fn save_runtime_model_defaults(
-    request: SaveRuntimeModelDefaultsRequest,
-) -> Result<DesktopState, String> {
-    let root = resolve_desktop_root(request.root)?;
-    let runtime_id = request.runtime_id.trim();
-    let (runtime, adapter, _provider) = initial_runtime_mapping(runtime_id)?;
-    let target_tool_kind = AgentToolKind::infer(runtime, adapter);
-    let model_id = request.model.as_deref().map(str::trim).unwrap_or("");
-    let model = AgentModelSelection {
-        provider: request
-            .model_provider
-            .as_deref()
-            .map(str::trim)
-            .unwrap_or("")
-            .to_string(),
-        id: model_id.to_string(),
-        base_url: request
-            .model_base_url
-            .as_deref()
-            .map(str::trim)
-            .unwrap_or("")
-            .to_string(),
-        api_key_env: String::new(),
-    };
-    let profiles = list_agent_profiles(&root).map_err(|error| error.to_string())?;
-    let mut updated = 0usize;
-    let mut previous_models = Vec::new();
-    for profile in profiles {
-        if profile.tool_kind == target_tool_kind || profile.runtime == runtime {
-            let previous_model = profile.model.clone();
-            if let Err(error) = update_agent_profile(
-                &root,
-                &profile.id,
-                UpdateAgentProfileInput {
-                    model: Some(model.clone()),
-                    ..UpdateAgentProfileInput::default()
-                },
-            ) {
-                restore_runtime_model_defaults(&root, previous_models)?;
-                return Err(error.to_string());
-            }
-            previous_models.push((profile.id.clone(), previous_model));
-            updated += 1;
-        }
-    }
-    if updated == 0 {
-        return Err("この実行環境を使うエージェントがありません。".to_string());
-    }
-    desktop_state(root)
-}
-
-fn restore_runtime_model_defaults(
-    root: &Path,
-    previous_models: Vec<(String, AgentModelSelection)>,
-) -> Result<(), String> {
-    for (agent_id, model) in previous_models {
-        update_agent_profile(
-            root,
-            &agent_id,
-            UpdateAgentProfileInput {
-                model: Some(model),
-                ..UpdateAgentProfileInput::default()
-            },
-        )
-        .map_err(|error| error.to_string())?;
-    }
-    Ok(())
-}
-
-#[tauri::command]
 fn read_artifact_content(
     request: ReadArtifactContentRequest,
 ) -> Result<ArtifactContentResponse, String> {
@@ -872,7 +802,7 @@ fn read_artifact_content(
 
 fn configure_initial_agent_runtime(root: &Path, runtime_id: &str) -> Result<(), String> {
     let (runtime, adapter, provider) = initial_runtime_mapping(runtime_id)?;
-    for agent_id in ["worker", "reviewer", "dispatcher", "supervisor"] {
+    for agent_id in ["organizer", "worker", "reviewer"] {
         update_agent_profile(
             root,
             agent_id,
@@ -1150,10 +1080,10 @@ fn save_artifact_type(request: SaveArtifactTypeRequest) -> Result<DesktopState, 
         .filter(|value| !value.is_empty())
         .ok_or_else(|| "ドメインを選択してください。".to_string())?;
     if id.is_empty() {
-        return Err("成果物種別IDを入力してください。".to_string());
+        return Err("成果物IDを入力してください。".to_string());
     }
     if display_name.is_empty() {
-        return Err("成果物種別名を入力してください。".to_string());
+        return Err("成果物名を入力してください。".to_string());
     }
     let previous_artifact = get_artifact_type(&root, id).ok();
     if previous_artifact.is_some() {
@@ -1166,6 +1096,7 @@ fn save_artifact_type(request: SaveArtifactTypeRequest) -> Result<DesktopState, 
                 description: Some(optional_text(request.description.as_deref())),
                 artifact_types: Some(text_lines(request.knowledge.as_deref())),
                 rubric: Some(rubric_lines),
+                rubric_version: None,
                 dispatch_hints: Some(text_lines(request.dispatch_hints.as_deref())),
                 workflow: None,
             },
@@ -1210,6 +1141,7 @@ fn restore_artifact_type_save(
                     description: Some(&artifact.description),
                     artifact_types: Some(artifact.artifact_types.clone()),
                     rubric: Some(artifact.rubric.clone()),
+                    rubric_version: Some(artifact.rubric_version),
                     dispatch_hints: Some(artifact.dispatch_hints.clone()),
                     workflow: Some(artifact.workflow),
                 },
@@ -1230,7 +1162,7 @@ fn delete_artifact_type_command(
     let root = resolve_desktop_root(request.root)?;
     let id = request.id.trim();
     if id.is_empty() {
-        return Err("削除する成果物種別IDが空です。".to_string());
+        return Err("削除する成果物IDが空です。".to_string());
     }
     delete_artifact_type(&root, id).map_err(|error| error.to_string())?;
     desktop_state(root)
@@ -1937,13 +1869,13 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             app_info,
+            launch_root,
             app_state,
             choose_project_folder,
             choose_agent_avatar_file,
             initialize_project,
             initialize_project_with_runtime,
             refresh_runtime_status,
-            save_runtime_model_defaults,
             save_project_settings,
             dismiss_improvement,
             delete_project,
@@ -2023,6 +1955,7 @@ fn desktop_state(root: PathBuf) -> Result<DesktopState, String> {
             |connection| connection.id.clone(),
         );
         let mut snapshots = Vec::new();
+        let mut agent_usage_counts = BTreeMap::<String, usize>::new();
         let work_items = list_work_items(&root)
             .map_err(|error| error.to_string())?
             .into_iter()
@@ -2032,6 +1965,7 @@ fn desktop_state(root: PathBuf) -> Result<DesktopState, String> {
                     .as_ref()
                     .map(|snapshot| list_work_trace(&root, &snapshot.item.id).unwrap_or_default())
                     .unwrap_or_default();
+                accumulate_agent_usage_counts(&mut agent_usage_counts, &trace_records);
                 if let Some(snapshot) = snapshot.as_ref() {
                     snapshots.push(snapshot.clone());
                 }
@@ -2048,7 +1982,15 @@ fn desktop_state(root: PathBuf) -> Result<DesktopState, String> {
         )?;
         (
             work_items,
-            agent_profiles.iter().map(agent_view).collect(),
+            agent_profiles
+                .iter()
+                .map(|profile| {
+                    agent_view(
+                        profile,
+                        agent_usage_counts.get(&profile.id).copied().unwrap_or(0),
+                    )
+                })
+                .collect(),
             domains
                 .iter()
                 .map(|domain| domain_view(domain, &artifact_types))
@@ -2186,6 +2128,24 @@ fn agent_name(agents: &[AgentProfile], id: &str) -> Option<String> {
         .map(|agent| agent.display_name.clone())
 }
 
+fn accumulate_agent_usage_counts(
+    counts: &mut BTreeMap<String, usize>,
+    trace_records: &[TraceRecord],
+) {
+    for record in trace_records.iter().filter(|record| {
+        matches!(
+            record.record.as_str(),
+            "organizer_decision" | "worker_output" | "reviewer_verdict" | "organizer_summary"
+        )
+    }) {
+        if let Some(agent_id) = value_path_str(&record.payload, &["agent", "id"])
+            .filter(|agent_id| !agent_id.trim().is_empty())
+        {
+            *counts.entry(agent_id).or_default() += 1;
+        }
+    }
+}
+
 fn status_counts(work_items: &[WorkListItem]) -> Vec<StatusCountView> {
     [
         ("要対応・質問", "question"),
@@ -2213,6 +2173,7 @@ struct AgentInsightAccum {
     role: String,
     score_sum: u32,
     review_count: usize,
+    scored_review_count: usize,
     issue_counts: BTreeMap<String, usize>,
 }
 
@@ -2248,6 +2209,7 @@ fn insights_view(
     let mut recent_reviews = Vec::new();
     let mut total_score = 0u32;
     let mut review_count = 0usize;
+    let mut scored_review_count = 0usize;
     let mut concern_count = 0usize;
 
     for snapshot in snapshots {
@@ -2260,10 +2222,9 @@ fn insights_view(
         let (agent_name, role) = agent_label(agents, &agent_id);
         let score = review_score_percent(review, &trace_records);
         let concerns = review_concerns(review, &trace_records);
-        let review_items = insight_review_items(review, &trace_records, score);
+        let review_items = insight_review_items(review, &trace_records, score.unwrap_or_default());
 
         review_count += 1;
-        total_score += u32::from(score);
         concern_count += concerns.len();
 
         let agent = agent_accums
@@ -2274,10 +2235,16 @@ fn insights_view(
                 role: role.clone(),
                 score_sum: 0,
                 review_count: 0,
+                scored_review_count: 0,
                 issue_counts: BTreeMap::new(),
             });
-        agent.score_sum += u32::from(score);
         agent.review_count += 1;
+        if let Some(score) = score {
+            total_score += u32::from(score);
+            scored_review_count += 1;
+            agent.score_sum += u32::from(score);
+            agent.scored_review_count += 1;
+        }
 
         for (item, item_score, is_concern) in review_items {
             if is_concern {
@@ -2304,7 +2271,9 @@ fn insights_view(
             title: snapshot.item.title.clone(),
             agent_name,
             verdict: review.verdict.to_string(),
-            score_label: format!("{score} / 100"),
+            score_label: score
+                .map(|score| format!("{score} / 100"))
+                .unwrap_or_else(|| "得点未記録".to_string()),
             concerns,
         });
     }
@@ -2315,7 +2284,7 @@ fn insights_view(
     let mut agent_scores = agent_accums
         .into_values()
         .map(|agent| {
-            let average = average_u8(agent.score_sum, agent.review_count);
+            let average = average_u8(agent.score_sum, agent.scored_review_count);
             let top_issue = agent
                 .issue_counts
                 .into_iter()
@@ -2328,8 +2297,14 @@ fn insights_view(
                 role: agent.role,
                 review_count: agent.review_count,
                 average_score: average,
-                average_score_label: format!("{average} / 100"),
-                status_label: if average < 75 {
+                average_score_label: if agent.scored_review_count == 0 {
+                    "得点未記録".to_string()
+                } else {
+                    format!("{average} / 100")
+                },
+                status_label: if agent.scored_review_count == 0 {
+                    "記録不足".to_string()
+                } else if average < 75 {
                     "要改善".to_string()
                 } else if average >= 90 && agent.review_count >= 3 {
                     "安定".to_string()
@@ -2389,7 +2364,9 @@ fn insights_view(
         })
         .collect::<Vec<_>>();
 
-    if review_count >= 10 && concern_count == 0 && average_score(total_score, review_count) >= 90.0
+    if scored_review_count >= 10
+        && concern_count == 0
+        && average_score(total_score, scored_review_count) >= 90.0
     {
         let current_text = "確認ポリシー: 最後に人が確認する".to_string();
         let suggested_text = "確認ポリシー: レビュー懸念がある時だけ人が確認する".to_string();
@@ -2399,7 +2376,7 @@ fn insights_view(
             title: "確認ポリシー緩和の提案".to_string(),
             target_label: "プロジェクト設定 / 確認ポリシー".to_string(),
             summary: "直近レビューが安定しているため、「最後に確認する」から「重要時のみ確認」への切り替え候補です。".to_string(),
-            evidence: format!("レビュー {}件、平均 {:.0}点、懸念0件。", review_count, average_score(total_score, review_count)),
+            evidence: format!("得点記録のあるレビュー {}件、平均 {:.0}点、懸念0件。", scored_review_count, average_score(total_score, scored_review_count)),
             diff_lines: vec![
                 format!("- {current_text}"),
                 format!("+ {suggested_text}"),
@@ -2418,7 +2395,7 @@ fn insights_view(
         .collect::<BTreeSet<_>>();
     proposals.retain(|proposal| !applied_proposal_ids.contains(proposal.id.as_str()));
     let proposal_count = proposals.len();
-    let current_average = average_score(total_score, review_count);
+    let current_average = average_score(total_score, scored_review_count);
     let applied_improvements = applied_history
         .into_iter()
         .filter(|entry| entry.status != "dismissed")
@@ -2434,10 +2411,10 @@ fn insights_view(
         .collect();
     InsightsView {
         review_count,
-        average_score_label: if review_count == 0 {
-            "-".to_string()
+        average_score_label: if scored_review_count == 0 {
+            "得点未記録".to_string()
         } else {
-            format!("{current_average:.0} / 100")
+            format!("{current_average:.0} / 100（得点記録 {scored_review_count}/{review_count}件）")
         },
         concern_count,
         proposal_count,
@@ -2556,24 +2533,8 @@ fn agent_label(agents: &[AgentProfile], agent_id: &str) -> (String, String) {
         .unwrap_or_else(|| (agent_id.to_string(), "worker".to_string()))
 }
 
-fn review_score_percent(review: &ReviewResult, trace_records: &[TraceRecord]) -> u8 {
-    if let Some((total, max)) = latest_trace_score(trace_records) {
-        return percent_u8(total, max);
-    }
-    if !review.criteria_results.is_empty() {
-        let passed = review
-            .criteria_results
-            .iter()
-            .filter(|result| result.status.to_string() == "passed")
-            .count() as u64;
-        return percent_u8(passed, review.criteria_results.len() as u64);
-    }
-    match review.verdict {
-        ReviewVerdict::Pass => 100,
-        ReviewVerdict::RequestChanges => 60,
-        ReviewVerdict::Blocked => 40,
-        ReviewVerdict::Unknown => 0,
-    }
+fn review_score_percent(_review: &ReviewResult, trace_records: &[TraceRecord]) -> Option<u8> {
+    latest_trace_score(trace_records).map(|(total, max)| percent_u8(total, max))
 }
 
 fn latest_trace_score(trace_records: &[TraceRecord]) -> Option<(u64, u64)> {
@@ -2582,9 +2543,10 @@ fn latest_trace_score(trace_records: &[TraceRecord]) -> Option<(u64, u64)> {
         .rev()
         .find(|record| record.record == "reviewer_verdict")
         .and_then(|record| {
-            let total = value_u64(&record.payload, "total_score")?;
-            let max = value_u64(&record.payload, "max_score")?;
-            (max > 0).then_some((total, max))
+            if let Some(score) = explicit_review_score(&record.payload) {
+                return Some((u64::from(score), 100));
+            }
+            None
         })
 }
 
@@ -2754,7 +2716,7 @@ fn proposal_id(agent_name: &str, item: &str, kind: &str) -> String {
 fn current_improvement_text(kind: &str, agent_name: &str, item: &str) -> String {
     match kind {
         "ルーブリック" => format!(
-            "成果物種別のルーブリックでは「{item}」の判定観点が弱く、レビューごとの判断にぶれが残っています。"
+            "成果物のルーブリックでは「{item}」の判定観点が弱く、レビューごとの判断にぶれが残っています。"
         ),
         "知識" => {
             format!("ドメイン知識には「{item}」の前提・用語・参照先が十分に集約されていません。")
@@ -2791,7 +2753,7 @@ fn next_step_for_improvement_kind(kind: &str) -> &'static str {
     }
 }
 
-fn agent_view(profile: &AgentProfile) -> AgentView {
+fn agent_view(profile: &AgentProfile, usage_count: usize) -> AgentView {
     let capability = nagare_core::runtime_mcp_capability(profile.tool_kind);
     AgentView {
         id: profile.id.clone(),
@@ -2816,6 +2778,7 @@ fn agent_view(profile: &AgentProfile) -> AgentView {
         mcp_connection_ids: profile.mcp_connection_ids.clone(),
         source: profile.source.to_string(),
         builtin: profile.source == AgentProfileSource::ProjectConfig,
+        usage_count,
         mcp_assignable: capability.agent_assignable,
         mcp_note: capability.note.to_string(),
     }
@@ -2934,14 +2897,7 @@ fn work_detail_view(root: &Path, snapshot: WorkItemSnapshot) -> WorkDetailView {
         .rev()
         .next()
         .map(|review| review_view(review, &trace_records));
-    let artifacts = snapshot
-        .artifacts
-        .iter()
-        .map(|artifact| ArtifactView {
-            title: artifact.title.clone(),
-            uri: artifact.uri.clone(),
-        })
-        .collect();
+    let artifacts = artifact_views(&snapshot.artifacts);
     let trace_steps = trace_step_views(&trace_records);
     let steps = if trace_steps.is_empty() {
         history_step_views(&snapshot)
@@ -2962,13 +2918,40 @@ fn work_detail_view(root: &Path, snapshot: WorkItemSnapshot) -> WorkDetailView {
         approval_ready: snapshot.approval_gate.ready,
         question: latest_question(&snapshot),
         question_source: latest_question_source(&snapshot),
-        recovery: latest_recovery(&snapshot).map(recovery_view),
+        recovery: current_recovery(&snapshot).map(recovery_view),
         request,
         answer,
         artifacts,
         review,
         steps,
     }
+}
+
+fn artifact_views(artifacts: &[Artifact]) -> Vec<ArtifactView> {
+    let mut seen = BTreeSet::new();
+    artifacts
+        .iter()
+        .filter_map(|artifact| {
+            let raw_key = if artifact.uri.trim().is_empty() {
+                artifact.title.trim()
+            } else {
+                artifact.uri.trim()
+            };
+            let normalized_key = raw_key.replace('\\', "/");
+            let key = if cfg!(windows) {
+                normalized_key.to_lowercase()
+            } else {
+                normalized_key
+            };
+            if !seen.insert(key) {
+                return None;
+            }
+            Some(ArtifactView {
+                title: artifact.title.clone(),
+                uri: artifact.uri.clone(),
+            })
+        })
+        .collect()
 }
 
 fn latest_question(snapshot: &WorkItemSnapshot) -> Option<String> {
@@ -3013,6 +2996,16 @@ fn latest_recovery(snapshot: &WorkItemSnapshot) -> Option<&RecoveryPlan> {
             RecoveryPlanStatus::Draft | RecoveryPlanStatus::Accepted
         )
     })
+}
+
+fn current_recovery(snapshot: &WorkItemSnapshot) -> Option<&RecoveryPlan> {
+    if !matches!(
+        snapshot.completion.next_action.as_str(),
+        "recover" | "apply_recovery"
+    ) {
+        return None;
+    }
+    latest_recovery(snapshot)
 }
 
 fn recovery_view(plan: &RecoveryPlan) -> RecoveryView {
@@ -3100,6 +3093,7 @@ fn history_step_views(snapshot: &WorkItemSnapshot) -> Vec<StepView> {
             kind: step.kind.clone(),
             title: step.title.clone(),
             state: step.state.clone(),
+            outcome: String::new(),
             actor: step.actor.clone().unwrap_or_else(|| "-".to_string()),
             summary: step.summary.clone(),
             rationale: String::new(),
@@ -3115,6 +3109,8 @@ fn history_step_views(snapshot: &WorkItemSnapshot) -> Vec<StepView> {
                 .find(|fact| fact.label == "artifact detail" || fact.label == "evidence detail")
                 .map(|fact| fact.value.clone())
                 .unwrap_or_default(),
+            score_label: String::new(),
+            criteria_label: String::new(),
             knowledge_refs: Vec::new(),
             diagnostics: step
                 .links
@@ -3163,18 +3159,21 @@ fn trace_step_view(record: &TraceRecord) -> StepView {
             kind,
             title: "整理・担当決定".to_string(),
             state,
+            outcome: String::new(),
             actor,
             summary: value_str(payload, "interpreted_request")
                 .unwrap_or_else(|| "担当を決定しました。".to_string()),
             rationale: first_assignment_rationale(payload),
             input: format!(
-                "ドメイン: {} / 成果物種別: {}",
+                "ドメイン: {} / 成果物: {}",
                 value_str(payload, "domain_id").unwrap_or_else(|| "general".to_string()),
                 value_str(payload, "artifact_type_id").unwrap_or_else(|| "general".to_string())
             ),
             output: first_plan_target(payload)
                 .map(|target| format!("担当: {target}"))
                 .unwrap_or_default(),
+            score_label: String::new(),
+            criteria_label: String::new(),
             knowledge_refs,
             diagnostics,
             review_items: Vec::new(),
@@ -3183,12 +3182,15 @@ fn trace_step_view(record: &TraceRecord) -> StepView {
             kind,
             title: "作業実行".to_string(),
             state,
+            outcome: String::new(),
             actor,
             summary: value_str(payload, "actions_summary")
                 .unwrap_or_else(|| "作業を実行しました。".to_string()),
             rationale: "割り当て済みエージェントが依頼を処理しました。".to_string(),
             input: value_path_str(payload, &["inputs", "summary"]).unwrap_or_default(),
             output: worker_output_summary(payload),
+            score_label: String::new(),
+            criteria_label: String::new(),
             knowledge_refs,
             diagnostics,
             review_items: Vec::new(),
@@ -3197,6 +3199,7 @@ fn trace_step_view(record: &TraceRecord) -> StepView {
             kind,
             title: "オーガナイザーまとめ".to_string(),
             state,
+            outcome: String::new(),
             actor,
             summary: value_str(payload, "actions_summary")
                 .or_else(|| value_str(payload, "answer"))
@@ -3206,6 +3209,8 @@ fn trace_step_view(record: &TraceRecord) -> StepView {
             output: value_str(payload, "answer")
                 .or_else(|| value_str(payload, "actions_summary"))
                 .unwrap_or_default(),
+            score_label: String::new(),
+            criteria_label: String::new(),
             knowledge_refs,
             diagnostics,
             review_items: Vec::new(),
@@ -3214,12 +3219,15 @@ fn trace_step_view(record: &TraceRecord) -> StepView {
             kind,
             title: "レビュー".to_string(),
             state,
+            outcome: value_str(payload, "recommendation").unwrap_or_default(),
             actor,
             summary: value_str(payload, "summary")
                 .unwrap_or_else(|| "レビューを実行しました。".to_string()),
             rationale: review_rationale_summary(payload),
             input: array_strings(payload, "target_artifacts").join(", "),
             output: review_output_summary(payload),
+            score_label: review_score_summary(payload).unwrap_or_default(),
+            criteria_label: review_criteria_summary(payload).unwrap_or_default(),
             knowledge_refs,
             diagnostics,
             review_items: trace_review_item_views(payload),
@@ -3228,11 +3236,14 @@ fn trace_step_view(record: &TraceRecord) -> StepView {
             kind,
             title: record.record.clone(),
             state,
+            outcome: String::new(),
             actor,
             summary: String::new(),
             rationale: String::new(),
             input: String::new(),
             output: String::new(),
+            score_label: String::new(),
+            criteria_label: String::new(),
             knowledge_refs,
             diagnostics,
             review_items: Vec::new(),
@@ -3298,18 +3309,9 @@ fn work_list_result_summary(snapshot: &WorkItemSnapshot, trace_records: &[TraceR
 }
 
 fn review_score_label(review: &ReviewResult, trace_records: &[TraceRecord]) -> String {
-    if let Some((total, max)) = latest_trace_score(trace_records) {
-        return format!("{total} / {max}");
-    }
-    if !review.criteria_results.is_empty() {
-        let passed = review
-            .criteria_results
-            .iter()
-            .filter(|result| result.status.to_string() == "passed")
-            .count();
-        return format!("{passed} / {}", review.criteria_results.len());
-    }
-    format!("{} / 100", review_score_percent(review, trace_records))
+    review_score_percent(review, trace_records)
+        .map(|score| format!("{score} / 100"))
+        .unwrap_or_else(|| "得点未記録".to_string())
 }
 
 fn latest_trace_review_items(records: &[TraceRecord]) -> Option<Vec<ReviewItemView>> {
@@ -3394,13 +3396,55 @@ fn review_output_summary(payload: &serde_json::Value) -> String {
 }
 
 fn review_score_summary(payload: &serde_json::Value) -> Option<String> {
+    explicit_review_score(payload).map(|score| format!("{score} / 100"))
+}
+
+fn review_criteria_summary(payload: &serde_json::Value) -> Option<String> {
     match (
         value_u64(payload, "total_score"),
         value_u64(payload, "max_score"),
     ) {
-        (Some(total), Some(max)) if max > 0 => Some(format!("{total}/{max}")),
+        (Some(total), Some(max)) if max > 0 => Some(format!("評価項目 {total} / {max}")),
         _ => None,
     }
+}
+
+fn explicit_review_score(payload: &serde_json::Value) -> Option<u8> {
+    if let (Some(total), Some(max)) = (
+        value_u64(payload, "overall_score"),
+        value_u64(payload, "overall_max_score"),
+    ) {
+        return (max > 0).then(|| percent_u8(total, max));
+    }
+    if let Some(summary) = value_str(payload, "summary") {
+        if let Some(score) = score_out_of_one_hundred(&summary) {
+            return Some(score);
+        }
+    }
+    match (
+        value_u64(payload, "total_score"),
+        value_u64(payload, "max_score"),
+    ) {
+        (Some(total), Some(100)) => Some(total.min(100) as u8),
+        _ => None,
+    }
+}
+
+fn score_out_of_one_hundred(value: &str) -> Option<u8> {
+    let compact = value
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect::<String>();
+    let marker_index = compact.rfind("/100")?;
+    let digits = compact[..marker_index]
+        .chars()
+        .rev()
+        .take_while(|character| character.is_ascii_digit())
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect::<String>();
+    digits.parse::<u8>().ok().filter(|score| *score <= 100)
 }
 
 fn review_rationale_summary(payload: &serde_json::Value) -> String {
@@ -4048,10 +4092,8 @@ fn ensure_initial_runtime_available(runtime_id: &str) -> Result<(), String> {
     ))
 }
 
-fn runtime_view_from_catalog(entry: RuntimeCatalogEntry, agents: &[AgentView]) -> RuntimeView {
+fn runtime_view_from_catalog(entry: RuntimeCatalogEntry, _agents: &[AgentView]) -> RuntimeView {
     let (available, detail) = command_status(entry.command, entry.args);
-    let (configured_model, configured_provider, configured_base_url, configured_agent_count) =
-        runtime_model_configuration(entry.id, agents);
     RuntimeView {
         id: entry.id,
         label: entry.label,
@@ -4060,60 +4102,7 @@ fn runtime_view_from_catalog(entry: RuntimeCatalogEntry, agents: &[AgentView]) -
         detail,
         model_note: entry.model_note,
         model_mode: entry.model_mode,
-        model_choices: entry.model_choices.to_vec(),
-        configured_model,
-        configured_provider,
-        configured_base_url,
-        configured_agent_count,
-    }
-}
-
-fn runtime_model_configuration(
-    runtime_id: &str,
-    agents: &[AgentView],
-) -> (String, String, String, usize) {
-    let tool_kind = runtime_tool_kind(runtime_id);
-    let target_agents = agents
-        .iter()
-        .filter(|agent| agent.tool_kind == tool_kind || agent.runtime == runtime_id)
-        .collect::<Vec<_>>();
-    let configured_agent_count = target_agents.len();
-    let mut models = BTreeSet::new();
-    let mut providers = BTreeSet::new();
-    let mut base_urls = BTreeSet::new();
-    for agent in target_agents {
-        if !agent.model.trim().is_empty() && agent.model != "実行環境既定" {
-            models.insert(agent.model.clone());
-        }
-        if !agent.model_provider.trim().is_empty() {
-            providers.insert(agent.model_provider.clone());
-        }
-        if !agent.model_base_url.trim().is_empty() {
-            base_urls.insert(agent.model_base_url.clone());
-        }
-    }
-    let single_or_mixed = |values: BTreeSet<String>| -> String {
-        match values.len() {
-            0 => String::new(),
-            1 => values.into_iter().next().unwrap_or_default(),
-            _ => "個別設定".to_string(),
-        }
-    };
-    (
-        single_or_mixed(models),
-        single_or_mixed(providers),
-        single_or_mixed(base_urls),
-        configured_agent_count,
-    )
-}
-
-fn runtime_tool_kind(runtime_id: &str) -> &'static str {
-    match runtime_catalog_id(runtime_id) {
-        "claude" => "claude_code",
-        "codex" => "codex_cli",
-        "opencode" => "opencode",
-        "openclaw" => "openclaw",
-        _ => "",
+        model_choices: runtime_model_choices(&entry),
     }
 }
 
@@ -4148,18 +4137,29 @@ fn runtime_catalog() -> Vec<RuntimeCatalogEntry> {
             label: "Codex CLI",
             command: "codex",
             args: &["--version"],
-            model_note: "OpenAIモデルを選択または手入力",
+            model_note: "GPT-5.6: sol（高性能）/ terra（バランス）/ luna（高速）",
             model_mode: "OpenAIモデル",
-            model_choices: &["実行環境既定", "gpt-5-codex", "手入力"],
+            model_choices: &[
+                "実行環境既定",
+                "gpt-5.6",
+                "gpt-5.6-sol",
+                "gpt-5.6-terra",
+                "gpt-5.6-luna",
+                "gpt-5.3-codex",
+                "gpt-5.2-codex",
+                "gpt-5.1-codex",
+                "gpt-5-codex",
+                "手入力",
+            ],
         },
         RuntimeCatalogEntry {
             id: "opencode",
             label: "OpenCode",
             command: "opencode",
             args: &["--version"],
-            model_note: "Provider別モデル",
+            model_note: "ローカル設定のモデルを選択または手入力",
             model_mode: "Provider / Model",
-            model_choices: &["実行環境既定", "Provider指定", "手入力"],
+            model_choices: &["実行環境既定", "手入力"],
         },
         RuntimeCatalogEntry {
             id: "openclaw",
@@ -4173,30 +4173,227 @@ fn runtime_catalog() -> Vec<RuntimeCatalogEntry> {
     ]
 }
 
-fn command_status(command: &str, args: &[&str]) -> (bool, String) {
-    match Command::new(command).args(args).output() {
-        Ok(output) if output.status.success() => {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let detail = stdout
-                .lines()
-                .chain(stderr.lines())
-                .map(str::trim)
-                .find(|line| !line.is_empty())
-                .unwrap_or("available")
-                .to_string();
-            (true, detail)
-        }
-        Ok(output) => (false, format!("exit status {}", output.status)),
-        Err(error) if cfg!(windows) && error.kind() == std::io::ErrorKind::NotFound => {
-            match Command::new(format!("{command}.cmd")).args(args).output() {
-                Ok(output) if output.status.success() => (true, "available".to_string()),
-                Ok(output) => (false, format!("exit status {}", output.status)),
-                Err(error) => (false, error.to_string()),
+fn runtime_model_choices(entry: &RuntimeCatalogEntry) -> Vec<String> {
+    if entry.id != "opencode" {
+        return entry
+            .model_choices
+            .iter()
+            .map(|choice| (*choice).to_string())
+            .collect();
+    }
+
+    let mut choices = vec!["実行環境既定".to_string()];
+    choices.extend(opencode_model_choices());
+    choices.push("手入力".to_string());
+    choices
+}
+
+fn opencode_model_choices() -> Vec<String> {
+    opencode_model_choices_from_paths(&opencode_config_paths())
+}
+
+fn opencode_config_paths() -> Vec<PathBuf> {
+    let mut directories = Vec::new();
+    if let Some(home) = user_home_dir() {
+        directories.push(home.join(".config").join("opencode"));
+    }
+    if let Some(app_data) = env::var_os("APPDATA") {
+        directories.push(PathBuf::from(app_data).join("opencode"));
+    }
+
+    let mut paths = Vec::new();
+    for directory in directories {
+        for filename in ["config.json", "opencode.json", "opencode.jsonc"] {
+            let path = directory.join(filename);
+            if !paths.contains(&path) {
+                paths.push(path);
             }
         }
-        Err(error) => (false, error.to_string()),
     }
+    paths
+}
+
+fn user_home_dir() -> Option<PathBuf> {
+    env::var_os("USERPROFILE")
+        .or_else(|| env::var_os("HOME"))
+        .map(PathBuf::from)
+}
+
+fn opencode_model_choices_from_paths(paths: &[PathBuf]) -> Vec<String> {
+    let mut models = BTreeSet::new();
+    for path in paths {
+        let Ok(contents) = fs::read_to_string(path) else {
+            continue;
+        };
+        let Some(config) = parse_jsonc(&contents) else {
+            continue;
+        };
+        collect_opencode_models(&config, &mut models);
+    }
+    models.into_iter().collect()
+}
+
+fn collect_opencode_models(config: &serde_json::Value, models: &mut BTreeSet<String>) {
+    add_opencode_model(config.get("model"), models);
+
+    for agent in config
+        .get("agent")
+        .and_then(serde_json::Value::as_object)
+        .into_iter()
+        .flat_map(|agents| agents.values())
+    {
+        add_opencode_model(agent.get("model"), models);
+    }
+
+    for (provider, options) in config
+        .get("provider")
+        .and_then(serde_json::Value::as_object)
+        .into_iter()
+        .flat_map(|providers| providers.iter())
+    {
+        let Some(model_definitions) = options.get("models") else {
+            continue;
+        };
+        match model_definitions {
+            serde_json::Value::Object(definitions) => {
+                for model in definitions.keys() {
+                    add_opencode_provider_model(provider, model, models);
+                }
+            }
+            serde_json::Value::Array(definitions) => {
+                for model in definitions {
+                    add_opencode_provider_model(
+                        provider,
+                        model.as_str().unwrap_or_default(),
+                        models,
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn add_opencode_model(value: Option<&serde_json::Value>, models: &mut BTreeSet<String>) {
+    let Some(model) = value.and_then(serde_json::Value::as_str) else {
+        return;
+    };
+    let model = model.trim();
+    if !model.is_empty() {
+        models.insert(model.to_string());
+    }
+}
+
+fn add_opencode_provider_model(provider: &str, model: &str, models: &mut BTreeSet<String>) {
+    let provider = provider.trim();
+    let model = model.trim();
+    if provider.is_empty() || model.is_empty() {
+        return;
+    }
+    let model_ref = if model.contains('/') {
+        model.to_string()
+    } else {
+        format!("{provider}/{model}")
+    };
+    models.insert(model_ref);
+}
+
+fn parse_jsonc(input: &str) -> Option<serde_json::Value> {
+    serde_json::from_str(input)
+        .ok()
+        .or_else(|| serde_json::from_str(&remove_jsonc_comments(input)).ok())
+}
+
+fn remove_jsonc_comments(input: &str) -> String {
+    let mut output = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    let mut in_string = false;
+    let mut escaped = false;
+
+    while let Some(character) = chars.next() {
+        if in_string {
+            output.push(character);
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+
+        if character == '"' {
+            in_string = true;
+            output.push(character);
+            continue;
+        }
+        if character == '/' && chars.peek() == Some(&'/') {
+            chars.next();
+            for line_character in chars.by_ref() {
+                if line_character == '\n' {
+                    output.push('\n');
+                    break;
+                }
+            }
+            continue;
+        }
+        if character == '/' && chars.peek() == Some(&'*') {
+            chars.next();
+            let mut previous = '\0';
+            for block_character in chars.by_ref() {
+                if previous == '*' && block_character == '/' {
+                    break;
+                }
+                previous = block_character;
+            }
+            continue;
+        }
+        output.push(character);
+    }
+
+    output
+}
+
+fn command_status(command: &str, args: &[&str]) -> (bool, String) {
+    let mut last_error = None;
+    for candidate in command_candidates(command) {
+        match Command::new(&candidate).args(args).output() {
+            Ok(output) if output.status.success() => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let detail = stdout
+                    .lines()
+                    .chain(stderr.lines())
+                    .map(str::trim)
+                    .find(|line| !line.is_empty())
+                    .unwrap_or("available")
+                    .to_string();
+                return (true, detail);
+            }
+            Ok(output) => return (false, format!("exit status {}", output.status)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                last_error = Some(error);
+            }
+            Err(error) => return (false, error.to_string()),
+        }
+    }
+    (
+        false,
+        last_error
+            .map(|error| error.to_string())
+            .unwrap_or_else(|| "command not found".to_string()),
+    )
+}
+
+fn command_candidates(command: &str) -> Vec<String> {
+    #[cfg(windows)]
+    {
+        if Path::new(command).extension().is_none() {
+            return vec![format!("{command}.cmd"), command.to_string()];
+        }
+    }
+    vec![command.to_string()]
 }
 
 fn advance_error(error: nagare_core::NagareError) -> String {
@@ -4215,7 +4412,7 @@ mod tests {
     use super::*;
     use nagare_core::{
         AgentOutputParseStatus, Artifact, CriteriaReviewResult, CriteriaReviewStatus,
-        DomainAgentPolicy, WorkItemApprovalGate, WorkItemCompletion,
+        DomainAgentPolicy, RecoveryAction, WorkItemApprovalGate, WorkItemCompletion,
     };
     use std::collections::BTreeMap;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -4247,83 +4444,60 @@ mod tests {
         assert_eq!(runtime_catalog_id("codex_cli"), "codex");
         assert_eq!(runtime_catalog_id("claude-code"), "claude");
         assert_eq!(runtime_catalog_id("open_code"), "opencode");
-        assert_eq!(runtime_tool_kind("openclaw"), "openclaw");
-        assert_eq!(runtime_tool_kind("unknown"), "");
     }
 
     #[test]
-    fn save_runtime_model_defaults_rolls_back_prior_agent_updates_on_failure() {
-        let root = temp_test_dir("runtime-model-rollback");
-        init_project(&root).expect("init project");
-        let layout = ProjectLayout::new(&root);
-        for agent_id in ["aa-runtime-agent", "zz-blocked-runtime-agent"] {
-            add_agent_profile(
-                &root,
-                AddAgentProfileInput {
-                    id: agent_id,
-                    display_name: agent_id,
-                    runtime: "codex-local",
-                    adapter: "process-codex-cli",
-                    role: "worker",
-                    working_dir: ".",
-                    description: "Runtime model rollback test agent.",
-                    specialties: Vec::new(),
-                    skill_set_ids: Vec::new(),
-                    domain_ids: Vec::new(),
-                    artifact_type_ids: Vec::new(),
-                    mcp_connection_ids: Vec::new(),
-                    managed_by: None,
-                    model: AgentModelSelection::default(),
-                    external: ExternalAgentBinding::default(),
-                },
-            )
-            .expect("test agent should be added");
-        }
-        let blocked_profile_path = layout.agents_dir.join("zz-blocked-runtime-agent.toml");
-        assert!(
-            blocked_profile_path.is_file(),
-            "blocked profile should exist"
-        );
-        let mut permissions = fs::metadata(&blocked_profile_path)
-            .expect("profile metadata")
-            .permissions();
-        permissions.set_readonly(true);
-        fs::set_permissions(&blocked_profile_path, permissions)
-            .expect("profile should become readonly");
+    fn opencode_model_choices_read_global_json_and_jsonc_settings() {
+        let root = temp_test_dir("opencode-model-choices");
+        let json = root.join("opencode.json");
+        let jsonc = root.join("opencode.jsonc");
+        fs::write(
+            &json,
+            r#"{
+  "model": "openai/gpt-5.6",
+  "provider": {
+    "anthropic": {
+      "models": {
+        "claude-opus-4-6": {}
+      }
+    }
+  }
+}"#,
+        )
+        .expect("write OpenCode JSON settings");
+        fs::write(
+            &jsonc,
+            r#"{
+  // An agent may override the global model.
+  "agent": {
+    "review": { "model": "openai/gpt-5.6-mini" }
+  },
+  "provider": {
+    "ollama": {
+      /* Local models may be configured here. */
+      "models": { "qwen3-coder": {} }
+    }
+  }
+}"#,
+        )
+        .expect("write OpenCode JSONC settings");
 
-        let result = save_runtime_model_defaults(SaveRuntimeModelDefaultsRequest {
-            root: Some(root_to_string(&root)),
-            runtime_id: "codex".to_string(),
-            model_provider: Some("openai".to_string()),
-            model: Some("gpt-5.1-codex".to_string()),
-            model_base_url: None,
-        });
+        let choices = opencode_model_choices_from_paths(&[json, jsonc]);
 
-        let mut permissions = fs::metadata(&blocked_profile_path)
-            .expect("profile metadata")
-            .permissions();
-        permissions.set_readonly(false);
-        fs::set_permissions(&blocked_profile_path, permissions)
-            .expect("profile should become writable");
-
-        assert!(
-            result.is_err(),
-            "readonly profile should reject runtime model save"
-        );
-        let profiles = list_agent_profiles(&root).expect("profiles should list");
-        for profile in profiles.iter().filter(|profile| {
-            profile.tool_kind == AgentToolKind::CodexCli
-                && (profile.id == "aa-runtime-agent" || profile.id == "zz-blocked-runtime-agent")
-        }) {
-            assert_eq!(
-                profile.model,
-                AgentModelSelection::default(),
-                "{} should keep its original model",
-                profile.id
-            );
-        }
-
+        assert!(choices.contains(&"openai/gpt-5.6".to_string()));
+        assert!(choices.contains(&"openai/gpt-5.6-mini".to_string()));
+        assert!(choices.contains(&"anthropic/claude-opus-4-6".to_string()));
+        assert!(choices.contains(&"ollama/qwen3-coder".to_string()));
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn windows_runtime_detection_prefers_cmd_wrappers() {
+        assert_eq!(
+            command_candidates("codex"),
+            vec!["codex.cmd".to_string(), "codex".to_string()]
+        );
     }
 
     #[test]
@@ -5404,14 +5578,54 @@ mod tests {
                 .any(|step| step.title == "作業実行" && step.actor == "Writer")
         );
         assert!(detail.steps.iter().any(|step| {
-            step.title == "レビュー" && step.actor == "Reviewer" && step.output == "92/100"
+            step.title == "レビュー"
+                && step.actor == "Reviewer"
+                && step.output == "92 / 100"
+                && step.score_label == "92 / 100"
         }));
 
         let _ = fs::remove_dir_all(root);
     }
 
     #[test]
-    fn zero_max_review_trace_does_not_surface_zero_score() {
+    fn artifact_views_deduplicate_repeated_run_records() {
+        let snapshot = sample_completed_snapshot();
+        let artifact = snapshot.artifacts[0].clone();
+        let mut another = artifact.clone();
+        another.id = "artifact_2".to_string();
+        another.title = "CHANGELOG.md".to_string();
+        another.uri = "file:///CHANGELOG.md".to_string();
+
+        let artifacts = artifact_views(&[artifact.clone(), artifact, another]);
+
+        assert_eq!(artifacts.len(), 2);
+        assert_eq!(artifacts[0].title, "README.md");
+        assert_eq!(artifacts[1].title, "CHANGELOG.md");
+    }
+
+    #[test]
+    fn review_score_label_does_not_infer_score_from_criteria_count() {
+        let snapshot = sample_completed_snapshot();
+        let records = vec![TraceRecord {
+            schema: "nagare.trace/1.0".to_string(),
+            record: "reviewer_verdict".to_string(),
+            work_id: snapshot.item.id.clone(),
+            seq: 4,
+            at: "2026-07-05T00:02:00+09:00".to_string(),
+            payload: serde_json::json!({
+                "total_score": 6,
+                "max_score": 6
+            }),
+        }];
+
+        assert_eq!(
+            review_score_label(&snapshot.review_results[0], &records),
+            "得点未記録"
+        );
+    }
+
+    #[test]
+    fn zero_max_review_trace_uses_explicit_summary_score() {
         let payload = serde_json::json!({
             "summary": "100/100。質問に対して、二番目に高い山名・標高・所在地を簡潔に回答した。",
             "recommendation": "approve",
@@ -5420,9 +5634,23 @@ mod tests {
             "item_verdicts": []
         });
 
-        assert_eq!(review_score_summary(&payload), None);
-        assert_eq!(review_output_summary(&payload), "採用を推奨");
+        assert_eq!(review_score_summary(&payload), Some("100 / 100".to_string()));
+        assert_eq!(review_output_summary(&payload), "100 / 100");
         assert_eq!(review_rationale_summary(&payload), "");
+    }
+
+    #[test]
+    fn review_trace_keeps_criteria_count_separate_when_overall_score_is_missing() {
+        let payload = serde_json::json!({
+            "summary": "Nagare Review",
+            "recommendation": "revise",
+            "total_score": 6,
+            "max_score": 6
+        });
+
+        assert_eq!(review_score_summary(&payload), None);
+        assert_eq!(review_criteria_summary(&payload), Some("評価項目 6 / 6".to_string()));
+        assert_eq!(review_output_summary(&payload), "差し戻しを推奨");
     }
 
     #[test]
@@ -5435,7 +5663,7 @@ mod tests {
             at: "2026-07-05T00:03:00+09:00".to_string(),
             payload: serde_json::json!({
                 "step_kind": "synthesis",
-                "agent": { "id": "supervisor", "name": "Organizer", "role": "organizer" },
+                "agent": { "id": "organizer", "name": "Organizer", "role": "organizer" },
                 "status": "completed",
                 "inputs": { "summary": "複数ワーカーの結果とレビュー結果" },
                 "actions_summary": "依頼者向けに最終回答を統合しました。",
@@ -5452,6 +5680,108 @@ mod tests {
         assert_eq!(step.input, "複数ワーカーの結果とレビュー結果");
         assert_eq!(step.output, "最終回答です。");
         assert_eq!(step.knowledge_refs, vec!["general".to_string()]);
+    }
+
+    #[test]
+    fn reviewer_trace_exposes_recommendation_as_step_outcome() {
+        let record = TraceRecord {
+            schema: "nagare.trace/1.0".to_string(),
+            record: "reviewer_verdict".to_string(),
+            work_id: "work_1".to_string(),
+            seq: 3,
+            at: "2026-07-05T00:02:00+09:00".to_string(),
+            payload: serde_json::json!({
+                "step_kind": "review",
+                "agent": { "id": "reviewer", "name": "Reviewer", "role": "reviewer" },
+                "status": "completed",
+                "recommendation": "revise",
+                "summary": "保存処理の修正が必要です。総合 50/100。",
+                "total_score": 3,
+                "max_score": 6
+            }),
+        };
+
+        let step = trace_step_view(&record);
+
+        assert_eq!(step.state, "completed");
+        assert_eq!(step.outcome, "revise");
+        assert_eq!(step.score_label, "50 / 100");
+        assert_eq!(step.criteria_label, "評価項目 3 / 6");
+    }
+
+    #[test]
+    fn agent_usage_counts_include_each_visible_agent_step() {
+        let records = vec![
+            TraceRecord {
+                schema: "nagare.trace/1.0".to_string(),
+                record: "organizer_decision".to_string(),
+                work_id: "work_1".to_string(),
+                seq: 1,
+                at: "2026-07-05T00:00:00+09:00".to_string(),
+                payload: serde_json::json!({ "agent": { "id": "software-organizer" } }),
+            },
+            TraceRecord {
+                schema: "nagare.trace/1.0".to_string(),
+                record: "worker_output".to_string(),
+                work_id: "work_1".to_string(),
+                seq: 2,
+                at: "2026-07-05T00:01:00+09:00".to_string(),
+                payload: serde_json::json!({ "agent": { "id": "software-worker" } }),
+            },
+            TraceRecord {
+                schema: "nagare.trace/1.0".to_string(),
+                record: "reviewer_verdict".to_string(),
+                work_id: "work_1".to_string(),
+                seq: 3,
+                at: "2026-07-05T00:02:00+09:00".to_string(),
+                payload: serde_json::json!({ "agent": { "id": "software-reviewer" } }),
+            },
+            TraceRecord {
+                schema: "nagare.trace/1.0".to_string(),
+                record: "artifact_recorded".to_string(),
+                work_id: "work_1".to_string(),
+                seq: 4,
+                at: "2026-07-05T00:03:00+09:00".to_string(),
+                payload: serde_json::json!({ "agent": { "id": "software-worker" } }),
+            },
+        ];
+        let mut counts = BTreeMap::new();
+
+        accumulate_agent_usage_counts(&mut counts, &records);
+
+        assert_eq!(counts.get("software-organizer"), Some(&1));
+        assert_eq!(counts.get("software-worker"), Some(&1));
+        assert_eq!(counts.get("software-reviewer"), Some(&1));
+    }
+
+    #[test]
+    fn completed_work_does_not_expose_stale_recovery_as_current_action() {
+        let mut snapshot = sample_completed_snapshot();
+        snapshot.recovery_plans.push(RecoveryPlan {
+            id: "recovery_1".to_string(),
+            work_item_id: snapshot.item.id.clone(),
+            status: RecoveryPlanStatus::Draft,
+            action: RecoveryAction::RerunSameAgent,
+            target_agent_profile_id: Some("worker".to_string()),
+            failure_class: "no_diff".to_string(),
+            reason: "no_diff_artifact".to_string(),
+            summary: "過去の回復案".to_string(),
+            source_event_id: None,
+            command_hint: Some("nagare item run work_1".to_string()),
+            prompt_hint: None,
+            warnings: Vec::new(),
+            locale: "ja".to_string(),
+            created_at: "2026-07-05T00:02:30+09:00".to_string(),
+        });
+
+        assert_eq!(snapshot.completion.next_action, "done");
+        assert!(current_recovery(&snapshot).is_none());
+
+        snapshot.completion.next_action = "recover".to_string();
+        assert_eq!(
+            current_recovery(&snapshot).map(|plan| plan.id.as_str()),
+            Some("recovery_1")
+        );
     }
 
     fn write_trace_records(root: &Path, work_id: &str) {
@@ -5471,7 +5801,7 @@ mod tests {
                 payload: serde_json::json!({
                     "step_no": 1,
                     "step_kind": "intake",
-                    "agent": { "id": "dispatcher", "name": "オーガナイザー", "role": "organizer" },
+                    "agent": { "id": "organizer", "name": "オーガナイザー", "role": "organizer" },
                     "status": "completed",
                     "knowledge_refs": [{ "id": "general" }],
                     "interpreted_request": "README のセットアップ手順更新として整理しました。",

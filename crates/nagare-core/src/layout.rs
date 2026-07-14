@@ -98,6 +98,8 @@ pub(crate) fn seed_default_domains(layout: &ProjectLayout) -> io::Result<()> {
         &[
             "General implementation, review, documentation, and maintenance work.",
             "display_name = \"General\"",
+            "要求された振る舞いまたは回答が、指定範囲に対して完了している。",
+            "The requested behavior or answer is complete for the stated scope.",
         ],
     )
 }

@@ -220,14 +220,7 @@ const NagareApp = (() => {
     body.prepend(panel);
   }
 
-  function setProjectBadge() {
-    const badge = document.getElementById("proj-badge");
-    if (!badge) return;
-    if (!state?.initialized) {
-      badge.textContent = "プロジェクト未設定";
-    } else {
-      badge.textContent = `${projectIcon()} ${projectName()}`;
-    }
+  function refreshNavigationIndicators() {
     setWorkAttentionDot();
     setInsightsAttentionDot();
   }
@@ -274,7 +267,7 @@ const NagareApp = (() => {
         clearProjectScopedUiState();
         clearStoredRoot();
       }
-      setProjectBadge();
+      refreshNavigationIndicators();
       syncBackgroundWorkState();
       renderProjectScreens();
       renderSettingsScreens();
@@ -303,7 +296,7 @@ const NagareApp = (() => {
   function goApp(id, crumb = null) {
     window.go(id);
     if (crumb) setCrumb(crumb);
-    setProjectBadge();
+    refreshNavigationIndicators();
   }
 
   function syncBackgroundWorkState() {
@@ -574,10 +567,9 @@ const NagareApp = (() => {
             <label class="visually-hidden" for="work-project-select">対象プロジェクト</label>
             <span class="dd-pre">プロジェクト:</span>
             <select id="work-project-select" name="project" style="width:auto;min-width:220px;">
-              <option value="${escapeHtml(currentProject)}">${escapeHtml(projectIcon())} ${escapeHtml(currentProject)}</option>
+              <option value="${escapeHtml(currentProject)}">${escapeHtml(currentProject)}</option>
             </select>
           </div>
-          <span style="font-size:12px;color:var(--text-muted);">担当: 自動で選択</span>
           <div style="flex:1"></div>
           <button class="btn btn-primary" type="submit">作業を開始</button>
         </div>
@@ -593,7 +585,7 @@ const NagareApp = (() => {
         <label class="visually-hidden" for="work-project-filter">プロジェクト</label>
         <select id="work-project-filter" style="width:auto;min-width:200px;">
           <option value="all">プロジェクト: すべて (${items.length})</option>
-          ${projectOptions.map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(projectIcon())} ${escapeHtml(option.label)} (${option.count})</option>`).join("")}
+          ${projectOptions.map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)} (${option.count})</option>`).join("")}
         </select>
         <label class="visually-hidden" for="work-search-filter">ワーク検索</label>
         <input id="work-search-filter" type="search" placeholder="ワークを検索" style="width:220px;">
@@ -683,10 +675,14 @@ const NagareApp = (() => {
           <div class="wr-title">${escapeHtml(item.title)} <span class="wr-projtag">${escapeHtml(itemProject)}</span></div>
           <div class="wr-sum">${escapeHtml(summary)}</div>
         </div>
-        <div class="wr-side">
-          ${score ? `<span class="badge badge-done">${escapeHtml(score)}</span>` : ""}
-          <span class="${badgeClass(item.status_kind)}">${escapeHtml(item.status_label || "未処理")}</span>
+        <div class="wr-state" aria-label="ワークの状態">
+          <div class="wr-state-badges">
+            <span class="${badgeClass(item.status_kind)}">${escapeHtml(item.status_label || "未処理")}</span>
+            ${score ? `<span class="badge badge-done">${escapeHtml(score)}</span>` : ""}
+          </div>
           <span class="wr-next">${escapeHtml(item.next_action ? `次: ${item.next_action}` : item.updated_at || "")}</span>
+        </div>
+        <div class="wr-actions" aria-label="ワークの操作">
           <button class="btn btn-secondary btn-sm" type="button" data-work-open="${escapeHtml(item.id)}">詳細</button>
           <button class="btn btn-danger-soft btn-sm" type="button" data-work-delete="${escapeHtml(item.id)}">削除</button>
         </div>
@@ -882,9 +878,9 @@ const NagareApp = (() => {
   }
 
   function detailScreenId(detail) {
-    if (detail?.question || detail?.next_action_kind === "answer_question") return "detail-question";
-    if (detail?.recovery || ["recover", "apply_recovery"].includes(detail?.next_action_kind)) return "detail-recover";
     if (detail?.item?.status_kind === "done" || detail?.next_action_kind === "done") return "detail-done";
+    if (detail?.question || detail?.next_action_kind === "answer_question") return "detail-question";
+    if (hasActiveRecovery(detail)) return "detail-recover";
     if (detail?.item?.status_kind === "running" || ["dispatch", "accept_dispatch"].includes(detail?.next_action_kind)) return "detail-running";
     return "detail-review";
   }
@@ -893,9 +889,10 @@ const NagareApp = (() => {
     const el = document.getElementById(`scr-${detailScreenId(detail)}`);
     const needsHuman = detailNeedsHuman(detail);
     const needsApproval = detail.approval_ready || detail.next_action_kind === "approve";
+    const displaySteps = detailDisplaySteps(detail);
     const progress = detailProgress(detail);
     const action = actionSurface(detail);
-    const actionBeforeResult = detail.question || detail.recovery || ["recover", "apply_recovery"].includes(detail.next_action_kind);
+    const actionBeforeResult = detail.question || hasActiveRecovery(detail);
     el.innerHTML = `
       <div class="detail-head">
         <h2>${escapeHtml(detail.item.title)}</h2>
@@ -912,12 +909,11 @@ const NagareApp = (() => {
           <div>${escapeHtml(progress.elapsed)}</div>
         </div>
       </div>
-      ${detail.item.status_kind === "done" ? doneSummary(detail) : ""}
       ${actionBeforeResult ? action : ""}
       ${detailResultSections(detail)}
       ${!actionBeforeResult && !needsApproval ? action : ""}
-      <div class="group-head" style="margin-top:26px;"><h3>実行の流れ</h3><span class="count">${escapeHtml(String((detail.steps || []).length))}工程 · 行をクリックで詳細</span></div>
-      <div class="trace">${(detail.steps || []).map((step, index) => stepTemplate(step, index, detail)).join("") || `<p class="page-sub">実行の記録はまだありません。</p>`}</div>
+      <div class="group-head" style="margin-top:26px;"><h3>実行の流れ</h3><span class="count">${escapeHtml(String(displaySteps.length))}工程 · 行をクリックで詳細</span></div>
+      <div class="trace">${displaySteps.map((step, index) => stepTemplate(step, index, detail)).join("") || `<p class="page-sub">実行の記録はまだありません。</p>`}</div>
       ${shouldOfferAdvance(detail) ? `<div data-advance-area style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;margin-top:14px;"><button class="btn btn-primary" data-advance>次の判断点まで進める</button></div>` : ""}
       <div style="margin-top:18px;"><button class="btn btn-secondary" data-back-home>ワーク一覧へ戻る</button></div>
     `;
@@ -936,6 +932,7 @@ const NagareApp = (() => {
     el.querySelectorAll("[data-artifact-detail]").forEach((button) => {
       button.addEventListener("click", () => openArtifactPreview(detail, Number(button.dataset.artifactDetail)));
     });
+    el.querySelector("[data-artifact-list]")?.addEventListener("click", () => openArtifactList(detail));
     el.querySelector("[data-copy-review]")?.addEventListener("click", () => copyReviewResult(detail));
     el.querySelector("[data-edit-review-rubric]")?.addEventListener("click", () => openReviewRubric(detail));
     el.querySelectorAll(".step-top").forEach((header) => {
@@ -959,7 +956,15 @@ const NagareApp = (() => {
   }
 
   function detailNeedsHuman(detail) {
-    return Boolean(detail?.question || detail?.recovery || detail?.approval_ready || ["answer_question", "recover", "approve"].includes(detail?.next_action_kind));
+    return Boolean(detail?.question || hasActiveRecovery(detail) || detail?.approval_ready || ["answer_question", "approve"].includes(detail?.next_action_kind));
+  }
+
+  function hasActiveRecovery(detail) {
+    return Boolean(
+      detail
+      && detail.item?.status_kind !== "done"
+      && ["recover", "apply_recovery"].includes(detail.next_action_kind)
+    );
   }
 
   function shouldOfferAdvance(detail) {
@@ -981,47 +986,15 @@ const NagareApp = (() => {
       `<div class="group-head" style="margin-top:18px;"><h3>結果</h3><span class="count">サマリー</span></div>`,
       resultOverview(detail),
     ];
-    if (hasAnswer) {
-      parts.push(`<div class="card answer-box" style="margin-bottom:8px;"><div class="ab-label">${done ? "完了内容" : "生成結果"}</div><p>${escapeHtml(primaryResultText(detail))}</p></div>`);
-    }
-    if (hasArtifacts) {
-      parts.push(`<div class="group-head" style="margin-top:18px;"><h3>できたもの</h3><span class="count">${escapeHtml(String(artifacts.length))}件</span></div>`);
-      parts.push(artifactRows(detail));
-    }
     if (hasReview) {
-      parts.push(`<div class="group-head" style="margin-top:18px;"><h3>レビュー</h3><span class="count">${escapeHtml(detail.review?.score_label || "実施済み")}</span></div>`);
+      parts.push(`<div class="group-head" style="margin-top:18px;"><h3>レビュー</h3><span class="count">${escapeHtml(detail.review?.score_label ? `最終レビュー ${detail.review.score_label}点` : "実施済み")}</span></div>`);
       parts.push(reviewSummary(detail));
     }
     return parts.join("");
   }
 
-  function doneSummary(detail) {
-    const artifacts = lines(detail.artifacts).map((artifact) => artifact.title || artifact.uri).filter(Boolean);
-    const stepCount = lines(detail.steps).length;
-    const score = detail.review?.score_label || reviewScoreFromSteps(detail) || "未評価";
-    const policy = approvalPolicyLabel(detail);
-    return `
-      <div class="card result-overview is-done" style="margin-bottom:16px;">
-        <div class="ro-main">
-          <div class="ro-kicker">完了サマリー</div>
-          <h3>${escapeHtml(detail.answer || detail.item.result_summary || "ワークは完了しました")}</h3>
-          <div class="ro-facts">
-            <span><b>採用成果物</b>${escapeHtml(artifacts.join(" / ") || "なし")}</span>
-            <span><b>評価点</b>${escapeHtml(score)}</span>
-            <span><b>工程</b>${escapeHtml(`${stepCount}工程`)}</span>
-            <span><b>確認</b>${escapeHtml(policy)}</span>
-          </div>
-        </div>
-      </div>`;
-  }
-
-  function reviewScoreFromSteps(detail) {
-    const reviewStep = [...lines(detail.steps)].reverse().find((step) => /レビュー/.test(step.title || "") || step.kind === "review");
-    return reviewStep?.output || "";
-  }
-
   function detailProgress(detail) {
-    const steps = lines(detail.steps);
+    const steps = detailDisplaySteps(detail);
     const total = steps.length;
     if (!total) {
       return {
@@ -1032,11 +1005,50 @@ const NagareApp = (() => {
     }
     const activeIndex = activeStepIndex(steps, detail);
     const step = steps[Math.max(0, activeIndex)];
+    const completed = detail?.item?.status_kind === "done";
+    const awaitingApproval = detail?.approval_ready || detail?.next_action_kind === "approve";
     return {
       position: `${Math.min(activeIndex + 1, total)} / ${total}工程`,
-      current: step ? `現在: ${step.title || "工程"} / ${step.actor || "担当未設定"}` : "現在工程なし",
+      current: completed
+        ? "全工程完了"
+        : awaitingApproval
+          ? "AI工程完了・確認待ち"
+          : step
+            ? `現在: ${stepTitleLabel(step)} / ${stepActorLabel(step)}`
+            : "現在工程なし",
       elapsed: detailElapsedLabel(detail),
     };
+  }
+
+  function detailDisplaySteps(detail) {
+    const steps = lines(detail?.steps).map((step) => ({ ...step }));
+    const hasOrganizerStep = steps.some((step) => {
+      const label = `${step.kind || ""} ${step.title || ""}`.toLowerCase();
+      return step.kind === "synthesis" || /summary|synthesis|まとめ|最終結果/.test(label);
+    });
+    const finalState = Boolean(
+      detail?.approval_ready
+      || detail?.next_action_kind === "approve"
+      || detail?.next_action_kind === "done"
+      || detail?.item?.status_kind === "done"
+    );
+    const hasFinalResult = finalState && Boolean(primaryResultText(detail));
+    if (!hasOrganizerStep && hasFinalResult) {
+      steps.push({
+        kind: "organizer",
+        title: "最終結果をまとめる",
+        state: "記録済み",
+        actor: "オーガナイザー",
+        summary: "保存されている最終回答を、依頼者向けのまとめとして表示しています。",
+        rationale: "このワークは過去形式の実行記録のため、保存された最終回答から補完しています。",
+        input: detail?.review?.summary || "作業結果とレビュー結果",
+        output: primaryResultText(detail),
+        knowledge_refs: [],
+        diagnostics: "",
+        review_items: [],
+      });
+    }
+    return steps;
   }
 
   function activeStepIndex(steps, detail) {
@@ -1057,7 +1069,7 @@ const NagareApp = (() => {
 
   function statusSentence(detail) {
     if (detail.question) return "エージェントから質問が届いています";
-    if (detail.recovery) return "実行が止まったため、回復方法を選べます";
+    if (hasActiveRecovery(detail)) return "実行が止まったため、回復方法を選べます";
     if (detail.approval_ready) return primaryResultText(detail) || "レビューが完了し、あなたの確認待ちです";
     if (detail.item.status_kind === "done" && approvalPolicyValue(detail) === "auto_complete_on_review_pass") return "レビュー合格により自動完了しました";
     if (detail.item.status_kind === "done" && approvalPolicyValue(detail) === "manual_on_review_concern") return "レビュー懸念がないため自動完了しました";
@@ -1083,18 +1095,17 @@ const NagareApp = (() => {
   }
 
   function resultOverview(detail) {
-    const artifacts = lines(detail.artifacts).map((artifact) => artifact.title || artifact.uri).filter(Boolean);
     const concerns = reviewConcernTexts(detail);
     const resultText = primaryResultText(detail);
-    const artifactFact = artifacts.length ? artifacts.join(" / ") : resultText ? "応答のみ" : "未生成";
     const needsApproval = detail.approval_ready || detail.next_action_kind === "approve";
     const done = detail.item.status_kind === "done";
     const dispatching = ["dispatch", "accept_dispatch"].includes(detail.next_action_kind);
-    const reviewLine = [detail.review?.score_label, detail.review?.summary].filter(Boolean).join(" — ") || (detail.review ? "レビュー済み" : "レビュー待ち");
+    const reviewLine = detail.review?.score_label ? `最終レビュー ${detail.review.score_label}点` : (detail.review ? "レビュー済み" : "レビュー待ち");
     const policy = approvalPolicyLabel(detail);
     const requestText = workRequestText(detail);
     const organizerText = organizerResultText(detail, resultText, dispatching);
     const conclusion = organizerConclusion(detail, resultText, dispatching);
+    const headline = dispatching ? conclusion : resultText || conclusion;
     const summaryText = dispatching && detail.review
       ? "差し戻しコメントを受け取り、担当エージェントへ再実行の指示を渡します。"
       : dispatching
@@ -1104,18 +1115,18 @@ const NagareApp = (() => {
       <div class="card result-overview ${needsApproval ? "needs-decision" : done ? "is-done" : ""}">
         <div class="ro-main">
           <div class="ro-kicker">依頼への回答</div>
-          <h3>${escapeHtml(conclusion)}</h3>
+          <h3>${escapeHtml(headline)}</h3>
           <div class="ro-dialogue">
             <div class="ro-line"><span>依頼</span><p>${escapeHtml(requestText)}</p></div>
-            <div class="ro-line answer"><span>オーガナイザーまとめ</span><p>${escapeHtml(organizerText)}</p></div>
           </div>
+          ${resultArtifactLinks(detail, resultText)}
           <div class="ro-facts">
-            <span><b>成果物</b>${escapeHtml(artifactFact)}</span>
             <span><b>レビュー</b>${escapeHtml(reviewLine)}</span>
             <span><b>判断</b>${escapeHtml(needsApproval ? reviewRecommendation(detail) : detail.item.status_label || "確認中")}</span>
             <span><b>懸念</b>${escapeHtml(concerns.length ? `${concerns.length}件` : "なし")}</span>
             <span><b>確認</b>${escapeHtml(policy)}</span>
           </div>
+          ${!resultText && organizerText !== headline ? `<p class="ro-note">${escapeHtml(organizerText)}</p>` : ""}
           ${summaryText && summaryText !== organizerText ? `<p class="ro-note">${escapeHtml(summaryText)}</p>` : ""}
         </div>
         ${needsApproval ? `
@@ -1140,6 +1151,29 @@ const NagareApp = (() => {
       ` : ""}`;
   }
 
+  function resultArtifactLinks(detail, resultText) {
+    const artifacts = lines(detail.artifacts);
+    if (!artifacts.length) {
+      return `
+        <div class="ro-artifacts">
+          <span class="ro-artifacts-label">成果物</span>
+          <span class="ro-artifacts-empty">${escapeHtml(resultText ? "応答のみ" : "未生成")}</span>
+        </div>`;
+    }
+    const visible = artifacts.slice(0, 5);
+    const remaining = artifacts.length - visible.length;
+    return `
+      <div class="ro-artifacts">
+        <span class="ro-artifacts-label">成果物</span>
+        <span class="ro-artifact-links">
+          ${visible.map((artifact, index) => `
+            <button class="result-artifact-link" type="button" data-artifact-detail="${index}">${escapeHtml(artifact.title || artifact.uri || `成果物${index + 1}`)}</button>
+          `).join("")}
+          ${remaining > 0 ? `<button class="result-artifact-link artifact-more-link" type="button" data-artifact-list>ほか${remaining}件</button>` : ""}
+        </span>
+      </div>`;
+  }
+
   function workRequestText(detail) {
     return String(detail?.request || detail?.item?.description || detail?.item?.title || "").trim() || "依頼内容は記録されていません。";
   }
@@ -1148,7 +1182,7 @@ const NagareApp = (() => {
     if (dispatching && detail.review) return "差し戻し内容を受け取りました。担当エージェントへ再実行の指示として渡します。";
     if (dispatching) return "依頼内容を整理し、担当エージェントを決めています。";
     if (detail.question) return "作業を進めるために、追加の確認が必要です。";
-    if (detail.recovery || detail.next_action_kind === "recover") return "実行が止まっています。回復方法を選ぶと、このワークを続きから再開できます。";
+    if (hasActiveRecovery(detail)) return "実行が止まっています。回復方法を選ぶと、このワークを続きから再開できます。";
     if (resultText) return resultText;
     return detail.item?.next_action || "結果が出ると、ここに依頼への回答を表示します。";
   }
@@ -1157,7 +1191,7 @@ const NagareApp = (() => {
     if (dispatching && detail.review) return "差し戻しを受け取り、再実行待ちです";
     if (dispatching) return "担当を整理しています";
     if (detail.question) return "確認が必要です";
-    if (detail.recovery || detail.next_action_kind === "recover") return "回復が必要です";
+    if (hasActiveRecovery(detail)) return "回復が必要です";
     if (detail.item?.status_kind === "done") return "依頼への対応が完了しました";
     if (resultText) return "依頼への回答を作成しました";
     return "結果を作成中です";
@@ -1176,10 +1210,16 @@ const NagareApp = (() => {
   }
 
   function reviewConcernTexts(detail) {
-    const direct = lines(detail.review?.concerns);
+    const isNoConcern = (value) => {
+      const normalized = String(value || "").trim().replace(/[。.!！]+$/, "");
+      return /^(none|null|n\/a|no concerns?|なし|特になし|該当なし|懸念なし)$/i.test(normalized);
+    };
+    const direct = lines(detail.review?.concerns).filter((concern) => !isNoConcern(concern));
     const itemConcerns = lines(detail.review?.items)
-      .filter((item) => !/pass|ok|approved/i.test(item.verdict || ""))
-      .map((item) => [item.item, item.concern_note || item.evidence].filter(Boolean).join(": "));
+      .filter((item) => Boolean(item.concern_note)
+        || /fail|reject|ng|concern|warning|needs?_changes?/i.test(item.verdict || ""))
+      .map((item) => [item.item, item.concern_note || item.evidence].filter(Boolean).join(": "))
+      .filter((concern) => !isNoConcern(concern));
     return unique([...direct, ...itemConcerns]).slice(0, 4);
   }
 
@@ -1217,7 +1257,7 @@ const NagareApp = (() => {
           </form>
         </div>`;
     }
-    if (detail.recovery) {
+    if (hasActiveRecovery(detail) && detail.recovery) {
       const accepted = detail.recovery.status === "accepted";
       const failed = recoveryFailedStep(detail);
       return `
@@ -1242,7 +1282,7 @@ const NagareApp = (() => {
           `}
         </div>`;
     }
-    if (detail.next_action_kind === "recover" || detail.next_action_kind === "apply_recovery") {
+    if (hasActiveRecovery(detail)) {
       const failed = recoveryFailedStep(detail);
       return `
         <div class="action-panel recover-panel" style="margin-top:16px;">
@@ -1313,16 +1353,31 @@ const NagareApp = (() => {
     }).filter(Boolean);
   }
 
-  function artifactRows(detail) {
-    const artifacts = detail.artifacts || [];
-    if (!artifacts.length) return "";
-    return artifacts.map((artifact, index) => `
-      <div class="artifact-row">
-        <div class="a-icon">□</div>
-        <div style="flex:1;"><div class="a-path">${escapeHtml(artifact.title || artifact.uri)}</div><div class="a-meta">${escapeHtml(artifact.uri || "")}</div></div>
-        <button class="btn btn-secondary btn-sm" type="button" data-artifact-detail="${index}">詳細</button>
-      </div>
-    `).join("");
+  function openArtifactList(detail) {
+    const artifacts = lines(detail.artifacts);
+    if (!artifacts.length) return;
+    const modal = dynamicModal(`
+      <div class="modal" style="width:620px;">
+        <div class="modal-head">
+          <h3>成果物</h3>
+          <div class="m-sub">${escapeHtml(detail.item?.title || "ワーク")} · ${escapeHtml(String(artifacts.length))}件</div>
+        </div>
+        <div class="modal-body">
+          <div class="artifact-link-list">
+            ${artifacts.map((artifact, index) => `
+              <button class="artifact-list-link" type="button" data-artifact-list-item="${index}">
+                <span>${escapeHtml(artifact.title || artifact.uri || `成果物${index + 1}`)}</span>
+                <small>${escapeHtml(artifact.uri || "")}</small>
+              </button>
+            `).join("")}
+          </div>
+        </div>
+        <div class="modal-foot"><button class="btn btn-secondary" type="button" data-close>閉じる</button></div>
+      </div>`);
+    modal.querySelector("[data-close]").addEventListener("click", closeDynamicModal);
+    modal.querySelectorAll("[data-artifact-list-item]").forEach((button) => {
+      button.addEventListener("click", () => openArtifactPreview(detail, Number(button.dataset.artifactListItem)));
+    });
   }
 
   async function openArtifactPreview(detail, index) {
@@ -1381,20 +1436,49 @@ const NagareApp = (() => {
   function reviewSummary(detail) {
     if (!detail.review) return "";
     const review = detail.review;
+    const concerns = reviewConcernTexts(detail);
     const artifact = findArtifact(detail.artifact_type_id);
     const domain = findDomain(detail.domain_id || artifact?.domain_id);
+    const criteria = reviewCriteriaProgress(review);
+    const resolvedReviews = resolvedReviewSummary(detail);
     return `
-      <div class="card" style="padding:13px 16px;margin-top:8px;">
-        <div style="display:flex;align-items:center;gap:12px;">
-          <span class="badge badge-done">${escapeHtml(review.score_label || review.verdict || "レビュー")}</span>
-          <span style="font-size:13px;color:var(--text-body);flex:1;">${escapeHtml([review.summary, review.concerns?.length ? `懸念${review.concerns.length}件` : ""].filter(Boolean).join(" — "))}</span>
-          <button class="btn btn-secondary btn-sm" type="button" data-copy-review>レビューをコピー</button>
-          ${artifact ? `<button class="btn btn-secondary btn-sm" type="button" data-edit-review-rubric>ルーブリックを編集</button>` : ""}
+      <div class="card review-summary" style="margin-top:8px;">
+        <div class="review-summary-head">
+          <div class="review-total">
+            <span>最終レビュー評価</span>
+            <strong>${escapeHtml(review.score_label || review.verdict || "未記録")}<small>点</small></strong>
+          </div>
+          <div class="review-summary-copy">
+            <p>${escapeHtml(review.summary || "レビュー要約はありません。")}</p>
+            <div>${escapeHtml([criteria, resolvedReviews, concerns.length ? `懸念 ${concerns.length}件` : "懸念なし"].filter(Boolean).join(" · "))}</div>
+          </div>
+          <div class="review-summary-actions">
+            <button class="btn btn-secondary btn-sm" type="button" data-copy-review>レビューをコピー</button>
+            ${artifact ? `<button class="btn btn-secondary btn-sm" type="button" data-edit-review-rubric>ルーブリックを編集</button>` : ""}
+          </div>
         </div>
         ${artifact ? `<div class="hint" style="margin-top:8px;">${escapeHtml(domain?.name || "ナレッジ")} / ${escapeHtml(artifact.name || artifact.id)} のルーブリックで評価しています。基準を直す場合はナレッジで編集します。</div>` : ""}
         ${review.items?.length ? `<div class="mini-rubric" style="margin-top:12px;">${review.items.map(reviewItem).join("")}</div>` : ""}
       </div>
     `;
+  }
+
+  function reviewCriteriaProgress(review) {
+    const items = lines(review?.items);
+    if (!items.length) return "";
+    const passed = items.filter((item) => /^(pass|passed|ok|approved)$/i.test(String(item.verdict || "").trim())).length;
+    return `評価項目 ${passed} / ${items.length}件合格`;
+  }
+
+  function resolvedReviewSummary(detail) {
+    const steps = detailDisplaySteps(detail);
+    const finalReviewIndex = steps.findLastIndex((step) => isReviewStep(step));
+    if (finalReviewIndex < 0 || reviewRequiresRevision(steps[finalReviewIndex])) return "";
+    const resolvedCount = steps
+      .slice(0, finalReviewIndex)
+      .filter((step) => isReviewStep(step) && reviewRequiresRevision(step))
+      .length;
+    return resolvedCount ? `途中の要修正 ${resolvedCount}回は対応済み` : "";
   }
 
   async function copyReviewResult(detail) {
@@ -1464,7 +1548,7 @@ const NagareApp = (() => {
   function openReviewRubric(detail) {
     const artifact = findArtifact(detail.artifact_type_id);
     if (!artifact) {
-      toast("対象の成果物種別が見つかりません。ナレッジ一覧から確認してください。", "error");
+      toast("対象の成果物が見つかりません。ナレッジ一覧から確認してください。", "error");
       return;
     }
     artifactReturnContext = { kind: "work-detail", workId: detail.item?.id };
@@ -1485,14 +1569,23 @@ const NagareApp = (() => {
 
   function stepTemplate(step, index, detail = null) {
     const cls = stepClass(step);
-    const reviewItems = stepReviewItems(step, detail);
+    const reviewItems = stepReviewItems(step, detail, index);
+    const resolvedReview = reviewIssueResolvedLater(step, index, detail);
+    const reviewStep = isReviewStep(step);
+    const reviewScore = reviewStepScore(step);
+    const reviewCriteria = String(step?.criteria_label || "").trim();
     return `
       <div class="step ${cls}">
         <div class="card step-card">
           <div class="step-top st-click">
-            <span class="st-name">${index + 1}. ${escapeHtml(step.title)}</span>
-            <span class="st-agent">担当: <b>${escapeHtml(step.actor || "-")}</b></span>
-            <span class="st-state ${stepBadgeClass(cls)}">${escapeHtml(step.state || "")}</span>
+            <span class="st-name">${index + 1}. ${escapeHtml(stepTitleLabel(step))}</span>
+            <span class="st-agent">担当: <b>${escapeHtml(stepActorLabel(step))}</b></span>
+            <span class="st-status-group">
+              ${reviewStep ? `<span class="st-score ${reviewScore ? "" : "missing"}">${escapeHtml(reviewScore ? `${reviewScore}点` : "得点未記録")}</span>` : ""}
+              ${reviewCriteria ? `<span class="st-criteria">${escapeHtml(reviewCriteria)}</span>` : ""}
+              <span class="st-state ${stepBadgeClass(cls)}">${escapeHtml(stepStateLabel(step, cls))}</span>
+              ${resolvedReview ? `<span class="step-resolution">後続工程で対応済み</span>` : ""}
+            </span>
             ${step.diagnostics ? `<button class="btn btn-ghost btn-sm" type="button" data-step-diagnostics="${index}">診断ログ</button>` : ""}
             <span class="st-toggle">▾</span>
           </div>
@@ -1531,10 +1624,12 @@ const NagareApp = (() => {
     toast("対応するナレッジが見つかりません。ナレッジ一覧から確認してください。", "error");
   }
 
-  function stepReviewItems(step, detail) {
+  function stepReviewItems(step, detail, index) {
     const ownItems = lines(step.review_items);
     if (ownItems.length) return ownItems;
-    if (String(step.kind || "").toLowerCase() === "review" || String(step.title || "").includes("レビュー")) {
+    const steps = detailDisplaySteps(detail);
+    const latestReviewIndex = steps.findLastIndex((candidate) => isReviewStep(candidate));
+    if (index === latestReviewIndex && isReviewStep(step)) {
       return lines(detail?.review?.items);
     }
     return [];
@@ -1547,11 +1642,11 @@ const NagareApp = (() => {
       <div class="modal" style="width:680px;">
         <div class="modal-head">
           <h3>診断ログ</h3>
-          <div class="m-sub">${escapeHtml(index + 1)}. ${escapeHtml(step.title || "工程")} / ${escapeHtml(step.actor || "担当未設定")}</div>
+          <div class="m-sub">${escapeHtml(index + 1)}. ${escapeHtml(stepTitleLabel(step))} / ${escapeHtml(stepActorLabel(step))}</div>
         </div>
         <div class="modal-body">
           <div class="card" style="padding:12px;margin-bottom:10px;">
-            <div class="kv"><div class="k">状態</div><div class="v">${escapeHtml(step.state || "-")}</div></div>
+            <div class="kv"><div class="k">状態</div><div class="v">${escapeHtml(stepStateLabel(step, stepClass(step)))}</div></div>
             ${step.rationale ? `<div class="kv"><div class="k">根拠</div><div class="v">${escapeHtml(step.rationale)}</div></div>` : ""}
             ${step.input ? `<div class="kv"><div class="k">入力</div><div class="v">${escapeHtml(step.input)}</div></div>` : ""}
             ${step.output ? `<div class="kv"><div class="k">出力</div><div class="v">${escapeHtml(step.output)}</div></div>` : ""}
@@ -1567,12 +1662,57 @@ const NagareApp = (() => {
   }
 
   function stepClass(step) {
-    const label = `${step.kind || ""} ${step.title || ""} ${step.state || ""} ${step.summary || ""}`.toLowerCase();
-    if (/fail|error|失敗|回復/.test(label)) return "fail";
-    if (/running|progress|処理中|実行中/.test(label)) return "now";
-    if (/done|complete|answered|完了|採用/.test(label)) return "done";
-    if (/question|needs_input|質問|回答待ち|差し戻し/.test(label)) return "wait";
+    const kind = String(step.kind || "").toLowerCase();
+    const title = String(step.title || "").toLowerCase();
+    const state = String(step.state || "").toLowerCase();
+    const outcome = String(step.outcome || "").toLowerCase();
+    const isReview = kind === "review" || /review|レビュー/.test(title);
+
+    if (isReview && /revise|request[_ -]?changes|changes[_ -]?requested|要修正|修正要求|差し戻し/.test(outcome)) return "fail";
+    if (/fail|error|blocked|rejected|request[_ -]?changes|changes[_ -]?requested|失敗|停止|拒否/.test(state)) return "fail";
+    if (/running|progress|処理中|実行中/.test(state)) return "now";
+    if (/done|complete|completed|succeeded|passed|approved|accepted|applied|superseded|answered|recorded|完了|成功|合格|採用|記録済み/.test(state)) return "done";
+    if (/question|needs_input|waiting|draft|質問|回答待ち|入力待ち/.test(state)) return "wait";
+
+    if (!state) {
+      const fallback = `${kind} ${title}`;
+      if (/fail|error|失敗|停止/.test(fallback)) return "fail";
+      if (/running|progress|処理中|実行中/.test(fallback)) return "now";
+      if (/done|complete|完了/.test(fallback)) return "done";
+      if (/question|質問|回答待ち|差し戻し|回復/.test(fallback)) return "wait";
+    }
     return "";
+  }
+
+  function isReviewStep(step) {
+    const kind = String(step?.kind || "").toLowerCase();
+    const title = String(step?.title || "").toLowerCase();
+    return kind === "review" || /review|レビュー/.test(title);
+  }
+
+  function reviewStepScore(step) {
+    if (!isReviewStep(step)) return "";
+    const explicit = String(step?.score_label || "").trim();
+    const source = explicit || String(step?.output || "").match(/\d+\s*\/\s*\d+/)?.[0] || "";
+    const match = source.match(/(\d+)\s*\/\s*(\d+)/);
+    if (!match) return "";
+    const total = Number(match[1]);
+    const max = Number(match[2]);
+    if (!Number.isFinite(total) || !Number.isFinite(max) || max !== 100) return "";
+    return `${Math.min(100, total)} / 100`;
+  }
+
+  function reviewRequiresRevision(step) {
+    const outcome = String(step?.outcome || "").toLowerCase();
+    const state = String(step?.state || "").toLowerCase();
+    return /revise|request[_ -]?changes|changes[_ -]?requested|要修正|修正要求|差し戻し/.test(`${outcome} ${state}`);
+  }
+
+  function reviewIssueResolvedLater(step, index, detail) {
+    if (!isReviewStep(step) || !reviewRequiresRevision(step)) return false;
+    return detailDisplaySteps(detail)
+      .slice(index + 1)
+      .some((laterStep) => isReviewStep(laterStep) && !reviewRequiresRevision(laterStep) && stepClass(laterStep) === "done");
   }
 
   function stepBadgeClass(cls) {
@@ -1581,6 +1721,37 @@ const NagareApp = (() => {
     if (cls === "wait") return "badge badge-ask";
     if (cls === "now") return "badge badge-run";
     return "badge badge-neutral";
+  }
+
+  function stepTitleLabel(step) {
+    const title = String(step?.title || "工程").trim();
+    if (/^(オーガナイザーまとめ|organizer summary)$/i.test(title)) return "最終結果をまとめる";
+    return title;
+  }
+
+  function stepActorLabel(step) {
+    const actor = String(step?.actor || "").trim();
+    const normalized = actor.toLowerCase();
+    return {
+      dispatcher: "整理役",
+      organizer: "オーガナイザー",
+      worker: "作業担当",
+      reviewer: "レビュー担当",
+      supervisor: "進行管理",
+    }[normalized] || actor || roleLabel(step?.kind) || "担当未設定";
+  }
+
+  function stepStateLabel(step, cls = stepClass(step)) {
+    const stateLabel = String(step?.state || "").trim();
+    if (/記録済み|recorded/i.test(stateLabel)) return "記録済み";
+    if (cls === "fail" && /revise|request[_ -]?changes|changes[_ -]?requested|要修正|修正要求|差し戻し/i.test(String(step?.outcome || ""))) return "要修正";
+    if (/完了|completed?|done|answered|approved/i.test(stateLabel)) return "完了";
+    if (/処理中|実行中|running|progress/i.test(stateLabel)) return "処理中";
+    if (/質問|回答待ち|入力待ち|needs_input|waiting/i.test(stateLabel)) return "入力待ち";
+    if (/request[_ -]?changes|changes[_ -]?requested/i.test(stateLabel)) return "要修正";
+    if (/失敗|error|failed|blocked|rejected/i.test(stateLabel)) return "失敗";
+    if (stateLabel) return stateLabel;
+    return { done: "完了", now: "処理中", wait: "入力待ち", fail: "失敗" }[cls] || "未開始";
   }
 
   async function advanceWork(id, options = {}, trigger = null) {
@@ -1868,7 +2039,7 @@ const NagareApp = (() => {
     const agentCount = project.agent_count ?? (state?.agents || []).length;
     const domainCount = project.domain_count ?? (state?.domains || []).length;
     const artifactCount = project.artifact_type_count ?? (state?.artifact_types || []).length;
-    return `ワーク ${workCount}件 · エージェント ${agentCount}件 · ドメイン ${domainCount}件 · 成果物種別 ${artifactCount}件`;
+    return `ワーク ${workCount}件 · エージェント ${agentCount}件 · ドメイン ${domainCount}件 · 成果物 ${artifactCount}件`;
   }
 
   function projectWorkStatusSummary(project) {
@@ -2088,7 +2259,7 @@ const NagareApp = (() => {
               <div class="field">
                 <label>既定レビュアー</label>
                 <select name="review_agent_id">${projectAgentDefaultOptions(draft.review_agent_id ?? project.review_agent, "reviewer")}</select>
-                <div class="hint">通常のレビュー担当です。成果物種別のルーブリックで評価します。</div>
+                <div class="hint">通常のレビュー担当です。成果物のルーブリックで評価します。</div>
               </div>
             </div>
             <div class="list">${projectAgentRows(project)}</div>
@@ -2097,7 +2268,7 @@ const NagareApp = (() => {
           <div class="tabpane ${active("knowledge")}" data-project-pane="knowledge">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
               <div style="flex:1;">
-                <h4 style="font-size:13.5px;margin-bottom:3px;">ドメインと成果物種別</h4>
+                <h4 style="font-size:13.5px;margin-bottom:3px;">ドメインと成果物</h4>
                 <div class="hint" style="margin:0;">共有資産です。ここでは新しいワークで最初に使う既定値だけを選び、内容の編集はナレッジ画面で行います。</div>
               </div>
               <button class="btn btn-secondary btn-sm" type="button" data-project-open-knowledge>ナレッジを開く</button>
@@ -2109,9 +2280,9 @@ const NagareApp = (() => {
                 <div class="hint">新規ワークの開始確認で最初に使うドメインです。依頼内容から整理役が必要に応じて見直します。</div>
               </div>
               <div class="field">
-                <label>既定成果物種別</label>
+                <label>既定成果物</label>
                 <select name="default_artifact_type_id" data-project-default-artifact>${projectArtifactDefaultOptions(draft.default_artifact_type_id ?? project.default_artifact_type_id, draft.default_domain_id ?? project.default_domain_id)}</select>
-                <div class="hint">レビュー基準と成果物知識の初期候補です。ワークごとに開始確認で確認できます。</div>
+                <div class="hint">レビュー基準と作成指示の初期候補です。ワークごとに開始確認で確認できます。</div>
               </div>
             </div>
             <div class="list">${projectKnowledgeRows()}</div>
@@ -2238,7 +2409,7 @@ const NagareApp = (() => {
   }
 
   function syncStateChrome() {
-    setProjectBadge();
+    refreshNavigationIndicators();
     renderInsights();
   }
 
@@ -2276,7 +2447,7 @@ const NagareApp = (() => {
       const artifacts = (state?.artifact_types || []).filter((artifact) => artifact.domain_id === domain.id);
       const artifactSummary = artifacts.length
         ? artifacts.map((artifact) => `${artifact.name}${artifact.rubric_count ? ` (${artifact.rubric_count}項目)` : ""}`).join(" / ")
-        : "成果物種別なし";
+        : "成果物なし";
       return `
         <div class="list-item">
           <div class="wr-picon">知</div>
@@ -2458,7 +2629,7 @@ const NagareApp = (() => {
             <div class="kv"><div class="k">対象</div><div class="v">${escapeHtml(project?.icon || projectIcon())} ${escapeHtml(project?.name || projectName())}</div></div>
             <div class="kv"><div class="k">対象フォルダ</div><div class="v mono">${escapeHtml(root || "-")}</div></div>
             <div class="kv"><div class="k">削除される情報</div><div class="v">ワーク履歴 ${escapeHtml(String(workCount))}件、プロジェクト設定、整理役と確認ポリシー</div></div>
-            <div class="kv"><div class="k">関連設定</div><div class="v">エージェント ${escapeHtml(String(agentCount))}件、ドメイン ${escapeHtml(String(domainCount))}件、成果物種別 ${escapeHtml(String(artifactCount))}件のプロジェクト紐づけ</div></div>
+            <div class="kv"><div class="k">関連設定</div><div class="v">エージェント ${escapeHtml(String(agentCount))}件、ドメイン ${escapeHtml(String(domainCount))}件、成果物 ${escapeHtml(String(artifactCount))}件のプロジェクト紐づけ</div></div>
             <div class="kv"><div class="k">残るもの</div><div class="v">対象フォルダ内の通常ファイルは削除しません</div></div>
           </div>
           <div class="hint" style="margin-top:8px;">削除後は空状態ホームに戻ります。必要になった場合は同じフォルダで新しいプロジェクトを作成できます。</div>
@@ -2473,7 +2644,7 @@ const NagareApp = (() => {
         clearStoredRoot();
         closeDynamicModal();
         renderEmptyHome();
-        setProjectBadge();
+        refreshNavigationIndicators();
         goApp("home-empty");
         toast("プロジェクトを削除しました。");
       } catch (error) {
@@ -3257,7 +3428,7 @@ const NagareApp = (() => {
       pendingSkillDeleteResult = null;
       closeDynamicModal();
       renderSettingsScreens();
-      setProjectBadge();
+      refreshNavigationIndicators();
       toast(sources.length === 1 ? "スキルを追加しました。" : `${sources.length}件のスキルを追加しました。`);
     } catch (error) {
       showOperationError(event.currentTarget, "スキルを追加できませんでした", error, "追加元、参照先、インストール先を確認してから、もう一度追加してください。");
@@ -3278,7 +3449,7 @@ const NagareApp = (() => {
           </div>
           <label class="opt sel"><input type="checkbox" name="remove_installed_body" checked><div><div class="o-name">スキル本体も削除する</div><div class="o-desc">このプロジェクト用に取り込んだスキル本体を削除します。エージェント割り当ても外れます。</div></div></label>
         </div>
-        <div class="modal-foot"><button class="btn btn-secondary" type="button" data-close>閉じる</button><button class="btn btn-primary" type="button" data-confirm>削除</button></div>
+      <div class="modal-foot"><button class="btn btn-secondary" type="button" data-close>閉じる</button><button class="btn btn-primary" type="button" data-confirm>削除</button></div>
       </div>`);
     modal.querySelector("[data-close]").addEventListener("click", closeDynamicModal);
     modal.querySelector("[data-confirm]").addEventListener("click", async () => {
@@ -3454,7 +3625,7 @@ const NagareApp = (() => {
     if (!el || !state) return;
     el.innerHTML = `
       <h2 class="page-title">実行環境</h2>
-      <p class="page-sub">この端末で利用できるランタイムを確認します。</p>
+      <p class="page-sub">この端末で利用できるランタイムと接続状態を確認します。モデルはエージェントごとに設定します。</p>
       ${pendingRuntimeResult ? runtimeOperationResultPanel(pendingRuntimeResult) : ""}
       <div class="filters">
         <label class="visually-hidden" for="runtime-status-filter">状態</label>
@@ -3470,19 +3641,16 @@ const NagareApp = (() => {
       </div>
       <div class="list">${(state.runtimes || []).map((runtime) => {
         const agentNames = runtimeAgentNames(runtime);
-        const modelSummary = runtimeModelSummary(runtime, agentNames);
-        const modelSwitchable = runtimeModelSwitchable(runtime);
         return `
-        <div class="list-item" data-runtime-row data-status="${runtime.available ? "available" : "missing"}" data-search="${escapeHtml([runtime.id, runtime.label, runtime.command, runtime.detail, runtime.model_mode, runtime.model_note, runtime.configured_model, runtime.configured_provider, ...agentNames, ...(runtime.model_choices || [])].join(" ").toLowerCase())}">
+        <div class="list-item" data-runtime-row data-status="${runtime.available ? "available" : "missing"}" data-search="${escapeHtml([runtime.id, runtime.label, runtime.command, runtime.detail, ...agentNames].join(" ").toLowerCase())}">
           <div class="wr-picon">${runtimeIcon(runtime.id)}</div>
           <div class="wr-body">
             <div class="wr-title">${escapeHtml(runtime.label)} <span class="${runtime.available ? "badge badge-done" : "badge badge-neutral"}">${runtime.available ? "利用可能" : "未検出"}</span></div>
             <div class="wr-sum">${escapeHtml(runtimeGuidance(runtime, agentNames))}</div>
             <div style="font-size:11.5px;color:${runtime.available || !agentNames.length ? "var(--text-faint)" : "var(--warning)"};margin-top:3px;">利用エージェント: ${escapeHtml(agentNames.length ? agentNames.join("、") : "なし")}</div>
-            <div style="font-size:11.5px;color:var(--text-body);margin-top:3px;">${escapeHtml(modelSummary)}</div>
+            <div style="font-size:11.5px;color:var(--text-faint);margin-top:3px;">モデル: エージェント設定で個別に選択</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;">
-            ${modelSwitchable ? `<button class="btn btn-secondary btn-sm" type="button" data-edit-runtime-model="${escapeHtml(runtime.id)}">モデル設定</button>` : ""}
             <button class="btn ${runtime.available ? "btn-secondary" : "btn-primary"} btn-sm" type="button" data-refresh-runtime="${escapeHtml(runtime.id)}">${runtime.available ? "再確認" : "検出を確認"}</button>
           </div>
         </div>
@@ -3492,9 +3660,6 @@ const NagareApp = (() => {
     el.querySelector("#runtime-search-filter").addEventListener("input", applyRuntimeFilter);
     el.querySelectorAll("[data-refresh-runtime]").forEach((button) => {
       button.addEventListener("click", () => refreshRuntime(button.dataset.refreshRuntime));
-    });
-    el.querySelectorAll("[data-edit-runtime-model]").forEach((button) => {
-      button.addEventListener("click", () => openRuntimeModelDialog(findRuntime(button.dataset.editRuntimeModel)));
     });
     el.querySelector("[data-clear-runtime-result]")?.addEventListener("click", () => {
       pendingRuntimeResult = null;
@@ -3507,19 +3672,13 @@ const NagareApp = (() => {
     const ok = result.success !== false;
     const border = ok ? "var(--success-line)" : result.error ? "var(--danger-line)" : "var(--warning-line)";
     const background = ok ? "var(--success-soft)" : result.error ? "var(--danger-soft)" : "var(--warning-soft)";
-    const title = result.kind === "model"
-      ? `モデル設定結果: ${result.label || result.id}`
-      : `再確認結果: ${result.label || result.id}`;
-    const summary = result.kind === "model"
-      ? `${result.model_summary || "実行環境既定"} を対象エージェントへ適用しました`
-      : result.error
-        ? "再確認を実行できませんでした"
+    const title = `再確認結果: ${result.label || result.id}`;
+    const summary = result.error
+      ? "再確認を実行できませんでした"
       : ok
         ? "この実行環境は利用できます"
         : "この実行環境はまだ利用できません";
-    const detail = result.kind === "model"
-      ? `対象: ${result.agent_names?.length ? result.agent_names.join("、") : "対象エージェントなし"}`
-      : `詳細: ${result.error || result.detail || "-"}`;
+    const detail = `詳細: ${result.error || result.detail || "-"}`;
     return `
       <div class="card" style="margin:0 0 14px;padding:14px 16px;border-color:${border};background:${background};">
         <div style="display:flex;gap:14px;align-items:flex-start;">
@@ -3536,23 +3695,6 @@ const NagareApp = (() => {
 
   function findRuntime(id) {
     return (state.runtimes || []).find((runtime) => runtime.id === id) || null;
-  }
-
-  function runtimeModelSummary(runtime, agentNames = runtimeAgentNames(runtime)) {
-    const configured = runtimeConfiguredModel(runtime);
-    const targetCount = runtime.configured_agent_count ?? agentNames.length;
-    if (!runtimeModelSwitchable(runtime)) return "モデル: 実行環境側で設定";
-    if (!targetCount) return "モデル設定: 対象エージェントなし";
-    if (!configured) return `モデル設定: ${targetCount}件のエージェントは実行環境既定を使用`;
-    return `モデル設定: ${configured}（対象 ${targetCount}件）`;
-  }
-
-  function runtimeConfiguredModel(runtime) {
-    const provider = runtime?.configured_provider || "";
-    const model = runtime?.configured_model || "";
-    const baseUrl = runtime?.configured_base_url || "";
-    const main = [provider, model].filter(Boolean).join(" / ");
-    return [main, baseUrl].filter(Boolean).join(" · ");
   }
 
   function runtimeAgentNames(runtime) {
@@ -3669,7 +3811,7 @@ const NagareApp = (() => {
           ` : `
             <input name="model_provider" type="hidden" value="">
             <input name="model_base_url" type="hidden" value="">
-            <div class="field"><label>モデル</label>${runtimeModelInput(runtime, runtime.configured_model || "", "runtime")}</div>
+            ${runtimeModelSelect(runtime)}
           `}
           <div class="hint">${switchable ? "保存すると、対象エージェントのモデル設定が更新されます。エージェント個別の設定はあとから上書きできます。" : "モデル名をNagareへ重複入力しないため、ここでは保存操作を行いません。"}</div>
           <div class="modal-foot">
@@ -3681,8 +3823,18 @@ const NagareApp = (() => {
       </div>`);
     modal.querySelector("[data-close]").addEventListener("click", closeDynamicModal);
     bindRuntimeProviderBaseUrlToggle(modal);
+    bindRuntimeModelChoice(modal);
     modal.querySelector("[data-reset-runtime-model]")?.addEventListener("click", () => {
-      modal.querySelector('input[name="model"]').value = "";
+      const modelChoice = modal.querySelector('[data-runtime-model-choice]');
+      if (modelChoice) {
+        modelChoice.value = "";
+        modelChoice.dispatchEvent(new Event("input", { bubbles: true }));
+      } else {
+        const model = modal.querySelector('[name="model"]');
+        if (model) model.value = "";
+      }
+      const customModel = modal.querySelector('input[name="model_custom"]');
+      if (customModel) customModel.value = "";
       const provider = modal.querySelector('[name="model_provider"]');
       if (provider) provider.value = "";
       const baseUrl = modal.querySelector('input[name="model_base_url"]');
@@ -3706,16 +3858,55 @@ const NagareApp = (() => {
     update();
   }
 
+  function runtimeModelSelect(runtime) {
+    const choices = modelChoices(runtime);
+    const configured = runtime.configured_model || "";
+    const usesCustomValue = Boolean(configured) && !choices.includes(configured);
+    return `
+      <div class="field">
+        <label>モデル</label>
+        <select name="model" data-runtime-model-choice>
+          <option value="" ${configured ? "" : "selected"}>実行環境既定</option>
+          ${choices.map((choice) => `<option value="${escapeHtml(choice)}" ${configured === choice ? "selected" : ""}>${escapeHtml(choice)}</option>`).join("")}
+          <option value="__custom__" ${usesCustomValue ? "selected" : ""}>手入力...</option>
+        </select>
+      </div>
+      <div class="field" data-runtime-custom-model-field ${usesCustomValue ? "" : "hidden"}>
+        <label>モデル名</label>
+        <input name="model_custom" type="text" value="${escapeHtml(usesCustomValue ? configured : "")}" placeholder="例: gpt-5.3-codex">
+      </div>
+      <div class="hint">候補はNagareで選べる設定値です。利用可否はCodex CLIの契約・ログイン状態に従います。</div>
+    `;
+  }
+
+  function bindRuntimeModelChoice(modal) {
+    const choice = modal.querySelector("[data-runtime-model-choice]");
+    const field = modal.querySelector("[data-runtime-custom-model-field]");
+    if (!choice || !field) return;
+    const input = field.querySelector('input[name="model_custom"]');
+    const update = () => {
+      const usesCustomValue = choice.value === "__custom__";
+      field.hidden = !usesCustomValue;
+      if (input) input.required = usesCustomValue;
+    };
+    choice.addEventListener("input", update);
+    update();
+  }
+
   async function saveRuntimeModelDefaults(event, runtime) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const selectedModel = String(form.get("model") || "").trim();
+    const model = selectedModel === "__custom__"
+      ? String(form.get("model_custom") || "").trim()
+      : selectedModel;
     try {
       state = await call("save_runtime_model_defaults", {
         request: {
           root: rootValue(),
           runtime_id: runtime.id,
           model_provider: String(form.get("model_provider") || "").trim(),
-          model: String(form.get("model") || "").trim(),
+          model,
           model_base_url: String(form.get("model_base_url") || "").trim(),
         },
       });
@@ -3742,8 +3933,7 @@ const NagareApp = (() => {
     const el = document.getElementById("scr-agent-list");
     if (!el || !state) return;
     const currentProject = projectName();
-    const totalAgents = (state.agents || []).length + 1;
-    const builtinOrganizerStatus = state?.project?.organizer_agent_id ? "候補" : "使用中";
+    const totalAgents = (state.agents || []).length;
     el.innerHTML = `
       <h2 class="page-title">エージェント</h2>
       <p class="page-sub">役割、担当範囲、プロジェクト上の状態を確認します。実行環境やモデルは編集画面で設定します。</p>
@@ -3760,7 +3950,7 @@ const NagareApp = (() => {
         <label class="visually-hidden" for="agent-project-filter">参加プロジェクト</label>
         <select id="agent-project-filter" style="width:auto;min-width:190px;">
           <option value="all">プロジェクト: すべて</option>
-          <option value="${escapeHtml(currentProject.toLowerCase())}">${escapeHtml(projectIcon())} ${escapeHtml(currentProject)}</option>
+          <option value="${escapeHtml(currentProject.toLowerCase())}">${escapeHtml(currentProject)}</option>
         </select>
         <label class="visually-hidden" for="agent-search-filter">エージェント検索</label>
         <input id="agent-search-filter" type="search" placeholder="名前・役割・担当範囲で検索" style="width:260px;">
@@ -3768,17 +3958,6 @@ const NagareApp = (() => {
         <span class="filter-result" id="agent-filter-result">${totalAgents}件を表示</span>
       </div>
       <div class="list">
-        <div class="list-item" data-agent-row data-role="organizer" data-project="${escapeHtml(currentProject.toLowerCase())}" data-search="${escapeHtml(["標準の内蔵オーガナイザー", "内蔵", "オーガナイザー", "整理役", "全ドメイン", "割り当て", currentProject, builtinOrganizerStatus].join(" ").toLowerCase())}">
-          <div class="wr-picon">内</div>
-          <div class="wr-body">
-            <div class="wr-title">標準の内蔵オーガナイザー <span class="wr-projtag">オーガナイザー</span></div>
-            <div class="wr-sum">担当範囲 全ドメイン · 依頼の整理と担当割り当てを行う標準整理役</div>
-          </div>
-          <div class="wr-side">
-            <span class="badge badge-neutral">${escapeHtml(builtinOrganizerStatus)}</span>
-          </div>
-          <button class="btn btn-secondary btn-sm" type="button" data-open-organizer-settings>差し替え</button>
-        </div>
         ${(state.agents || []).map((agent) => {
         const projectStatus = agentProjectStatus(agent);
         const scope = agentScopeSummary(agent);
@@ -3792,13 +3971,14 @@ const NagareApp = (() => {
           usage,
           projectStatus,
           currentProject,
+          agent.builtin ? "ビルトイン 標準" : "",
           ...(agent.specialties || []),
         ].join(" ").toLowerCase();
         return `
         <div class="list-item" data-agent-row data-role="${escapeHtml(agent.role || "")}" data-project="${escapeHtml(currentProject.toLowerCase())}" data-search="${escapeHtml(searchText)}">
           ${agentAvatarMarkup(agent)}
           <div class="wr-body">
-            <div class="wr-title">${escapeHtml(agent.name)} <span class="wr-projtag">${escapeHtml(roleLabel(agent.role))}</span></div>
+            <div class="wr-title">${escapeHtml(agent.name)}${agent.builtin ? ' <span class="badge badge-neutral" title="Nagareが標準で用意するエージェント">ビルトイン</span>' : ""} <span class="wr-projtag">${escapeHtml(roleLabel(agent.role))}</span></div>
             <div class="wr-sum">${escapeHtml(agentListSummary(scope, usage))}</div>
           </div>
           <div class="wr-side">
@@ -3809,11 +3989,6 @@ const NagareApp = (() => {
       `;
       }).join("")}<div class="list-empty" id="agent-empty" style="display:none;">条件に一致するエージェントはいません。</div></div>`;
     el.querySelector("[data-add-agent]").addEventListener("click", () => openAgentCreateDialog());
-    el.querySelector("[data-open-organizer-settings]").addEventListener("click", () => {
-      renderProjectScreens();
-      goApp("project-list", "<b>プロジェクト</b>");
-      openProjectSettingsDialog("organizer");
-    });
     el.querySelector("[data-clear-agent-result]")?.addEventListener("click", () => {
       pendingAgentResult = null;
       renderAgents();
@@ -3888,7 +4063,8 @@ const NagareApp = (() => {
     const labels = [];
     if (agent.name === state?.project?.work_agent || agent.id === state?.project?.work_agent) labels.push("既定ワーカー");
     if (agent.name === state?.project?.review_agent || agent.id === state?.project?.review_agent) labels.push("既定レビュアー");
-    if (agent.id === state?.project?.organizer_agent_id) labels.push("プロジェクト整理役");
+    if (agent.id === state?.project?.organizer_agent_id) labels.push("既定オーガナイザー");
+    if (!labels.length && agent.builtin && lines(agent.domain_ids).includes("general")) labels.push("汎用フォールバック");
     if (!labels.length) labels.push(`${projectName()} 参加候補`);
     return labels.join(" / ");
   }
@@ -3896,13 +4072,16 @@ const NagareApp = (() => {
   function agentScopeSummary(agent) {
     const domains = lines(agent.domain_ids).map(domainName);
     const artifacts = lines(agent.artifact_type_ids).map(artifactName);
-    return [...domains, ...artifacts].join(" / ") || "全ドメイン";
+    return unique([...domains, ...artifacts]).join(" / ") || "全ドメイン";
   }
 
   function agentUsageSummary(agent) {
+    const usageCount = Number(agent.usage_count || 0);
     const score = (state?.insights?.agent_scores || []).find((item) => item.agent_id === agent.id || item.agent_name === agent.name);
-    if (!score) return "利用実績なし";
-    return `利用実績 ${score.review_count || 0}件 · 平均 ${score.average_score_label || "-"}`;
+    if (!usageCount && !score) return "利用実績なし";
+    const usage = usageCount ? `利用実績 ${usageCount}工程` : "";
+    const evaluation = score ? `評価 ${score.review_count || 0}件 · 平均 ${score.average_score_label || "-"}` : "";
+    return [usage, evaluation].filter(Boolean).join(" · ");
   }
 
   function agentAvatarMarkup(agent, options = {}) {
@@ -4020,6 +4199,9 @@ const NagareApp = (() => {
     const selectedMcpIds = unique([...(agent?.mcp_connection_ids || []), preselect.mcpId].filter(Boolean));
     const usePage = !agentReturnContext?.kind && !proposal && !preselect.skillId && !preselect.mcpId;
     const title = isEdit ? (agent.name || agent.id) : "新規エージェント";
+    const builtinNotice = agent?.builtin
+      ? '<p class="page-sub" style="margin:4px 0 0;">ビルトインエージェント: Nagareが標準で用意する役割です。プロジェクトに合わせて設定を調整できます。</p>'
+      : "";
     const formBody = `
           ${proposalHiddenInputs(proposal)}
           <div class="tabs" style="margin-bottom:16px;">
@@ -4049,11 +4231,14 @@ const NagareApp = (() => {
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
               <div class="field"><label>表示名</label><input name="display_name" type="text" value="${escapeHtml(agent?.name || "")}" placeholder="例: UI Worker"></div>
-              <div class="field"><label>管理ID（任意）</label><input name="id" type="text" value="${escapeHtml(agent?.id || "")}" ${isEdit ? "readonly" : ""} placeholder="空欄なら表示名から自動生成"><div class="hint">通常は変更不要です。外部設定で固定IDが必要な場合だけ入力します。</div></div>
               <div class="field"><label>ロール</label><select name="role">${agentRoleOptions(agent?.role || "worker")}</select></div>
             </div>
             <div class="field"><label>説明</label><textarea name="description" style="min-height:96px;" placeholder="このエージェントの役割や専門性">${escapeHtml(agent?.description || "")}</textarea></div>
             <div class="field"><label>得意分野（1行に1つ）</label><textarea name="specialties" style="min-height:88px;" placeholder="ui&#10;review">${escapeHtml((agent?.specialties || []).join("\n"))}</textarea></div>
+            <details class="advanced-settings">
+              <summary>詳細設定</summary>
+              <div class="field"><label>管理ID（任意）</label><input name="id" type="text" value="${escapeHtml(agent?.id || "")}" ${isEdit ? "readonly" : ""} placeholder="空欄なら表示名から自動生成"><div class="hint">通常は変更不要です。外部設定で固定IDが必要な場合だけ入力します。</div></div>
+            </details>
           </div>
 
           <div class="tabpane ${active("runtime")}" data-agent-pane="runtime">
@@ -4066,7 +4251,7 @@ const NagareApp = (() => {
 
           <div class="tabpane ${active("scope")}" data-agent-pane="scope">
             <div class="field"><label>担当ドメイン</label><div class="list" style="max-height:150px;overflow:auto;">${checkboxList("domain_ids", state.domains || [], agent?.domain_ids || [])}</div></div>
-            <div class="field"><label>成果物種別</label><div class="list" style="max-height:150px;overflow:auto;">${checkboxList("artifact_type_ids", state.artifact_types || [], agent?.artifact_type_ids || [])}</div></div>
+            <div class="field"><label>成果物</label><div class="list" style="max-height:150px;overflow:auto;">${checkboxList("artifact_type_ids", state.artifact_types || [], agent?.artifact_type_ids || [])}</div></div>
             <div class="hint">担当範囲はオーガナイザーがエージェントを選ぶ制約です。範囲外の依頼には割り当てられません。未選択の場合は全体候補として扱います。</div>
           </div>
 
@@ -4110,6 +4295,7 @@ const NagareApp = (() => {
           <div style="flex:1;min-width:0;">
             <h2 class="page-title" style="margin-bottom:0;">${escapeHtml(title)}</h2>
             <p class="page-sub" style="margin:4px 0 0;">役割、実行環境、担当範囲、プロンプト、スキル/MCPを設定します。</p>
+            ${builtinNotice}
           </div>
           <button class="btn btn-secondary btn-sm" type="button" data-close>エージェント一覧へ</button>
         </div>
@@ -4119,7 +4305,7 @@ const NagareApp = (() => {
     } else {
       modal = dynamicModal(`
         <div class="modal" style="width:860px;">
-          <div class="modal-head"><h3>${escapeHtml(title)}</h3><div class="m-sub">役割、実行環境、担当範囲、スキル/MCPを設定します。</div></div>
+          <div class="modal-head"><h3>${escapeHtml(title)}</h3><div class="m-sub">役割、実行環境、担当範囲、スキル/MCPを設定します。</div>${agent?.builtin ? '<div class="m-sub">ビルトインエージェント</div>' : ""}</div>
           <form class="modal-body" data-agent-form>${formBody}</form>
         </div>`);
     }
@@ -4141,7 +4327,7 @@ const NagareApp = (() => {
     modal.querySelectorAll("[data-agent-tab]").forEach((button) => {
       button.addEventListener("click", () => switchAgentTab(modal, button.dataset.agentTab));
     });
-    bindProviderBaseUrlToggle(modal);
+    bindAgentModelChoice(modal);
     modal.querySelector("[data-delete-agent]")?.addEventListener("click", () => openDeleteAgentDialog(agent.id));
   }
 
@@ -4209,7 +4395,6 @@ const NagareApp = (() => {
   function agentModelFields(toolKind, values = {}) {
     const model = values?.model === "実行環境既定" ? "" : values?.model || "";
     const provider = values?.model_provider || "";
-    const baseUrl = values?.model_base_url || "";
     if (!agentModelSwitchable(toolKind)) {
       return `
         <input name="model_provider" type="hidden" value="">
@@ -4222,20 +4407,11 @@ const NagareApp = (() => {
         </div>
       `;
     }
-    if (["opencode"].includes(toolKind)) {
-      return `
-        <div class="field">
-          <label>Provider</label>
-          <select name="model_provider" data-agent-provider>
-            ${["", "OpenAI", "Ollama", "LMStudio"].map((value) => `<option value="${escapeHtml(value)}" ${provider === value ? "selected" : ""}>${escapeHtml(value || "実行環境既定")}</option>`).join("")}
-          </select>
-        </div>
-        <div class="field"><label>モデル</label><input name="model" type="text" value="${escapeHtml(model)}" placeholder="空なら実行環境既定"></div>
-        <div class="field" data-base-url-field style="grid-column:1 / -1;"><label>Base URL</label><input name="model_base_url" type="text" value="${escapeHtml(baseUrl)}" placeholder="例: http://localhost:11434"></div>
-      `;
-    }
+    const modelRef = toolKind === "opencode" && model && provider && !model.includes("/")
+      ? `${provider.toLowerCase()}/${model}`
+      : model;
     return `
-      <div class="field" style="grid-column:1 / -1;"><label>モデル</label>${agentModelInput(toolKind, model)}</div>
+      <div class="field" style="grid-column:1 / -1;"><label>モデル</label>${agentModelSelect(toolKind, modelRef)}</div>
       <input name="model_provider" type="hidden" value="">
       <input name="model_base_url" type="hidden" value="">
     `;
@@ -4249,9 +4425,25 @@ const NagareApp = (() => {
     return runtime?.id !== "openclaw";
   }
 
-  function agentModelInput(toolKind, model) {
+  function agentModelSelect(toolKind, model) {
     const runtime = runtimeForToolKind(toolKind);
-    return runtimeModelInput(runtime || { id: toolKind, model_choices: [] }, model, `agent-${toolKind}`);
+    const choices = modelChoices(runtime);
+    const usesCustomValue = Boolean(model) && !choices.includes(model);
+    const hint = toolKind === "opencode"
+      ? (choices.length ? "OpenCodeのローカル設定から読み込んだモデルです。" : "OpenCodeのローカル設定に候補がありません。モデル参照を手入力できます。")
+      : "候補はNagareで選べる設定値です。利用可否はCodex CLIの契約・ログイン状態に従います。";
+    return `
+      <select name="model" data-agent-model-choice>
+        <option value="" ${model ? "" : "selected"}>実行環境既定</option>
+        ${choices.map((choice) => `<option value="${escapeHtml(choice)}" ${model === choice ? "selected" : ""}>${escapeHtml(choice)}</option>`).join("")}
+        <option value="__custom__" ${usesCustomValue ? "selected" : ""}>手入力...</option>
+      </select>
+      <div class="field" data-agent-custom-model-field ${usesCustomValue ? "" : "hidden"} style="margin-top:10px;">
+        <label>モデル名</label>
+        <input name="model_custom" type="text" value="${escapeHtml(usesCustomValue ? model : "")}" placeholder="${toolKind === "opencode" ? "例: openai/gpt-5.6" : "例: gpt-5.6"}">
+      </div>
+      <div class="hint">${hint}</div>
+    `;
   }
 
   function runtimeModelInput(runtime, model, scope) {
@@ -4280,25 +4472,33 @@ const NagareApp = (() => {
     const toolKind = form.querySelector('select[name="tool_kind"]')?.value || "codex_cli";
     const selectedMcpIds = new FormData(form).getAll("mcp_connection_ids").map(String);
     const values = {
-      model: form.querySelector('input[name="model"]')?.value || "",
+      model: selectedAgentModelValue(form),
       model_provider: form.querySelector('[name="model_provider"]')?.value || "",
       model_base_url: form.querySelector('[name="model_base_url"]')?.value || "",
     };
     modal.querySelector("[data-agent-model-area]").innerHTML = agentModelFields(toolKind, values);
     modal.querySelector("[data-agent-mcp-list]").innerHTML = mcpCheckboxes(selectedMcpIds, toolKind);
-    bindProviderBaseUrlToggle(modal);
+    bindAgentModelChoice(modal);
   }
 
-  function bindProviderBaseUrlToggle(modal) {
-    const provider = modal.querySelector("[data-agent-provider]");
-    const field = modal.querySelector("[data-base-url-field]");
-    if (!provider || !field) return;
+  function selectedAgentModelValue(form) {
+    const model = form.querySelector('[name="model"]');
+    if (!model) return "";
+    if (model.value !== "__custom__") return model.value || "";
+    return form.querySelector('[name="model_custom"]')?.value || "";
+  }
+
+  function bindAgentModelChoice(modal) {
+    const choice = modal.querySelector("[data-agent-model-choice]");
+    const field = modal.querySelector("[data-agent-custom-model-field]");
+    if (!choice || !field) return;
+    const input = field.querySelector('input[name="model_custom"]');
     const update = () => {
-      const needsBaseUrl = ["Ollama", "LMStudio"].includes(provider.value);
-      field.hidden = !needsBaseUrl;
-      if (!needsBaseUrl) field.querySelector('input[name="model_base_url"]').value = "";
+      const usesCustomValue = choice.value === "__custom__";
+      field.hidden = !usesCustomValue;
+      if (input) input.required = usesCustomValue;
     };
-    provider.addEventListener("input", update);
+    choice.addEventListener("input", update);
     update();
   }
 
@@ -4384,7 +4584,9 @@ const NagareApp = (() => {
       avatar: String(form.get("avatar") || "").trim(),
       role: String(form.get("role") || "worker"),
       tool_kind: String(form.get("tool_kind") || "codex_cli"),
-      model: String(form.get("model") || "").trim(),
+      model: String(form.get("model") || "") === "__custom__"
+        ? String(form.get("model_custom") || "").trim()
+        : String(form.get("model") || "").trim(),
       model_provider: String(form.get("model_provider") || "").trim(),
       model_base_url: String(form.get("model_base_url") || "").trim(),
       description: String(form.get("description") || "").trim(),
@@ -4501,7 +4703,7 @@ const NagareApp = (() => {
     const pendingDomain = findDomain(pendingDomainFollowupId);
     el.innerHTML = `
       <h2 class="page-title">ナレッジ</h2>
-      <p class="page-sub">ドメインごとに、共通知識と成果物種別を管理します。</p>
+      <p class="page-sub">ドメインごとに、共通知識と成果物を管理します。</p>
       <div style="display:flex;justify-content:flex-end;margin:0 0 10px;">
         <button class="btn btn-primary" type="button" data-add-domain>ドメインを追加</button>
       </div>
@@ -4510,7 +4712,7 @@ const NagareApp = (() => {
       ${pendingKnowledgeResult ? knowledgeOperationResultPanel(pendingKnowledgeResult) : ""}
       <div class="filters">
         <label class="visually-hidden" for="knowledge-search-filter">ナレッジ検索</label>
-        <input id="knowledge-search-filter" type="search" placeholder="ドメイン・成果物種別・知識を検索" style="width:300px;">
+        <input id="knowledge-search-filter" type="search" placeholder="ドメイン・成果物・知識を検索" style="width:300px;">
         <span style="flex:1"></span>
         <span class="filter-result" id="knowledge-filter-result">${domains.length}件を表示</span>
       </div>
@@ -4543,9 +4745,12 @@ const NagareApp = (() => {
           <div class="wr-picon">知</div>
             <div class="wr-body">
               <div class="wr-title">${escapeHtml(domain.name)}${proposalCount ? ` <span class="badge badge-ask" style="margin-left:4px;"><span class="bdot"></span>改善提案 ${proposalCount}件</span>` : ""}</div>
-            <div class="wr-sum">${escapeHtml(domain.description || "")} · 知識 ${knowledgeCount}件 · 成果物種別 ${artifactCount}件${artifactNames ? `（${escapeHtml(artifactNames)}）` : ""} · ルーブリック ${rubricCount}項目 · ${escapeHtml(usage.label)}</div>
+            <div class="wr-sum">${escapeHtml(domain.description || "")} · 知識 ${knowledgeCount}件 · 成果物 ${artifactCount}件${artifactNames ? `（${escapeHtml(artifactNames)}）` : ""} · ルーブリック ${rubricCount}項目 · ${escapeHtml(usage.label)}</div>
           </div>
-          <button class="btn btn-secondary btn-sm" type="button" data-edit-domain="${escapeHtml(domain.id)}">詳細</button>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn btn-secondary btn-sm" type="button" data-domain-detail="${escapeHtml(domain.id)}">詳細</button>
+            <button class="btn btn-danger-soft btn-sm" type="button" data-delete-domain-row="${escapeHtml(domain.id)}">削除</button>
+          </div>
         </div>
       `;
       }).join("") || `<div class="list-empty">ドメインはまだありません。</div>`}<div class="list-empty" id="knowledge-empty" style="display:none;">条件に一致するドメインはありません。</div></div>`;
@@ -4574,8 +4779,11 @@ const NagareApp = (() => {
       renderKnowledge();
     });
     el.querySelector("#knowledge-search-filter").addEventListener("input", applyKnowledgeFilter);
-    el.querySelectorAll("[data-edit-domain]").forEach((button) => {
-      button.addEventListener("click", () => openDomainDialog(findDomain(button.dataset.editDomain)));
+    el.querySelectorAll("[data-domain-detail]").forEach((button) => {
+      button.addEventListener("click", () => openDomainDialog(findDomain(button.dataset.domainDetail), "basic"));
+    });
+    el.querySelectorAll("[data-delete-domain-row]").forEach((button) => {
+      button.addEventListener("click", () => openDeleteDomainDialog(button.dataset.deleteDomainRow));
     });
     applyKnowledgeFilter();
   }
@@ -4658,13 +4866,13 @@ const NagareApp = (() => {
         <div style="display:flex;gap:14px;align-items:flex-start;">
           <div class="wr-picon" style="background:#fff;">知</div>
           <div style="flex:1;min-width:0;">
-            <div style="font-size:13.5px;font-weight:800;color:var(--text-body);">次の操作: 成果物種別を追加</div>
+            <div style="font-size:13.5px;font-weight:800;color:var(--text-body);">次の操作: 成果物を追加</div>
             <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px;">
-              ${escapeHtml(domain.name || domain.id)} を追加しました。ワークで使うには、README、FAQ、リリースノートのような成果物種別とルーブリックを設定します。
+              ${escapeHtml(domain.name || domain.id)} を追加しました。ワークで使うには、README、FAQ、リリースノートのような成果物とルーブリックを設定します。
             </div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;">
-            <button class="btn btn-primary btn-sm" type="button" data-followup-add-artifact="${escapeHtml(domain.id)}">成果物種別を追加</button>
+            <button class="btn btn-primary btn-sm" type="button" data-followup-add-artifact="${escapeHtml(domain.id)}">成果物を追加</button>
             <button class="btn btn-secondary btn-sm" type="button" data-clear-domain-followup>後で</button>
           </div>
         </div>
@@ -4786,55 +4994,52 @@ const NagareApp = (() => {
     const domainResult = isEdit && pendingKnowledgeResult?.domain_id === domain.id ? pendingKnowledgeResult : null;
     const formBody = `
           ${domainResult ? knowledgeOperationResultPanel(domainResult) : ""}
-          ${isEdit ? `
-            <div class="tabs" style="margin-bottom:16px;">
-              <button class="tab ${active("basic")}" type="button" data-domain-tab="basic">基本情報</button>
-              <button class="tab ${active("artifacts")}" type="button" data-domain-tab="artifacts">成果物種別</button>
-            </div>
-          ` : ""}
-          <div class="tabpane ${active("basic")}" data-domain-pane="basic">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-              <div class="field"><label>表示名</label><input name="display_name" type="text" value="${escapeHtml(domain?.name || "")}" placeholder="例: プロダクト文書"></div>
-              <div class="field"><label>管理ID（任意）</label><input name="id" type="text" value="${escapeHtml(domain?.id || "")}" ${isEdit ? "readonly" : ""} placeholder="空欄なら表示名から自動生成"><div class="hint">通常は変更不要です。外部設定で固定IDが必要な場合だけ入力します。</div></div>
-            </div>
-            <div class="field"><label>説明</label><textarea name="description" style="min-height:88px;">${escapeHtml(domain?.description || "")}</textarea></div>
-            <div class="field"><label>共通知識（1行に1つ）</label><textarea name="shared_knowledge" style="min-height:180px;" placeholder="例: 用語集&#10;禁止表現&#10;対象読者">${escapeHtml((domain?.shared_knowledge || []).join("\n"))}</textarea><div class="hint">このドメイン内の全成果物種別に適用され、担当エージェントへ自動注入されます。</div></div>
-            <details>
-              <summary style="cursor:pointer;font-weight:700;color:var(--text-body);margin-bottom:10px;">詳細設定</summary>
-              <div class="field"><label>共通ルーブリック（1行に1つ）</label><textarea name="common_rubric" style="min-height:100px;">${escapeHtml((domain?.common_rubric || []).join("\n"))}</textarea></div>
-              <div class="field"><label>割り当てヒント（任意）</label><textarea name="dispatch_hints" style="min-height:72px;">${escapeHtml((domain?.dispatch_hints || []).join("\n"))}</textarea></div>
-            </details>
-            ${isEdit ? domainQualityPanel(domain, domainArtifacts, domainProposals) : ""}
+          <div class="tabs" style="margin-bottom:16px;">
+            <button class="tab ${active("basic")}" type="button" data-domain-tab="basic">基本情報</button>
+            <button class="tab ${active("artifacts")}" type="button" data-domain-tab="artifacts">成果物</button>
           </div>
-          ${isEdit ? `
-            <div class="tabpane ${active("artifacts")}" data-domain-pane="artifacts">
+          <div class="tabpane ${active("basic")}" data-domain-pane="basic">
+            <div class="field"><label>ドメイン名 <span class="required">必須</span></label><input name="display_name" type="text" value="${escapeHtml(domain?.name || "")}" placeholder="例: プロダクト開発" required></div>
+            <div class="field"><label>知識体系の説明 <span class="required">必須</span></label><textarea name="description" style="min-height:88px;" placeholder="例: 製品仕様、導入ガイド、FAQなど、プロダクトに関する知識と成果物をまとめる" required>${escapeHtml(domain?.description || "")}</textarea><div class="hint">単独の文書名ではなく、複数の成果物と共通知識を束ねる範囲を記述します。</div></div>
+            <div class="field"><label>共通知識（1行に1つ）</label><textarea name="shared_knowledge" style="min-height:180px;" placeholder="例: 用語集&#10;禁止表現&#10;対象読者">${escapeHtml((domain?.shared_knowledge || []).join("\n"))}</textarea><div class="hint">このドメイン内の全成果物に適用され、担当エージェントへ自動注入されます。</div></div>
+            <input name="id" type="hidden" value="${escapeHtml(domain?.id || "")}">
+            <textarea name="common_rubric" hidden>${escapeHtml((domain?.common_rubric || []).join("\n"))}</textarea>
+            <textarea name="dispatch_hints" hidden>${escapeHtml((domain?.dispatch_hints || []).join("\n"))}</textarea>
+            ${isEdit ? domainQualityPanel(domain, domainArtifacts, domainProposals) : ""}
+            <div class="modal-foot">
+              <button class="btn btn-secondary" type="button" data-close>閉じる</button>
+              <button class="btn btn-primary" type="submit" data-save-domain disabled>保存</button>
+            </div>
+          </div>
+          <div class="tabpane ${active("artifacts")}" data-domain-pane="artifacts">
               <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
                 <div>
-                  <h4 style="font-size:14px;">${escapeHtml(domain.name)} の成果物種別</h4>
+                  <h4 style="font-size:14px;">${escapeHtml(domain?.name || "このドメイン")} の成果物</h4>
                   <div class="hint">このドメイン内で作る成果物ごとの知識とルーブリックを管理します。</div>
                 </div>
                 <span style="flex:1"></span>
-                <button class="btn btn-primary btn-sm" type="button" data-add-domain-artifact>成果物種別を追加</button>
+                ${isEdit
+                  ? `<button class="btn btn-primary btn-sm" type="button" data-add-domain-artifact>成果物を追加</button>`
+                  : `<button class="btn btn-primary btn-sm" type="button" disabled>成果物を追加</button>`}
               </div>
               <div class="list">
-                ${domainArtifacts.map((artifact) => `
+                ${!isEdit ? `<div class="list-empty">先に基本情報を保存してください。保存後もこの編集画面に留まり、成果物とルーブリックを追加できます。</div>` : domainArtifacts.map((artifact) => `
                   <div class="list-item">
                     <div class="wr-picon">成</div>
                     <div class="wr-body">
                       <div class="wr-title">${escapeHtml(artifact.name)}</div>
                       <div class="wr-sum">${escapeHtml(artifact.description || "")} · ルーブリック ${artifact.rubric_count || 0}項目 / ${artifact.rubric_score_total || 0}点</div>
                     </div>
-                    <button class="btn btn-secondary btn-sm" type="button" data-edit-artifact="${escapeHtml(artifact.id)}">編集</button>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                      <button class="btn btn-secondary btn-sm" type="button" data-edit-artifact="${escapeHtml(artifact.id)}">編集</button>
+                      <button class="btn btn-danger-soft btn-sm" type="button" data-delete-artifact-row="${escapeHtml(artifact.id)}">削除</button>
+                    </div>
                   </div>
-                `).join("") || `<div class="list-empty">このドメインの成果物種別はまだありません。</div>`}
+                `).join("") || `<div class="list-empty">このドメインの成果物はまだありません。</div>`}
               </div>
+              ${usePage ? "" : `<div class="modal-foot"><button class="btn btn-secondary" type="button" data-close>閉じる</button></div>`}
             </div>
-          ` : ""}
-          <div class="modal-foot">
-            ${isEdit ? `<button class="btn btn-danger-soft left" type="button" data-delete-domain>削除</button>` : ""}
-            <button class="btn btn-secondary" type="button" data-close>閉じる</button>
-            <button class="btn btn-primary" type="submit">保存</button>
-          </div>`;
+          `;
     let modal;
     if (usePage) {
       closeDynamicModal();
@@ -4844,7 +5049,7 @@ const NagareApp = (() => {
         <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">
           <div style="flex:1;min-width:0;">
             <h2 class="page-title" style="margin-bottom:0;">${escapeHtml(title)}</h2>
-            <p class="page-sub" style="margin:4px 0 0;">共通知識と成果物種別を管理します。ワーク実行時に必要な知識としてエージェントへ自動注入されます。</p>
+            <p class="page-sub" style="margin:4px 0 0;">複数の成果物に共通する知識をまとめ、ワーク実行時に担当エージェントへ自動注入します。</p>
           </div>
           <button class="btn btn-secondary btn-sm" type="button" data-close>ナレッジ一覧へ</button>
         </div>
@@ -4854,19 +5059,19 @@ const NagareApp = (() => {
     } else {
       modal = dynamicModal(`
         <div class="modal" style="width:860px;">
-          <div class="modal-head"><h3>${escapeHtml(title)}</h3><div class="m-sub">共通知識と品質基準をまとめる単位です。ワーク実行時に必要な知識としてエージェントへ自動注入されます。</div></div>
+          <div class="modal-head"><h3>${escapeHtml(title)}</h3><div class="m-sub">複数の成果物、共通知識、品質基準をまとめる知識体系です。</div></div>
           <form class="modal-body" data-domain-form>${formBody}</form>
         </div>`);
     }
     modal.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", closeDomainDialog));
     const domainForm = modal.querySelector("[data-domain-form]");
     bindGeneratedId(domainForm, generatedDomainId);
+    bindDomainSaveReadiness(domainForm);
     domainForm.addEventListener("submit", saveDomainFromDialog);
     modal.querySelector("[data-clear-knowledge-result]")?.addEventListener("click", () => {
       pendingKnowledgeResult = null;
       openDomainDialog(findDomain(domain.id), initialTabOverride);
     });
-    modal.querySelector("[data-delete-domain]")?.addEventListener("click", () => openDeleteDomainDialog(domain.id));
     modal.querySelectorAll("[data-domain-proposal-preview]").forEach((button) => {
       button.addEventListener("click", () => openImprovementProposalDialog(button.dataset.domainProposalPreview));
     });
@@ -4887,6 +5092,25 @@ const NagareApp = (() => {
         openArtifactDialog(findArtifact(button.dataset.editArtifact));
       });
     });
+    modal.querySelectorAll("[data-delete-artifact-row]").forEach((button) => {
+      button.addEventListener("click", () => {
+        artifactReturnContext = { kind: "domain", domainId: domain.id, tab: "artifacts" };
+        openDeleteArtifactDialog(button.dataset.deleteArtifactRow);
+      });
+    });
+  }
+
+  function bindDomainSaveReadiness(form) {
+    const displayName = form.querySelector('input[name="display_name"]');
+    const description = form.querySelector('textarea[name="description"]');
+    const saveButton = form.querySelector("[data-save-domain]");
+    if (!displayName || !description || !saveButton) return;
+    const update = () => {
+      saveButton.disabled = !displayName.value.trim() || !description.value.trim();
+    };
+    displayName.addEventListener("input", update);
+    description.addEventListener("input", update);
+    update();
   }
 
   function domainQualityPanel(domain, domainArtifacts, proposals) {
@@ -4911,7 +5135,7 @@ const NagareApp = (() => {
         <div class="ro-facts" style="margin:0 0 10px;">
           <span><b>最近のレビュー</b>${escapeHtml(`${reviewCount || 0}件`)}</span>
           <span><b>懸念</b>${escapeHtml(concernCount ? `${concernCount}件` : "なし")}</span>
-          <span><b>成果物種別</b>${escapeHtml(`${domainArtifacts.length}種`)}</span>
+          <span><b>成果物</b>${escapeHtml(`${domainArtifacts.length}件`)}</span>
         </div>
         <div class="list">
           ${proposals.length ? proposals.map((proposal) => `
@@ -4967,7 +5191,7 @@ const NagareApp = (() => {
         request,
       });
       if (!wasExisting) pendingDomainFollowupId = id;
-      if (wasExisting) pendingKnowledgeResult = domainSaveResultFromRequest(request);
+      pendingKnowledgeResult = domainSaveResultFromRequest(request);
       closeDynamicModal();
       renderSettingsScreens();
       if (domainReturnContext?.kind === "project") {
@@ -4980,8 +5204,7 @@ const NagareApp = (() => {
         return;
       }
       if (fromDomainPage) {
-        renderKnowledge();
-        goApp("knowledge-list", "<b>ナレッジ</b>");
+        openDomainDialog(findDomain(id), "basic");
       }
       toast("ドメインを保存しました。");
     } catch (error) {
@@ -5007,7 +5230,6 @@ const NagareApp = (() => {
 
   function openDeleteDomainDialog(id) {
     const domain = findDomain(id);
-    const fromDomainPage = Boolean(document.querySelector("#scr-knowledge-domain.screen.active [data-domain-form]"));
     const artifacts = (state.artifact_types || []).filter((artifact) => artifact.domain_id === id);
     const blocked = artifacts.length > 0;
     const modal = dynamicModal(`
@@ -5017,13 +5239,13 @@ const NagareApp = (() => {
           <div class="card" style="padding:10px 12px;">
             <div class="kv"><div class="k">対象</div><div class="v">${escapeHtml(domain?.name || id)}</div></div>
             <div class="kv"><div class="k">共通知識</div><div class="v">${escapeHtml(String((domain?.shared_knowledge || []).length))}件</div></div>
-            <div class="kv"><div class="k">成果物種別</div><div class="v">${escapeHtml(artifacts.length ? artifacts.map((artifact) => artifact.name || artifact.id).join("、") : "なし")}</div></div>
+            <div class="kv"><div class="k">成果物</div><div class="v">${escapeHtml(artifacts.length ? artifacts.map((artifact) => artifact.name || artifact.id).join("、") : "なし")}</div></div>
             <div class="kv"><div class="k">履歴</div><div class="v">過去のワーク履歴と実行記録は残ります</div></div>
           </div>
           ${blocked ? `
             <div class="card" style="padding:10px 12px;margin-top:10px;border-color:var(--warning-line);background:var(--warning-soft);">
               <b style="color:var(--warning);">このドメインはまだ削除できません</b>
-              <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px;">先に成果物種別を削除または別ドメインへ移動してください。</div>
+              <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px;">先に成果物を削除または別ドメインへ移動してください。</div>
             </div>
           ` : `<div class="hint" style="margin-top:8px;">削除後、このドメインの共通知識は新しいワークへ自動注入されません。</div>`}
         </div>
@@ -5039,20 +5261,16 @@ const NagareApp = (() => {
           domain_id: id,
           name: domain?.name || id,
           summary: "ドメインをナレッジから削除しました。新しいワークには自動注入されません。",
-          detail: `共通知識 ${(domain?.shared_knowledge || []).length}件 · 成果物種別 ${artifacts.length}件 · 過去のワーク履歴は保持`,
+          detail: `共通知識 ${(domain?.shared_knowledge || []).length}件 · 成果物 ${artifacts.length}件 · 過去のワーク履歴は保持`,
         };
         state = await call("delete_domain_command", { request: { root: rootValue(), id } });
         if (pendingDomainFollowupId === id) pendingDomainFollowupId = null;
         pendingKnowledgeResult = deletedResult;
         closeDynamicModal();
         renderSettingsScreens();
-        if (fromDomainPage) {
-          renderKnowledge();
-          goApp("knowledge-list", "<b>ナレッジ</b>");
-        }
         toast("ドメインを削除しました。");
       } catch (error) {
-        showOperationError(modal, "ドメインを削除できませんでした", error, "成果物種別の有無とナレッジの参照状態を確認してから、もう一度削除してください。");
+        showOperationError(modal, "ドメインを削除できませんでした", error, "成果物の有無とナレッジの参照状態を確認してから、もう一度削除してください。");
         toast(String(error), "error");
       }
     });
@@ -5062,36 +5280,36 @@ const NagareApp = (() => {
     const isEdit = Boolean(artifact);
     const selectedDomainId = artifact?.domain_id || defaultDomainId || state.domains?.[0]?.id || "";
     const usePage = !artifactReturnContext?.kind;
-    const title = isEdit ? (artifact.name || artifact.id) : "成果物種別を追加";
+    const title = isEdit ? (artifact.name || artifact.id) : "成果物を追加";
     const formBody = `
           ${proposalHiddenInputs(proposal)}
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            <div class="field"><label>表示名</label><input name="display_name" type="text" value="${escapeHtml(artifact?.name || "")}" placeholder="例: README"></div>
-            <div class="field"><label>管理ID（任意）</label><input name="id" type="text" value="${escapeHtml(artifact?.id || "")}" ${isEdit ? "readonly" : ""} placeholder="空欄なら表示名から自動生成"><div class="hint">通常は変更不要です。外部設定で固定IDが必要な場合だけ入力します。</div></div>
-          </div>
-          <div class="field"><label>ドメイン</label><select name="domain_id">${domainOptions(selectedDomainId)}</select></div>
+          <div class="field"><label>表示名</label><input name="display_name" type="text" value="${escapeHtml(artifact?.name || "")}" placeholder="例: README"></div>
+          <input name="domain_id" type="hidden" value="${escapeHtml(selectedDomainId)}">
           <div class="field"><label>説明</label><textarea name="description" style="min-height:72px;" placeholder="何を、誰に、どこへ出す成果物かを書いてください">${escapeHtml(artifact?.description || "")}</textarea></div>
-          <div class="field"><label>成果物知識（1行に1つ）</label><textarea name="knowledge" style="min-height:120px;" placeholder="例: READMEテンプレート&#10;表記ルール">${escapeHtml((artifact?.knowledge || []).join("\n"))}</textarea><div class="hint">この成果物種別を担当するエージェントへ、ドメインの共通知識と一緒に自動注入されます。</div></div>
-          ${aiSupportPanel({
-            generateTitle: "生成支援 — AIで下書き",
-            generateDescription: "説明・成果物知識・ドメイン共通知識からルーブリック案を作り、挿入して編集します。",
-            generateAttr: "data-rubric-draft",
-            proposal,
-            proposalEmptyText: "このルーブリックへの改善提案 — 現在なし",
-            proposalActionLabel: "ルーブリック欄に挿入",
-          })}
+          <div class="field"><label>作成指示（1行に1つ）</label><textarea name="knowledge" style="min-height:160px;" placeholder="例: 読み手が判断に必要な前提と結論を明記する&#10;指定テンプレートと表記規則に従う">${escapeHtml((artifact?.knowledge || []).join("\n"))}</textarea><div class="hint">この成果物を作るエージェントへ、ドメインの共通知識と一緒に渡されます。</div></div>
+          <input name="id" type="hidden" value="${escapeHtml(artifact?.id || "")}">
+          <textarea name="dispatch_hints" hidden>${escapeHtml((artifact?.dispatch_hints || []).join("\n"))}</textarea>
           <div class="field">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-              <label style="margin:0;">ルーブリック（Markdown）</label>
+              <label style="margin:0;">ルーブリック（評価基準）</label>
               <span style="flex:1"></span>
+              <button class="btn btn-secondary btn-sm" type="button" data-rubric-draft>評価基準をAIで作成</button>
             </div>
             <textarea name="rubric" class="mono" style="min-height:260px;">${escapeHtml((artifact?.rubric || []).join("\n"))}</textarea>
-            <div class="hint">形式: <span class="mono">## 項目名 (配点)</span> の見出しと、その下の判定基準をMarkdownで書きます。</div>
+            <div class="hint">成果物の合格条件をMarkdownで記述します。AIで作成すると現在の入力を置き換えますが、保存するまでは確定しません。</div>
             <div class="card" data-rubric-status style="padding:10px 12px;margin-top:8px;"></div>
+            ${proposal ? `
+              <div class="card" style="padding:10px 12px;margin-top:8px;border-color:var(--warning-line);background:var(--warning-soft);">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:12.5px;font-weight:700;">過去のレビューに基づく評価基準の改善案</div>
+                    <div class="hint" style="margin-top:3px;">${escapeHtml(proposal.summary || proposal.evidence || proposal.title || "評価基準に追加できる改善案があります。")} 反映後も、保存するまでは確定しません。</div>
+                  </div>
+                  <button class="btn btn-secondary btn-sm" type="button" data-insert-proposal>評価基準に追加</button>
+                </div>
+              </div>` : ""}
           </div>
-          <div class="field"><label>割り当てヒント（任意）</label><textarea name="dispatch_hints" style="min-height:72px;">${escapeHtml((artifact?.dispatch_hints || []).join("\n"))}</textarea></div>
           <div class="modal-foot">
-            ${isEdit ? `<button class="btn btn-danger-soft left" type="button" data-delete-artifact>削除</button>` : ""}
             <button class="btn btn-secondary" type="button" data-close>閉じる</button>
             <button class="btn btn-primary" type="submit">保存</button>
           </div>`;
@@ -5105,7 +5323,7 @@ const NagareApp = (() => {
         <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">
           <div style="flex:1;min-width:0;">
             <h2 class="page-title" style="margin-bottom:0;">${escapeHtml(title)}</h2>
-            <p class="page-sub" style="margin:4px 0 0;">${escapeHtml(domain?.name || "ドメイン")} の成果物知識とルーブリックを編集します。作成とレビューの両方に渡されます。</p>
+            <p class="page-sub" style="margin:4px 0 0;">${escapeHtml(domain?.name || "ドメイン")} の作成指示とルーブリックを編集します。作成とレビューの両方に渡されます。</p>
           </div>
           <button class="btn btn-secondary btn-sm" type="button" data-close>ナレッジ一覧へ</button>
         </div>
@@ -5126,7 +5344,6 @@ const NagareApp = (() => {
     modal.querySelector("[data-rubric-draft]").addEventListener("click", () => insertRubricDraft(modal));
     modal.querySelector('textarea[name="rubric"]')?.addEventListener("input", () => updateRubricStatus(modal));
     modal.querySelector("[data-insert-proposal]")?.addEventListener("click", () => insertProposalDraft(modal, proposal, "artifact"));
-    modal.querySelector("[data-delete-artifact]")?.addEventListener("click", () => openDeleteArtifactDialog(artifact.id));
     updateRubricStatus(modal);
   }
 
@@ -5200,7 +5417,7 @@ const NagareApp = (() => {
       modal.querySelector('textarea[name="rubric"]').value = response.text || "";
       updateRubricStatus(modal);
     } catch (error) {
-      showOperationError(form, "ルーブリック下書きを生成できませんでした", error, "成果物の説明、成果物知識、ドメイン共通知識を確認してから、もう一度実行してください。");
+      showOperationError(form, "評価基準をAIで作成できませんでした", error, "成果物の説明、作成指示、ドメイン共通知識を確認してから、もう一度実行してください。");
       toast(String(error), "error");
     } finally {
       if (button) button.disabled = false;
@@ -5273,16 +5490,16 @@ const NagareApp = (() => {
         const tab = artifactReturnContext.tab || "artifacts";
         artifactReturnContext = null;
         openDomainDialog(findDomain(returnDomainId), tab);
-        toast("成果物種別を保存しました。");
+        toast("成果物を保存しました。");
         return;
       }
       if (fromArtifactPage) {
         renderKnowledge();
         goApp("knowledge-list", "<b>ナレッジ</b>");
       }
-      toast("成果物種別を保存しました。");
+      toast("成果物を保存しました。");
     } catch (error) {
-      showOperationError(event.currentTarget, "成果物種別を保存できませんでした", error, "表示名、ドメイン、説明、ルーブリック形式を確認してから、もう一度保存してください。");
+      showOperationError(event.currentTarget, "成果物を保存できませんでした", error, "表示名、ドメイン、説明、ルーブリック形式を確認してから、もう一度保存してください。");
       toast(String(error), "error");
     }
   }
@@ -5297,8 +5514,8 @@ const NagareApp = (() => {
       id: request.id,
       domain_id: request.domain_id,
       name: request.display_name || request.id,
-      summary: "成果物種別の知識とルーブリックを更新しました。作成とレビューの両方に渡されます。",
-      detail: `ドメイン: ${domainName(request.domain_id)} · 成果物知識 ${knowledgeCount}件 · ${rubric.valid ? rubric.message : `ルーブリック要確認: ${rubric.message}`} · 割り当てヒント ${hintCount}件`,
+      summary: "成果物の作成指示とルーブリックを更新しました。作成とレビューの両方に渡されます。",
+      detail: `ドメイン: ${domainName(request.domain_id)} · 作成指示 ${knowledgeCount}件 · ${rubric.valid ? rubric.message : `ルーブリック要確認: ${rubric.message}`} · 割り当てヒント ${hintCount}件`,
     };
   }
 
@@ -5328,20 +5545,27 @@ const NagareApp = (() => {
     const rubricScore = artifact?.rubric_score_total || rubric.total || 0;
     const modal = dynamicModal(`
       <div class="modal">
-        <div class="modal-head"><h3>成果物種別を削除しますか?</h3><div class="m-sub">${escapeHtml(artifact?.name || id)} を ${escapeHtml(domain?.name || domainName(artifact?.domain_id))} から削除します。</div></div>
+        <div class="modal-head"><h3>成果物を削除しますか?</h3><div class="m-sub">${escapeHtml(artifact?.name || id)} を ${escapeHtml(domain?.name || domainName(artifact?.domain_id))} から削除します。</div></div>
         <div class="modal-body">
           <div class="card" style="padding:10px 12px;">
             <div class="kv"><div class="k">対象</div><div class="v">${escapeHtml(artifact?.name || id)}</div></div>
             <div class="kv"><div class="k">ドメイン</div><div class="v">${escapeHtml(domain?.name || domainName(artifact?.domain_id))}</div></div>
-            <div class="kv"><div class="k">成果物知識</div><div class="v">${escapeHtml(String((artifact?.knowledge || []).length))}件</div></div>
+            <div class="kv"><div class="k">作成指示</div><div class="v">${escapeHtml(String((artifact?.knowledge || []).length))}件</div></div>
             <div class="kv"><div class="k">ルーブリック</div><div class="v">${escapeHtml(`${rubricCount}項目 / ${rubricScore}点`)}</div></div>
             <div class="kv"><div class="k">履歴</div><div class="v">過去のワーク履歴と実行記録は残ります</div></div>
           </div>
-          <div class="hint" style="margin-top:8px;">削除後、この成果物種別の知識とルーブリックは新しいワークへ自動注入されません。</div>
+          <div class="hint" style="margin-top:8px;">削除後、この成果物の作成指示とルーブリックは新しいワークへ自動注入されません。</div>
         </div>
-        <div class="modal-foot"><button class="btn btn-secondary" type="button" data-close>閉じる</button><button class="btn btn-primary" type="button" data-confirm>削除</button></div>
+        <div class="modal-foot"><button class="btn btn-secondary" type="button" data-close>キャンセル</button><button class="btn btn-danger-soft" type="button" data-confirm>削除する</button></div>
       </div>`);
-    modal.querySelector("[data-close]").addEventListener("click", closeDynamicModal);
+    modal.querySelector("[data-close]").addEventListener("click", () => {
+      const returnContext = artifactReturnContext?.kind === "domain"
+        ? { domainId: artifactReturnContext.domainId || artifact?.domain_id, tab: artifactReturnContext.tab || "artifacts" }
+        : null;
+      artifactReturnContext = null;
+      closeDynamicModal();
+      if (returnContext) openDomainDialog(findDomain(returnContext.domainId), returnContext.tab);
+    });
     modal.querySelector("[data-confirm]").addEventListener("click", async () => {
       try {
         const returnContext = artifactReturnContext?.kind === "domain"
@@ -5353,8 +5577,8 @@ const NagareApp = (() => {
           id,
           domain_id: artifact?.domain_id,
           name: artifact?.name || id,
-          summary: "成果物種別を削除しました。新しいワークにはこの知識とルーブリックは自動注入されません。",
-          detail: `ドメイン: ${domain?.name || domainName(artifact?.domain_id)} · 成果物知識 ${(artifact?.knowledge || []).length}件 · ルーブリック ${rubricCount}項目 / ${rubricScore}点 · 過去のワーク履歴は保持`,
+          summary: "成果物を削除しました。新しいワークにはこの作成指示とルーブリックは自動注入されません。",
+          detail: `ドメイン: ${domain?.name || domainName(artifact?.domain_id)} · 作成指示 ${(artifact?.knowledge || []).length}件 · ルーブリック ${rubricCount}項目 / ${rubricScore}点 · 過去のワーク履歴は保持`,
         };
         state = await call("delete_artifact_type_command", { request: { root: rootValue(), id } });
         pendingKnowledgeResult = deletedResult;
@@ -5368,9 +5592,9 @@ const NagareApp = (() => {
           renderKnowledge();
           goApp("knowledge-list", "<b>ナレッジ</b>");
         }
-        toast("成果物種別を削除しました。");
+        toast("成果物を削除しました。");
       } catch (error) {
-        showOperationError(modal, "成果物種別を削除できませんでした", error, "ドメイン内の成果物種別と参照状態を確認してから、もう一度削除してください。");
+        showOperationError(modal, "成果物を削除できませんでした", error, "ドメイン内の成果物と参照状態を確認してから、もう一度削除してください。");
         toast(String(error), "error");
       }
     });
@@ -5382,11 +5606,7 @@ const NagareApp = (() => {
     const insights = state.insights || {};
     const proposalCount = insights.proposal_count ?? insights.proposals?.length ?? 0;
     el.innerHTML = `
-      <div style="display:flex;align-items:center;gap:12px;">
-        <h2 class="page-title" style="margin-bottom:0;">分析・改善</h2>
-        <span style="flex:1"></span>
-        <span class="badge badge-neutral">現在のプロジェクト</span>
-      </div>
+      <h2 class="page-title" style="margin-bottom:0;">分析・改善</h2>
       <p class="page-sub" style="margin-top:4px;">レビュー履歴から、成績が落ちているエージェントと失点の原因を見つけ、プロンプトやルーブリックの改善につなげます。</p>
 
       <div class="tabs">
@@ -5612,7 +5832,7 @@ const NagareApp = (() => {
       if (artifact) {
         openArtifactDialog(artifact, options.applied ? null : proposal);
       } else {
-        toast("対象の成果物種別が見つかりません。ナレッジ一覧から確認してください。", "error");
+        toast("対象の成果物が見つかりません。ナレッジ一覧から確認してください。", "error");
       }
     } else if (kind.includes("policy") || kind.includes("確認") || kind.includes("運用")) {
       goApp("project-list", "<b>プロジェクト</b>");
@@ -5661,10 +5881,19 @@ const NagareApp = (() => {
     });
   }
 
-  function init() {
+  async function init() {
     bindNavigation();
     if (invoke) {
-      loadState();
+      try {
+        const root = await call("launch_root");
+        if (root) {
+          currentRoot = root;
+          localStorage.setItem("nagare.root", root);
+        }
+      } catch (_) {
+        // Older desktop binaries do not expose a launch root.
+      }
+      await loadState();
     }
   }
 

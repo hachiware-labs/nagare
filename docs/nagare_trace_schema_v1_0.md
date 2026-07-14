@@ -63,7 +63,7 @@
 | フィールド | 型 | 必須 | 内容 |
 | --- | --- | --- | --- |
 | `interpreted_request` | str | ✓ | 依頼をどう解釈したか(1〜2文) |
-| `domain_id` / `artifact_type_id` | str | ✓ | 割り当てたドメイン / 成果物種別 |
+| `domain_id` / `artifact_type_id` | str | ✓ | 割り当てたドメイン / 成果物。`artifact_type_id`は内部互換名 |
 | `plan` | array | ✓ | 実行計画 `[{ step_no, step_kind, agent_id }]` |
 | `assignments` | array | ✓ | `[{ step_no, agent_id, rationale }]` — **rationale は必須**(UIの「割り当ての根拠」) |
 | `candidates_considered` | array | 任意 | 比較した候補 `[{ agent_id, reason_rejected }]` |
@@ -78,7 +78,7 @@
     "duration_ms": 8200, "status": "completed",
     "knowledge_refs": [ { "id": "kn-product-common", "version": 3 }, { "id": "kn-relnote-template", "version": 2 } ],
     "diagnostics": { "runtime": "claude-code", "session_ref": "s_8f2c31" },
-    "interpreted_request": "依頼を「文書作成」と判定。ドメイン「プロダクト文書」/ 成果物種別「リリースノート」。",
+    "interpreted_request": "依頼を「文書作成」と判定。ドメイン「プロダクト文書」/ 成果物「リリースノート」。",
     "domain_id": "dom-product-docs", "artifact_type_id": "at-release-note",
     "plan": [ { "step_no": 2, "step_kind": "create", "agent_id": "ag-writer" },
               { "step_no": 3, "step_kind": "review", "agent_id": "ag-reviewer" } ],
@@ -122,7 +122,8 @@
 | `rubric_ref` | obj | ✓ | `{ id, version }` — どの基準のどの版で評価したか |
 | `target_artifacts` | array | ✓ | 評価対象(worker の artifacts への参照) |
 | `item_verdicts` | array | ✓ | `[{ item, max_points, points, verdict: pass\|concern, evidence, concern_note? }]` — **全項目**を記録(合格項目にも evidence 必須。UIの全項目判定表) |
-| `total_score` / `max_score` | int | ✓ | 集計(item_verdicts から再計算可能であること) |
+| `total_score` / `max_score` | int | ✓ | 評価項目の達成数。`item_verdicts` から再計算可能であること。総合得点には使用しない |
+| `overall_score` / `overall_max_score` | int | ✓ | レビュアーが付けた総合得点。`overall_score` は0-100、`overall_max_score` は100 |
 | `recommendation` | enum | ✓ | `approve` / `revise` |
 | `summary` | str | ✓ | 判定の要約1文(UIの「承認を推奨 — 懸念1件」) |
 
@@ -145,7 +146,8 @@
         "evidence": "内部用語が2箇所(「dispatch hint」「AgentRun」)",
         "concern_note": "共通知識「プロダクト用語集」に定訳があるため置き換えを推奨" }
     ],
-    "total_score": 88, "max_score": 100,
+    "total_score": 5, "max_score": 6,
+    "overall_score": 88, "overall_max_score": 100,
     "recommendation": "approve",
     "summary": "承認を推奨 — 懸念1件(読者向けの言い換え)"
   } }
@@ -200,7 +202,7 @@
 | 結果セクションの「回答」 | `worker_output.answer` |
 | 「できたもの」(ファイル名・行数) | `worker_output.artifacts[]` |
 | レビューの全項目判定表(✓/!・根拠・得点) | `reviewer_verdict.item_verdicts[]` |
-| 「88 / 100 · 承認を推奨 — 懸念1件」 | `total_score` / `recommendation` / `summary` |
+| 「88 / 100 · 承認を推奨 — 懸念1件」 | `overall_score` / `recommendation` / `summary` |
 | 質問画面の質問・選択肢 | `worker_output.question` |
 | 回答・承認・差し戻し・回復選択の記録 | `human_decision` |
 | 回復画面の「原因 / 影響 / 引き継ぎ」 | `recovery_event` |

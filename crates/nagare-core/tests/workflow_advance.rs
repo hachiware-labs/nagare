@@ -114,7 +114,7 @@ fn workflow_decision_records_next_structured_action() {
     assert!(!decision.requires_human);
     assert_eq!(
         decision.target_agent_profile_id.as_deref(),
-        Some("dispatcher")
+        Some("organizer")
     );
 
     let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
@@ -239,7 +239,7 @@ fn advance_until_blocked_runs_to_human_approval_gate() {
     .expect("result should write");
     fs::write(
         root.join("review.md"),
-        "## Nagare Review\nverdict: pass\nsummary:\n- criteria satisfied\nfindings:\n- no blockers\nquestions:\nnext_action: approve\n",
+        "## Nagare Review\nverdict: pass\noverall_score: 100\nsummary:\n- criteria satisfied\nfindings:\n- no blockers\nquestions:\nnext_action: approve\n",
     )
     .expect("review should write");
     fs::write(
@@ -324,7 +324,7 @@ fn multiple_workers_require_synthesis_before_approval() {
     .expect("researcher output should write");
     fs::write(
         root.join("review.md"),
-        "## Nagare Review\nverdict: pass\nsummary:\n- both worker results pass\ncompleted:\n- reviewed implementation and research\nfindings:\n- no blockers\nquestions:\nnext_notes:\n- synthesize final answer\nnext_action: approve\n",
+        "## Nagare Review\nverdict: pass\noverall_score: 100\nsummary:\n- both worker results pass\ncompleted:\n- reviewed implementation and research\nfindings:\n- no blockers\nquestions:\nnext_notes:\n- synthesize final answer\nnext_action: approve\n",
     )
     .expect("review output should write");
     fs::write(
@@ -445,7 +445,7 @@ fn auto_complete_policy_finishes_after_passing_review() {
     .expect("result should write");
     fs::write(
         root.join("review.md"),
-        "## Nagare Review\nverdict: pass\nsummary:\n- criteria satisfied\nfindings:\nquestions:\nnext_action: approve\n",
+        "## Nagare Review\nverdict: pass\noverall_score: 100\nsummary:\n- criteria satisfied\nfindings:\nquestions:\nnext_action: approve\n",
     )
     .expect("review should write");
     let item = create_work_item_with_input(
@@ -504,7 +504,7 @@ fn important_only_policy_auto_completes_review_without_concerns() {
     .expect("result should write");
     fs::write(
         root.join("review.md"),
-        "## Nagare Review\nverdict: pass\nsummary:\n- criteria satisfied\nfindings:\n- no blockers\nquestions:\nnext_action: approve\n",
+        "## Nagare Review\nverdict: pass\noverall_score: 100\nsummary:\n- criteria satisfied\nfindings:\n- no blockers\nquestions:\nnext_action: approve\n",
     )
     .expect("review should write");
     let item = create_work_item_with_input(
@@ -558,7 +558,7 @@ fn important_only_policy_stops_for_review_findings() {
     .expect("result should write");
     fs::write(
         root.join("review.md"),
-        "## Nagare Review\nverdict: pass\nsummary:\n- pass with a finding\nfindings:\n- verify wording before release\nquestions:\nnext_action: approve\n",
+        "## Nagare Review\nverdict: pass\noverall_score: 92\nsummary:\n- pass with a finding\nfindings:\n- verify wording before release\nquestions:\nnext_action: approve\n",
     )
     .expect("review should write");
     let item = create_work_item_with_input(
@@ -682,7 +682,7 @@ fn criteria_aware_review_blocks_and_then_allows_approval() {
 
     fs::write(
         root.join("review_pass.md"),
-        "## Nagare Review\nverdict: pass\nsummary:\n- Criteria covered.\ncriteria:\n- docs mention locale: pass\nfindings:\n- no blockers\nquestions:\nnext_action: approve\n",
+        "## Nagare Review\nverdict: pass\noverall_score: 100\nsummary:\n- Criteria covered.\ncriteria:\n- docs mention locale: pass\nfindings:\n- no blockers\nquestions:\nnext_action: approve\n",
     )
     .expect("review should write");
     fs::write(
@@ -707,7 +707,7 @@ fn criteria_aware_review_blocks_and_then_allows_approval() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "supervisor",
+            agent_profile_id: "organizer",
             dispatch_plan_id: None,
             path: None,
             prompt: None,
@@ -747,7 +747,7 @@ fn complex_workflow_recovers_from_review_changes_to_approval() {
     .expect("initial result should write");
     fs::write(
         root.join("review_changes.md"),
-        "## Nagare Review\nverdict: request_changes\nsummary:\n- criteria not proven\nrequested_changes:\n- Add explicit criteria evidence.\nquestions:\nnext_action: run_agent\n",
+        "## Nagare Review\nverdict: request_changes\noverall_score: 80\nsummary:\n- criteria not proven\nrequested_changes:\n- Add explicit criteria evidence.\nquestions:\nnext_action: run_agent\n",
     )
     .expect("review changes should write");
     fs::write(
@@ -757,7 +757,7 @@ fn complex_workflow_recovers_from_review_changes_to_approval() {
     .expect("fixed result should write");
     fs::write(
         root.join("review_pass.md"),
-        "## Nagare Review\nverdict: pass\nsummary:\n- criteria covered\ncriteria:\n- final artifact recorded: pass\nfindings:\n- no blockers\nquestions:\nnext_action: approve\n",
+        "## Nagare Review\nverdict: pass\noverall_score: 100\nsummary:\n- criteria covered\ncriteria:\n- final artifact recorded: pass\nfindings:\n- no blockers\nquestions:\nnext_action: approve\n",
     )
     .expect("review pass should write");
     fs::write(
@@ -872,12 +872,12 @@ fn finish_first_workflow_auto_recovers_to_approval_gate() {
     .expect("fixed result should write");
     fs::write(
         root.join("review_changes.md"),
-        "## Nagare Review\nverdict: request_changes\nsummary:\n- criteria not proven\nrequested_changes:\n- Add explicit criteria evidence.\nquestions:\nnext_action: run_agent\n",
+        "## Nagare Review\nverdict: request_changes\noverall_score: 80\nsummary:\n- criteria not proven\nrequested_changes:\n- Add explicit criteria evidence.\nquestions:\nnext_action: run_agent\n",
     )
     .expect("review changes should write");
     fs::write(
         root.join("review_pass.md"),
-        "## Nagare Review\nverdict: pass\nsummary:\n- criteria covered\ncriteria:\n- evidence recorded: pass\nfindings:\n- no blockers\nquestions:\nnext_action: approve\n",
+        "## Nagare Review\nverdict: pass\noverall_score: 100\nsummary:\n- criteria covered\ncriteria:\n- evidence recorded: pass\nfindings:\n- no blockers\nquestions:\nnext_action: approve\n",
     )
     .expect("review pass should write");
     fs::write(
@@ -969,7 +969,7 @@ fn advance_applies_accepted_recovery_plan() {
     .expect("initial result should write");
     fs::write(
         root.join("review_changes.md"),
-        "## Nagare Review\nverdict: request_changes\nsummary:\n- change requested\nrequested_changes:\n- Add evidence.\nquestions:\nnext_action: run_agent\n",
+        "## Nagare Review\nverdict: request_changes\noverall_score: 80\nsummary:\n- change requested\nrequested_changes:\n- Add evidence.\nquestions:\nnext_action: run_agent\n",
     )
     .expect("review changes should write");
     fs::write(

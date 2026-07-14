@@ -80,7 +80,7 @@ fn approval_gate_ready_after_current_review() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "supervisor",
+            agent_profile_id: "organizer",
             dispatch_plan_id: None,
             path: None,
             prompt: None,
@@ -137,7 +137,7 @@ fn approval_reject_records_reason_and_returns_to_dispatch() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "dispatcher",
+            agent_profile_id: "organizer",
             dispatch_plan_id: None,
             path: None,
             prompt: None,
@@ -177,7 +177,7 @@ fn approval_reject_records_reason_and_returns_to_dispatch() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "supervisor",
+            agent_profile_id: "organizer",
             dispatch_plan_id: None,
             path: None,
             prompt: None,

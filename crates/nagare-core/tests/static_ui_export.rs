@@ -26,7 +26,7 @@ fn static_ui_export_writes_board_and_item_detail() {
     init_project(&root).expect("project should init");
     fs::write(
         root.join("review.md"),
-        "## Nagare Review\nverdict: request_changes\nsummary:\n- source missing\ncompleted:\n- checked source criteria\ncriteria:\n- source listed: failed\nfindings:\n- missing source\nrequested_changes:\n- Add the source.\nquestions:\nnext_notes:\n- next agent should attach docs/source.md\nnext_action: run_agent\n",
+        "## Nagare Review\nverdict: request_changes\noverall_score: 80\nsummary:\n- source missing\ncompleted:\n- checked source criteria\ncriteria:\n- source listed: failed\nfindings:\n- missing source\nrequested_changes:\n- Add the source.\nquestions:\nnext_notes:\n- next agent should attach docs/source.md\nnext_action: run_agent\n",
     )
     .expect("review should write");
     fs::write(

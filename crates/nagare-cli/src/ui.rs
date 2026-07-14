@@ -129,14 +129,17 @@ fn ui_serve_command(args: &[String]) -> Result<(), String> {
     for stream in listener.incoming() {
         match stream {
             Ok(mut stream) => {
-                if let Err(error) = handle_ui_request(&root, &mut stream) {
-                    let _ = write_response(
-                        &mut stream,
-                        "500 Internal Server Error",
-                        "text/plain; charset=utf-8",
-                        &error,
-                    );
-                }
+                let request_root = root.clone();
+                thread::spawn(move || {
+                    if let Err(error) = handle_ui_request(&request_root, &mut stream) {
+                        let _ = write_response(
+                            &mut stream,
+                            "500 Internal Server Error",
+                            "text/plain; charset=utf-8",
+                            &error,
+                        );
+                    }
+                });
             }
             Err(error) => eprintln!("ui_serve connection error: {error}"),
         }
@@ -332,7 +335,7 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
             .trim();
         setup_codex_project(root, model)?;
         let body = format!(
-            r#"{{"runtime":"codex","model":"{}","work_agent":"worker","review_agent":"reviewer","dispatch_agent":"dispatcher"}}"#,
+            r#"{{"runtime":"codex","model":"{}","work_agent":"worker","review_agent":"reviewer","organizer_agent":"organizer"}}"#,
             json(model)
         );
         return write_response(stream, "200 OK", "application/json; charset=utf-8", &body);
@@ -681,6 +684,7 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                         fields.get("artifact_types").map(String::as_str),
                     )),
                     rubric: Some(split_lines(fields.get("rubric").map(String::as_str))),
+                    rubric_version: None,
                     dispatch_hints: Some(split_lines(
                         fields.get("dispatch_hints").map(String::as_str),
                     )),
@@ -1201,20 +1205,14 @@ fn setup_codex_project(root: &Path, model: &str) -> Result<(), String> {
         SetNagareAgentSettingsInput {
             work_agent: Some("worker"),
             review_agent: Some("reviewer"),
-            organizer_agent: Some("organizer"),
-            dispatch_agent: Some("dispatcher"),
-            supervisor_agent: Some("supervisor"),
+            organizer_agent: None,
+            dispatch_agent: Some("organizer"),
+            supervisor_agent: Some("organizer"),
         },
     )
     .map_err(|error| error.to_string())?;
 
-    for agent_id in [
-        "worker",
-        "reviewer",
-        "dispatcher",
-        "supervisor",
-        "organizer",
-    ] {
+    for agent_id in ["organizer", "worker", "reviewer"] {
         update_agent_profile(
             root,
             agent_id,
@@ -1760,8 +1758,8 @@ fn spawn_background_ui_workflow(
             &work_item_id,
             &UiRunningState::new(
                 "dispatch",
-                "dispatcher",
-                "dispatcher dispatch_preview",
+                "organizer",
+                "organizer dispatch_preview",
                 "担当 Agent を選定しています。",
                 "dispatch",
             ),
@@ -1789,7 +1787,7 @@ fn running_state_for_snapshot(
             let actor = settings
                 .as_ref()
                 .map(|settings| settings.dispatch_agent.clone())
-                .unwrap_or_else(|| "dispatcher".to_string());
+                .unwrap_or_else(|| "organizer".to_string());
             UiRunningState::new(
                 "dispatch",
                 &actor,
@@ -1836,7 +1834,7 @@ fn running_state_for_snapshot(
             let actor = settings
                 .as_ref()
                 .map(|settings| settings.supervisor_agent.clone())
-                .unwrap_or_else(|| "supervisor".to_string());
+                .unwrap_or_else(|| "organizer".to_string());
             UiRunningState::new(
                 "synthesis",
                 &actor,

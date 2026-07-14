@@ -108,6 +108,7 @@ Fable-5 再設計以前の wireframe は削除済み。機能フローと情報�
 - `docs/design-assets/prototype/index.html`: 現在のクリック遷移プロトタイプ。
 - `docs/design-assets/prototype/README.md`: 画面一覧・トークン・設計方針。
 - `docs/nagare_prd_v1_0.md`: 機能IDと画面の対応。
+- `docs/nagare_data_storage_spec_v1.md`: データルート、プロジェクト選択、テスト隔離、既存データ移行の仕様。
 - `docs/design-assets/prototype/logo.png`: ブランドマーク参照。
 
 ## データ参照のみ

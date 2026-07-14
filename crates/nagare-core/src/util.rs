@@ -379,11 +379,11 @@ pub(crate) fn scenario_command(message: &str, success: bool) -> String {
 pub(crate) fn scenario_review_command(summary: &str) -> String {
     if cfg!(windows) {
         format!(
-            "echo ## Nagare Review && echo verdict: pass && echo summary: && echo - {summary} && echo completed: && echo - reviewed scenario result && echo findings: && echo - none && echo questions: && echo next_notes: && echo - ready for approval && echo next_action: approve && exit /B 0"
+            "echo ## Nagare Review && echo verdict: pass && echo overall_score: 100 && echo summary: && echo - {summary} && echo completed: && echo - reviewed scenario result && echo findings: && echo - none && echo questions: && echo next_notes: && echo - ready for approval && echo next_action: approve && exit /B 0"
         )
     } else {
         format!(
-            "printf '## Nagare Review\nverdict: pass\nsummary:\n- {summary}\ncompleted:\n- reviewed scenario result\nfindings:\n- none\nquestions:\nnext_notes:\n- ready for approval\nnext_action: approve\n'; exit 0"
+            "printf '## Nagare Review\nverdict: pass\noverall_score: 100\nsummary:\n- {summary}\ncompleted:\n- reviewed scenario result\nfindings:\n- none\nquestions:\nnext_notes:\n- ready for approval\nnext_action: approve\n'; exit 0"
         )
     }
 }

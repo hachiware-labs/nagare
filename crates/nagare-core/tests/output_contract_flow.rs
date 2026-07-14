@@ -137,7 +137,7 @@ fn nagare_result_questions_set_work_item_needs_input() {
     );
     fs::write(
         root.join("review_after_answer.md"),
-        "## Nagare Review\nverdict: pass\nsummary:\n- answered output is acceptable\ncompleted:\n- reviewed answered output\nfindings:\n- none\nquestions:\nnext_notes:\n- ready for approval\nnext_action: approve\n",
+        "## Nagare Review\nverdict: pass\noverall_score: 100\nsummary:\n- answered output is acceptable\ncompleted:\n- reviewed answered output\nfindings:\n- none\nquestions:\nnext_notes:\n- ready for approval\nnext_action: approve\n",
     )
     .expect("review should write");
     run_work_item_with_input(
@@ -162,7 +162,7 @@ fn nagare_result_questions_set_work_item_needs_input() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "supervisor",
+            agent_profile_id: "organizer",
             dispatch_plan_id: None,
             path: None,
             prompt: None,
@@ -379,7 +379,7 @@ fn unparsed_review_moves_to_recovery_instead_of_repeating_review() {
         accept_recovery_plan(&root, &item.id, Some(&recovery.plan.id)).expect("accept recovery");
     fs::write(
         root.join("fixed-review.md"),
-        "## Nagare Review\nverdict: pass\nsummary:\n- recovered review contract\ncompleted:\n- restated review with the required contract\nfindings:\n- no blocker\nquestions:\nnext_notes:\n- ready for approval\nnext_action: approve\n",
+        "## Nagare Review\nverdict: pass\noverall_score: 100\nsummary:\n- recovered review contract\ncompleted:\n- restated review with the required contract\nfindings:\n- no blocker\nquestions:\nnext_notes:\n- ready for approval\nnext_action: approve\n",
     )
     .expect("fixed review output should write");
     let applied = apply_recovery_plan(
@@ -484,7 +484,7 @@ fn nagare_review_questions_set_work_item_needs_input() {
     init_project(&root).expect("project should init");
     fs::write(
         root.join("review.md"),
-        "## Nagare Review\nverdict: blocked\nfindings:\n- Evidence is incomplete.\nquestions:\n- 追加の検証ログはありますか？\nnext_action: answer_question\n",
+        "## Nagare Review\nverdict: blocked\noverall_score: 0\nfindings:\n- Evidence is incomplete.\nquestions:\n- 追加の検証ログはありますか？\nnext_action: answer_question\n",
     )
     .expect("review output should write");
     let item = create_work_item(&root, "Review asks", "")
@@ -536,7 +536,7 @@ fn review_pass_and_request_changes_drive_work_item_status() {
 
     fs::write(
         root.join("changes.md"),
-        "## Nagare Review\nverdict: request_changes\nsummary:\n- Implementation needs one more fix.\nfindings:\n- Missing test evidence.\nrequested_changes:\n- Add review evidence before approval.\nquestions:\nnext_action: run_agent\n",
+        "## Nagare Review\nverdict: request_changes\noverall_score: 80\nsummary:\n- Implementation needs one more fix.\nfindings:\n- Missing test evidence.\nrequested_changes:\n- Add review evidence before approval.\nquestions:\nnext_action: run_agent\n",
     )
     .expect("request changes output should write");
     run_work_item_with_input(
@@ -566,7 +566,7 @@ fn review_pass_and_request_changes_drive_work_item_status() {
 
     fs::write(
         root.join("pass.md"),
-        "## Nagare Review\nverdict: pass\nsummary:\n- Review passed.\nfindings:\n- No blocker.\nquestions:\nnext_action: approve\n",
+        "## Nagare Review\nverdict: pass\noverall_score: 100\nsummary:\n- Review passed.\nfindings:\n- No blocker.\nquestions:\nnext_action: approve\n",
     )
     .expect("pass output should write");
     run_work_item_with_input(
@@ -597,7 +597,7 @@ fn review_pass_and_request_changes_drive_work_item_status() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "supervisor",
+            agent_profile_id: "organizer",
             dispatch_plan_id: None,
             path: None,
             prompt: None,
@@ -907,7 +907,7 @@ fn multi_agent_question_handoff_review_and_approval_workflow_completes() {
 
     fs::write(
         root.join("review_question.md"),
-        "## Nagare Review\nverdict: blocked\nsummary:\n- The work is plausible but review evidence is not explicit.\nfindings:\n- Missing test log reference.\nquestions:\n- Review内でどの確認を実行しましたか？\nnext_action: answer_question\n",
+        "## Nagare Review\nverdict: blocked\noverall_score: 0\nsummary:\n- The work is plausible but review evidence is not explicit.\nfindings:\n- Missing test log reference.\nquestions:\n- Review内でどの確認を実行しましたか？\nnext_action: answer_question\n",
     )
     .expect("review question should write");
     run_work_item_with_input(
@@ -943,7 +943,7 @@ fn multi_agent_question_handoff_review_and_approval_workflow_completes() {
 
     fs::write(
         root.join("review_pass.md"),
-        "## Nagare Review\nverdict: pass\nsummary:\n- Review evidence is sufficient.\nfindings:\n- No blocking issue.\nquestions:\nnext_action: approve\n",
+        "## Nagare Review\nverdict: pass\noverall_score: 100\nsummary:\n- Review evidence is sufficient.\nfindings:\n- No blocking issue.\nquestions:\nnext_action: approve\n",
     )
     .expect("review pass should write");
     run_work_item_with_input(
@@ -971,7 +971,7 @@ fn multi_agent_question_handoff_review_and_approval_workflow_completes() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "supervisor",
+            agent_profile_id: "organizer",
             dispatch_plan_id: None,
             path: Some("docs/feature.md"),
             prompt: None,
@@ -1129,7 +1129,7 @@ fn completion_state_points_to_work_after_review_changes() {
     .expect("work should run");
     fs::write(
         root.join("review_changes.md"),
-        "## Nagare Review\nverdict: request_changes\nsummary:\n- review requested changes\nrequested_changes:\n- address review feedback\nquestions:\nnext_action: run_agent\n",
+        "## Nagare Review\nverdict: request_changes\noverall_score: 80\nsummary:\n- review requested changes\nrequested_changes:\n- address review feedback\nquestions:\nnext_action: run_agent\n",
     )
     .expect("review changes should write");
     run_work_item_with_input(

@@ -481,17 +481,18 @@ test("local UI server creates a work item from the browser", async ({ page }) =>
     await page.getByRole("tab", { name: /Agents|エージェント/ }).click();
     await expect(page.getByRole("heading", { name: /Agents|エージェント/ })).toBeVisible();
     await expect(page.getByRole("columnheader", { name: "Role" })).toHaveCount(0);
-    await expect(page.locator("#agent-profiles")).toContainText("Worker");
-    await expect(page.locator("#agent-profiles")).toContainText("Reviewer");
-    await expect(page.locator("#agent-profiles")).toContainText("Dispatcher");
-    await expect(page.locator("#agent-profiles")).toContainText("Supervisor");
+    await expect(page.locator("#agent-profiles")).toContainText("汎用ワーカー");
+    await expect(page.locator("#agent-profiles")).toContainText("汎用レビュアー");
+    await expect(page.locator("#agent-profiles")).toContainText("汎用オーガナイザー");
+    await expect(page.locator("#agent-profiles")).not.toContainText("Dispatcher");
+    await expect(page.locator("#agent-profiles")).not.toContainText("Supervisor");
     await page.locator('a[href$="/settings/agents/worker"]').first().click();
     await expect(page.locator("#agent-profile-form")).toBeVisible();
     await page.locator('#agent-profile-form input[name="display_name"]').fill("Default Worker");
     await page.locator('#agent-profile-form button[type="submit"]').click();
     await expect(page.getByRole("heading", { name: /Agents|エージェント/ })).toBeVisible();
     await expect(page.locator("#agent-profiles")).toContainText("Default Worker");
-    await page.locator('a[href$="/settings/agents/dispatcher"]').first().click();
+    await page.locator('a[href$="/settings/agents/organizer"]').first().click();
     await expect(page.locator("#agent-profile-form")).toBeVisible();
     await page
       .locator('#agent-profile-form textarea[name="description"]')

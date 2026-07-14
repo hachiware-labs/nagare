@@ -451,6 +451,9 @@ pub fn update_artifact_type(
             domain.rubric = next_rubric;
         }
     }
+    if let Some(rubric_version) = input.rubric_version {
+        domain.rubric_version = rubric_version.max(1);
+    }
     if let Some(dispatch_hints) = input.dispatch_hints {
         domain.dispatch_hints = normalize_specialties(dispatch_hints);
     }
@@ -775,8 +778,11 @@ fn merge_agent_model_selection(
     {
         return AgentModelSelection::default();
     }
+    let fully_qualified_model = update.id.contains('/');
     AgentModelSelection {
-        provider: if update.provider.is_empty() {
+        provider: if fully_qualified_model {
+            String::new()
+        } else if update.provider.is_empty() {
             current.provider.clone()
         } else {
             update.provider
@@ -786,7 +792,9 @@ fn merge_agent_model_selection(
         } else {
             update.id
         },
-        base_url: if update.base_url.is_empty() {
+        base_url: if fully_qualified_model {
+            String::new()
+        } else if update.base_url.is_empty() {
             current.base_url.clone()
         } else {
             update.base_url

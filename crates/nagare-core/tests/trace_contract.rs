@@ -62,7 +62,7 @@ fn trace_jsonl_records_nf2_decision_flow() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "dispatcher",
+            agent_profile_id: "organizer",
             dispatch_plan_id: None,
             path: None,
             prompt: None,
@@ -101,7 +101,7 @@ fn trace_jsonl_records_nf2_decision_flow() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "supervisor",
+            agent_profile_id: "organizer",
             dispatch_plan_id: None,
             path: None,
             prompt: None,
@@ -133,7 +133,7 @@ fn trace_jsonl_records_nf2_decision_flow() {
         .iter()
         .find(|record| record.record == "organizer_decision")
         .expect("organizer decision should be traced");
-    assert_eq!(organizer.payload["agent"]["id"], "dispatcher");
+    assert_eq!(organizer.payload["agent"]["id"], "organizer");
     assert_eq!(organizer.payload["agent"]["role"], "organizer");
     assert_eq!(
         organizer.payload["interpreted_request"],
@@ -234,7 +234,7 @@ fn synthesis_trace_is_recorded_as_organizer_summary() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "supervisor",
+            agent_profile_id: "organizer",
             dispatch_plan_id: None,
             path: None,
             prompt: Some("Summarize the reviewed worker results."),
@@ -250,7 +250,7 @@ fn synthesis_trace_is_recorded_as_organizer_summary() {
         .find(|record| record.record == "organizer_summary")
         .expect("organizer summary should be traced");
     assert_eq!(summary.payload["step_kind"], "synthesis");
-    assert_eq!(summary.payload["agent"]["id"], "supervisor");
+    assert_eq!(summary.payload["agent"]["id"], "organizer");
     assert_eq!(summary.payload["agent"]["role"], "organizer");
     assert_eq!(
         summary.payload["actions_summary"],

@@ -637,7 +637,7 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
               <span class="st-agent">担当: <span class="mini-av-emoji">🧭</span><b>オーガナイザー(内蔵)</b></span>
               <span class="st-state badge badge-done">✓ 完了</span>
             </div>
-            <div class="step-why"><b>割り当ての根拠:</b> 依頼を「図の更新」と判定 → ドメイン「プロダクト文書」/ 成果物種別「フロー図」に割り当て。Writer を選択(得意分野: ドキュメント作成・図解)</div>
+            <div class="step-why"><b>割り当ての根拠:</b> 依頼を「図の更新」と判定 → ドメイン「プロダクト文書」/ 成果物「フロー図」に割り当て。Writer を選択(得意分野: ドキュメント作成・図解)</div>
             <div class="step-io">
               <div class="io-row"><span class="io-k">入力</span><span class="io-v">依頼本文、プロジェクト文脈</span></div>
               <div class="io-row"><span class="io-k">出力</span><span class="io-v">構造化された依頼、実行計画(4工程)、担当割り当て</span></div>
@@ -922,7 +922,7 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
               <span class="st-state badge badge-done">✓ 完了</span><span class="st-toggle">▾</span>
             </div>
             <div class="step-body">
-              <div class="step-why"><b>割り当ての根拠:</b> 依頼を「文書作成」と判定 → ドメイン「プロダクト文書」/ 成果物種別「リリースノート」に割り当て。Writer を選択(得意分野: ドキュメント作成)</div>
+              <div class="step-why"><b>割り当ての根拠:</b> 依頼を「文書作成」と判定 → ドメイン「プロダクト文書」/ 成果物「リリースノート」に割り当て。Writer を選択(得意分野: ドキュメント作成)</div>
               <div class="step-io">
                 <div class="io-row"><span class="io-k">入力</span><span class="io-v">依頼本文、プロジェクト文脈</span></div>
                 <div class="io-row"><span class="io-k">出力</span><span class="io-v">構造化された依頼、実行計画(4工程)、担当割り当て</span></div>
@@ -1241,7 +1241,7 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
           <div class="li-icon">📘</div>
           <div style="flex:1;">
             <div class="li-title">プロダクト文書 <span class="badge badge-ask" style="margin-left:6px;"><span class="bdot"></span>改善提案 1件</span></div>
-            <div class="li-desc">共通知識 2件 · 成果物種別 2種 · ルーブリック 2種</div>
+            <div class="li-desc">共通知識 2件 · 成果物 2件 · ルーブリック 2件</div>
           </div>
           <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
             <span style="font-size:12px; color:var(--text-muted);">利用プロジェクト: Nagare UI 刷新</span>
@@ -1253,7 +1253,7 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
           <div class="li-icon">📗</div>
           <div style="flex:1;">
             <div class="li-title">会議文書</div>
-            <div class="li-desc">共通知識 1件 · 成果物種別 1種 · ルーブリック 1種</div>
+            <div class="li-desc">共通知識 1件 · 成果物 1件 · ルーブリック 1件</div>
           </div>
           <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
             <span style="font-size:12px; color:var(--text-muted);">利用プロジェクト: 社内ドキュメント</span>
@@ -1289,7 +1289,7 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
 
         <div class="card confirm-sec">
           <h4>共通知識</h4>
-          <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:10px;">このドメインのすべての成果物種別に適用されます。作業時にエージェントへ自動で渡されます</p>
+          <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:10px;">このドメインのすべての成果物に適用されます。作業時にエージェントへ自動で渡されます</p>
           <div class="list">
             <div class="list-item">
               <div class="li-icon">📖</div>
@@ -1314,7 +1314,7 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
         </div>
 
         <div class="card confirm-sec">
-          <h4>成果物種別</h4>
+          <h4>成果物</h4>
           <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:10px;">出力の種類ごとに、専用の知識と評価ルーブリックを持ちます</p>
           <div class="list">
             <div class="list-item" onclick="go('knowledge-rubric')">
@@ -1336,7 +1336,7 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
               <span class="li-chev">›</span>
             </div>
           </div>
-          <div style="margin-top:10px;"><button class="btn btn-secondary btn-sm">成果物種別を追加</button></div>
+          <div style="margin-top:10px;"><button class="btn btn-secondary btn-sm">成果物を追加</button></div>
         </div>
 
         <div class="card confirm-sec">
@@ -1361,12 +1361,12 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
       </div>
     </section>
 
-    <!-- ============ SCREEN: 成果物種別の編集(説明+Markdownルーブリック) ============ -->
+    <!-- ============ SCREEN: 成果物の編集(説明+Markdownルーブリック) ============ -->
     <section class="screen" id="scr-knowledge-rubric">
       <div class="detail-head">
         <div>
           <h2>リリースノート</h2>
-          <div style="font-size:12.5px; color:var(--text-muted); margin-top:2px;">成果物種別 · ドメイン: プロダクト文書 · ルーブリック: リリースノート品質 v2</div>
+          <div style="font-size:12.5px; color:var(--text-muted); margin-top:2px;">成果物 · ドメイン: プロダクト文書 · ルーブリック: リリースノート品質 v2</div>
         </div>
         <span style="flex:1"></span>
         <button class="btn btn-secondary btn-sm" onclick="go('knowledge-domain')">← ドメイン詳細</button>
@@ -1635,7 +1635,7 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
           <h4>担当範囲(ドメイン)</h4>
           <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:10px;">範囲外のドメインの依頼には割り当てられません</p>
           <label class="opt sel" style="margin-bottom:6px;"><input type="checkbox" checked>
-            <div><div class="o-name">プロダクト文書</div><div class="o-desc">すべての成果物種別(リリースノート、フロー図)</div></div>
+            <div><div class="o-name">プロダクト文書</div><div class="o-desc">すべての成果物(リリースノート、フロー図)</div></div>
           </label>
           <label class="opt"><input type="checkbox">
             <div><div class="o-name">会議文書</div><div class="o-desc">議事録</div></div>
@@ -1646,7 +1646,7 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
           <h4>プロンプト(振る舞い)</h4>
           <textarea style="min-height:88px;" class="mono">あなたはプロダクト文書の専門ライターです。
 - 共通知識「プロダクト用語集」の定訳を必ず使う
-- 成果物種別のテンプレートに従う
+- 成果物のテンプレートに従う
 - 不明点は推測せず、質問として返す</textarea>
           <div class="hint">実行時にシステムプロンプトへ追記されます。知識やルーブリックはここに書かなくても自動で渡されます</div>
           <div style="font-size:12px; font-weight:700; color:var(--text-muted); margin:14px 0 6px;" id="agent-ai-assist">AIによる支援(2種類)</div>
@@ -1806,7 +1806,7 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
           <div class="li-icon">🤖</div>
           <div style="flex:1;">
             <div class="li-title">Claude Code <span class="badge badge-done" style="margin-left:6px;">接続済み</span> <span class="badge badge-neutral" style="margin-left:4px;">既定</span></div>
-            <div class="li-desc">CLI · v2.1 · 応答 1.2秒 · モデル切替: 対応(Fable 5 / Opus 4.8 / Haiku 4.5)</div>
+            <div class="li-desc">CLI · v2.1 · 応答 1.2秒</div>
             <div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">利用エージェント: Writer、Reviewer · 最終確認: 今日 09:10</div>
           </div>
           <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();">再テスト</button>
@@ -1815,7 +1815,7 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
           <div class="li-icon">⌨️</div>
           <div style="flex:1;">
             <div class="li-title">Codex CLI <span class="badge badge-neutral" style="margin-left:6px;">未確認</span></div>
-            <div class="li-desc">CLI · v0.9 · 検出済み · モデル切替: 対応(gpt-5-codex / gpt-5-mini)</div>
+            <div class="li-desc">CLI · v0.9 · 検出済み</div>
             <div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">利用エージェント: Coder(テスト成功までワークに割り当てられません)</div>
           </div>
           <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();">接続テスト</button>
@@ -1824,7 +1824,7 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
           <div class="li-icon">🧰</div>
           <div style="flex:1;">
             <div class="li-title">OpenCode <span class="badge badge-done" style="margin-left:6px;">接続済み</span></div>
-            <div class="li-desc">CLI · v0.6 · 応答 1.8秒 · モデル切替: 対応(マルチプロバイダ: Fable 5 / gpt-5-codex / Qwen3-Coder)</div>
+            <div class="li-desc">CLI · v0.6 · 応答 1.8秒</div>
             <div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">利用エージェント: なし · 最終確認: 今日 09:14</div>
           </div>
           <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();">再テスト</button>
@@ -1833,7 +1833,7 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
           <div class="li-icon">🐾</div>
           <div style="flex:1;">
             <div class="li-title">OpenClaw <span class="badge badge-neutral" style="margin-left:6px;">未確認</span></div>
-            <div class="li-desc">CLI · v0.2 · 検出済み · モデル切替: 非対応(実行環境側の設定を使用)</div>
+            <div class="li-desc">CLI · v0.2 · 検出済み</div>
             <div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">利用エージェント: なし</div>
           </div>
           <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();">接続テスト</button>
@@ -2319,7 +2319,7 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
         <div class="rt-icon">⌨️</div>
         <div>
           <div class="rt-name">Codex CLI</div>
-          <div class="rt-desc">検出済み · v0.9 · モデル切替: 対応</div>
+          <div class="rt-desc">検出済み · v0.9</div>
         </div>
         <span class="rt-state badge badge-neutral">未確認</span>
       </div>
@@ -2327,7 +2327,7 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
         <div class="rt-icon">🧰</div>
         <div>
           <div class="rt-name">OpenCode</div>
-          <div class="rt-desc">検出済み · v0.6 · モデル切替: 対応(マルチプロバイダ)</div>
+          <div class="rt-desc">検出済み · v0.6</div>
         </div>
         <span class="rt-state badge badge-neutral">未確認</span>
       </div>
@@ -2335,7 +2335,7 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
         <div class="rt-icon">🐾</div>
         <div>
           <div class="rt-name">OpenClaw</div>
-          <div class="rt-desc">検出済み · v0.2 · モデル切替: 非対応</div>
+          <div class="rt-desc">検出済み · v0.2</div>
         </div>
         <span class="rt-state badge badge-neutral">未確認</span>
       </div>
@@ -2430,7 +2430,7 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
         <label class="opt sel" style="margin-bottom:0;"><input type="checkbox" checked>
           <div>
             <div class="o-name">ルーブリックのたたき台をAIで作成する</div>
-            <div class="o-desc">内蔵オーガナイザーが、ドメイン名・説明から成果物種別とルーブリック案(項目・配点・判定基準)を生成します。適用前に必ずプレビューして編集できます</div>
+            <div class="o-desc">内蔵オーガナイザーが、ドメイン名・説明から成果物とルーブリック案(項目・配点・判定基準)を生成します。適用前に必ずプレビューして編集できます</div>
           </div>
         </label>
       </div>
@@ -2767,7 +2767,7 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
         <div class="mono" style="border:1px solid var(--primary-line); border-radius:var(--radius); padding:10px 12px; font-size:12px; color:var(--text); background:var(--primary-soft);">
           あなたはプロダクト文書の専門ライターです。<br>
           - 共通知識「プロダクト用語集」の定訳を必ず使う<br>
-          - 成果物種別のテンプレートに従う<br>
+          - 成果物のテンプレートに従う<br>
           - 不明点は推測せず、質問として返す<br>
           <b>- 提出前に、ルーブリックの各項目を自分で点検し、懸念があれば出力に明記する</b>
         </div>
@@ -2831,7 +2831,7 @@ textarea { resize:vertical; min-height:72px; line-height:1.6; }
           <div class="dl ctx">あなたはコード変更の担当です。</div>
           <div class="dl ctx">- 依存関係の更新は最小差分で行う</div>
           <div class="dl ctx">- 変更理由を出力に含める</div>
-          <div class="dl add">- 提出前に、成果物種別の形式基準(テンプレート・命名規則)と照合してセルフチェックし、逸脱を修正してから提出する</div>
+          <div class="dl add">- 提出前に、成果物の形式基準(テンプレート・命名規則)と照合してセルフチェックし、逸脱を修正してから提出する</div>
         </div>
       </div>
       <div style="font-size:12.5px; color:var(--text-muted); border-top:1px solid var(--border); padding-top:10px;">

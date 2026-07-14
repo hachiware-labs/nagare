@@ -43,7 +43,25 @@ fn default_config_declares_initial_adapters() {
     assert!(config.contains("process.openclaw-agent"));
     assert!(config.contains("role = \"worker\""));
     assert!(config.contains("role = \"reviewer\""));
-    assert!(config.contains("role = \"dispatcher\""));
+    assert!(config.contains("role = \"organizer\""));
+    assert!(!config.contains("role = \"dispatcher\""));
+    assert!(!config.contains("role = \"supervisor\""));
+}
+
+#[test]
+fn default_agents_use_localized_general_display_names() {
+    let japanese = I18n::new("ja-JP");
+    let english = I18n::new("en-US");
+
+    assert_eq!(
+        japanese.agent_default_name("organizer"),
+        "汎用オーガナイザー"
+    );
+    assert_eq!(japanese.agent_default_name("worker"), "汎用ワーカー");
+    assert_eq!(japanese.agent_default_name("reviewer"), "汎用レビュアー");
+    assert_eq!(english.agent_default_name("organizer"), "General Organizer");
+    assert_eq!(english.agent_default_name("worker"), "General Worker");
+    assert_eq!(english.agent_default_name("reviewer"), "General Reviewer");
 }
 
 #[test]
@@ -282,7 +300,13 @@ fn init_project_seeds_general_domain_context() {
     );
     assert_eq!(general_domain.domain_id.as_deref(), Some("general"));
     assert!(general_domain.artifact_types.contains(&"code".to_string()));
-    for agent_id in ["worker", "reviewer", "dispatcher", "supervisor"] {
+    assert!(
+        general_domain
+            .rubric
+            .iter()
+            .any(|line| line == "## 完了度 (40)" || line == "## Completeness (40)")
+    );
+    for agent_id in ["organizer", "worker", "reviewer"] {
         let profile = get_agent_profile(&root, agent_id).expect("default profile should load");
         assert_eq!(profile.domain_ids, vec!["general"]);
         assert_eq!(profile.artifact_type_ids, vec!["general"]);
@@ -299,6 +323,149 @@ fn init_project_seeds_general_domain_context() {
             .join("general.toml")
             .exists()
     );
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn ensure_project_restores_directories_added_after_initialization() {
+    let root = test_root("restore-project-directories");
+    init_project(&root).expect("project should init");
+    let layout = ProjectLayout::new(&root);
+    fs::remove_dir_all(&layout.artifact_types_dir).expect("artifact type directory should remove");
+    fs::remove_dir_all(&layout.artifact_type_samples_dir)
+        .expect("artifact type sample directory should remove");
+
+    ensure_project(&root).expect("project directories should restore");
+
+    assert!(layout.artifact_types_dir.join("general.toml").is_file());
+    assert!(layout.artifact_type_samples_dir.is_dir());
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn ensure_project_migrates_managed_dispatcher_and_supervisor_to_organizer() {
+    let root = test_root("migrate-standard-organizer");
+    init_project(&root).expect("project should init");
+    let layout = ProjectLayout::new(&root);
+    fs::write(
+        &layout.config_path,
+        r#"[locale]
+language = "en-US"
+
+[nagare_agents]
+work_agent = "worker"
+review_agent = "reviewer"
+dispatch_agent = "dispatcher"
+supervisor_agent = "supervisor"
+
+[agent_profiles.worker]
+display_name = "Worker"
+role = "worker"
+
+[agent_profiles.reviewer]
+display_name = "Reviewer"
+role = "reviewer"
+
+[agent_profiles.dispatcher]
+display_name = "Dispatcher"
+role = "dispatcher"
+managed_by = "nagare"
+
+[agent_profiles.dispatcher.external]
+provider = "codex-cli"
+agent_id = "dispatcher"
+managed = true
+source = "created"
+
+[agent_profiles.supervisor]
+display_name = "Supervisor"
+role = "supervisor"
+managed_by = "nagare"
+
+[agent_profiles.supervisor.external]
+provider = "codex-cli"
+agent_id = "supervisor"
+managed = true
+source = "created"
+"#,
+    )
+    .expect("legacy config should write");
+
+    ensure_project(&root).expect("legacy config should migrate");
+    let migrated = fs::read_to_string(&layout.config_path).expect("migrated config should read");
+
+    assert!(migrated.contains("[agent_profiles.organizer]"));
+    assert!(migrated.contains("display_name = \"General Organizer\""));
+    assert!(migrated.contains("display_name = \"General Worker\""));
+    assert!(migrated.contains("display_name = \"General Reviewer\""));
+    assert!(migrated.contains("role = \"organizer\""));
+    assert!(!migrated.contains("organizer_agent = \"organizer\""));
+    assert!(migrated.contains("dispatch_agent = \"organizer\""));
+    assert!(migrated.contains("supervisor_agent = \"organizer\""));
+    assert!(!migrated.contains("[agent_profiles.dispatcher]"));
+    assert!(!migrated.contains("[agent_profiles.supervisor]"));
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn ensure_project_renames_legacy_standard_names_after_role_migration() {
+    let root = test_root("migrate-general-agent-names");
+    init_project(&root).expect("project should init");
+    let layout = ProjectLayout::new(&root);
+    let legacy = I18n::new("en-US")
+        .default_config_toml("UTC")
+        .replace("General Organizer", "Organizer")
+        .replace("General Worker", "Worker")
+        .replace("General Reviewer", "Reviewer");
+    fs::write(&layout.config_path, legacy).expect("legacy standard config should write");
+
+    ensure_project(&root).expect("legacy standard names should migrate");
+    let migrated = fs::read_to_string(&layout.config_path).expect("migrated config should read");
+
+    assert!(migrated.contains("display_name = \"General Organizer\""));
+    assert!(migrated.contains("display_name = \"General Worker\""));
+    assert!(migrated.contains("display_name = \"General Reviewer\""));
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn ensure_project_preserves_unmanaged_legacy_named_agents() {
+    let root = test_root("preserve-custom-legacy-names");
+    init_project(&root).expect("project should init");
+    let layout = ProjectLayout::new(&root);
+    fs::write(
+        &layout.config_path,
+        r#"[nagare_agents]
+work_agent = "worker"
+review_agent = "reviewer"
+dispatch_agent = "dispatcher"
+supervisor_agent = "supervisor"
+
+[agent_profiles.worker]
+role = "worker"
+
+[agent_profiles.reviewer]
+role = "reviewer"
+
+[agent_profiles.dispatcher]
+display_name = "Custom dispatcher"
+role = "dispatcher"
+
+[agent_profiles.supervisor]
+display_name = "Custom supervisor"
+role = "supervisor"
+"#,
+    )
+    .expect("custom config should write");
+
+    ensure_project(&root).expect("custom config should remain usable");
+    let current = fs::read_to_string(&layout.config_path).expect("current config should read");
+
+    assert!(current.contains("[agent_profiles.dispatcher]"));
+    assert!(current.contains("display_name = \"Custom dispatcher\""));
+    assert!(current.contains("[agent_profiles.supervisor]"));
+    assert!(current.contains("display_name = \"Custom supervisor\""));
+    assert!(!current.contains("[agent_profiles.organizer]"));
     fs::remove_dir_all(root).ok();
 }
 
@@ -995,7 +1162,7 @@ fn workflow_dispatch_uses_project_organizer_with_dispatch_fallback() {
             .decision
             .target_agent_profile_id
             .as_deref(),
-        Some("dispatcher")
+        Some("organizer")
     );
 
     add_agent_profile(
@@ -1087,7 +1254,7 @@ fn project_organizer_setting_can_be_cleared_to_builtin_fallback() {
 
     let loaded = get_nagare_agent_settings(&root).expect("settings should load");
     assert_eq!(loaded.organizer_agent, None);
-    assert_eq!(loaded.dispatch_agent, "dispatcher");
+    assert_eq!(loaded.dispatch_agent, "organizer");
     fs::remove_dir_all(root).ok();
 }
 
@@ -1665,7 +1832,7 @@ fn dispatch_preview_requires_human_confirmation_when_domain_agent_is_missing() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "dispatcher",
+            agent_profile_id: "organizer",
             dispatch_plan_id: None,
             path: None,
             prompt: None,
@@ -1744,7 +1911,7 @@ fn dispatch_preview_blocks_when_domain_agent_is_required_and_missing() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "dispatcher",
+            agent_profile_id: "organizer",
             dispatch_plan_id: None,
             path: None,
             prompt: None,
@@ -1845,7 +2012,7 @@ fn dispatch_preview_uses_general_fallback_without_confirmation_by_default() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "dispatcher",
+            agent_profile_id: "organizer",
             dispatch_plan_id: None,
             path: None,
             prompt: None,
@@ -1945,7 +2112,7 @@ fn dispatch_preview_does_not_block_when_domain_agent_exists() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "dispatcher",
+            agent_profile_id: "organizer",
             dispatch_plan_id: None,
             path: None,
             prompt: None,
@@ -1973,7 +2140,7 @@ fn dispatch_contract_control_agent_target_falls_back_to_work_agent() {
         .item;
     fs::write(
         root.join("dispatch.json"),
-        r#"{"target_agent_profile_id":"dispatcher","summary":"Incorrectly selected dispatcher.","risks":[],"missing_information":[]}"#,
+        r#"{"target_agent_profile_id":"organizer","summary":"Incorrectly selected organizer.","risks":[],"missing_information":[]}"#,
     )
     .expect("dispatch output should write");
     let command = if cfg!(windows) {
@@ -1986,7 +2153,7 @@ fn dispatch_contract_control_agent_target_falls_back_to_work_agent() {
         &root,
         &item.id,
         RunWorkItemInput {
-            agent_profile_id: "dispatcher",
+            agent_profile_id: "organizer",
             dispatch_plan_id: None,
             path: None,
             prompt: None,
@@ -1998,7 +2165,7 @@ fn dispatch_contract_control_agent_target_falls_back_to_work_agent() {
 
     let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot should load");
     let plan = &snapshot.dispatch_plans[0];
-    assert_eq!(plan.dispatch_agent_profile_id, "dispatcher");
+    assert_eq!(plan.dispatch_agent_profile_id, "organizer");
     assert_eq!(plan.target_agent_profile_id, "worker");
     assert!(
         plan.selection_warnings

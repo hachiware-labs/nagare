@@ -523,7 +523,7 @@ if(form){
     syncWorkDomainOptions();
     if(routingDomain){
       const groupText=selectedText(workDomainselect) || 'プロジェクト既定';
-      const domainText=selectedText(workDomainSelect) || (workDomainSelect && workDomainSelect.disabled ? '成果物種別はドメイン選択後に指定' : 'プロジェクト既定');
+      const domainText=selectedText(workDomainSelect) || (workDomainSelect && workDomainSelect.disabled ? '成果物はドメイン選択後に指定' : 'プロジェクト既定');
       routingDomain.textContent=`${groupText} / ${domainText}`;
     }
     if(routingPolicy){
@@ -999,10 +999,10 @@ if(ArtifactTypeForm){
   }
   ArtifactTypeForm.addEventListener('submit',async(event)=>{
     event.preventDefault();
-    ArtifactTypestatus.textContent='成果物種別を保存しています…';
+    ArtifactTypestatus.textContent='成果物を保存しています…';
     const response=await fetch(ArtifactTypeForm.dataset.action,{method:'POST',body:new FormData(ArtifactTypeForm)});
     if(!response.ok){await notifyResponseError(response,ArtifactTypestatus);return;}
-    ArtifactTypestatus.textContent='成果物種別を保存しました。';
+    ArtifactTypestatus.textContent='成果物を保存しました。';
     window.location.href=ArtifactTypeForm.dataset.redirect || '/settings';
   });
 }

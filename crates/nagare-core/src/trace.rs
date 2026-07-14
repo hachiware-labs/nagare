@@ -168,6 +168,7 @@ pub(crate) fn append_agent_run_trace(
                 .iter()
                 .filter(|result| result.status == CriteriaReviewStatus::Passed)
                 .count() as u64;
+            let overall_score = output.and_then(review_overall_score);
             Ok(Some(append_trace_record(
                 layout,
                 &item.id,
@@ -190,6 +191,8 @@ pub(crate) fn append_agent_run_trace(
                     "item_verdicts": item_verdicts,
                     "total_score": total_score,
                     "max_score": max_score,
+                    "overall_score": overall_score,
+                    "overall_max_score": overall_score.map(|_| 100),
                     "recommendation": review_recommendation(review),
                     "summary": first_nonempty(&review.summary).unwrap_or_else(|| review.verdict.to_string()),
                 }),
@@ -576,6 +579,15 @@ fn review_recommendation(review: &ReviewResult) -> &'static str {
         ReviewVerdict::Pass => "approve",
         ReviewVerdict::RequestChanges | ReviewVerdict::Blocked | ReviewVerdict::Unknown => "revise",
     }
+}
+
+fn review_overall_score(output: &AgentOutputRecord) -> Option<u8> {
+    output
+        .fields
+        .get("overall_score")
+        .and_then(|values| values.first())
+        .and_then(|value| value.trim().parse::<u8>().ok())
+        .filter(|score| *score <= 100)
 }
 
 fn first_nonempty(values: &[String]) -> Option<String> {

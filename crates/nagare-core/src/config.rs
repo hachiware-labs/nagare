@@ -12,9 +12,24 @@ pub(crate) fn ensure_project(root: impl Into<PathBuf>) -> Result<ProjectLayout, 
     if !layout.config_path.exists() || !layout.ledger_path.exists() {
         init_project(&layout.root)?;
     }
+    ensure_project_directories(&layout)?;
     seed_default_domains(&layout)?;
     migrate_legacy_default_agents(&layout)?;
     Ok(layout)
+}
+
+fn ensure_project_directories(layout: &ProjectLayout) -> Result<(), NagareError> {
+    for directory in [
+        &layout.agents_dir,
+        &layout.domains_dir,
+        &layout.artifact_types_dir,
+        &layout.artifact_type_samples_dir,
+        &layout.artifacts_dir,
+        &layout.logs_dir,
+    ] {
+        fs::create_dir_all(directory)?;
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -401,54 +416,211 @@ fn migrate_legacy_default_agents(layout: &ProjectLayout) -> Result<(), NagareErr
         && raw.contains("[agent_profiles.reviewer]")
         && raw.contains("[agent_profiles.dispatcher]")
         && raw.contains("[agent_profiles.supervisor]");
+    let mut migrated_legacy_profile_layout = false;
     if !has_workflow_agents {
-        if !raw.contains("[agent_profiles.codex-cli]")
-            || !raw.contains("[agent_profiles.codex-app-server]")
-        {
+        let has_legacy_codex_profiles = raw.contains("[agent_profiles.codex-cli]")
+            && raw.contains("[agent_profiles.codex-app-server]");
+        let has_standard_profiles = raw.contains("[agent_profiles.organizer]")
+            || raw.contains("[agent_profiles.worker]")
+            || raw.contains("[agent_profiles.reviewer]");
+        if !has_legacy_codex_profiles && !has_standard_profiles {
             return Ok(());
         }
-
-        raw = raw
-            .replace(
-                "work_agent = \"codex-cli\"\nreview_agent = \"codex-app-server\"\ndispatch_agent = \"codex-cli\"\nsupervisor_agent = \"codex-cli\"",
-                "work_agent = \"worker\"\nreview_agent = \"reviewer\"\ndispatch_agent = \"dispatcher\"\nsupervisor_agent = \"supervisor\"",
-            )
-            .replace(
-                "[agent_profiles.codex-cli]\ndisplay_name = \"Codex CLI Implementer\"\nruntime = \"codex-local\"\nadapter = \"process-codex-cli\"\nrole = \"implementer\"\nworking_dir = \".\"\n\n[agent_profiles.codex-app-server]\ndisplay_name = \"Codex App Server Implementer\"\nruntime = \"codex-app-local\"\nadapter = \"stdio-codex-app-server\"\nrole = \"implementer\"\nworking_dir = \".\"",
-                "[agent_profiles.worker]\ndisplay_name = \"Worker\"\nruntime = \"codex-local\"\nadapter = \"process-codex-cli\"\nrole = \"worker\"\nworking_dir = \".\"\ndescription = \"Implement the assigned work item. Prefer small, verifiable changes and leave concise completed work and next notes in the Nagare result.\"\n\n[agent_profiles.reviewer]\ndisplay_name = \"Reviewer\"\nruntime = \"codex-local\"\nadapter = \"process-codex-cli\"\nrole = \"reviewer\"\nworking_dir = \".\"\ndescription = \"Review the current work item against acceptance criteria, artifacts, and test evidence. Report pass/fail per criterion and concrete follow-up notes.\"\n\n[agent_profiles.dispatcher]\ndisplay_name = \"Dispatcher\"\nruntime = \"codex-local\"\nadapter = \"process-codex-cli\"\nrole = \"dispatcher\"\nworking_dir = \".\"\ndescription = \"Choose the most suitable target agent profile for the next work step. Return only the required dispatch JSON and keep the rationale concise.\"\n\n[agent_profiles.supervisor]\ndisplay_name = \"Supervisor\"\nruntime = \"codex-local\"\nadapter = \"process-codex-cli\"\nrole = \"supervisor\"\nworking_dir = \".\"\ndescription = \"Decide the next workflow action from the current state. Prefer forward progress, stop when human input is needed, and return the workflow decision contract.\"",
-            );
+        if has_legacy_codex_profiles {
+            raw = raw
+                .replace(
+                    "work_agent = \"codex-cli\"\nreview_agent = \"codex-app-server\"\ndispatch_agent = \"codex-cli\"\nsupervisor_agent = \"codex-cli\"",
+                    "work_agent = \"worker\"\nreview_agent = \"reviewer\"\ndispatch_agent = \"dispatcher\"\nsupervisor_agent = \"supervisor\"",
+                )
+                .replace(
+                    "[agent_profiles.codex-cli]\ndisplay_name = \"Codex CLI Implementer\"\nruntime = \"codex-local\"\nadapter = \"process-codex-cli\"\nrole = \"implementer\"\nworking_dir = \".\"\n\n[agent_profiles.codex-app-server]\ndisplay_name = \"Codex App Server Implementer\"\nruntime = \"codex-app-local\"\nadapter = \"stdio-codex-app-server\"\nrole = \"implementer\"\nworking_dir = \".\"",
+                    "[agent_profiles.worker]\ndisplay_name = \"Worker\"\nruntime = \"codex-local\"\nadapter = \"process-codex-cli\"\nrole = \"worker\"\nworking_dir = \".\"\ndescription = \"Implement the assigned work item. Prefer small, verifiable changes and leave concise completed work and next notes in the Nagare result.\"\n\n[agent_profiles.reviewer]\ndisplay_name = \"Reviewer\"\nruntime = \"codex-local\"\nadapter = \"process-codex-cli\"\nrole = \"reviewer\"\nworking_dir = \".\"\ndescription = \"Review the current work item against acceptance criteria, artifacts, and test evidence. Report pass/fail per criterion and concrete follow-up notes.\"\n\n[agent_profiles.dispatcher]\ndisplay_name = \"Dispatcher\"\nruntime = \"codex-local\"\nadapter = \"process-codex-cli\"\nrole = \"dispatcher\"\nworking_dir = \".\"\ndescription = \"Choose the most suitable target agent profile for the next work step. Return only the required dispatch JSON and keep the rationale concise.\"\n\n[agent_profiles.supervisor]\ndisplay_name = \"Supervisor\"\nruntime = \"codex-local\"\nadapter = \"process-codex-cli\"\nrole = \"supervisor\"\nworking_dir = \".\"\ndescription = \"Decide the next workflow action from the current state. Prefer forward progress, stop when human input is needed, and return the workflow decision contract.\"",
+                );
+            migrated_legacy_profile_layout = true;
+        }
     }
     raw = ensure_default_agent_role(raw, "worker", "worker");
     raw = ensure_default_agent_role(raw, "reviewer", "reviewer");
-    raw = ensure_default_agent_role(raw, "dispatcher", "dispatcher");
-    raw = ensure_default_agent_role(raw, "supervisor", "supervisor");
     raw = ensure_default_agent_domain_scope(raw, "worker");
     raw = ensure_default_agent_domain_scope(raw, "reviewer");
-    raw = ensure_default_agent_domain_scope(raw, "dispatcher");
-    raw = ensure_default_agent_domain_scope(raw, "supervisor");
     raw = ensure_default_agent_instruction(raw, "worker", i18n.agent_default_description("worker"));
     raw = ensure_default_agent_instruction(
         raw,
         "reviewer",
         i18n.agent_default_description("reviewer"),
     );
-    raw = ensure_default_agent_instruction(
-        raw,
-        "dispatcher",
-        i18n.agent_default_description("dispatcher"),
-    );
-    raw = ensure_default_agent_instruction(
-        raw,
-        "supervisor",
-        i18n.agent_default_description("supervisor"),
-    );
     raw = ensure_default_agent_management(raw, "worker", "codex-cli");
     raw = ensure_default_agent_management(raw, "reviewer", "codex-cli");
-    raw = ensure_default_agent_management(raw, "dispatcher", "codex-cli");
-    raw = ensure_default_agent_management(raw, "supervisor", "codex-cli");
+    raw = migrate_standard_dispatcher_and_supervisor(raw, &i18n, migrated_legacy_profile_layout);
+    raw = ensure_default_agent_role(raw, "organizer", "organizer");
+    raw = ensure_default_agent_domain_scope(raw, "organizer");
+    raw = ensure_default_agent_instruction(
+        raw,
+        "organizer",
+        i18n.agent_default_description("organizer"),
+    );
+    raw = ensure_default_agent_management(raw, "organizer", "codex-cli");
+    raw = migrate_standard_default_agent_name(raw, "organizer", "organizer", &i18n);
+    raw = migrate_standard_default_agent_name(raw, "worker", "worker", &i18n);
+    raw = migrate_standard_default_agent_name(raw, "reviewer", "reviewer", &i18n);
     raw = ensure_cli_runtime_and_adapter(raw);
     fs::write(&layout.config_path, raw)?;
     Ok(())
+}
+
+fn migrate_standard_dispatcher_and_supervisor(
+    mut raw: String,
+    i18n: &I18n,
+    migrated_legacy_profile_layout: bool,
+) -> String {
+    if raw.contains("[agent_profiles.organizer]")
+        || (!migrated_legacy_profile_layout
+            && !is_nagare_standard_profile(&raw, "dispatcher", "dispatcher"))
+    {
+        return raw;
+    }
+
+    let remove_supervisor = migrated_legacy_profile_layout
+        || is_nagare_standard_profile(&raw, "supervisor", "supervisor");
+    raw = raw.replace(
+        "[agent_profiles.dispatcher.external]",
+        "[agent_profiles.organizer.external]",
+    );
+    raw = raw.replace("[agent_profiles.dispatcher]", "[agent_profiles.organizer]");
+    raw = upsert_agent_profile_field(
+        raw,
+        "organizer",
+        "display_name",
+        &toml_string(i18n.agent_default_name("organizer")),
+    );
+    raw = upsert_agent_profile_field(raw, "organizer", "role", "\"organizer\"");
+    raw = upsert_agent_profile_field(
+        raw,
+        "organizer",
+        "description",
+        &toml_string(i18n.agent_default_description("organizer")),
+    );
+    raw = upsert_agent_profile_field(raw, "organizer.external", "agent_id", "\"organizer\"");
+    raw = raw.replace(
+        "dispatch_agent = \"dispatcher\"",
+        "dispatch_agent = \"organizer\"",
+    );
+    raw = raw.replace(
+        "supervisor_agent = \"supervisor\"",
+        "supervisor_agent = \"organizer\"",
+    );
+    if remove_supervisor {
+        raw = remove_table_section(raw, "agent_profiles.supervisor.external");
+        raw = remove_table_section(raw, "agent_profiles.supervisor");
+    }
+    raw
+}
+
+fn migrate_standard_default_agent_name(
+    raw: String,
+    agent_id: &str,
+    role: &str,
+    i18n: &I18n,
+) -> String {
+    if !is_nagare_standard_profile(&raw, agent_id, role) {
+        return raw;
+    }
+    let Some(profile) = table_section(&raw, &format!("agent_profiles.{agent_id}")) else {
+        return raw;
+    };
+    if !legacy_standard_agent_names(agent_id)
+        .iter()
+        .any(|name| profile.contains(&format!("display_name = \"{name}\"")))
+    {
+        return raw;
+    }
+    upsert_agent_profile_field(
+        raw,
+        agent_id,
+        "display_name",
+        &toml_string(i18n.agent_default_name(agent_id)),
+    )
+}
+
+fn legacy_standard_agent_names(agent_id: &str) -> &'static [&'static str] {
+    match agent_id {
+        "organizer" => &["Dispatcher", "Organizer", "オーガナイザー"],
+        "worker" => &["Worker"],
+        "reviewer" => &["Reviewer"],
+        _ => &[],
+    }
+}
+
+fn is_nagare_standard_profile(raw: &str, agent_id: &str, role: &str) -> bool {
+    let Some(profile) = table_section(raw, &format!("agent_profiles.{agent_id}")) else {
+        return false;
+    };
+    let Some(external) = table_section(raw, &format!("agent_profiles.{agent_id}.external")) else {
+        return false;
+    };
+    profile.contains(&format!("role = \"{role}\""))
+        && profile.contains("managed_by = \"nagare\"")
+        && external.contains("provider = \"codex-cli\"")
+        && external.contains(&format!("agent_id = \"{agent_id}\""))
+        && external.contains("managed = true")
+        && external.contains("source = \"created\"")
+}
+
+fn upsert_agent_profile_field(raw: String, agent_id: &str, field: &str, value: &str) -> String {
+    upsert_table_field(raw, &format!("agent_profiles.{agent_id}"), field, value)
+}
+
+fn upsert_table_field(mut raw: String, table: &str, field: &str, value: &str) -> String {
+    let header = format!("[{table}]");
+    let Some(section_start) = raw.find(&header) else {
+        return raw;
+    };
+    let section_body_start = section_start + header.len();
+    let next_section = raw[section_body_start..]
+        .find("\n[")
+        .map(|index| section_body_start + index)
+        .unwrap_or(raw.len());
+    let field_prefix = format!("\n{field} = ");
+    if let Some(relative_field_start) = raw[section_body_start..next_section].find(&field_prefix) {
+        let field_start = section_body_start + relative_field_start + 1;
+        let field_end = raw[field_start..]
+            .find('\n')
+            .map(|index| field_start + index)
+            .unwrap_or(next_section);
+        raw.replace_range(field_start..field_end, &format!("{field} = {value}"));
+    } else {
+        raw.insert_str(next_section, &format!("\n{field} = {value}"));
+    }
+    raw
+}
+
+fn table_section<'a>(raw: &'a str, table: &str) -> Option<&'a str> {
+    let header = format!("[{table}]");
+    let section_start = raw.find(&header)?;
+    let section_body_start = section_start + header.len();
+    let section_end = raw[section_body_start..]
+        .find("\n[")
+        .map(|index| section_body_start + index)
+        .unwrap_or(raw.len());
+    Some(&raw[section_start..section_end])
+}
+
+fn remove_table_section(mut raw: String, table: &str) -> String {
+    let header = format!("[{table}]");
+    let Some(section_start) = raw.find(&header) else {
+        return raw;
+    };
+    let section_body_start = section_start + header.len();
+    let section_end = raw[section_body_start..]
+        .find("\n[")
+        .map(|index| section_body_start + index)
+        .unwrap_or(raw.len());
+    raw.replace_range(section_start..section_end, "");
+    raw
+}
+
+fn toml_string(value: &str) -> String {
+    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
 fn ensure_default_agent_role(mut raw: String, agent_id: &str, role: &str) -> String {
@@ -1090,11 +1262,11 @@ pub(crate) fn default_review_agent_id() -> String {
 }
 
 pub(crate) fn default_dispatch_agent_id() -> String {
-    "dispatcher".to_string()
+    "organizer".to_string()
 }
 
 pub(crate) fn default_supervisor_agent_id() -> String {
-    "supervisor".to_string()
+    "organizer".to_string()
 }
 
 pub(crate) fn default_agent_run_purpose() -> AgentRunPurpose {

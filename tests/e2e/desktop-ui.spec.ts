@@ -16,6 +16,14 @@ async function openWorkDetail(page, id = "work_1") {
   await page.locator(`[data-work-id="${id}"] [data-work-open]`).click();
 }
 
+async function openAdditionalFeature(page, name: "スキル" | "MCP接続") {
+  const group = page.locator(".nav-more");
+  if (!(await group.evaluate((element) => (element as HTMLDetailsElement).open))) {
+    await group.locator("summary").click();
+  }
+  await page.getByRole("link", { name, exact: true }).click();
+}
+
 function baseState(initialized: boolean) {
   return {
     app: { name: "Nagare", version: "0.1.0", ui_source: "mock" },
@@ -24,8 +32,9 @@ function baseState(initialized: boolean) {
     project: initialized ? projectView() : null,
     work_items: [],
     agents: initialized ? [
-      { id: "worker", name: "Writer", role: "worker", description: "文書作成を担当", prompt: "文書作成を担当する", tool_kind: "codex_cli", runtime: "codex-local", model: "gpt-5-codex", specialties: ["docs"], domain_ids: [], artifact_type_ids: [], skill_set_ids: [], mcp_connection_ids: [] },
-      { id: "reviewer", name: "Reviewer", role: "reviewer", description: "レビューを担当", prompt: "レビューを担当する", tool_kind: "codex_cli", runtime: "codex-local", model: "gpt-5-codex", specialties: ["review"], domain_ids: [], artifact_type_ids: [], skill_set_ids: [], mcp_connection_ids: [] },
+      { id: "organizer", name: "Organizer", role: "organizer", description: "依頼を整理して担当を選ぶ", prompt: "依頼を整理する", tool_kind: "codex_cli", runtime: "codex-local", model: "gpt-5-codex", specialties: [], domain_ids: [], artifact_type_ids: [], skill_set_ids: [], mcp_connection_ids: [], builtin: true },
+      { id: "worker", name: "Writer", role: "worker", description: "文書作成を担当", prompt: "文書作成を担当する", tool_kind: "codex_cli", runtime: "codex-local", model: "gpt-5-codex", specialties: ["docs"], domain_ids: [], artifact_type_ids: [], skill_set_ids: [], mcp_connection_ids: [], builtin: true },
+      { id: "reviewer", name: "Reviewer", role: "reviewer", description: "レビューを担当", prompt: "レビューを担当する", tool_kind: "codex_cli", runtime: "codex-local", model: "gpt-5-codex", specialties: ["review"], domain_ids: [], artifact_type_ids: [], skill_set_ids: [], mcp_connection_ids: [], builtin: true },
     ] : [],
     domains: initialized ? [
       { id: "product-docs", name: "プロダクト文書", description: "READMEやリリースノートを扱う", shared_knowledge: ["用語集"], common_rubric: ["読みやすい"], dispatch_hints: ["docs"], artifact_type_count: 1 },
@@ -43,7 +52,7 @@ function baseState(initialized: boolean) {
     ] : [],
     mcp_capabilities: [],
     runtimes: [
-      { id: "codex", label: "Codex CLI", command: "codex", detail: "codex mock", available: true, model_note: "gpt-5-codex", model_mode: "OpenAIモデル", model_choices: ["実行環境既定", "gpt-5-codex", "手入力"] },
+      { id: "codex", label: "Codex CLI", command: "codex", detail: "codex mock", available: true, model_note: "GPT-5.6: sol（高性能）/ terra（バランス）/ luna（高速）", model_mode: "OpenAIモデル", model_choices: ["実行環境既定", "gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.3-codex", "gpt-5.2-codex", "gpt-5.1-codex", "gpt-5-codex", "手入力"] },
       { id: "openclaw", label: "OpenClaw", command: "openclaw", detail: "not found", available: false, model_note: "OpenAI / Ollama / LMStudio", model_mode: "Provider / Base URL / Model", model_choices: ["OpenAI", "Ollama", "LMStudio", "手入力"] },
     ],
     insights: initialized ? {
@@ -131,7 +140,7 @@ function projectView() {
     organizer_label: "標準",
     work_agent: "Writer",
     review_agent: "Reviewer",
-    agent_count: 2,
+    agent_count: 3,
     domain_count: 1,
     artifact_type_count: 1,
     work_count: 0,
@@ -175,7 +184,7 @@ function makeDetail(description: string) {
     },
     steps: [
       { kind: "organizer", title: "受付・整理", state: "完了", actor: "Organizer", summary: "依頼を整理しました。", rationale: "README更新です。", input: description, output: "README", knowledge_refs: ["プロダクト文書"], diagnostics: "run packet: domain=product-docs artifact=readme agent=Writer", review_items: [] },
-      { kind: "review", title: "レビュー", state: "完了", actor: "Reviewer", summary: "92点です。", rationale: "ルーブリックで確認しました。", input: "README.md", output: "92 / 100", knowledge_refs: ["READMEルーブリック"], diagnostics: "", review_items: [] },
+      { kind: "review", title: "レビュー", state: "完了", actor: "Reviewer", summary: "92点です。", rationale: "ルーブリックで確認しました。", input: "README.md", output: "92 / 100", score_label: "92 / 100", knowledge_refs: ["READMEルーブリック"], diagnostics: "", review_items: [] },
       { kind: "organizer", title: "オーガナイザーまとめ", state: "完了", actor: "Organizer", summary: "レビュー結果を踏まえ、依頼者向けの最終回答を整えました。", rationale: "作業結果とレビュー結果を最終回答に統合しました。", input: "README.md / 92 / 100", output: "README のセットアップ手順を整理し、確認方法を追記しました。", knowledge_refs: ["プロダクト文書"], diagnostics: "", review_items: [] },
     ],
   };
@@ -187,7 +196,7 @@ async function installTauriMock(page, initialState, options = {}) {
     const options = payload.options || {};
     const cloneValue = (value) => JSON.parse(JSON.stringify(value));
     let appState = cloneValue(initial);
-    let detail = null;
+    let detail = options.initialDetail ? cloneValue(options.initialDetail) : null;
     const calls = [];
     let appStateFailuresRemaining = Number(options.failAppStateTimes || 0);
     let commandFailures = cloneValue(options.failCommands || {});
@@ -339,15 +348,16 @@ async function installTauriMock(page, initialState, options = {}) {
               organizer_label: "標準",
               work_agent: "Writer",
               review_agent: "Reviewer",
-              agent_count: 2,
+              agent_count: 3,
               domain_count: 1,
               artifact_type_count: 1,
               work_count: 0,
               status_counts: [],
             };
             appState.agents = [
-              { id: "worker", name: "Writer", role: "worker", description: "文書作成を担当", prompt: "文書作成を担当する", tool_kind: "codex_cli", runtime: "codex", model: "gpt-5-codex", specialties: ["docs"], domain_ids: [], artifact_type_ids: [], skill_set_ids: [], mcp_connection_ids: [] },
-              { id: "reviewer", name: "Reviewer", role: "reviewer", description: "レビューを担当", prompt: "レビューを担当する", tool_kind: "codex_cli", runtime: "codex", model: "gpt-5-codex", specialties: ["review"], domain_ids: [], artifact_type_ids: [], skill_set_ids: [], mcp_connection_ids: [] },
+              { id: "organizer", name: "Organizer", role: "organizer", description: "依頼を整理して担当を選ぶ", prompt: "依頼を整理する", tool_kind: "codex_cli", runtime: "codex", model: "gpt-5-codex", specialties: [], domain_ids: [], artifact_type_ids: [], skill_set_ids: [], mcp_connection_ids: [], builtin: true },
+              { id: "worker", name: "Writer", role: "worker", description: "文書作成を担当", prompt: "文書作成を担当する", tool_kind: "codex_cli", runtime: "codex", model: "gpt-5-codex", specialties: ["docs"], domain_ids: [], artifact_type_ids: [], skill_set_ids: [], mcp_connection_ids: [], builtin: true },
+              { id: "reviewer", name: "Reviewer", role: "reviewer", description: "レビューを担当", prompt: "レビューを担当する", tool_kind: "codex_cli", runtime: "codex", model: "gpt-5-codex", specialties: ["review"], domain_ids: [], artifact_type_ids: [], skill_set_ids: [], mcp_connection_ids: [], builtin: true },
             ];
             appState.domains = [
               { id: "product-docs", name: "プロダクト文書", description: "READMEやリリースノートを扱う", shared_knowledge: ["用語集"], common_rubric: ["読みやすい"], dispatch_hints: ["docs"], artifact_type_count: 1 },
@@ -775,7 +785,7 @@ async function installTauriMock(page, initialState, options = {}) {
                 "## ドメイン知識の反映 (20)",
                 [
                   domain?.shared_knowledge?.length ? `共通知識: ${domain.shared_knowledge.join(" / ")}` : "",
-                  request.knowledge?.length ? `成果物知識: ${request.knowledge.join(" / ")}` : "",
+                  request.knowledge?.length ? `作成指示: ${request.knowledge.join(" / ")}` : "",
                   "必要な知識を反映し、不要な内部用語を避けている。",
                 ].filter(Boolean).join(" "),
               ].join("\n"),
@@ -927,6 +937,7 @@ test("desktop prototype UI shows persistent recovery when app state loading fail
 
   await expect(page.locator("#scr-home-active.screen.active")).toBeVisible();
   await expect(page.locator("#work-project-select")).toHaveValue("nagare-desktop-e2e");
+  await expect(page.locator("#work-project-select option:checked")).toHaveText("nagare-desktop-e2e");
 
   const appStateCalls = await page.evaluate(() => window.__nagareDesktopCalls.filter((call) => call.command === "app_state"));
   expect(appStateCalls).toHaveLength(2);
@@ -976,24 +987,31 @@ test("desktop prototype UI initializes, creates work, and approves the result", 
   await expect(page.locator("#scr-detail-review.screen.active .status-strip")).toContainText("3 / 3工程");
   await expect(page.locator("#scr-detail-review.screen.active .status-strip")).toContainText("README のセットアップ手順を整理");
   await expect(page.locator("#scr-detail-review.screen.active .status-strip")).toContainText("レビュー済み。必要なら採用または差し戻しできます。");
-  await expect(page.locator("#scr-detail-review.screen.active .status-strip")).toContainText("現在: オーガナイザーまとめ / Organizer");
+  await expect(page.locator("#scr-detail-review.screen.active .status-strip")).toContainText("AI工程完了・確認待ち");
   await expect(page.locator("#scr-detail-review.screen.active .status-strip")).toContainText("更新: now");
   await expect(page.getByRole("heading", { name: "結果" })).toBeVisible();
   await expect(page.locator("#scr-detail-review.screen.active")).toContainText("依頼への回答");
   await expect(page.locator("#scr-detail-review.screen.active .result-overview")).toContainText("依頼");
   await expect(page.locator("#scr-detail-review.screen.active .result-overview")).toContainText("README のセットアップ手順を更新して");
-  await expect(page.locator("#scr-detail-review.screen.active .result-overview")).toContainText("オーガナイザーまとめ");
-  await expect(page.locator("#scr-detail-review.screen.active")).toContainText("できたもの");
-  await expect(page.locator("#scr-detail-review.screen.active .answer-box")).toContainText("生成結果");
-  await expect(page.locator("#scr-detail-review.screen.active .answer-box")).toContainText("README のセットアップ手順を整理");
+  await expect(page.locator("#scr-detail-review.screen.active .result-overview h3")).toHaveText("README のセットアップ手順を整理し、確認方法を追記しました。");
+  await expect(page.getByRole("heading", { name: "できたもの" })).toHaveCount(0);
+  await expect(page.locator("#scr-detail-review.screen.active .answer-box")).toHaveCount(0);
   await expect(page.locator("#scr-detail-review.screen.active")).toContainText("読みやすさ");
   await expect(page.locator("#scr-detail-review.screen.active .result-overview")).toContainText("採用を推奨");
+  await expect(page.locator("#scr-detail-review.screen.active .result-overview")).toContainText("最終レビュー 92 / 100点");
   await expect(page.locator("#scr-detail-review.screen.active .result-overview")).toContainText("README.md");
+  await expect(page.locator('.result-overview [data-artifact-detail="0"]')).toHaveText("README.md");
   await expect(page.locator("#scr-detail-review.screen.active .result-concerns")).toContainText("補足が長い箇所があります。");
   await expect(page.locator("#scr-detail-review.screen.active")).toContainText("差し戻しコメントは次の実行");
   await expect(page.locator("#scr-detail-review.screen.active")).toContainText("プロダクト文書 / README のルーブリックで評価しています");
+  await expect(page.locator("#scr-detail-review.screen.active .review-total")).toContainText("最終レビュー評価");
+  await expect(page.locator("#scr-detail-review.screen.active .review-total")).toContainText("92 / 100点");
+  await expect(page.locator("#scr-detail-review.screen.active .review-summary-copy")).toContainText("評価項目 1 / 2件合格");
   await expect(page.locator("#scr-detail-review.screen.active .trace")).toContainText("読みやすさ");
-  await expect(page.locator("#scr-detail-review.screen.active .trace")).toContainText("オーガナイザーまとめ");
+  await expect(page.locator("#scr-detail-review.screen.active .trace .step").filter({ hasText: "2. レビュー" }).locator(".st-score")).toHaveText("92 / 100点");
+  await expect(page.locator("#scr-detail-review.screen.active .trace")).toContainText("最終結果をまとめる");
+  await expect(page.locator("#scr-detail-review.screen.active .trace")).toContainText("担当: オーガナイザー");
+  await expect(page.locator("#scr-detail-review.screen.active .trace")).not.toContainText("completed");
   await page.getByRole("button", { name: "レビューをコピー" }).click();
   await expect(page.locator("#app-notice")).toContainText("レビュー結果をコピーしました。");
   const copiedReview = await page.evaluate(() => window.__nagareCopiedText);
@@ -1016,7 +1034,7 @@ test("desktop prototype UI initializes, creates work, and approves the result", 
   await expect(page.locator('#app-dynamic-modal textarea[name="rationale"]')).toHaveValue(/次の懸念に対応してください/);
   await expect(page.locator('#app-dynamic-modal textarea[name="rationale"]')).toHaveValue(/読みやすさ: 補足が長いです。/);
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "戻る" }).click();
-  await page.locator('[data-artifact-detail="0"]').click();
+  await page.locator('.result-overview [data-artifact-detail="0"]').click();
   await expect(page.locator("#app-dynamic-modal")).toContainText("成果物の詳細");
   await expect(page.locator("#app-dynamic-modal")).toContainText("README.md");
   await expect(page.locator("#app-dynamic-modal")).toContainText("C:/nagare-desktop-e2e/README.md");
@@ -1032,12 +1050,12 @@ test("desktop prototype UI initializes, creates work, and approves the result", 
   await expect(page.locator("#scr-detail-done.screen.active")).toContainText("この作業は完了し、結果は採用済みです");
   await expect(page.locator("#attn-dot")).toBeHidden();
   await expect(page.locator("#scr-detail-done.screen.active .status-strip")).toContainText("3 / 3工程");
-  await expect(page.locator("#scr-detail-done.screen.active .status-strip")).toContainText("現在: オーガナイザーまとめ / Organizer");
-  await expect(page.locator("#scr-detail-done.screen.active")).toContainText("完了サマリー");
+  await expect(page.locator("#scr-detail-done.screen.active .status-strip")).toContainText("全工程完了");
+  await expect(page.locator("#scr-detail-done.screen.active")).not.toContainText("完了サマリー");
   await expect(page.locator("#scr-detail-done.screen.active")).toContainText("README のセットアップ手順を整理");
-  await expect(page.locator("#scr-detail-done.screen.active")).toContainText("採用成果物");
+  await expect(page.locator("#scr-detail-done.screen.active .result-overview")).toContainText("成果物");
   await expect(page.locator("#scr-detail-done.screen.active")).toContainText("README.md");
-  await expect(page.locator("#scr-detail-done.screen.active")).toContainText("評価点");
+  await expect(page.locator("#scr-detail-done.screen.active .result-overview")).toContainText("レビュー");
   await expect(page.locator("#scr-detail-done.screen.active")).toContainText("92 / 100");
   await expect(page.locator("#scr-detail-done.screen.active")).toContainText("3工程");
   await page.getByRole("button", { name: "ワーク一覧へ戻る" }).click();
@@ -1064,6 +1082,106 @@ test("desktop prototype UI initializes, creates work, and approves the result", 
   expect(createCall.payload.request.artifact_type_id).toBe("readme");
 });
 
+test("desktop prototype UI explains organizer summaries reconstructed for legacy work", async ({ page }) => {
+  const initial = baseState(true);
+  const legacyDetail = makeDetail("日本で二番目に高い山を教えて");
+  legacyDetail.item.status_label = "完了";
+  legacyDetail.item.status_kind = "done";
+  legacyDetail.item.next_action = "操作不要";
+  legacyDetail.next_action_kind = "done";
+  legacyDetail.approval_ready = false;
+  legacyDetail.review = {
+    verdict: "pass",
+    summary: "100/100。依頼に簡潔に回答しました。",
+    score_label: "100 / 100",
+    concerns: ["none"],
+    items: [],
+  };
+  legacyDetail.steps = legacyDetail.steps.slice(0, 2);
+  initial.work_items = [legacyDetail.item];
+  await installTauriMock(page, initial, { initialDetail: legacyDetail });
+  await page.goto(desktopIndexUrl);
+
+  await openWorkDetail(page);
+  const detailScreen = page.locator("#scr-detail-done.screen.active");
+  await expect(detailScreen.locator(".status-strip")).toContainText("3 / 3工程");
+  await expect(detailScreen.locator(".status-strip")).toContainText("全工程完了");
+  await expect(detailScreen.locator(".trace")).toContainText("最終結果をまとめる");
+  await expect(detailScreen.locator(".trace")).toContainText("記録済み");
+  await expect(detailScreen.locator(".result-overview")).toContainText("懸念なし");
+  await expect(detailScreen).not.toContainText("懸念1件");
+  await detailScreen.locator(".trace .step").filter({ hasText: "最終結果をまとめる" }).locator(".step-top").click();
+  await expect(detailScreen.locator(".trace")).toContainText("過去形式の実行記録");
+});
+
+test("desktop prototype UI limits red history styling to the review that requested changes", async ({ page }) => {
+  const initial = baseState(true);
+  const detail = makeDetail("保存処理を改善して");
+  detail.item.status_label = "完了";
+  detail.item.status_kind = "done";
+  detail.item.next_action = "操作不要";
+  detail.next_action_kind = "done";
+  detail.approval_ready = false;
+  detail.steps = [
+    { kind: "review", title: "指摘レビュー", state: "completed", outcome: "revise", actor: "Reviewer", summary: "保存失敗時に画面が成功扱いになるため差し戻します。", rationale: "信頼性の確認", input: "app.js", output: "要修正", score_label: "50 / 100", criteria_label: "評価項目 3 / 6", knowledge_refs: [], diagnostics: "", review_items: [] },
+    { kind: "worker", title: "修正作業", state: "completed", outcome: "", actor: "Writer", summary: "保存失敗時の状態維持と通知を修正しました。", rationale: "レビュー指摘への対応", input: "修正指示", output: "app.js", knowledge_refs: [], diagnostics: "", review_items: [] },
+    { kind: "review", title: "合格レビュー", state: "completed", outcome: "approve", actor: "Reviewer", summary: "保存失敗時の処理を確認し、合格としました。", rationale: "再レビュー", input: "app.js", output: "100 / 100", score_label: "100 / 100", criteria_label: "評価項目 6 / 6", knowledge_refs: [], diagnostics: "", review_items: [] },
+  ];
+  initial.work_items = [detail.item];
+  await installTauriMock(page, initial, { initialDetail: detail });
+  await page.goto(desktopIndexUrl);
+
+  await openWorkDetail(page);
+  const trace = page.locator("#scr-detail-done.screen.active .trace");
+  await expect(trace.locator(".step").filter({ hasText: "指摘レビュー" })).toHaveClass(/fail/);
+  await expect(trace.locator(".step").filter({ hasText: "指摘レビュー" }).locator(".st-score")).toHaveText("50 / 100点");
+  await expect(trace.locator(".step").filter({ hasText: "指摘レビュー" }).locator(".st-criteria")).toHaveText("評価項目 3 / 6");
+  await expect(trace.locator(".step").filter({ hasText: "指摘レビュー" }).locator(".st-state")).toContainText("要修正");
+  await expect(trace.locator(".step").filter({ hasText: "指摘レビュー" }).locator(".step-resolution")).toHaveText("後続工程で対応済み");
+  await expect(trace.locator(".step").filter({ hasText: "修正作業" })).toHaveClass(/done/);
+  await expect(trace.locator(".step").filter({ hasText: "修正作業" })).not.toHaveClass(/fail/);
+  await expect(trace.locator(".step").filter({ hasText: "合格レビュー" })).toHaveClass(/done/);
+  await expect(trace.locator(".step").filter({ hasText: "合格レビュー" }).locator(".st-score")).toHaveText("100 / 100点");
+  await expect(trace.locator(".step").filter({ hasText: "合格レビュー" }).locator(".st-criteria")).toHaveText("評価項目 6 / 6");
+  await expect(trace.locator(".step").filter({ hasText: "合格レビュー" })).not.toHaveClass(/fail/);
+  await expect(page.locator("#scr-detail-done.screen.active .review-summary-copy")).toContainText("途中の要修正 1回は対応済み");
+});
+
+test("desktop prototype UI hides stale recovery actions after the work is done", async ({ page }) => {
+  const initial = baseState(true);
+  const detail = makeDetail("保存処理を改善して");
+  detail.item.status_label = "完了";
+  detail.item.status_kind = "done";
+  detail.item.next_action = "操作不要";
+  detail.next_action_kind = "done";
+  detail.approval_ready = false;
+  detail.recovery = {
+    id: "recovery_1",
+    status: "draft",
+    action: "rerun_same_agent",
+    failure_class: "no_diff",
+    reason: "no_diff_artifact",
+    summary: "過去の回復案",
+    impact: "対象エージェントを再実行します。",
+    handoff_completed: ["完了済みの記録"],
+    handoff_pending: ["再実行"],
+    target_agent: "worker",
+    command_hint: "nagare item run work_1",
+    warnings: [],
+    prompt_hint: "",
+  };
+  initial.work_items = [detail.item];
+  await installTauriMock(page, initial, { initialDetail: detail });
+  await page.goto(desktopIndexUrl);
+
+  await openWorkDetail(page);
+  const detailScreen = page.locator("#scr-detail-done.screen.active");
+  await expect(detailScreen.locator(".status-strip")).toContainText("全工程完了");
+  await expect(detailScreen).toContainText("この作業は完了し、結果は採用済みです");
+  await expect(detailScreen).not.toContainText("回復方法を選ぶ");
+  await expect(detailScreen.getByRole("button", { name: "この回復案を採用" })).toHaveCount(0);
+});
+
 test("desktop prototype UI runs the main workflow with project, domain, and agents only", async ({ page }) => {
   const initial = baseState(true);
   initial.skill_sets = [];
@@ -1086,8 +1204,8 @@ test("desktop prototype UI runs the main workflow with project, domain, and agen
   await openWorkDetail(page);
   await expect(page.locator("#scr-detail-review.screen.active .status-strip")).toContainText("README のセットアップ手順を整理");
   await expect(page.locator("#scr-detail-review.screen.active")).toContainText("プロダクト文書 / README のルーブリックで評価しています");
-  await expect(page.locator("#scr-detail-review.screen.active .trace")).toContainText("Organizer");
-  await expect(page.locator("#scr-detail-review.screen.active .trace")).toContainText("Reviewer");
+  await expect(page.locator("#scr-detail-review.screen.active .trace")).toContainText("オーガナイザー");
+  await expect(page.locator("#scr-detail-review.screen.active .trace")).toContainText("レビュー担当");
 
   await page.getByRole("button", { name: "この結果を採用する" }).click();
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "採用して完了" }).click();
@@ -1117,22 +1235,27 @@ test("desktop prototype UI sets up project domain and agents before completing a
 
   await page.getByRole("link", { name: /ナレッジ/ }).click();
   await page.getByRole("button", { name: "ドメインを追加" }).click();
-  await page.locator('#scr-knowledge-domain input[name="id"]').fill("guide-docs");
+  const domainPage = page.locator("#scr-knowledge-domain.screen.active");
+  await expect(domainPage).toBeVisible();
   await page.locator('#scr-knowledge-domain input[name="display_name"]').fill("ガイド文書");
+  const guideDomainId = await page.locator('#scr-knowledge-domain input[name="id"]').inputValue();
   await page.locator('#scr-knowledge-domain textarea[name="description"]').fill("導入ガイドや運用手順を扱う");
   await page.locator('#scr-knowledge-domain textarea[name="shared_knowledge"]').fill("対象読者: 初めて使う開発者\n文体: 短く具体的に");
   await page.locator("#scr-knowledge-domain").getByRole("button", { name: "保存" }).click();
-  await expect(page.locator("#scr-knowledge-list.screen.active")).toContainText("ガイド文書");
-
-  await page.locator('[data-followup-add-artifact="guide-docs"]').click();
-  await page.locator('#scr-knowledge-rubric input[name="id"]').fill("onboarding-guide");
-  await page.locator('#scr-knowledge-rubric input[name="display_name"]').fill("オンボーディングガイド");
-  await expect(page.locator('#scr-knowledge-rubric select[name="domain_id"]')).toHaveValue("guide-docs");
-  await page.locator('#scr-knowledge-rubric textarea[name="description"]').fill("初回利用者が環境構築から最初の実行まで進めるガイド");
-  await page.locator('#scr-knowledge-rubric textarea[name="knowledge"]').fill("セットアップ順序\n詰まりやすい認証手順");
-  await page.locator('#scr-knowledge-rubric textarea[name="rubric"]').fill("## 完了条件 (60)\n初回利用者が最後まで進められる\n\n## 説明の具体性 (40)\n操作と確認結果が具体的である");
-  await page.locator("#scr-knowledge-rubric").getByRole("button", { name: "保存" }).click();
-  await expect(page.locator("#scr-knowledge-list.screen.active")).toContainText("オンボーディングガイド");
+  await expect(domainPage).toContainText("保存結果: ガイド文書");
+  await page.locator('#scr-knowledge-domain [data-domain-tab="artifacts"]').click();
+  await page.locator("#scr-knowledge-domain").getByRole("button", { name: "成果物を追加" }).click();
+  const artifactModal = page.locator("#app-dynamic-modal");
+  await expect(artifactModal).toBeVisible();
+  await artifactModal.locator('input[name="display_name"]').fill("オンボーディングガイド");
+  const onboardingArtifactId = await artifactModal.locator('input[name="id"]').inputValue();
+  await expect(artifactModal.locator('input[name="domain_id"]')).toHaveValue(guideDomainId);
+  await expect(artifactModal.locator('select[name="domain_id"]')).toHaveCount(0);
+  await artifactModal.locator('textarea[name="description"]').fill("初回利用者が環境構築から最初の実行まで進めるガイド");
+  await artifactModal.locator('textarea[name="knowledge"]').fill("セットアップ順序\n詰まりやすい認証手順");
+  await artifactModal.locator('textarea[name="rubric"]').fill("## 完了条件 (60)\n初回利用者が最後まで進められる\n\n## 説明の具体性 (40)\n操作と確認結果が具体的である");
+  await artifactModal.getByRole("button", { name: "保存" }).click();
+  await expect(domainPage).toContainText("オンボーディングガイド");
 
   await page.getByRole("link", { name: /^エージェント$/ }).click();
   await page.getByRole("button", { name: "新規エージェント" }).click();
@@ -1143,8 +1266,8 @@ test("desktop prototype UI sets up project domain and agents before completing a
   await page.locator('#scr-agent-settings textarea[name="description"]').fill("導入ガイドの作成を担当する");
   await page.locator('#scr-agent-settings textarea[name="specialties"]').fill("guide\nonboarding");
   await page.locator('#scr-agent-settings [data-agent-tab="scope"]').click();
-  await page.locator('#scr-agent-settings input[name="domain_ids"][value="guide-docs"]').check();
-  await page.locator('#scr-agent-settings input[name="artifact_type_ids"][value="onboarding-guide"]').check();
+  await page.locator(`#scr-agent-settings input[name="domain_ids"][value="${guideDomainId}"]`).check();
+  await page.locator(`#scr-agent-settings input[name="artifact_type_ids"][value="${onboardingArtifactId}"]`).check();
   await page.locator("#scr-agent-settings").getByRole("button", { name: "保存" }).click();
   await expect(page.locator("#scr-agent-list.screen.active")).toContainText("Guide Writer");
 
@@ -1156,8 +1279,8 @@ test("desktop prototype UI sets up project domain and agents before completing a
   await page.locator('#scr-agent-settings textarea[name="description"]').fill("導入ガイドをルーブリックでレビューする");
   await page.locator('#scr-agent-settings textarea[name="specialties"]').fill("review\nguide");
   await page.locator('#scr-agent-settings [data-agent-tab="scope"]').click();
-  await page.locator('#scr-agent-settings input[name="domain_ids"][value="guide-docs"]').check();
-  await page.locator('#scr-agent-settings input[name="artifact_type_ids"][value="onboarding-guide"]').check();
+  await page.locator(`#scr-agent-settings input[name="domain_ids"][value="${guideDomainId}"]`).check();
+  await page.locator(`#scr-agent-settings input[name="artifact_type_ids"][value="${onboardingArtifactId}"]`).check();
   await page.locator("#scr-agent-settings").getByRole("button", { name: "保存" }).click();
   await expect(page.locator("#scr-agent-list.screen.active")).toContainText("Guide Reviewer");
 
@@ -1167,8 +1290,8 @@ test("desktop prototype UI sets up project domain and agents before completing a
   await page.locator('#scr-project-settings select[name="work_agent_id"]').selectOption("guide-writer");
   await page.locator('#scr-project-settings select[name="review_agent_id"]').selectOption("guide-reviewer");
   await page.locator('#scr-project-settings [data-project-tab="knowledge"]').click();
-  await page.locator('#scr-project-settings select[name="default_domain_id"]').selectOption("guide-docs");
-  await page.locator('#scr-project-settings select[name="default_artifact_type_id"]').selectOption("onboarding-guide");
+  await page.locator('#scr-project-settings select[name="default_domain_id"]').selectOption(guideDomainId);
+  await page.locator('#scr-project-settings select[name="default_artifact_type_id"]').selectOption(onboardingArtifactId);
   await page.locator("#scr-project-settings").getByRole("button", { name: "保存" }).click();
   await expect(page.locator("#scr-project-list.screen.active")).toContainText("保存結果: nagare-desktop-e2e");
 
@@ -1180,7 +1303,7 @@ test("desktop prototype UI sets up project domain and agents before completing a
   await expect(page.locator("#scr-detail-review.screen.active .status-strip")).toContainText("オンボーディングガイド の構成と確認方法を整理しました。");
   await expect(page.locator("#scr-detail-review.screen.active")).toContainText("オンボーディングガイド");
   await expect(page.locator("#scr-detail-review.screen.active")).toContainText("ガイド文書 / オンボーディングガイド のルーブリックで評価しています");
-  await expect(page.locator("#scr-detail-review.screen.active .status-strip")).toContainText("現在: オーガナイザーまとめ / Organizer");
+  await expect(page.locator("#scr-detail-review.screen.active .status-strip")).toContainText("AI工程完了・確認待ち");
   await expect(page.locator("#scr-detail-review.screen.active .trace")).toContainText("担当: Guide Reviewer");
   await page.getByRole("button", { name: "この結果を採用する" }).click();
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "採用して完了" }).click();
@@ -1201,10 +1324,10 @@ test("desktop prototype UI sets up project domain and agents before completing a
   ]));
   expect(projectCall.payload.request.work_agent_id).toBe("guide-writer");
   expect(projectCall.payload.request.review_agent_id).toBe("guide-reviewer");
-  expect(projectCall.payload.request.default_domain_id).toBe("guide-docs");
-  expect(projectCall.payload.request.default_artifact_type_id).toBe("onboarding-guide");
-  expect(createWorkCall.payload.request.domain_id).toBe("guide-docs");
-  expect(createWorkCall.payload.request.artifact_type_id).toBe("onboarding-guide");
+  expect(projectCall.payload.request.default_domain_id).toBe(guideDomainId);
+  expect(projectCall.payload.request.default_artifact_type_id).toBe(onboardingArtifactId);
+  expect(createWorkCall.payload.request.domain_id).toBe(guideDomainId);
+  expect(createWorkCall.payload.request.artifact_type_id).toBe(onboardingArtifactId);
   expect(commands).not.toContain("install_skill_package");
   expect(commands).not.toContain("save_mcp_connection");
 });
@@ -1218,13 +1341,38 @@ test("desktop prototype UI keeps artifact preview readable when file loading fai
   await openWorkDetail(page);
   await expect(page.locator("#scr-detail-review.screen.active")).toContainText("README.md");
 
-  await page.locator('[data-artifact-detail="0"]').click();
+  await page.locator('.result-overview [data-artifact-detail="0"]').click();
   await expect(page.locator("#app-dynamic-modal")).toContainText("成果物の詳細");
   await expect(page.locator("#app-dynamic-modal")).toContainText("README.md");
   await expect(page.locator("#app-dynamic-modal")).toContainText("ファイル内容を読み込めませんでした");
   await expect(page.locator("#app-dynamic-modal")).toContainText("artifact file is outside the project");
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "閉じる" }).click();
   await expect(page.getByRole("button", { name: "この結果を採用する" })).toBeVisible();
+});
+
+test("desktop prototype UI keeps a large artifact set compact and opens the full list", async ({ page }) => {
+  const state = baseState(true);
+  const detail = makeDetail("複数の成果物を作成して");
+  detail.artifacts = Array.from({ length: 7 }, (_, index) => ({
+    title: `artifact-${index + 1}.md`,
+    uri: `C:/nagare-desktop-e2e/artifact-${index + 1}.md`,
+  }));
+  state.work_items = [detail.item];
+  state.project.work_count = 1;
+  await installTauriMock(page, state, { initialDetail: detail });
+  await page.goto(desktopIndexUrl);
+
+  await openWorkDetail(page);
+  await expect(page.getByRole("heading", { name: "できたもの" })).toHaveCount(0);
+  await expect(page.locator(".result-overview [data-artifact-detail]")).toHaveCount(5);
+  await expect(page.locator(".result-overview [data-artifact-list]")).toHaveText("ほか2件");
+
+  await page.locator(".result-overview [data-artifact-list]").click();
+  await expect(page.locator("#app-dynamic-modal")).toContainText("7件");
+  await expect(page.locator("#app-dynamic-modal [data-artifact-list-item]" )).toHaveCount(7);
+  await page.locator('#app-dynamic-modal [data-artifact-list-item="6"]').click();
+  await expect(page.locator("#app-dynamic-modal")).toContainText("成果物の詳細");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("artifact-7.md");
 });
 
 test("desktop prototype UI keeps setup failure visible and routes to runtime settings", async ({ page }) => {
@@ -1323,7 +1471,7 @@ test("desktop prototype UI rejects a reviewed result and shows redispatch state"
 
   await expect(page.locator("#scr-detail-running.screen.active")).toContainText("差し戻しを受け取り、担当を整理しています");
   await expect(page.locator("#scr-detail-running.screen.active .status-strip")).toContainText("5 / 5工程");
-  await expect(page.locator("#scr-detail-running.screen.active .status-strip")).toContainText("現在: 再割り当て / Organizer");
+  await expect(page.locator("#scr-detail-running.screen.active .status-strip")).toContainText("現在: 再割り当て / オーガナイザー");
   await expect(page.locator("#scr-detail-running.screen.active .result-overview")).toContainText("再実行待ち");
   await expect(page.locator("#scr-detail-running.screen.active .result-overview")).toContainText("担当エージェントへ再実行の指示を渡します");
   await expect(page.locator("#scr-detail-running.screen.active")).toContainText("あなたの差し戻し");
@@ -1337,7 +1485,7 @@ test("desktop prototype UI rejects a reviewed result and shows redispatch state"
 
   await page.getByRole("button", { name: "次の判断点まで進める" }).click();
   await expect(page.locator("#scr-detail-review.screen.active .status-strip")).toContainText("差し戻し内容を反映");
-  await expect(page.locator("#scr-detail-review.screen.active .answer-box")).toContainText("差し戻し内容を反映");
+  await expect(page.locator("#scr-detail-review.screen.active .result-overview h3")).toContainText("差し戻し内容を反映");
   await expect(page.locator("#scr-detail-review.screen.active .result-overview")).toContainText("採用を推奨");
   await expect(page.locator("#scr-detail-review.screen.active")).toContainText("再作成");
   await expect(page.locator("#scr-detail-review.screen.active")).toContainText("再レビュー");
@@ -1590,10 +1738,15 @@ test("desktop prototype UI filters work history by status and keyword", async ({
   await expect(page.locator("#work-project-filter")).toContainText("プロジェクト: すべて (3)");
   await expect(page.locator("#work-project-filter")).toContainText("nagare-desktop-e2e (2)");
   await expect(page.locator("#work-project-filter")).toContainText("外部プロジェクト (1)");
+  await expect(page.locator("#work-project-filter")).not.toContainText("流 nagare-desktop-e2e");
   await expect(page.locator('[data-work-id="work_done"] .wr-sum')).toContainText("READMEの手順を更新しました");
   await expect(page.locator('[data-work-id="work_done"] .wr-sum')).not.toContainText("評価 92 / 100");
-  await expect(page.locator('[data-work-id="work_done"] .wr-side')).toContainText("92 / 100");
+  await expect(page.locator('[data-work-id="work_done"] .wr-state')).toContainText("完了");
+  await expect(page.locator('[data-work-id="work_done"] .wr-state')).toContainText("92 / 100");
+  await expect(page.locator('[data-work-id="work_done"] .wr-state')).toContainText("次: なし");
+  await expect(page.locator('[data-work-id="work_done"] .wr-actions')).not.toContainText("92 / 100");
   await expect(page.locator('[data-work-id="work_done"] [data-work-open]')).toHaveText("詳細");
+  await expect(page.locator('[data-work-id="work_done"] .wr-actions [data-work-delete]')).toHaveText("削除");
   await page.locator("#work-project-filter").selectOption("nagare-desktop-e2e");
   await expect(page.locator("#filter-result")).toContainText("2件");
   await expect(page.locator('[data-work-id="work_run"]')).toBeHidden();
@@ -1683,6 +1836,9 @@ test("desktop prototype UI presents primary navigation before optional integrati
   ));
   expect(navTexts.slice(0, 6)).toEqual(["ワーク", "プロジェクト", "実行環境", "エージェント", "ナレッジ", "分析・改善"]);
   expect(navTexts.slice(6, 8)).toEqual(["スキル", "MCP接続"]);
+  await expect(page.locator(".nav-more")).not.toHaveAttribute("open", "");
+  await expect(page.getByRole("link", { name: "スキル", exact: true })).toBeHidden();
+  await expect(page.getByRole("link", { name: "MCP接続", exact: true })).toBeHidden();
 
   await page.locator("#nav-work").click();
   await expect(page.locator("#scr-home-active.screen.active")).toBeVisible();
@@ -1697,6 +1853,39 @@ test("desktop prototype UI presents primary navigation before optional integrati
   await expect(page.locator("#scr-knowledge-list.screen.active")).toBeVisible();
   await page.locator("#nav-insights").click();
   await expect(page.locator("#scr-insights.screen.active")).toBeVisible();
+});
+
+test("desktop prototype UI fits the shell inside a short window and scrolls internally", async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 620 });
+  await installTauriMock(page, baseState(true));
+  await page.goto(desktopIndexUrl);
+
+  const dimensions = await page.evaluate(() => {
+    const app = document.querySelector(".app").getBoundingClientRect();
+    const content = document.querySelector(".content");
+    const sidebar = document.querySelector(".sidebar");
+    return {
+      viewportHeight: window.innerHeight,
+      appTop: app.top,
+      appBottom: app.bottom,
+      appHeight: app.height,
+      bodyClientHeight: document.body.clientHeight,
+      bodyScrollHeight: document.body.scrollHeight,
+      contentBottom: content.getBoundingClientRect().bottom,
+      contentOverflowY: getComputedStyle(content).overflowY,
+      sidebarBottom: sidebar.getBoundingClientRect().bottom,
+      sidebarOverflow: getComputedStyle(sidebar).overflow,
+    };
+  });
+
+  expect(dimensions.appTop).toBe(0);
+  expect(dimensions.appHeight).toBe(dimensions.viewportHeight);
+  expect(dimensions.appBottom).toBeLessThanOrEqual(dimensions.viewportHeight);
+  expect(dimensions.contentBottom).toBeLessThanOrEqual(dimensions.viewportHeight);
+  expect(dimensions.sidebarBottom).toBeLessThanOrEqual(dimensions.viewportHeight);
+  expect(dimensions.bodyScrollHeight).toBe(dimensions.bodyClientHeight);
+  expect(dimensions.contentOverflowY).toBe("auto");
+  expect(dimensions.sidebarOverflow).toBe("hidden");
 });
 
 test("desktop prototype UI shows insights attention dot only when improvements exist", async ({ page }) => {
@@ -1759,6 +1948,7 @@ test("desktop prototype UI starts work with project defaults", async ({ page }) 
   await installTauriMock(page, initial);
   await page.goto(desktopIndexUrl);
 
+  await expect(page.locator("#create-work-form")).not.toContainText("担当");
   await page.locator('#create-work-form textarea[name="description"]').fill("既定ポリシーでREADMEを更新して");
   await page.getByRole("button", { name: "作業を開始" }).click();
 
@@ -1801,10 +1991,9 @@ test("desktop prototype UI shows a greeting work as an answer-only result", asyn
   await expect(page.locator("#scr-detail-review.screen.active")).toBeVisible();
   await expect(page.locator("#scr-detail-review.screen.active .status-strip")).toContainText("おはようございます。今日進めたい作業があれば");
   await expect(page.locator("#scr-detail-review.screen.active .result-overview")).toContainText("依頼への回答");
-  await expect(page.locator("#scr-detail-review.screen.active .result-overview")).toContainText("オーガナイザーまとめ");
+  await expect(page.locator("#scr-detail-review.screen.active .result-overview h3")).toContainText("おはようございます");
   await expect(page.locator("#scr-detail-review.screen.active .result-overview")).toContainText("おはようございます");
-  await expect(page.locator("#scr-detail-review.screen.active .answer-box")).toContainText("生成結果");
-  await expect(page.locator("#scr-detail-review.screen.active .answer-box")).toContainText("そのまま依頼を書いてください");
+  await expect(page.locator("#scr-detail-review.screen.active .answer-box")).toHaveCount(0);
   await expect(page.locator("#scr-detail-review.screen.active .result-overview")).toContainText("応答のみ");
   await expect(page.locator("#scr-detail-review.screen.active")).not.toContainText("README.md");
   const calls = await page.evaluate(() => window.__nagareDesktopCalls.map((call) => call.command));
@@ -1870,10 +2059,10 @@ test("desktop prototype UI renders backend state in management screens", async (
   await installTauriMock(page, baseState(true));
   await page.goto(desktopIndexUrl);
 
-  await page.getByRole("link", { name: /スキル/ }).click();
+  await openAdditionalFeature(page, "スキル");
   await expect(page.locator("#scr-settings-skills.screen.active")).toContainText("markdown-tools");
 
-  await page.getByRole("link", { name: /MCP接続/ }).click();
+  await openAdditionalFeature(page, "MCP接続");
   await expect(page.locator("#scr-settings-mcp.screen.active")).toContainText("GitHub MCP");
 
   await page.getByRole("link", { name: /実行環境/ }).click();
@@ -1889,16 +2078,12 @@ test("desktop prototype UI renders backend state in management screens", async (
   await expect(page.locator("#scr-insights.screen.active")).toContainText("Reviewer");
 });
 
-test("desktop prototype UI renders the component catalog from the app shell", async ({ page }) => {
+test("desktop prototype UI keeps the internal component catalog out of product navigation", async ({ page }) => {
   await installTauriMock(page, baseState(true));
   await page.goto(desktopIndexUrl);
 
-  await page.getByRole("link", { name: /カタログ/ }).click();
-  await expect(page.locator("#scr-catalog.screen.active")).toBeVisible();
-  await expect(page.locator("#scr-catalog.screen.active")).toContainText("UIカタログ");
-  await expect(page.locator("#scr-catalog.screen.active")).toContainText("主要アクション");
-  await expect(page.locator("#scr-catalog.screen.active")).toContainText("要対応");
-  await expect(page.locator("#scr-catalog.screen.active")).toContainText("ワーク行");
+  await expect(page.getByRole("link", { name: /カタログ/ })).toHaveCount(0);
+  await expect(page.locator("#scr-catalog")).not.toHaveClass(/active/);
 });
 
 test("desktop prototype UI filters skills by source and keyword", async ({ page }) => {
@@ -1911,7 +2096,7 @@ test("desktop prototype UI filters skills by source and keyword", async ({ page 
   await installTauriMock(page, initial);
   await page.goto(desktopIndexUrl);
 
-  await page.getByRole("link", { name: /スキル/ }).click();
+  await openAdditionalFeature(page, "スキル");
   await expect(page.locator("#skill-filter-result")).toContainText("3件");
   await expect(page.locator('[data-assign-skill]')).toHaveCount(0);
   await expect(page.locator("[data-skill-row]").filter({ has: page.locator('[data-delete-skill="markdown-tools"]') })).toContainText("まだエージェントに割り当てられていません");
@@ -1933,7 +2118,7 @@ test("desktop prototype UI manages skills through backend commands", async ({ pa
   await installTauriMock(page, baseState(true), { skillDeleteWarnings: ["外部ツール側は登録だけ外しました"] });
   await page.goto(desktopIndexUrl);
 
-  await page.getByRole("link", { name: /スキル/ }).click();
+  await openAdditionalFeature(page, "スキル");
   await expect(page.locator("#scr-settings-skills.screen.active")).toContainText("ライブラリ登録 → エージェント割り当て");
   await expect(page.locator("#scr-settings-skills.screen.active")).toContainText("nagare-desktop-e2e へ自動反映");
   await page.getByRole("button", { name: "スキルを追加" }).click();
@@ -1994,7 +2179,7 @@ test("desktop prototype UI adds multiple preset skills from fixed provider lists
   await installTauriMock(page, baseState(true));
   await page.goto(desktopIndexUrl);
 
-  await page.getByRole("link", { name: /スキル/ }).click();
+  await openAdditionalFeature(page, "スキル");
   await page.getByRole("button", { name: "スキルを追加" }).click();
   await expect(page.locator('#app-dynamic-modal [data-skill-targets-field]')).toBeHidden();
   await expect(page.locator('#app-dynamic-modal [data-skill-capabilities-field]')).toBeHidden();
@@ -2020,7 +2205,7 @@ test("desktop prototype UI selects a Clawhub skill from searchable candidates", 
   await installTauriMock(page, baseState(true));
   await page.goto(desktopIndexUrl);
 
-  await page.getByRole("link", { name: /スキル/ }).click();
+  await openAdditionalFeature(page, "スキル");
   await page.getByRole("button", { name: "スキルを追加" }).click();
   await page.locator('#app-dynamic-modal select[name="source_kind"]').selectOption("clawhub");
   await expect(page.locator('#app-dynamic-modal input[name="install_targets"][value="openclaw"]')).toBeChecked();
@@ -2047,7 +2232,7 @@ test("desktop prototype UI manages MCP connections through backend commands", as
   await installTauriMock(page, baseState(true));
   await page.goto(desktopIndexUrl);
 
-  await page.getByRole("link", { name: /MCP接続/ }).click();
+  await openAdditionalFeature(page, "MCP接続");
   await page.getByRole("button", { name: "MCPを追加" }).click();
   await expect(page.locator("#app-dynamic-modal")).toContainText("管理ID（任意）");
   await expect(page.locator('#app-dynamic-modal input[name="id"]')).toHaveAttribute("placeholder", "空欄なら表示名から自動生成");
@@ -2107,7 +2292,7 @@ test("desktop prototype UI keeps failed MCP test details visible", async ({ page
   await installTauriMock(page, baseState(true), { mcpTestSuccess: false, mcpTestDetail: "auth failed" });
   await page.goto(desktopIndexUrl);
 
-  await page.getByRole("link", { name: /MCP接続/ }).click();
+  await openAdditionalFeature(page, "MCP接続");
   await page.locator('[data-test-mcp="github"]').click();
 
   await expect(page.locator("#scr-settings-mcp.screen.active")).toContainText("接続テスト結果: GitHub MCP");
@@ -2134,7 +2319,7 @@ test("desktop prototype UI keeps operation command failures visible in context",
   });
   await page.goto(desktopIndexUrl);
 
-  await page.getByRole("link", { name: /スキル/ }).click();
+  await openAdditionalFeature(page, "スキル");
   await page.getByRole("button", { name: "スキルを追加" }).click();
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "追加" }).click();
   await expect(page.locator("#app-dynamic-modal")).toContainText("スキルを追加できませんでした");
@@ -2142,7 +2327,7 @@ test("desktop prototype UI keeps operation command failures visible in context",
   await expect(page.locator("#app-dynamic-modal")).toContainText("追加元、参照先、インストール先を確認");
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "閉じる" }).click();
 
-  await page.getByRole("link", { name: /MCP接続/ }).click();
+  await openAdditionalFeature(page, "MCP接続");
   await page.locator('[data-test-mcp="github"]').click();
   await expect(page.locator("#scr-settings-mcp.screen.active")).toContainText("接続テスト結果: GitHub MCP");
   await expect(page.locator("#scr-settings-mcp.screen.active")).toContainText("接続テストを実行できませんでした");
@@ -2168,7 +2353,7 @@ test("desktop prototype UI keeps skill and MCP save or delete failures visible i
   });
   await page.goto(desktopIndexUrl);
 
-  await page.getByRole("link", { name: /スキル/ }).click();
+  await openAdditionalFeature(page, "スキル");
   await page.locator('[data-delete-skill="markdown-tools"]').click();
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "削除" }).click();
   await expect(page.locator("#app-dynamic-modal")).toContainText("スキルを削除できませんでした");
@@ -2177,7 +2362,7 @@ test("desktop prototype UI keeps skill and MCP save or delete failures visible i
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "閉じる" }).click();
   await expect(page.locator('[data-delete-skill="markdown-tools"]')).toBeVisible();
 
-  await page.getByRole("link", { name: /MCP接続/ }).click();
+  await openAdditionalFeature(page, "MCP接続");
   await page.getByRole("button", { name: "MCPを追加" }).click();
   await page.locator('#app-dynamic-modal input[name="display_name"]').fill("Filesystem MCP");
   await expect(page.locator('#app-dynamic-modal input[name="id"]')).toHaveValue("filesystem");
@@ -2204,7 +2389,7 @@ test("desktop prototype UI keeps MCP validation failures visible in context", as
   await installTauriMock(page, baseState(true));
   await page.goto(desktopIndexUrl);
 
-  await page.getByRole("link", { name: /MCP接続/ }).click();
+  await openAdditionalFeature(page, "MCP接続");
   await page.getByRole("button", { name: "MCPを追加" }).click();
   await page.locator('#app-dynamic-modal input[name="display_name"]').fill("Filesystem MCP");
   await expect(page.locator('#app-dynamic-modal input[name="id"]')).toHaveValue("filesystem");
@@ -2227,7 +2412,7 @@ test("desktop prototype UI keeps capability assignment failures visible in conte
   });
   await page.goto(desktopIndexUrl);
 
-  await page.getByRole("link", { name: /スキル/ }).click();
+  await openAdditionalFeature(page, "スキル");
   await page.getByRole("button", { name: "スキルを追加" }).click();
   await page.locator('#app-dynamic-modal select[name="source_kind"]').selectOption("vercel");
   await page.locator('#app-dynamic-modal input[name="source"]').fill("hachiware-labs/hachi-search");
@@ -2256,7 +2441,7 @@ test("desktop prototype UI filters MCP connections by status, runtime, and keywo
   await installTauriMock(page, initial);
   await page.goto(desktopIndexUrl);
 
-  await page.getByRole("link", { name: /MCP接続/ }).click();
+  await openAdditionalFeature(page, "MCP接続");
   await expect(page.locator("#mcp-filter-result")).toContainText("4件");
   await expect(page.locator("#scr-settings-mcp.screen.active")).toContainText("OpenClawではエージェント個別のMCP割り当てはできません");
   await expect(page.locator("#scr-settings-mcp.screen.active")).toContainText("接続テストに失敗しています: auth failed");
@@ -2293,7 +2478,7 @@ test("desktop prototype UI creates a new project from the project list", async (
 
   await page.getByRole("link", { name: /プロジェクト/ }).click();
   await expect(page.locator("#scr-project-list.screen.active")).toContainText("C:/nagare-desktop-e2e");
-  await expect(page.locator("#scr-project-list.screen.active")).toContainText("ワーク 3件 · エージェント 2件 · ドメイン 2件 · 成果物種別 4件");
+  await expect(page.locator("#scr-project-list.screen.active")).toContainText("ワーク 3件 · エージェント 3件 · ドメイン 2件 · 成果物 4件");
   await expect(page.locator("#scr-project-list.screen.active")).toContainText("ワーク状況: 要対応 1件 · 処理中 1件 · 完了 1件");
   await page.getByRole("button", { name: "新規プロジェクト" }).click();
   await expect(page.locator("#app-dynamic-modal")).toContainText("作業対象のフォルダを選びます");
@@ -2306,7 +2491,7 @@ test("desktop prototype UI creates a new project from the project list", async (
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "作成" }).click();
 
   await expect(page.locator("#scr-home-active.screen.active")).toBeVisible();
-  await expect(page.locator("#proj-badge")).toContainText("灯 another-nagare-project");
+  await expect(page.locator("#proj-badge")).toHaveCount(0);
   await page.getByRole("link", { name: /プロジェクト/ }).click();
   await expect(page.locator("#scr-project-list.screen.active")).toContainText("another-nagare-project");
   await page.locator("[data-project-open-work]").click();
@@ -2338,7 +2523,7 @@ test("desktop prototype UI keeps project creation failures visible in context", 
   await expect(page.locator('#app-dynamic-modal input[name="display_name"]')).toHaveValue("失敗プロジェクト");
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "閉じる" }).click();
   await expect(page.locator("#scr-project-list.screen.active")).toContainText("nagare-desktop-e2e");
-  await expect(page.locator("#proj-badge")).toContainText("流 nagare-desktop-e2e");
+  await expect(page.locator("#proj-badge")).toHaveCount(0);
 });
 
 test("desktop prototype UI refreshes runtime status per runtime row", async ({ page }) => {
@@ -2347,7 +2532,7 @@ test("desktop prototype UI refreshes runtime status per runtime row", async ({ p
 
   await page.getByRole("link", { name: /実行環境/ }).click();
   await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("Codex CLI");
-  await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("利用エージェント: Writer、Reviewer");
+  await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("利用エージェント: Organizer、Writer、Reviewer");
   await page.locator('[data-refresh-runtime="openclaw"]').click();
 
   await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("OpenClaw");
@@ -2355,8 +2540,8 @@ test("desktop prototype UI refreshes runtime status per runtime row", async ({ p
   await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("再確認結果: OpenClaw");
   await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("この実行環境は利用できます");
   await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("詳細: mock refreshed");
-  await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("モデル: 実行環境側で設定");
-  await expect(page.locator('[data-edit-runtime-model="openclaw"]')).toHaveCount(0);
+  await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("モデル: エージェント設定で個別に選択");
+  await expect(page.locator('[data-edit-runtime-model]')).toHaveCount(0);
 
   const calls = await page.evaluate(() => window.__nagareDesktopCalls);
   const refreshCall = calls.find((call) => call.command === "refresh_runtime_status");
@@ -2373,73 +2558,6 @@ test("desktop prototype UI keeps unavailable runtime refresh details visible", a
   await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("再確認結果: OpenClaw");
   await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("この実行環境はまだ利用できません");
   await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("詳細: program not found");
-});
-
-test("desktop prototype UI applies runtime model settings to target agents", async ({ page }) => {
-  await installTauriMock(page, baseState(true));
-  await page.goto(desktopIndexUrl);
-
-  await page.getByRole("link", { name: /実行環境/ }).click();
-  await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("モデル設定: 2件のエージェントは実行環境既定を使用");
-  await page.locator('[data-edit-runtime-model="codex"]').click();
-  await expect(page.locator("#app-dynamic-modal")).toContainText("Codex CLI のモデル設定");
-  await expect(page.locator("#app-dynamic-modal")).toContainText("Writer、Reviewer");
-  await page.locator('#app-dynamic-modal input[name="model"]').fill("gpt-5.1-codex");
-  await page.locator("#app-dynamic-modal").getByRole("button", { name: "対象エージェントへ適用" }).click();
-
-  await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("モデル設定: gpt-5.1-codex（対象 2件）");
-  await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("モデル設定結果: Codex CLI");
-  await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("gpt-5.1-codex を対象エージェントへ適用しました");
-  await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("対象: Writer、Reviewer");
-  await page.getByRole("link", { name: /^エージェント$/ }).click();
-  await expect(page.locator("#scr-agent-list.screen.active")).not.toContainText("gpt-5.1-codex");
-  await page.locator('[data-edit-agent="worker"]').click();
-  await page.locator('#scr-agent-settings [data-agent-tab="runtime"]').click();
-  await expect(page.locator('#scr-agent-settings input[name="model"]')).toHaveValue("gpt-5.1-codex");
-  await page.locator("#scr-agent-settings").getByRole("button", { name: "エージェント一覧へ" }).click();
-
-  await page.getByRole("link", { name: /実行環境/ }).click();
-  await page.locator('[data-edit-runtime-model="codex"]').click();
-  await page.locator("#app-dynamic-modal").getByRole("button", { name: "実行環境既定に戻す" }).click();
-
-  await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("モデル設定: 2件のエージェントは実行環境既定を使用");
-  await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("実行環境既定 を対象エージェントへ適用しました");
-  await page.getByRole("link", { name: /^エージェント$/ }).click();
-  await expect(page.locator("#scr-agent-list.screen.active")).not.toContainText("gpt-5.1-codex");
-  await expect(page.locator("#scr-agent-list.screen.active")).not.toContainText("実行環境既定");
-  await page.locator('[data-edit-agent="worker"]').click();
-  await page.locator('#scr-agent-settings [data-agent-tab="runtime"]').click();
-  await expect(page.locator('#scr-agent-settings input[name="model"]')).toHaveValue("");
-
-  const calls = await page.evaluate(() => window.__nagareDesktopCalls);
-  const saveCalls = calls.filter((call) => call.command === "save_runtime_model_defaults");
-  const saveCall = saveCalls[0];
-  expect(saveCall.payload.request.runtime_id).toBe("codex");
-  expect(saveCall.payload.request.model).toBe("gpt-5.1-codex");
-  const resetCall = saveCalls[1];
-  expect(resetCall.payload.request.runtime_id).toBe("codex");
-  expect(resetCall.payload.request.model).toBe("");
-});
-
-test("desktop prototype UI keeps runtime model save failures visible in context", async ({ page }) => {
-  await installTauriMock(page, baseState(true), {
-    failCommands: { save_runtime_model_defaults: "runtime model store locked" },
-  });
-  await page.goto(desktopIndexUrl);
-
-  await page.getByRole("link", { name: /実行環境/ }).click();
-  await page.locator('[data-edit-runtime-model="codex"]').click();
-  await expect(page.locator("#app-dynamic-modal")).toContainText("Codex CLI のモデル設定");
-  await page.locator('#app-dynamic-modal input[name="model"]').fill("gpt-5.1-codex");
-  await page.locator("#app-dynamic-modal").getByRole("button", { name: "対象エージェントへ適用" }).click();
-
-  await expect(page.locator("#app-dynamic-modal")).toContainText("モデル設定を保存できませんでした");
-  await expect(page.locator("#app-dynamic-modal")).toContainText("runtime model store locked");
-  await expect(page.locator("#app-dynamic-modal")).toContainText("モデル名、Provider、Base URLを確認");
-  await expect(page.locator('#app-dynamic-modal input[name="model"]')).toHaveValue("gpt-5.1-codex");
-  await page.locator("#app-dynamic-modal").getByRole("button", { name: "閉じる" }).click();
-  await expect(page.locator("#scr-settings-runtime.screen.active")).toContainText("モデル設定: 2件のエージェントは実行環境既定を使用");
-  await expect(page.locator("#scr-settings-runtime.screen.active")).not.toContainText("gpt-5.1-codex（対象 2件）");
 });
 
 test("desktop prototype UI filters runtimes by availability and keyword", async ({ page }) => {
@@ -2494,6 +2612,7 @@ test("desktop prototype UI renders insights and routes improvement previews", as
   await page.goto(desktopIndexUrl);
 
   await page.getByRole("link", { name: /分析・改善/ }).click();
+  await expect(page.locator("#scr-insights.screen.active")).not.toContainText("現在のプロジェクト");
   await expect(page.locator("#scr-insights.screen.active")).toContainText("82 / 100");
   await expect(page.locator("#scr-insights.screen.active")).toContainText("形式の準拠");
   await page.locator('[data-insights-tab="improvements"]').click();
@@ -2521,10 +2640,10 @@ test("desktop prototype UI renders insights and routes improvement previews", as
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "ナレッジを開く" }).click();
   await expect(page.locator("#scr-knowledge-rubric.screen.active")).toBeVisible();
   await expect(page.locator("#scr-knowledge-rubric")).toContainText("README");
-  await expect(page.locator("#scr-knowledge-rubric")).toContainText("AI支援");
-  await expect(page.locator("#scr-knowledge-rubric")).toContainText("改善提案 — Nagareが実績から検出");
+  await expect(page.locator("#scr-knowledge-rubric")).toContainText("ルーブリック（評価基準）");
+  await expect(page.locator("#scr-knowledge-rubric")).toContainText("過去のレビューに基づく評価基準の改善案");
   await expect(page.locator('#scr-knowledge-rubric textarea[name="rubric"]')).toHaveValue(/手順の再現性/);
-  await page.locator("#scr-knowledge-rubric").getByRole("button", { name: "ルーブリック欄に挿入" }).click();
+  await page.locator("#scr-knowledge-rubric").getByRole("button", { name: "評価基準に追加" }).click();
   await expect(page.locator('#scr-knowledge-rubric textarea[name="rubric"]')).toHaveValue(/手順が5分以内に追える/);
   await page.locator('#scr-knowledge-rubric textarea[name="rubric"]').fill("## 手順の再現性 (100)\n手順が5分以内に追える");
   await expect(page.locator("#scr-knowledge-rubric")).toContainText("形式OK");
@@ -2586,7 +2705,7 @@ test("desktop prototype UI renders insights and routes improvement previews", as
   await expect(page.locator("#scr-knowledge-rubric.screen.active")).toBeVisible();
   await expect(page.locator("#scr-knowledge-rubric")).toContainText("README");
   await expect(page.locator('#scr-knowledge-rubric textarea[name="rubric"]')).toHaveValue(/手順が5分以内に追える/);
-  await expect(page.locator("#scr-knowledge-rubric")).toContainText("このルーブリックへの改善提案 — 現在なし");
+  await expect(page.locator("#scr-knowledge-rubric")).not.toContainText("過去のレビューに基づく評価基準の改善案");
 
   await page.getByRole("link", { name: /分析・改善/ }).click();
   await page.locator('[data-insights-tab="improvements"]').click();
@@ -2613,7 +2732,9 @@ test("desktop prototype UI manages agents and capability assignments", async ({ 
   await expect(agentSettings).toBeVisible();
   await expect(page.locator('#scr-agent-settings input[name="id"]')).toHaveValue("ui-worker");
   await expect(page.locator('#scr-agent-settings input[name="id"]')).toHaveAttribute("placeholder", "空欄なら表示名から自動生成");
-  await expect(agentSettings).toContainText("管理ID（任意）");
+  await expect(page.locator('#scr-agent-settings input[name="id"]')).toBeHidden();
+  await page.locator("#scr-agent-settings .advanced-settings > summary").click();
+  await expect(page.locator('#scr-agent-settings input[name="id"]')).toBeVisible();
   await expect(page.locator('#scr-agent-settings input[name="display_name"]')).toHaveValue("UI Worker");
   await page.locator('#scr-agent-settings [data-choose-agent-avatar]').click();
   await expect(page.locator('#scr-agent-settings input[name="avatar"]')).toHaveValue("C:/nagare-desktop-e2e/avatars/ui-worker.svg");
@@ -2622,7 +2743,7 @@ test("desktop prototype UI manages agents and capability assignments", async ({ 
   await page.locator('#scr-agent-settings textarea[name="specialties"]').fill("ui\nimplementation");
   await page.locator('#scr-agent-settings [data-agent-tab="runtime"]').click();
   await page.locator('#scr-agent-settings select[name="tool_kind"]').selectOption("codex_cli");
-  await page.locator('#scr-agent-settings input[name="model"]').fill("gpt-5-codex");
+  await page.locator('#scr-agent-settings select[name="model"]').selectOption("gpt-5-codex");
   await page.locator('#scr-agent-settings [data-agent-tab="scope"]').click();
   await page.locator('#scr-agent-settings input[name="domain_ids"][value="product-docs"]').check();
   await page.locator('#scr-agent-settings input[name="artifact_type_ids"][value="readme"]').check();
@@ -2723,21 +2844,19 @@ test("desktop prototype UI filters agents by role and keyword", async ({ page })
   await page.goto(desktopIndexUrl);
 
   await page.getByRole("link", { name: /^エージェント$/ }).click();
-  await expect(page.locator("#scr-agent-list.screen.active")).toContainText("標準の内蔵オーガナイザー");
-  await expect(page.locator("#scr-agent-list.screen.active")).toContainText("依頼の整理と担当割り当てを行う標準整理役");
+  await expect(page.locator("#scr-agent-list.screen.active")).toContainText("Organizer");
+  await expect(page.locator("#scr-agent-list.screen.active")).toContainText("ビルトイン");
   await expect(page.locator("#scr-agent-list.screen.active")).toContainText("既定ワーカー");
   await expect(page.locator("#scr-agent-list.screen.active")).toContainText("既定レビュアー");
-  await expect(page.locator("#scr-agent-list.screen.active")).toContainText("利用実績 4件");
+  await expect(page.locator("#scr-agent-list.screen.active")).toContainText("評価 4件");
   await expect(page.locator("#scr-agent-list.screen.active")).toContainText("担当範囲 全ドメイン");
   await page.locator("#agent-project-filter").selectOption("nagare-desktop-e2e");
   await expect(page.locator("#agent-filter-result")).toContainText("3件");
   await page.locator("#agent-role-filter").selectOption("organizer");
   await expect(page.locator("#agent-filter-result")).toContainText("1件");
-  await expect(page.locator('[data-open-organizer-settings]')).toBeVisible();
-  await page.locator('[data-open-organizer-settings]').click();
-  await expect(page.locator("#scr-project-settings.screen.active")).toBeVisible();
-  await expect(page.locator('#scr-project-settings [data-project-pane="organizer"]')).toBeVisible();
-  await expect(page.locator("#scr-project-settings")).toContainText("標準の内蔵オーガナイザー");
+  await page.locator('[data-edit-agent="organizer"]').click();
+  await expect(page.locator("#scr-agent-settings.screen.active")).toBeVisible();
+  await expect(page.locator("#scr-agent-settings")).toContainText("ビルトインエージェント");
   await page.getByRole("link", { name: /^エージェント$/ }).click();
   await page.locator("#agent-project-filter").selectOption("nagare-desktop-e2e");
   await page.locator("#agent-role-filter").selectOption("reviewer");
@@ -2752,6 +2871,36 @@ test("desktop prototype UI filters agents by role and keyword", async ({ page })
   await page.locator("#agent-role-filter").selectOption("all");
   await expect(page.locator("#agent-filter-result")).toContainText("1件");
   await expect(page.locator('[data-edit-agent="worker"]')).toBeVisible();
+});
+
+test("desktop prototype UI distinguishes domain defaults, generic fallbacks, and actual usage", async ({ page }) => {
+  const initial = baseState(true);
+  initial.domains.push({ id: "software-development", name: "ソフトウェア開発", description: "ソフトウェア開発", shared_knowledge: [], common_rubric: [], dispatch_hints: [], artifact_type_count: 0 });
+  initial.agents = [
+    ...initial.agents.map((agent) => ({ ...agent, domain_ids: ["general"], artifact_type_ids: ["general"], usage_count: 0 })),
+    { ...initial.agents[0], id: "software-organizer", name: "ソフトウェア開発オーガナイザー", builtin: false, domain_ids: ["software-development"], usage_count: 2 },
+    { ...initial.agents[1], id: "software-worker", name: "ソフトウェア開発ワーカー", builtin: false, domain_ids: ["software-development"], usage_count: 3 },
+    { ...initial.agents[2], id: "software-reviewer", name: "ソフトウェア開発レビュアー", builtin: false, domain_ids: ["software-development"], usage_count: 2 },
+  ];
+  initial.project.organizer_agent_id = "software-organizer";
+  initial.project.organizer_label = "ソフトウェア開発オーガナイザー";
+  initial.project.work_agent = "ソフトウェア開発ワーカー";
+  initial.project.review_agent = "ソフトウェア開発レビュアー";
+  initial.insights.agent_scores = [{ agent_id: "software-worker", agent_name: "ソフトウェア開発ワーカー", role: "worker", review_count: 1, average_score: 100, average_score_label: "100 / 100", status_label: "良好", top_issue: "" }];
+  await installTauriMock(page, initial);
+  await page.goto(desktopIndexUrl);
+
+  await page.getByRole("link", { name: /^エージェント$/ }).click();
+  const screen = page.locator("#scr-agent-list.screen.active");
+  await expect(screen.locator('[data-edit-agent="organizer"]').locator("..")).toContainText("汎用フォールバック");
+  await expect(screen.locator('[data-edit-agent="worker"]').locator("..")).toContainText("汎用フォールバック");
+  await expect(screen.locator('[data-edit-agent="reviewer"]').locator("..")).toContainText("汎用フォールバック");
+  await expect(screen.locator('[data-edit-agent="software-organizer"]').locator("..")).toContainText("既定オーガナイザー");
+  await expect(screen.locator('[data-edit-agent="software-organizer"]').locator("..")).toContainText("利用実績 2工程");
+  await expect(screen.locator('[data-edit-agent="software-worker"]').locator("..")).toContainText("既定ワーカー");
+  await expect(screen.locator('[data-edit-agent="software-worker"]').locator("..")).toContainText("利用実績 3工程 · 評価 1件 · 平均 100 / 100");
+  await expect(screen.locator('[data-edit-agent="software-reviewer"]').locator("..")).toContainText("既定レビュアー");
+  await expect(screen.locator('[data-edit-agent="software-reviewer"]').locator("..")).toContainText("利用実績 2工程");
 });
 
 test("desktop prototype UI updates agent model and MCP choices when runtime changes", async ({ page }) => {
@@ -2785,6 +2934,43 @@ test("desktop prototype UI updates agent model and MCP choices when runtime chan
   expect(saveCall.payload.request.model).toBe("");
   expect(saveCall.payload.request.model_base_url).toBe("");
   expect(saveCall.payload.request.mcp_connection_ids).toEqual([]);
+});
+
+test("desktop prototype UI selects an OpenCode model loaded from local settings", async ({ page }) => {
+  const state = baseState(true);
+  state.runtimes.push({
+    id: "opencode",
+    label: "OpenCode",
+    command: "opencode",
+    detail: "opencode mock",
+    available: true,
+    model_note: "ローカル設定のモデルを選択または手入力",
+    model_mode: "Provider / Model",
+    model_choices: ["実行環境既定", "anthropic/claude-opus-4-6", "openai/gpt-5.6", "手入力"],
+  });
+  await installTauriMock(page, state);
+  await page.goto(desktopIndexUrl);
+
+  await page.getByRole("link", { name: /^エージェント$/ }).click();
+  await page.getByRole("button", { name: "新規エージェント" }).click();
+  await page.locator('#app-dynamic-modal input[name="display_name"]').fill("OpenCode Reviewer");
+  await page.locator('#app-dynamic-modal select[name="tool_kind"]').selectOption("opencode");
+  await page.locator("#app-dynamic-modal").getByRole("button", { name: "作成して設定へ" }).click();
+  await page.locator('#scr-agent-settings [data-agent-tab="runtime"]').click();
+
+  const runtimePane = page.locator('#scr-agent-settings [data-agent-pane="runtime"]');
+  await expect(runtimePane.locator('select[name="model"]')).toContainText("anthropic/claude-opus-4-6");
+  await expect(runtimePane.locator('select[name="model"]')).toContainText("openai/gpt-5.6");
+  await expect(runtimePane).toContainText("OpenCodeのローカル設定から読み込んだモデルです");
+  await runtimePane.locator('select[name="model"]').selectOption("openai/gpt-5.6");
+  await page.locator('#scr-agent-settings [data-agent-tab="capabilities"]').click();
+  await page.locator("#scr-agent-settings").getByRole("button", { name: "保存" }).click();
+
+  const calls = await page.evaluate(() => window.__nagareDesktopCalls);
+  const saveCall = calls.findLast((call) => call.command === "save_agent" && call.payload.request.id === "opencode-reviewer");
+  expect(saveCall.payload.request.tool_kind).toBe("opencode");
+  expect(saveCall.payload.request.model).toBe("openai/gpt-5.6");
+  expect(saveCall.payload.request.model_provider).toBe("");
 });
 
 test("desktop prototype UI updates project settings and can delete the project", async ({ page }) => {
@@ -2831,7 +3017,7 @@ test("desktop prototype UI updates project settings and can delete the project",
   await expect(page.locator('#scr-project-settings [data-project-pane="agents"]')).toHaveClass(/active/);
   await expect(page.locator('#scr-project-settings input[name="display_name"]')).toHaveValue("灯火館 UI");
   await page.locator('#scr-project-settings [data-project-tab="knowledge"]').click();
-  await expect(projectSettings).toContainText("ドメインと成果物種別");
+  await expect(projectSettings).toContainText("ドメインと成果物");
   await expect(projectSettings).toContainText("プロダクト文書");
   await expect(projectSettings).toContainText("README");
   await page.locator("#scr-project-settings").getByRole("button", { name: "ナレッジを開く" }).click();
@@ -2874,14 +3060,14 @@ test("desktop prototype UI updates project settings and can delete the project",
   await expect(page.locator("#scr-project-list.screen.active")).toContainText("整理役: 標準の内蔵オーガナイザー");
   await expect(page.locator("#scr-project-list.screen.active")).toContainText("進め方: 最後まで進めてから確認");
   await expect(page.locator("#scr-project-list.screen.active")).toContainText("確認: 懸念がある時だけ確認");
-  await expect(page.locator("#proj-badge")).toContainText("灯 灯火館 UI");
+  await expect(page.locator("#proj-badge")).toHaveCount(0);
 
   await page.getByRole("button", { name: "設定" }).click();
   await page.locator("#scr-project-settings").getByRole("button", { name: "プロジェクトを削除" }).click();
   await expect(page.locator("#app-dynamic-modal")).toContainText("灯 灯火館 UI");
   await expect(page.locator("#app-dynamic-modal")).toContainText("C:/nagare-desktop-e2e");
   await expect(page.locator("#app-dynamic-modal")).toContainText("ワーク履歴 0件");
-  await expect(page.locator("#app-dynamic-modal")).toContainText("エージェント 2件、ドメイン 1件、成果物種別 1件");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("エージェント 3件、ドメイン 1件、成果物 1件");
   await expect(page.locator("#app-dynamic-modal")).toContainText("対象フォルダ内の通常ファイルは削除しません");
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "削除" }).click();
 
@@ -2930,7 +3116,7 @@ test("desktop prototype UI keeps project delete failures visible in context", as
   await expect(page.locator("#app-dynamic-modal")).toContainText("delete project failed");
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "閉じる" }).click();
   await expect(page.locator("#scr-project-settings.screen.active")).toBeVisible();
-  await expect(page.locator("#proj-badge")).toContainText("流 nagare-desktop-e2e");
+  await expect(page.locator("#proj-badge")).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => localStorage.getItem("nagare.root"))).toBe("C:/nagare-desktop-e2e");
 });
 
@@ -2949,11 +3135,11 @@ test("desktop prototype UI filters knowledge by domain and keyword", async ({ pa
 
   await page.getByRole("link", { name: /ナレッジ/ }).click();
   await expect(page.locator("#knowledge-filter-result")).toContainText("2件");
-  await expect(page.locator('[data-edit-domain="support-docs"]')).toBeVisible();
-  await expect(page.locator("[data-knowledge-row]").filter({ has: page.locator('[data-edit-domain="product-docs"]') })).toContainText("改善提案 1件");
-  await expect(page.locator("[data-knowledge-row]").filter({ has: page.locator('[data-edit-domain="product-docs"]') })).toContainText("利用プロジェクト: nagare-desktop-e2e（自動候補）");
-  await expect(page.locator("[data-knowledge-row]").filter({ has: page.locator('[data-edit-domain="support-docs"]') })).toContainText("利用プロジェクト: 未割り当て");
-  await page.locator('[data-edit-domain="product-docs"]').click();
+  await expect(page.locator('[data-domain-detail="support-docs"]')).toBeVisible();
+  await expect(page.locator("[data-knowledge-row]").filter({ has: page.locator('[data-domain-detail="product-docs"]') })).toContainText("改善提案 1件");
+  await expect(page.locator("[data-knowledge-row]").filter({ has: page.locator('[data-domain-detail="product-docs"]') })).toContainText("利用プロジェクト: nagare-desktop-e2e（自動候補）");
+  await expect(page.locator("[data-knowledge-row]").filter({ has: page.locator('[data-domain-detail="support-docs"]') })).toContainText("利用プロジェクト: 未割り当て");
+  await page.locator('[data-domain-detail="product-docs"]').click();
   await expect(page.locator("#scr-knowledge-domain.screen.active")).toContainText("品質記録と改善提案");
   await expect(page.locator("#scr-knowledge-domain.screen.active")).toContainText("README ルーブリック改善");
   await expect(page.locator("#scr-knowledge-domain.screen.active")).toContainText("読みやすさの懸念が1件");
@@ -2966,12 +3152,31 @@ test("desktop prototype UI filters knowledge by domain and keyword", async ({ pa
 
   await page.locator("#knowledge-search-filter").fill("FAQテンプレート");
   await expect(page.locator("#knowledge-filter-result")).toContainText("1件");
-  await expect(page.locator('[data-edit-domain="support-docs"]')).toBeVisible();
-  await expect(page.locator('[data-edit-domain="product-docs"]')).toBeHidden();
+  await expect(page.locator('[data-domain-detail="support-docs"]')).toBeVisible();
+  await expect(page.locator('[data-domain-detail="product-docs"]')).toBeHidden();
 
   await page.locator("#knowledge-search-filter").fill("存在しない");
   await expect(page.locator("#knowledge-filter-result")).toContainText("0件");
   await expect(page.locator("#knowledge-empty")).toBeVisible();
+});
+
+test("desktop prototype UI opens domain details on basic information before artifact management", async ({ page }) => {
+  await installTauriMock(page, baseState(true));
+  await page.goto(desktopIndexUrl);
+
+  await page.getByRole("link", { name: /ナレッジ/ }).click();
+  await page.locator('[data-domain-detail="product-docs"]').click();
+
+  await expect(page.locator("#scr-knowledge-domain.screen.active")).toBeVisible();
+  await expect(page.locator('#scr-knowledge-domain [data-domain-pane="basic"]')).toHaveClass(/active/);
+  await page.locator('#scr-knowledge-domain [data-domain-tab="artifacts"]').click();
+  await expect(page.locator('#scr-knowledge-domain [data-domain-pane="artifacts"]')).toHaveClass(/active/);
+  await expect(page.locator('#scr-knowledge-domain [data-edit-artifact="readme"]')).toBeVisible();
+  await expect(page.locator("#scr-knowledge-domain")).toContainText("成果物を追加");
+  await page.locator('#scr-knowledge-domain [data-edit-artifact="readme"]').click();
+  await expect(page.locator("#app-dynamic-modal")).toBeVisible();
+  await expect(page.locator("#app-dynamic-modal").getByRole("button", { name: "削除", exact: true })).toHaveCount(0);
+  await page.locator("#app-dynamic-modal").getByRole("button", { name: "閉じる" }).click();
 });
 
 test("desktop prototype UI manages domains and artifact types", async ({ page }) => {
@@ -2983,96 +3188,99 @@ test("desktop prototype UI manages domains and artifact types", async ({ page })
   const domainPage = page.locator("#scr-knowledge-domain.screen.active");
   await expect(domainPage).toBeVisible();
   await expect(domainPage).toContainText("自動注入");
-  await page.locator('#scr-knowledge-domain input[name="id"]').fill("support-docs");
+  await expect(domainPage).toContainText("複数の成果物に共通する知識");
+  await expect(domainPage.getByRole("button", { name: "保存" })).toBeDisabled();
+  await page.locator('#scr-knowledge-domain [data-domain-tab="artifacts"]').click();
+  await expect(page.locator('#scr-knowledge-domain [data-domain-pane="artifacts"]')).toContainText("先に基本情報を保存してください");
+  await expect(page.locator('#scr-knowledge-domain [data-domain-pane="artifacts"] button[type="submit"]')).toHaveCount(0);
+  await page.locator('#scr-knowledge-domain [data-domain-tab="basic"]').click();
   await page.locator('#scr-knowledge-domain input[name="display_name"]').fill("サポート文書");
+  const supportDomainId = await page.locator('#scr-knowledge-domain input[name="id"]').inputValue();
+  await expect(domainPage.getByRole("button", { name: "保存" })).toBeDisabled();
   await page.locator('#scr-knowledge-domain textarea[name="description"]').fill("問い合わせ回答やFAQを扱う");
+  await expect(domainPage.getByRole("button", { name: "保存" })).toBeEnabled();
   await page.locator('#scr-knowledge-domain textarea[name="shared_knowledge"]').fill("問い合わせ分類\n表記ルール");
-  await page.locator("#scr-knowledge-domain summary").click();
-  await page.locator('#scr-knowledge-domain textarea[name="common_rubric"]').fill("回答が具体的である");
-  await page.locator('#scr-knowledge-domain textarea[name="dispatch_hints"]').fill("support\nfaq");
   await page.locator("#scr-knowledge-domain").getByRole("button", { name: "保存" }).click();
+  await expect(domainPage).toContainText("保存結果: サポート文書");
+  await page.locator('#scr-knowledge-domain [data-domain-tab="artifacts"]').click();
+  await page.locator("#scr-knowledge-domain").getByRole("button", { name: "成果物を追加" }).click();
+  const rubricModal = page.locator("#app-dynamic-modal");
+  await expect(rubricModal).toBeVisible();
+  await rubricModal.locator('input[name="display_name"]').fill("FAQ");
+  const faqArtifactId = await rubricModal.locator('input[name="id"]').inputValue();
+  await expect(rubricModal.locator('input[name="domain_id"]')).toHaveValue(supportDomainId);
+  await expect(rubricModal.locator('select[name="domain_id"]')).toHaveCount(0);
+  await rubricModal.locator('textarea[name="description"]').fill("よくある質問の回答");
+  await rubricModal.locator('textarea[name="knowledge"]').fill("FAQテンプレート");
+  await expect(rubricModal).toContainText("ルーブリックが未入力です");
+  await expect(rubricModal).toContainText("ルーブリック（評価基準）");
+  await expect(rubricModal).not.toContainText("改善案があります");
+  await rubricModal.locator('textarea[name="rubric"]').fill("## 正確性 (60)\n具体的である\n\n## 正確性 (40)\n根拠がある");
+  await expect(rubricModal).toContainText("項目名が重複しています: 正確性");
+  await rubricModal.getByRole("button", { name: "保存" }).click();
+  await expect(rubricModal).toContainText("ルーブリックを保存できませんでした");
+  await expect(rubricModal).toContainText("項目名が重複しています: 正確性");
+  await rubricModal.getByRole("button", { name: "評価基準をAIで作成" }).click();
+  await expect(rubricModal.locator('textarea[name="rubric"]')).toHaveValue(/ドメイン知識の反映/);
+  await expect(rubricModal).toContainText("形式OK");
+  await expect(rubricModal).toContainText("4項目 / 合計100点");
+  await rubricModal.getByRole("button", { name: "保存" }).click();
 
-  await expect(page.locator("#scr-knowledge-list.screen.active")).toContainText("サポート文書");
-  await expect(page.locator("#scr-knowledge-list.screen.active")).toContainText("利用プロジェクト: 未割り当て");
-  await expect(page.locator("#scr-knowledge-list.screen.active")).toContainText("次の操作: 成果物種別を追加");
-  await expect(page.locator("#scr-knowledge-list.screen.active")).toContainText("ワークで使うには、README、FAQ、リリースノートのような成果物種別とルーブリックを設定します");
-
-  await page.locator('[data-followup-add-artifact="support-docs"]').click();
-  const rubricPage = page.locator("#scr-knowledge-rubric.screen.active");
-  await expect(rubricPage).toBeVisible();
-  await page.locator('#scr-knowledge-rubric input[name="id"]').fill("faq");
-  await page.locator('#scr-knowledge-rubric input[name="display_name"]').fill("FAQ");
-  await expect(page.locator('#scr-knowledge-rubric select[name="domain_id"]')).toHaveValue("support-docs");
-  await page.locator('#scr-knowledge-rubric textarea[name="description"]').fill("よくある質問の回答");
-  await page.locator('#scr-knowledge-rubric textarea[name="knowledge"]').fill("FAQテンプレート");
-  await expect(rubricPage).toContainText("ルーブリックが未入力です");
-  await expect(rubricPage).toContainText("AI支援");
-  await expect(rubricPage).toContainText("このルーブリックへの改善提案 — 現在なし");
-  await page.locator('#scr-knowledge-rubric textarea[name="rubric"]').fill("## 正確性 (60)\n具体的である\n\n## 正確性 (40)\n根拠がある");
-  await expect(rubricPage).toContainText("項目名が重複しています: 正確性");
-  await page.locator("#scr-knowledge-rubric").getByRole("button", { name: "保存" }).click();
-  await expect(rubricPage).toContainText("ルーブリックを保存できませんでした");
-  await expect(rubricPage).toContainText("項目名が重複しています: 正確性");
-  await page.locator("#scr-knowledge-rubric").getByRole("button", { name: "AIで下書き" }).click();
-  await expect(page.locator('#scr-knowledge-rubric textarea[name="rubric"]')).toHaveValue(/ドメイン知識の反映/);
-  await expect(rubricPage).toContainText("形式OK");
-  await expect(rubricPage).toContainText("4項目 / 合計100点");
-  await page.locator('#scr-knowledge-rubric textarea[name="dispatch_hints"]').fill("faq");
-  await page.locator("#scr-knowledge-rubric").getByRole("button", { name: "保存" }).click();
-
-  await expect(page.locator("#scr-knowledge-list.screen.active")).toContainText("保存結果: FAQ");
-  await expect(page.locator("#scr-knowledge-list.screen.active")).toContainText("成果物種別の知識とルーブリックを更新しました。作成とレビューの両方に渡されます。");
-  await expect(page.locator("#scr-knowledge-list.screen.active")).toContainText("ドメイン: サポート文書 · 成果物知識 1件 · 4項目 / 合計100点");
-  await expect(page.locator("#scr-knowledge-list.screen.active")).toContainText("FAQ");
-  await expect(page.locator("#scr-knowledge-list.screen.active")).toContainText("サポート文書");
-  await expect(page.locator('[data-followup-add-artifact="support-docs"]')).toHaveCount(0);
-
-  await page.locator('[data-edit-domain="support-docs"]').click();
+  await expect(domainPage).toContainText("保存結果: FAQ");
+  await expect(domainPage).toContainText("成果物の作成指示とルーブリックを更新しました。作成とレビューの両方に渡されます。");
+  await expect(domainPage).toContainText("ドメイン: サポート文書 · 作成指示 1件 · 4項目 / 合計100点");
+  await expect(domainPage).toContainText("FAQ");
   await expect(domainPage).toBeVisible();
-  await page.locator("#scr-knowledge-domain").getByRole("button", { name: "削除" }).click();
+  await page.locator('#scr-knowledge-domain [data-domain-tab="basic"]').click();
+  await expect(page.locator('#scr-knowledge-domain [data-domain-pane="basic"]').getByRole("button", { name: "削除", exact: true })).toHaveCount(0);
+  await page.locator("#scr-knowledge-domain").getByRole("button", { name: "ナレッジ一覧へ" }).click();
+  await expect(page.locator(`[data-delete-domain-row="${supportDomainId}"]`)).toBeVisible();
+  await page.locator(`[data-delete-domain-row="${supportDomainId}"]`).click();
   await expect(page.locator("#app-dynamic-modal")).toContainText("このドメインはまだ削除できません");
   await expect(page.locator("#app-dynamic-modal")).toContainText("FAQ");
   await expect(page.locator("#app-dynamic-modal").getByRole("button", { name: "削除" })).toBeDisabled();
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "閉じる" }).click();
 
+  await page.locator(`[data-domain-detail="${supportDomainId}"]`).click();
   await expect(domainPage).toBeVisible();
   await page.locator('#scr-knowledge-domain [data-domain-tab="artifacts"]').click();
-  await page.locator('#scr-knowledge-domain [data-edit-artifact="faq"]').click();
-  await page.locator("#app-dynamic-modal").getByRole("button", { name: "削除" }).click();
+  await page.locator(`[data-delete-artifact-row="${faqArtifactId}"]`).click();
   await expect(page.locator("#app-dynamic-modal")).toContainText("FAQ を サポート文書 から削除します");
-  await expect(page.locator("#app-dynamic-modal")).toContainText("成果物知識");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("作成指示");
   await expect(page.locator("#app-dynamic-modal")).toContainText("1件");
   await expect(page.locator("#app-dynamic-modal")).toContainText("4項目 / 100点");
   await expect(page.locator("#app-dynamic-modal")).toContainText("過去のワーク履歴と実行記録は残ります");
   await expect(page.locator("#app-dynamic-modal")).toContainText("新しいワークへ自動注入されません");
-  await page.locator("#app-dynamic-modal").getByRole("button", { name: "削除" }).click();
+  await page.locator("#app-dynamic-modal").getByRole("button", { name: "キャンセル" }).click();
+  await expect(page.locator(`[data-edit-artifact="${faqArtifactId}"]`)).toBeVisible();
+  await page.locator(`[data-delete-artifact-row="${faqArtifactId}"]`).click();
+  await page.locator("#app-dynamic-modal").getByRole("button", { name: "削除する" }).click();
   await expect(domainPage).toBeVisible();
   await expect(page.locator('#scr-knowledge-domain [data-domain-pane="artifacts"]')).toHaveClass(/active/);
-  await expect(page.locator('#scr-knowledge-domain [data-edit-artifact="faq"]')).toHaveCount(0);
+  await expect(page.locator(`[data-edit-artifact="${faqArtifactId}"]`)).toHaveCount(0);
   await expect(page.locator("#scr-knowledge-domain.screen.active")).toContainText("削除結果: FAQ");
-  await expect(page.locator("#scr-knowledge-domain.screen.active")).toContainText("成果物種別を削除しました。新しいワークにはこの知識とルーブリックは自動注入されません。");
-  await expect(page.locator("#scr-knowledge-domain.screen.active")).toContainText("ドメイン: サポート文書 · 成果物知識 1件 · ルーブリック 4項目 / 100点");
+  await expect(page.locator("#scr-knowledge-domain.screen.active")).toContainText("成果物を削除しました。新しいワークにはこの作成指示とルーブリックは自動注入されません。");
+  await expect(page.locator("#scr-knowledge-domain.screen.active")).toContainText("ドメイン: サポート文書 · 作成指示 1件 · ルーブリック 4項目 / 100点");
   await page.locator("#scr-knowledge-domain").getByRole("button", { name: "ナレッジ一覧へ" }).click();
 
-  await page.locator('[data-edit-domain="support-docs"]').click();
-  await page.locator("#scr-knowledge-domain").getByRole("button", { name: "削除" }).click();
+  await page.locator(`[data-delete-domain-row="${supportDomainId}"]`).click();
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "削除" }).click();
-  await expect(page.locator('[data-edit-domain="support-docs"]')).toHaveCount(0);
+  await expect(page.locator(`[data-domain-detail="${supportDomainId}"]`)).toHaveCount(0);
   await expect(page.locator("#scr-knowledge-list.screen.active")).toContainText("削除結果: サポート文書");
   await expect(page.locator("#scr-knowledge-list.screen.active")).toContainText("ドメインをナレッジから削除しました。新しいワークには自動注入されません。");
-  await expect(page.locator("#scr-knowledge-list.screen.active")).toContainText("共通知識 2件 · 成果物種別 0件 · 過去のワーク履歴は保持");
+  await expect(page.locator("#scr-knowledge-list.screen.active")).toContainText("共通知識 2件 · 成果物 0件 · 過去のワーク履歴は保持");
 
   const calls = await page.evaluate(() => window.__nagareDesktopCalls);
   const domainCall = calls.find((call) => call.command === "save_domain");
   const rubricDraftCall = calls.find((call) => call.command === "generate_rubric_draft");
   const artifactCall = calls.find((call) => call.command === "save_artifact_type");
-  expect(domainCall.payload.request.id).toBe("support-docs");
+  expect(domainCall.payload.request.id).toBe(supportDomainId);
   expect(domainCall.payload.request.shared_knowledge).toContain("問い合わせ分類");
-  expect(rubricDraftCall.payload.request.domain_id).toBe("support-docs");
+  expect(rubricDraftCall.payload.request.domain_id).toBe(supportDomainId);
   expect(rubricDraftCall.payload.request.display_name).toBe("FAQ");
   expect(rubricDraftCall.payload.request.knowledge).toEqual(["FAQテンプレート"]);
-  expect(artifactCall.payload.request.id).toBe("faq");
-  expect(artifactCall.payload.request.domain_id).toBe("support-docs");
+  expect(artifactCall.payload.request.id).toBe(faqArtifactId);
+  expect(artifactCall.payload.request.domain_id).toBe(supportDomainId);
   expect(artifactCall.payload.request.rubric).toContain("## ドメイン知識の反映 (20)");
   expect(calls.map((call) => call.command)).toEqual(expect.arrayContaining([
     "delete_artifact_type_command",
@@ -3088,29 +3296,32 @@ test("desktop prototype UI auto-generates domain and artifact ids from display n
   await page.getByRole("button", { name: "ドメインを追加" }).click();
   const domainPage = page.locator("#scr-knowledge-domain.screen.active");
   await expect(domainPage).toBeVisible();
-  await expect(page.locator('#scr-knowledge-domain input[name="id"]')).toHaveAttribute("placeholder", "空欄なら表示名から自動生成");
-  await expect(domainPage).toContainText("管理ID（任意）");
+  await expect(page.locator("#scr-knowledge-domain .advanced-settings")).toHaveCount(0);
+  await expect(page.locator('#scr-knowledge-domain input[name="id"]')).toHaveAttribute("type", "hidden");
+  await expect(page.locator('#scr-knowledge-domain input[name="id"]')).toBeHidden();
   await page.locator('#scr-knowledge-domain input[name="display_name"]').fill("support docs");
   await expect(page.locator('#scr-knowledge-domain input[name="id"]')).toHaveValue("support-docs");
   await page.locator('#scr-knowledge-domain textarea[name="description"]').fill("Support documentation");
   await page.locator('#scr-knowledge-domain textarea[name="shared_knowledge"]').fill("support taxonomy");
   await page.locator("#scr-knowledge-domain").getByRole("button", { name: "保存" }).click();
+  await expect(domainPage).toContainText("保存結果: support docs");
+  await page.locator('#scr-knowledge-domain [data-domain-tab="artifacts"]').click();
+  await page.locator("#scr-knowledge-domain").getByRole("button", { name: "成果物を追加" }).click();
+  const rubricModal = page.locator("#app-dynamic-modal");
+  await expect(rubricModal).toBeVisible();
+  await expect(rubricModal.locator(".advanced-settings")).toHaveCount(0);
+  await expect(rubricModal.locator('input[name="id"]')).toHaveAttribute("type", "hidden");
+  await expect(rubricModal.locator('input[name="id"]')).toBeHidden();
+  await rubricModal.locator('input[name="display_name"]').fill("faq");
+  await expect(rubricModal.locator('input[name="id"]')).toHaveValue("faq");
+  await expect(rubricModal.locator('input[name="domain_id"]')).toHaveValue("support-docs");
+  await expect(rubricModal.locator('select[name="domain_id"]')).toHaveCount(0);
+  await rubricModal.locator('textarea[name="description"]').fill("Frequently asked questions");
+  await rubricModal.locator('textarea[name="knowledge"]').fill("FAQ template");
+  await rubricModal.locator('textarea[name="rubric"]').fill("## 正確性 (100)\n具体的である");
+  await rubricModal.getByRole("button", { name: "保存" }).click();
 
-  await expect(page.locator("#scr-knowledge-list.screen.active")).toContainText("support docs");
-  await page.locator('[data-followup-add-artifact="support-docs"]').click();
-  const rubricPage = page.locator("#scr-knowledge-rubric.screen.active");
-  await expect(rubricPage).toBeVisible();
-  await expect(page.locator('#scr-knowledge-rubric input[name="id"]')).toHaveAttribute("placeholder", "空欄なら表示名から自動生成");
-  await expect(rubricPage).toContainText("管理ID（任意）");
-  await page.locator('#scr-knowledge-rubric input[name="display_name"]').fill("faq");
-  await expect(page.locator('#scr-knowledge-rubric input[name="id"]')).toHaveValue("faq");
-  await expect(page.locator('#scr-knowledge-rubric select[name="domain_id"]')).toHaveValue("support-docs");
-  await page.locator('#scr-knowledge-rubric textarea[name="description"]').fill("Frequently asked questions");
-  await page.locator('#scr-knowledge-rubric textarea[name="knowledge"]').fill("FAQ template");
-  await page.locator('#scr-knowledge-rubric textarea[name="rubric"]').fill("## 正確性 (100)\n具体的である");
-  await page.locator("#scr-knowledge-rubric").getByRole("button", { name: "保存" }).click();
-
-  await expect(page.locator("#scr-knowledge-list.screen.active")).toContainText("保存結果: faq");
+  await expect(domainPage).toContainText("保存結果: faq");
   const calls = await page.evaluate(() => window.__nagareDesktopCalls);
   const domainCall = calls.find((call) => call.command === "save_domain");
   const artifactCall = calls.find((call) => call.command === "save_artifact_type");
@@ -3139,7 +3350,7 @@ test("desktop prototype UI keeps knowledge operation failures visible in context
   await page.goto(desktopIndexUrl);
 
   await page.getByRole("link", { name: /ナレッジ/ }).click();
-  await page.locator('[data-edit-domain="product-docs"]').click();
+  await page.locator('[data-domain-detail="product-docs"]').click();
   await page.locator('#scr-knowledge-domain input[name="display_name"]').fill("プロダクト文書 更新");
   await page.locator("#scr-knowledge-domain").getByRole("button", { name: "保存" }).click();
   await expect(page.locator("#scr-knowledge-domain.screen.active")).toContainText("ドメインを保存できませんでした");
@@ -3147,34 +3358,33 @@ test("desktop prototype UI keeps knowledge operation failures visible in context
   await expect(page.locator("#scr-knowledge-domain.screen.active")).toContainText("表示名、共通知識、割り当てヒントを確認");
 
   await page.locator("#scr-knowledge-domain").getByRole("button", { name: "ナレッジ一覧へ" }).click();
-  await page.locator('[data-edit-domain="empty-domain"]').click();
-  await page.locator("#scr-knowledge-domain").getByRole("button", { name: "削除" }).click();
+  await page.locator('[data-delete-domain-row="empty-domain"]').click();
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "削除" }).click();
   await expect(page.locator("#app-dynamic-modal")).toContainText("ドメインを削除できませんでした");
   await expect(page.locator("#app-dynamic-modal")).toContainText("domain is still referenced");
-  await expect(page.locator("#app-dynamic-modal")).toContainText("成果物種別の有無とナレッジの参照状態を確認");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("成果物の有無とナレッジの参照状態を確認");
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "閉じる" }).click();
-  await expect(page.locator("#scr-knowledge-domain.screen.active")).toContainText("空ドメイン");
+  await expect(page.locator("#scr-knowledge-list.screen.active")).toContainText("空ドメイン");
 
-  await page.locator("#scr-knowledge-domain").getByRole("button", { name: "ナレッジ一覧へ" }).click();
-  await page.locator('[data-edit-domain="product-docs"]').click();
+  await page.locator('[data-domain-detail="product-docs"]').click();
   await page.locator('#scr-knowledge-domain [data-domain-tab="artifacts"]').click();
   await page.locator('#scr-knowledge-domain [data-edit-artifact="readme"]').click();
-  await page.locator("#app-dynamic-modal").getByRole("button", { name: "AIで下書き" }).click();
-  await expect(page.locator("#app-dynamic-modal")).toContainText("ルーブリック下書きを生成できませんでした");
+  await page.locator("#app-dynamic-modal").getByRole("button", { name: "評価基準をAIで作成" }).click();
+  await expect(page.locator("#app-dynamic-modal")).toContainText("評価基準をAIで作成できませんでした");
   await expect(page.locator("#app-dynamic-modal")).toContainText("rubric generator offline");
-  await expect(page.locator("#app-dynamic-modal")).toContainText("成果物の説明、成果物知識、ドメイン共通知識を確認");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("成果物の説明、作成指示、ドメイン共通知識を確認");
 
   await page.locator('#app-dynamic-modal textarea[name="rubric"]').fill("## 手順の再現性 (100)\n手順が再現できる");
   await expect(page.locator("#app-dynamic-modal")).toContainText("形式OK");
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "保存" }).click();
-  await expect(page.locator("#app-dynamic-modal")).toContainText("成果物種別を保存できませんでした");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("成果物を保存できませんでした");
   await expect(page.locator("#app-dynamic-modal")).toContainText("artifact store locked");
   await expect(page.locator("#app-dynamic-modal")).toContainText("表示名、ドメイン、説明、ルーブリック形式を確認");
 
-  await page.locator("#app-dynamic-modal").getByRole("button", { name: "削除" }).click();
-  await page.locator("#app-dynamic-modal").getByRole("button", { name: "削除" }).click();
-  await expect(page.locator("#app-dynamic-modal")).toContainText("成果物種別を削除できませんでした");
+  await page.locator("#app-dynamic-modal").getByRole("button", { name: "閉じる" }).click();
+  await page.locator('[data-delete-artifact-row="readme"]').click();
+  await page.locator("#app-dynamic-modal").getByRole("button", { name: "削除する" }).click();
+  await expect(page.locator("#app-dynamic-modal")).toContainText("成果物を削除できませんでした");
   await expect(page.locator("#app-dynamic-modal")).toContainText("artifact is still referenced");
-  await expect(page.locator("#app-dynamic-modal")).toContainText("ドメイン内の成果物種別と参照状態を確認");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("ドメイン内の成果物と参照状態を確認");
 });

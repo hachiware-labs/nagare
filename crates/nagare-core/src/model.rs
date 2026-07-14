@@ -1015,6 +1015,8 @@ pub struct UpdateArtifactTypeInput<'a> {
     pub description: Option<&'a str>,
     pub artifact_types: Option<Vec<String>>,
     pub rubric: Option<Vec<String>>,
+    /// Used only by rollback paths that must restore the persisted rubric revision exactly.
+    pub rubric_version: Option<u32>,
     pub dispatch_hints: Option<Vec<String>>,
     pub workflow: Option<DomainWorkflowOverride>,
 }

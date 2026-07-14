@@ -12,10 +12,12 @@
       {
         "label": "main",
         "title": "Nagare",
-        "width": 1320,
-        "height": 900,
-        "minWidth": 1040,
-        "minHeight": 720
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "center": true,
+        "maximized": true
       }
     ],
     "security": {
