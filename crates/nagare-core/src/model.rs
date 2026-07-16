@@ -476,6 +476,20 @@ pub struct ResolvedRunPacket {
     pub working_dir: String,
     #[serde(default)]
     pub goal: String,
+    #[serde(default)]
+    pub prompt_version: String,
+    #[serde(default)]
+    pub rubric_id: Option<String>,
+    #[serde(default)]
+    pub rubric_version: Option<u32>,
+    #[serde(default)]
+    pub domain_knowledge_id: Option<String>,
+    #[serde(default)]
+    pub domain_knowledge_version: Option<u32>,
+    #[serde(default)]
+    pub artifact_definition_id: Option<String>,
+    #[serde(default)]
+    pub artifact_definition_version: Option<u32>,
     pub path: Option<String>,
     #[serde(default)]
     pub work_folder: Option<String>,
@@ -945,6 +959,7 @@ pub struct ArtifactType {
     pub artifact_types: Vec<String>,
     pub rubric: Vec<String>,
     pub rubric_version: u32,
+    pub definition_version: u32,
     pub dispatch_hints: Vec<String>,
     pub workflow: DomainWorkflowOverride,
     pub source: ArtifactTypeSource,
@@ -957,6 +972,7 @@ pub struct Domain {
     pub description: String,
     pub shared_knowledge: Vec<String>,
     pub common_rubric: Vec<String>,
+    pub knowledge_version: u32,
     pub dispatch_hints: Vec<String>,
     pub workflow: DomainWorkflowOverride,
     pub source: DomainSource,
@@ -1017,6 +1033,8 @@ pub struct UpdateArtifactTypeInput<'a> {
     pub rubric: Option<Vec<String>>,
     /// Used only by rollback paths that must restore the persisted rubric revision exactly.
     pub rubric_version: Option<u32>,
+    /// Used only by rollback paths that must restore the persisted definition revision exactly.
+    pub definition_version: Option<u32>,
     pub dispatch_hints: Option<Vec<String>>,
     pub workflow: Option<DomainWorkflowOverride>,
 }
@@ -1050,6 +1068,8 @@ pub struct UpdateDomainInput<'a> {
     pub description: Option<&'a str>,
     pub shared_knowledge: Option<Vec<String>>,
     pub common_rubric: Option<Vec<String>>,
+    /// Used only by rollback paths that must restore the persisted knowledge revision exactly.
+    pub knowledge_version: Option<u32>,
     pub dispatch_hints: Option<Vec<String>>,
     pub workflow: Option<DomainWorkflowOverride>,
 }

@@ -192,6 +192,33 @@ impl WorkItemSnapshot {
 }
 
 fn completion_state(snapshot: &WorkItemSnapshot) -> WorkItemCompletion {
+    if snapshot.item.status != WorkItemStatus::Done {
+        if let Some(plan) = active_recovery_plan(snapshot) {
+            let next_action = match plan.status {
+                RecoveryPlanStatus::Draft => "recover",
+                RecoveryPlanStatus::Accepted => "apply_recovery",
+                RecoveryPlanStatus::Superseded => unreachable!("inactive recovery plan"),
+            };
+            let hint = match plan.status {
+                RecoveryPlanStatus::Draft => Some(format!(
+                    "nagare item recover accept {} {}",
+                    snapshot.item.id, plan.id
+                )),
+                RecoveryPlanStatus::Accepted => Some(format!(
+                    "nagare item recover apply {} {}",
+                    snapshot.item.id, plan.id
+                )),
+                RecoveryPlanStatus::Superseded => None,
+            };
+            return completion(
+                "blocked",
+                Some(format!("{}: {}", plan.failure_class, plan.reason)),
+                next_action,
+                hint,
+            );
+        }
+    }
+
     match snapshot.item.status {
         WorkItemStatus::Done => completion("done", None, "done", None),
         WorkItemStatus::AgentRunning => completion("in_progress", None, "wait", None),
@@ -312,6 +339,15 @@ fn completion_state(snapshot: &WorkItemSnapshot) -> WorkItemCompletion {
     }
 }
 
+fn active_recovery_plan(snapshot: &WorkItemSnapshot) -> Option<&RecoveryPlan> {
+    snapshot.recovery_plans.iter().rev().find(|plan| {
+        matches!(
+            plan.status,
+            RecoveryPlanStatus::Draft | RecoveryPlanStatus::Accepted
+        )
+    })
+}
+
 fn completion(
     state: &str,
     blocking_reason: Option<String>,
@@ -414,9 +450,8 @@ fn latest_agent_next_action(snapshot: &WorkItemSnapshot) -> Option<String> {
 fn latest_requested_change(snapshot: &WorkItemSnapshot) -> Option<String> {
     snapshot
         .review_results
-        .iter()
-        .rev()
-        .find(|review| review.verdict == ReviewVerdict::RequestChanges)
+        .last()
+        .filter(|review| review.verdict == ReviewVerdict::RequestChanges)
         .and_then(|review| review.requested_changes.first().cloned())
 }
 

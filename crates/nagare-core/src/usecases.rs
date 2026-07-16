@@ -408,6 +408,7 @@ pub fn add_artifact_type(
         artifact_types: normalize_specialties(input.artifact_types),
         rubric: normalize_specialties(input.rubric),
         rubric_version: 1,
+        definition_version: 1,
         dispatch_hints: normalize_specialties(input.dispatch_hints),
         workflow: input.workflow,
         source: ArtifactTypeSource::ProjectArtifactTypeDirectory,
@@ -424,6 +425,12 @@ pub fn update_artifact_type(
     let layout = ensure_project(root)?;
     validate_artifact_type_id(artifact_type_id)?;
     let mut domain = get_artifact_type(&layout.root, artifact_type_id)?;
+    let previous_domain_id = domain.domain_id.clone();
+    let previous_display_name = domain.display_name.clone();
+    let previous_description = domain.description.clone();
+    let previous_artifact_types = domain.artifact_types.clone();
+    let previous_rubric = domain.rubric.clone();
+    let previous_dispatch_hints = domain.dispatch_hints.clone();
     if let Some(domain_id) = input.domain_id {
         let domain_id = domain_id.map(str::trim).filter(|value| !value.is_empty());
         if let Some(domain_id) = domain_id {
@@ -459,6 +466,18 @@ pub fn update_artifact_type(
     }
     if let Some(workflow) = input.workflow {
         domain.workflow = workflow;
+    }
+    if domain.domain_id != previous_domain_id
+        || domain.display_name != previous_display_name
+        || domain.description != previous_description
+        || domain.artifact_types != previous_artifact_types
+        || domain.rubric != previous_rubric
+        || domain.dispatch_hints != previous_dispatch_hints
+    {
+        domain.definition_version = domain.definition_version.saturating_add(1).max(1);
+    }
+    if let Some(definition_version) = input.definition_version {
+        domain.definition_version = definition_version.max(1);
     }
     domain.source = ArtifactTypeSource::ProjectArtifactTypeDirectory;
     let path = write_artifact_type_file(&layout, &domain)?;
@@ -509,6 +528,7 @@ pub fn add_domain(
         description: input.description.trim().to_string(),
         shared_knowledge: normalize_specialties(input.shared_knowledge),
         common_rubric: normalize_specialties(input.common_rubric),
+        knowledge_version: 1,
         dispatch_hints: normalize_specialties(input.dispatch_hints),
         workflow: input.workflow,
         source: DomainSource::ProjectDomainDirectory,
@@ -525,6 +545,11 @@ pub fn update_domain(
     let layout = ensure_project(root)?;
     validate_domain_id(domain_id)?;
     let mut group = get_domain(&layout.root, domain_id)?;
+    let previous_display_name = group.display_name.clone();
+    let previous_description = group.description.clone();
+    let previous_shared_knowledge = group.shared_knowledge.clone();
+    let previous_common_rubric = group.common_rubric.clone();
+    let previous_dispatch_hints = group.dispatch_hints.clone();
     if let Some(display_name) = input.display_name {
         group.display_name = if display_name.trim().is_empty() {
             group.id.clone()
@@ -546,6 +571,17 @@ pub fn update_domain(
     }
     if let Some(workflow) = input.workflow {
         group.workflow = workflow;
+    }
+    if group.display_name != previous_display_name
+        || group.description != previous_description
+        || group.shared_knowledge != previous_shared_knowledge
+        || group.common_rubric != previous_common_rubric
+        || group.dispatch_hints != previous_dispatch_hints
+    {
+        group.knowledge_version = group.knowledge_version.saturating_add(1).max(1);
+    }
+    if let Some(knowledge_version) = input.knowledge_version {
+        group.knowledge_version = knowledge_version.max(1);
     }
     group.source = DomainSource::ProjectDomainDirectory;
     let path = write_domain_file(&layout, &group)?;
@@ -688,6 +724,7 @@ pub fn update_agent_profile(
     validate_agent_profile_id(agent_profile_id)?;
     let mut profile = get_agent_profile_from_layout(&layout, agent_profile_id)?;
     let previous_profile = profile.clone();
+    let previous_prompt_instructions = profile.prompt.instructions.clone();
     if let Some(display_name) = input.display_name {
         profile.display_name = if display_name.trim().is_empty() {
             profile.id.clone()
@@ -724,6 +761,9 @@ pub fn update_agent_profile(
     }
     if let Some(prompt) = input.prompt {
         profile.prompt.instructions = prompt.trim().to_string();
+    }
+    if profile.prompt.instructions != previous_prompt_instructions {
+        profile.prompt.version = next_agent_prompt_version(&profile.prompt.version);
     }
     if let Some(specialties) = input.specialties {
         profile.specialties = normalize_specialties(specialties);
@@ -765,6 +805,21 @@ pub fn update_agent_profile(
     sync_external_agent_after_update(&layout, &previous_profile, &profile)?;
     let path = write_agent_profile_file(&layout, &profile)?;
     Ok(UpdateAgentProfileResult { profile, path })
+}
+
+fn next_agent_prompt_version(current: &str) -> String {
+    let current = current.trim();
+    if let Some(version) = current
+        .strip_prefix('v')
+        .and_then(|value| value.parse::<u64>().ok())
+    {
+        return format!("v{}", version.saturating_add(1));
+    }
+    if current.is_empty() {
+        default_agent_prompt_version()
+    } else {
+        format!("{current}.r{}", timestamp_seconds())
+    }
 }
 
 fn merge_agent_model_selection(
@@ -1460,6 +1515,78 @@ fn managed_candidate_profiles(
     }
 }
 
+fn dispatch_candidate_profiles(
+    profiles: BTreeMap<String, AgentProfile>,
+    item: &WorkItem,
+    dispatch_agent_id: &str,
+    supervisor_agent_id: &str,
+    handoff_target_agent_id: Option<&str>,
+) -> BTreeMap<String, AgentProfile> {
+    let managed_candidates = managed_candidate_profiles(profiles);
+    if let Some(target_agent_id) = handoff_target_agent_id {
+        if let Some(profile) = managed_candidates.get(target_agent_id) {
+            return BTreeMap::from([(target_agent_id.to_string(), profile.clone())]);
+        }
+    }
+
+    let candidates = managed_candidates
+        .into_iter()
+        .filter(|(id, profile)| {
+            id != dispatch_agent_id
+                && id != supervisor_agent_id
+                && !matches!(profile.role.as_str(), "organizer" | "reviewer")
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    let artifact_matches = item
+        .artifact_type_id
+        .as_deref()
+        .map(|artifact_type_id| {
+            candidates
+                .iter()
+                .filter(|(_, profile)| {
+                    profile
+                        .artifact_type_ids
+                        .iter()
+                        .any(|id| id == artifact_type_id)
+                })
+                .map(|(id, profile)| (id.clone(), profile.clone()))
+                .collect::<BTreeMap<_, _>>()
+        })
+        .unwrap_or_default();
+    if !artifact_matches.is_empty() {
+        return artifact_matches;
+    }
+
+    let domain_matches = item
+        .domain_id
+        .as_deref()
+        .map(|domain_id| {
+            candidates
+                .iter()
+                .filter(|(_, profile)| profile.domain_ids.iter().any(|id| id == domain_id))
+                .map(|(id, profile)| (id.clone(), profile.clone()))
+                .collect::<BTreeMap<_, _>>()
+        })
+        .unwrap_or_default();
+    if !domain_matches.is_empty() {
+        return domain_matches;
+    }
+
+    candidates
+}
+
+fn default_dispatch_target_id(
+    candidates: &BTreeMap<String, AgentProfile>,
+    default_work_agent_id: &str,
+) -> String {
+    candidates
+        .get(default_work_agent_id)
+        .map(|_| default_work_agent_id.to_string())
+        .or_else(|| candidates.keys().next().cloned())
+        .unwrap_or_else(|| default_work_agent_id.to_string())
+}
+
 fn write_agent_profile_file(
     layout: &ProjectLayout,
     profile: &AgentProfile,
@@ -1512,6 +1639,7 @@ fn write_artifact_type_file(
             artifact_types: domain.artifact_types.clone(),
             rubric: domain.rubric.clone(),
             rubric_version: domain.rubric_version.max(1),
+            definition_version: domain.definition_version.max(1),
             dispatch_hints: domain.dispatch_hints.clone(),
             workflow: domain.workflow,
         }),
@@ -1532,6 +1660,7 @@ fn write_domain_file(layout: &ProjectLayout, group: &Domain) -> Result<PathBuf, 
             description: group.description.clone(),
             shared_knowledge: group.shared_knowledge.clone(),
             common_rubric: group.common_rubric.clone(),
+            knowledge_version: group.knowledge_version.max(1),
             dispatch_hints: group.dispatch_hints.clone(),
             workflow: group.workflow,
         }),
@@ -3399,6 +3528,31 @@ pub fn run_work_item_with_input(
         None
     };
     let agent_profile = get_agent_profile_from_layout(&layout, input.agent_profile_id)?;
+    let artifact_types = load_artifact_types(&layout)?;
+    let artifact_type = item
+        .artifact_type_id
+        .as_deref()
+        .and_then(|artifact_type_id| artifact_types.get(artifact_type_id));
+    let (rubric_id, rubric_version, review_rubric) = artifact_type
+        .map(|artifact_type| {
+            (
+                Some(artifact_type.id.clone()),
+                Some(artifact_type.rubric_version.max(1)),
+                artifact_type.rubric.clone(),
+            )
+        })
+        .unwrap_or_else(|| (None, None, Vec::new()));
+    let artifact_definition_id = artifact_type.map(|artifact_type| artifact_type.id.clone());
+    let artifact_definition_version =
+        artifact_type.map(|artifact_type| artifact_type.definition_version.max(1));
+    let domains = load_domains(&layout)?;
+    let domain = item
+        .domain_id
+        .as_deref()
+        .or_else(|| artifact_type.and_then(|artifact_type| artifact_type.domain_id.as_deref()))
+        .and_then(|domain_id| domains.get(domain_id));
+    let domain_knowledge_id = domain.map(|domain| domain.id.clone());
+    let domain_knowledge_version = domain.map(|domain| domain.knowledge_version.max(1));
     let adapter_id = normalize_adapter_id(&agent_profile.adapter)?;
     let working_dir = resolve_profile_working_dir(&layout, &agent_profile)?;
     let output_contract = agent_profile
@@ -3457,6 +3611,13 @@ pub fn run_work_item_with_input(
         purpose: input.purpose,
         working_dir: path_uri(&working_dir),
         goal: goal.clone(),
+        prompt_version: agent_profile.prompt.version.clone(),
+        rubric_id,
+        rubric_version,
+        domain_knowledge_id,
+        domain_knowledge_version,
+        artifact_definition_id,
+        artifact_definition_version,
         path: rule_resolution.path.clone(),
         work_folder: item.work_folder.clone(),
         dispatch_plan_id: input.dispatch_plan_id.map(ToOwned::to_owned),
@@ -3596,7 +3757,9 @@ pub fn run_work_item_with_input(
     });
     let review_result = review_result_id
         .zip(agent_output.as_ref())
-        .map(|(id, output)| review_result_from_agent_output(id, output, &item.acceptance_criteria));
+        .map(|(id, output)| {
+            review_result_from_agent_output(id, output, &item.acceptance_criteria, &review_rubric)
+        });
     let mut item_status = if matches!(
         input.purpose,
         AgentRunPurpose::Work | AgentRunPurpose::Synthesis
@@ -3623,14 +3786,23 @@ pub fn run_work_item_with_input(
     };
     let dispatch_suggestion = parse_dispatch_plan_suggestion(&output.stdout);
     let valid_dispatch_targets = if dispatch_plan_id.is_some() {
-        managed_candidate_profiles(load_agent_profiles(&layout)?)
-            .into_iter()
-            .filter(|(id, _)| {
-                id != input.agent_profile_id
-                    && id != &agent_settings.dispatch_agent
-                    && id != &agent_settings.supervisor_agent
+        let handoff_target_agent_id = (item.status == WorkItemStatus::NeedsHandoff)
+            .then(|| {
+                ledger
+                    .handoffs
+                    .iter()
+                    .rev()
+                    .find(|handoff| handoff.work_item_id == work_item_id)
+                    .map(|handoff| handoff.to_agent_profile.as_str())
             })
-            .collect()
+            .flatten();
+        dispatch_candidate_profiles(
+            load_agent_profiles(&layout)?,
+            &item,
+            &agent_settings.dispatch_agent,
+            &agent_settings.supervisor_agent,
+            handoff_target_agent_id,
+        )
     } else {
         BTreeMap::new()
     };
@@ -3656,7 +3828,7 @@ pub fn run_work_item_with_input(
     {
         general_fallback_agent_id(&valid_dispatch_targets, &agent_settings.work_agent)
     } else {
-        agent_settings.work_agent.clone()
+        default_dispatch_target_id(&valid_dispatch_targets, &agent_settings.work_agent)
     };
     let dispatch_plan = dispatch_plan_id.map(|id| {
         let fallback_target_agent_profile_id = domain_fallback_confirmation

@@ -649,6 +649,7 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                     common_rubric: Some(split_lines(
                         fields.get("common_rubric").map(String::as_str),
                     )),
+                    knowledge_version: None,
                     dispatch_hints: Some(split_lines(
                         fields.get("dispatch_hints").map(String::as_str),
                     )),
@@ -685,6 +686,7 @@ fn handle_ui_request(root: &Path, stream: &mut TcpStream) -> Result<(), String> 
                     )),
                     rubric: Some(split_lines(fields.get("rubric").map(String::as_str))),
                     rubric_version: None,
+                    definition_version: None,
                     dispatch_hints: Some(split_lines(
                         fields.get("dispatch_hints").map(String::as_str),
                     )),

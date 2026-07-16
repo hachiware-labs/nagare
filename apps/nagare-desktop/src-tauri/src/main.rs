@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::fs;
@@ -9,7 +11,7 @@ use nagare_core::{
     AcceptRecoveryPlanResult, AddAgentProfileInput, AddArtifactTypeInput, AddDomainInput,
     AddMcpConnectionInput, AddSkillPackageInput, AdvanceUntilBlockedInput, AdvanceWorkItemInput,
     AgentModelSelection, AgentOutputRecord, AgentProfile, AgentProfileSource, AgentRunPurpose,
-    AgentToolKind, ApplyRecoveryPlanInput, ApprovalPolicy, Artifact, ArtifactType,
+    AgentRunStatus, AgentToolKind, ApplyRecoveryPlanInput, ApprovalPolicy, Artifact, ArtifactType,
     CreateRecoveryPlanResult,
     CreateWorkItemInput, DeleteSkillPackageInput, DeleteSkillPackageResult, Domain,
     DomainWorkflowOverride, ExternalAgentBinding, ImprovementHistoryEntry,
@@ -28,6 +30,7 @@ use nagare_core::{
     list_agent_profiles, list_artifact_types, list_domains, list_improvement_history,
     list_mcp_connections, list_skill_packages, list_skill_set_catalog, list_work_items,
     list_work_trace, record_improvement_applied, record_improvement_dismissed, reject_work_item,
+    run_codex_cli_prompt,
     set_nagare_agent_settings, set_project_metadata, set_project_organizer_agent,
     set_workflow_settings, test_mcp_connection, update_agent_profile, update_artifact_type,
     update_domain, update_mcp_connection,
@@ -296,11 +299,50 @@ struct InsightsView {
     average_score_label: String,
     concern_count: usize,
     proposal_count: usize,
+    signals: Vec<InsightSignalView>,
     agent_scores: Vec<AgentInsightView>,
     issue_matrix: Vec<InsightIssueView>,
     proposals: Vec<ImprovementProposalView>,
     applied_improvements: Vec<AppliedImprovementView>,
     recent_reviews: Vec<InsightReviewView>,
+    prompt_comparisons: Vec<PromptComparisonView>,
+}
+
+#[derive(Clone, Serialize)]
+struct InsightSignalView {
+    id: String,
+    agent_id: String,
+    agent_name: String,
+    role: String,
+    project_name: String,
+    title: String,
+    item_label: String,
+    observation: String,
+    history_assessment: String,
+    scope: String,
+    scope_detail: String,
+    primary_cause_kind: String,
+    primary_cause_label: String,
+    confidence_label: String,
+    proposal_ready: bool,
+    proposal_status_label: String,
+    proposal_kind: String,
+    proposal_target_id: String,
+    proposal_target_label: String,
+    domain_name: String,
+    artifact_type_name: String,
+    rubric_version_label: String,
+    knowledge_version_label: String,
+    prompt_version_label: String,
+    evidence: Vec<InsightSignalEvidenceView>,
+    competing_causes: Vec<String>,
+}
+
+#[derive(Clone, Serialize)]
+struct InsightSignalEvidenceView {
+    work_id: String,
+    stage: String,
+    summary: String,
 }
 
 #[derive(Serialize)]
@@ -308,6 +350,9 @@ struct AgentInsightView {
     agent_id: String,
     agent_name: String,
     role: String,
+    project_name: String,
+    activity_count: usize,
+    recent_activity_label: String,
     review_count: usize,
     average_score: u8,
     average_score_label: String,
@@ -315,14 +360,24 @@ struct AgentInsightView {
     top_issue: String,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 struct InsightIssueView {
+    agent_id: String,
     agent_name: String,
+    role: String,
+    project_name: String,
     item: String,
     rate: u8,
     rate_label: String,
     occurrences: usize,
     suggestion_kind: String,
+    domain_name: String,
+    artifact_type_name: String,
+    rubric_version_label: String,
+    knowledge_version_label: String,
+    prompt_version_label: String,
+    assignment_mode: String,
+    assignment_label: String,
 }
 
 #[derive(Serialize)]
@@ -357,9 +412,56 @@ struct InsightReviewView {
     work_id: String,
     title: String,
     agent_name: String,
+    project_name: String,
     verdict: String,
     score_label: String,
     concerns: Vec<String>,
+    items: Vec<InsightReviewItemView>,
+}
+
+#[derive(Serialize)]
+struct InsightReviewItemView {
+    item: String,
+    score_label: String,
+    concern: bool,
+}
+
+#[derive(Serialize)]
+struct PromptComparisonView {
+    agent_id: String,
+    agent_name: String,
+    role: String,
+    project_name: String,
+    domain_name: String,
+    artifact_type_name: String,
+    rubric_version_label: String,
+    knowledge_version_label: String,
+    assignment_label: String,
+    variants: Vec<PromptComparisonVariantView>,
+}
+
+#[derive(Serialize)]
+struct PromptComparisonVariantView {
+    prompt_version_label: String,
+    review_count: usize,
+    average_score: u8,
+    average_score_label: String,
+    work_refs: Vec<PromptComparisonWorkView>,
+    items: Vec<PromptComparisonItemView>,
+}
+
+#[derive(Serialize)]
+struct PromptComparisonWorkView {
+    work_id: String,
+    title: String,
+    score_label: String,
+}
+
+#[derive(Serialize)]
+struct PromptComparisonItemView {
+    item: String,
+    average_score: u8,
+    score_label: String,
 }
 
 #[derive(Deserialize)]
@@ -526,6 +628,46 @@ struct RubricDraftRequest {
     display_name: String,
     description: Option<String>,
     knowledge: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct ArtifactDefinitionDraftRequest {
+    root: Option<String>,
+    domain_id: String,
+    artifact_name: String,
+}
+
+#[derive(Deserialize)]
+struct ArtifactDefinitionRefineRequest {
+    root: Option<String>,
+    domain_id: String,
+    artifact_name: String,
+    description: String,
+    knowledge: Vec<String>,
+    rubric: String,
+    #[serde(default)]
+    dispatch_hints: Vec<String>,
+    feedback: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ArtifactDefinitionDraftResponse {
+    description: String,
+    knowledge: Vec<String>,
+    rubric: String,
+    #[serde(default)]
+    dispatch_hints: Vec<String>,
+    #[serde(default)]
+    coverage: Vec<ArtifactDefinitionCoverage>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ArtifactDefinitionCoverage {
+    dimension: String,
+    applicability: String,
+    knowledge_ids: Vec<String>,
+    rubric_sections: Vec<String>,
+    reason: String,
 }
 
 #[derive(Serialize)]
@@ -1030,6 +1172,7 @@ fn save_domain(request: SaveDomainRequest) -> Result<DesktopState, String> {
                 description: Some(optional_text(request.description.as_deref())),
                 shared_knowledge: Some(text_lines(request.shared_knowledge.as_deref())),
                 common_rubric: Some(text_lines(request.common_rubric.as_deref())),
+                knowledge_version: None,
                 dispatch_hints: Some(text_lines(request.dispatch_hints.as_deref())),
                 workflow: None,
             },
@@ -1097,6 +1240,7 @@ fn save_artifact_type(request: SaveArtifactTypeRequest) -> Result<DesktopState, 
                 artifact_types: Some(text_lines(request.knowledge.as_deref())),
                 rubric: Some(rubric_lines),
                 rubric_version: None,
+                definition_version: None,
                 dispatch_hints: Some(text_lines(request.dispatch_hints.as_deref())),
                 workflow: None,
             },
@@ -1142,6 +1286,7 @@ fn restore_artifact_type_save(
                     artifact_types: Some(artifact.artifact_types.clone()),
                     rubric: Some(artifact.rubric.clone()),
                     rubric_version: Some(artifact.rubric_version),
+                    definition_version: Some(artifact.definition_version),
                     dispatch_hints: Some(artifact.dispatch_hints.clone()),
                     workflow: Some(artifact.workflow),
                 },
@@ -1382,6 +1527,346 @@ fn generate_rubric_draft(request: RubricDraftRequest) -> Result<DraftTextRespons
             domain.as_ref(),
         ),
     })
+}
+
+#[tauri::command]
+fn generate_artifact_definition(
+    request: ArtifactDefinitionDraftRequest,
+) -> Result<ArtifactDefinitionDraftResponse, String> {
+    let root = resolve_desktop_root(request.root)?;
+    let domain = artifact_definition_domain(&root, &request.domain_id)?;
+    let artifact_name = request.artifact_name.trim();
+    if artifact_name.is_empty() {
+        return Err("成果物名を入力してください。".to_string());
+    }
+    let prompt = artifact_definition_prompt(artifact_name, &domain, None);
+    generate_precise_artifact_definition(&root, &prompt)
+}
+
+#[tauri::command]
+fn refine_artifact_definition(
+    request: ArtifactDefinitionRefineRequest,
+) -> Result<ArtifactDefinitionDraftResponse, String> {
+    let root = resolve_desktop_root(request.root)?;
+    let domain = artifact_definition_domain(&root, &request.domain_id)?;
+    if request.feedback.trim().is_empty() {
+        return Err("AIへの改善コメントを入力してください。".to_string());
+    }
+    let current = ArtifactDefinitionDraftResponse {
+        description: request.description,
+        knowledge: request.knowledge,
+        rubric: request.rubric,
+        dispatch_hints: request.dispatch_hints,
+        coverage: Vec::new(),
+    };
+    let refinement = format!(
+        "改善対象: 成果物定義全体\nユーザーコメント: {}\n現在の定義:\n{}\n説明・作成指示・評価基準の対応関係を崩さず、コメントに必要な変更だけを行ってください。作成指示を変えた場合は対応する評価基準も見直し、評価基準を変えた場合は対応する作成指示が判定可能か確認してください。変更不要な内容は維持してください。",
+        request.feedback.trim(),
+        serde_json::to_string_pretty(&current).map_err(|error| error.to_string())?
+    );
+    let prompt = artifact_definition_prompt(
+        request.artifact_name.trim(),
+        &domain,
+        Some(refinement.as_str()),
+    );
+    generate_precise_artifact_definition(&root, &prompt)
+}
+
+fn generate_precise_artifact_definition(
+    root: &Path,
+    prompt: &str,
+) -> Result<ArtifactDefinitionDraftResponse, String> {
+    let model = artifact_definition_model(root);
+    let raw = run_codex_cli_prompt(root, prompt, model.as_deref())
+        .map_err(|error| error.to_string())?;
+    match parse_artifact_definition_response(&raw) {
+        Ok(definition) => Ok(definition),
+        Err(validation_error) => {
+            let repair_prompt = format!(
+                r###"次の成果物定義はNagareの精密度検証に不合格でした。
+元の要件と検証エラーを満たすように、情報を削らず、原子的な作成指示へ分解して修正してください。
+JSON objectだけを返してください。
+
+検証エラー:
+{validation_error}
+
+元の要件:
+{prompt}
+
+不合格だった出力:
+{raw}"###
+            );
+            let repaired = run_codex_cli_prompt(root, &repair_prompt, model.as_deref())
+                .map_err(|error| error.to_string())?;
+            parse_artifact_definition_response(&repaired).map_err(|repair_error| {
+                format!(
+                    "AIが精密な成果物定義を生成できませんでした。初回: {validation_error} / 再生成: {repair_error}"
+                )
+            })
+        }
+    }
+}
+
+fn artifact_definition_domain(root: &Path, domain_id: &str) -> Result<Domain, String> {
+    list_domains(root)
+        .map_err(|error| error.to_string())?
+        .into_iter()
+        .find(|domain| domain.id == domain_id.trim())
+        .ok_or_else(|| format!("ドメイン `{}` が見つかりません。", domain_id.trim()))
+}
+
+fn artifact_definition_model(root: &Path) -> Option<String> {
+    let settings = get_nagare_agent_settings(root).ok()?;
+    let organizer_id = settings
+        .organizer_agent
+        .as_deref()
+        .filter(|id| !id.trim().is_empty())
+        .unwrap_or(settings.dispatch_agent.as_str());
+    get_agent_profile(root, organizer_id).ok()?.model.model_ref()
+}
+
+fn artifact_definition_prompt(
+    artifact_name: &str,
+    domain: &Domain,
+    refinement: Option<&str>,
+) -> String {
+    let shared_knowledge = domain.shared_knowledge.join("\n- ");
+    let common_rubric = domain.common_rubric.join("\n- ");
+    let dispatch_hints = domain.dispatch_hints.join("\n- ");
+    format!(
+        r###"あなたは成果物定義を設計する上級品質アーキテクトです。
+ドメインの知識と成果物名から、作成エージェントとレビューエージェントが追加説明なしで使える、精密な成果物定義を作成してください。
+
+成果物名: {artifact_name}
+ドメイン: {} ({})
+ドメイン説明: {}
+共通知識:
+- {shared_knowledge}
+共通評価基準:
+- {common_rubric}
+振り分けヒント:
+- {dispatch_hints}
+
+網羅性の検査対象（coverageにこの13項目をすべて出力する）:
+- 目的と利用者
+- 範囲と前提
+- 構成と責任
+- 入力と出力
+- 正確性と根拠
+- 整合性と追跡可能性
+- 正常系と異常系
+- 境界条件と例外
+- セキュリティとプライバシー
+- アクセシビリティ
+- 性能と信頼性
+- 運用と保守性
+- 検証と証跡
+該当しない観点も省略せず、applicabilityを `非該当` として、非該当と判断できる具体的理由を書くこと。
+
+出力条件:
+- descriptionは成果物の目的、利用者、利用場面、完成状態を2〜4文で定義する。
+- knowledgeは必要な情報単位を省略せず16〜40項目で出力する。項目数を減らすために独立した要求を結合しない。
+- knowledgeの各項目は `[K01][カテゴリ] 対象: ... | 条件: ... | 要求: ... | 証跡: ... | 例外: ...` の1行形式とする。
+- 1項目には1つの判定可能な要求だけを書く。対象、適用条件、要求結果、確認可能な証跡、例外または非該当条件を具体化する。
+- 「適切に」「十分に」「必要に応じて」「考慮する」「など」だけで判定を利用者へ委ねない。使用する場合は直後に判定条件を列挙する。
+- rubricは8〜12項目、合計100点のMarkdownとする。
+- rubricの各項目は `## 項目名 (配点)` で始め、本文に `満点条件:`、`部分点条件:`、`重大な不足:`、`確認する証跡:` を必ず含める。
+- 重大な不足は、その項目を0点または即時差し戻しにする観測可能な条件を書く。
+- dispatch_hintsは、この成果物を担当できる専門性を2〜6項目で表す。
+- coverageは上記13観点を1件ずつ出力し、applicabilityは `必須`、`条件付き`、`非該当` のいずれかとする。
+- coverageのknowledge_idsには対応するK番号、rubric_sectionsには対応する評価項目名を入れる。必須・条件付きなら両方を空にしない。
+- 出力前に、全knowledgeと全rubric項目がcoverageから少なくとも1回参照されていることを自己検査する。
+{}
+
+次のJSON objectだけを返してください。Markdownのコードフェンスや前後の説明は不要です。
+{{
+  "description": "...",
+  "knowledge": ["[K01][目的] 対象: ... | 条件: ... | 要求: ... | 証跡: ... | 例外: ..."],
+  "rubric": "## ... (配点)\n満点条件: ...\n部分点条件: ...\n重大な不足: ...\n確認する証跡: ...",
+  "dispatch_hints": ["..."],
+  "coverage": [
+    {{
+      "dimension": "目的と利用者",
+      "applicability": "必須",
+      "knowledge_ids": ["K01"],
+      "rubric_sections": ["目的への適合"],
+      "reason": "この成果物で該当する理由"
+    }}
+  ]
+}}"###,
+        domain.display_name,
+        domain.id,
+        domain.description,
+        refinement.unwrap_or("")
+    )
+}
+
+fn parse_artifact_definition_response(
+    raw: &str,
+) -> Result<ArtifactDefinitionDraftResponse, String> {
+    let trimmed = raw.trim();
+    let json = serde_json::from_str::<ArtifactDefinitionDraftResponse>(trimmed).or_else(|_| {
+        let start = trimmed.find('{').ok_or_else(|| {
+            serde_json::Error::io(std::io::Error::other("JSON objectが見つかりません"))
+        })?;
+        let end = trimmed.rfind('}').ok_or_else(|| {
+            serde_json::Error::io(std::io::Error::other("JSON objectが閉じられていません"))
+        })?;
+        serde_json::from_str::<ArtifactDefinitionDraftResponse>(&trimmed[start..=end])
+    })
+    .map_err(|error| format!("AIの生成結果を読み取れませんでした: {error}"))?;
+    if json.description.trim().is_empty() {
+        return Err("AIの生成結果に成果物の説明がありません。".to_string());
+    }
+    validate_artifact_knowledge(&json.knowledge)?;
+    let summary = validate_rubric_markdown(&json.rubric)?;
+    if summary.item_count < 8 {
+        return Err("AIの評価基準が十分な粒度ではありません。8項目以上必要です。".to_string());
+    }
+    for required in [
+        "満点条件:",
+        "部分点条件:",
+        "重大な不足:",
+        "確認する証跡:",
+    ] {
+        if json.rubric.matches(required).count() < summary.item_count {
+            return Err(format!(
+                "AIの評価基準では、各項目に `{required}` を記述する必要があります。"
+            ));
+        }
+    }
+    validate_artifact_coverage(&json)?;
+    Ok(json)
+}
+
+const ARTIFACT_COVERAGE_DIMENSIONS: [&str; 13] = [
+    "目的と利用者",
+    "範囲と前提",
+    "構成と責任",
+    "入力と出力",
+    "正確性と根拠",
+    "整合性と追跡可能性",
+    "正常系と異常系",
+    "境界条件と例外",
+    "セキュリティとプライバシー",
+    "アクセシビリティ",
+    "性能と信頼性",
+    "運用と保守性",
+    "検証と証跡",
+];
+
+fn validate_artifact_knowledge(knowledge: &[String]) -> Result<(), String> {
+    if !(16..=40).contains(&knowledge.len()) {
+        return Err(
+            "AIの作成指示は、原子的な情報単位へ分解した16〜40項目である必要があります。"
+                .to_string(),
+        );
+    }
+    for (index, item) in knowledge.iter().enumerate() {
+        let expected_id = format!("K{:02}", index + 1);
+        if !item.starts_with(&format!("[{expected_id}][")) {
+            return Err(format!(
+                "作成指示{}は `{expected_id}` から始まり、順番に採番する必要があります。",
+                index + 1
+            ));
+        }
+        for required in ["対象:", "条件:", "要求:", "証跡:", "例外:"] {
+            if !item.contains(required) {
+                return Err(format!(
+                    "作成指示 `{expected_id}` に `{required}` がありません。"
+                ));
+            }
+        }
+        if item.chars().count() < 60 {
+            return Err(format!(
+                "作成指示 `{expected_id}` が短すぎます。対象・条件・要求・証跡・例外を具体化してください。"
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_artifact_coverage(
+    definition: &ArtifactDefinitionDraftResponse,
+) -> Result<(), String> {
+    let knowledge_ids = definition
+        .knowledge
+        .iter()
+        .filter_map(|item| item.strip_prefix('[')?.split(']').next())
+        .map(str::to_string)
+        .collect::<BTreeSet<_>>();
+    let rubric_sections = definition
+        .rubric
+        .lines()
+        .filter_map(|line| line.strip_prefix("## "))
+        .filter_map(|heading| {
+            heading
+                .rsplit_once(" (")
+                .map(|(name, _)| name.trim().to_string())
+        })
+        .collect::<BTreeSet<_>>();
+    let dimensions = definition
+        .coverage
+        .iter()
+        .map(|entry| entry.dimension.as_str())
+        .collect::<BTreeSet<_>>();
+    for required in ARTIFACT_COVERAGE_DIMENSIONS {
+        if !dimensions.contains(required) {
+            return Err(format!("AIの網羅表に `{required}` がありません。"));
+        }
+    }
+    if dimensions.len() != ARTIFACT_COVERAGE_DIMENSIONS.len() {
+        return Err("AIの網羅表に重複または未定義の観点があります。".to_string());
+    }
+    let mut covered_knowledge = BTreeSet::new();
+    let mut covered_rubrics = BTreeSet::new();
+    for entry in &definition.coverage {
+        if !["必須", "条件付き", "非該当"].contains(&entry.applicability.as_str()) {
+            return Err(format!(
+                "網羅表 `{}` の該当性は、必須・条件付き・非該当のいずれかにしてください。",
+                entry.dimension
+            ));
+        }
+        if entry.reason.trim().chars().count() < 10 {
+            return Err(format!(
+                "網羅表 `{}` の該当性理由を具体化してください。",
+                entry.dimension
+            ));
+        }
+        if entry.applicability != "非該当"
+            && (entry.knowledge_ids.is_empty() || entry.rubric_sections.is_empty())
+        {
+            return Err(format!(
+                "網羅表 `{}` には作成指示と評価項目の両方を対応付けてください。",
+                entry.dimension
+            ));
+        }
+        for id in &entry.knowledge_ids {
+            if !knowledge_ids.contains(id) {
+                return Err(format!(
+                    "網羅表 `{}` が存在しない作成指示 `{id}` を参照しています。",
+                    entry.dimension
+                ));
+            }
+            covered_knowledge.insert(id.clone());
+        }
+        for section in &entry.rubric_sections {
+            if !rubric_sections.contains(section) {
+                return Err(format!(
+                    "網羅表 `{}` が存在しない評価項目 `{section}` を参照しています。",
+                    entry.dimension
+                ));
+            }
+            covered_rubrics.insert(section.clone());
+        }
+    }
+    if covered_knowledge != knowledge_ids {
+        return Err("網羅表から参照されていない作成指示があります。".to_string());
+    }
+    if covered_rubrics != rubric_sections {
+        return Err("網羅表から参照されていない評価項目があります。".to_string());
+    }
+    Ok(())
 }
 
 fn improvement_request_from_project(
@@ -1887,6 +2372,8 @@ fn main() {
             delete_agent_command,
             generate_agent_prompt_draft,
             generate_rubric_draft,
+            generate_artifact_definition,
+            refine_artifact_definition,
             add_skill,
             delete_skill_package_command,
             save_mcp_connection,
@@ -1972,7 +2459,13 @@ fn desktop_state(root: PathBuf) -> Result<DesktopState, String> {
                 work_list_item_with_trace(&item, snapshot.as_ref(), &trace_records)
             })
             .collect::<Vec<_>>();
-        let insights = insights_view(&root, &snapshots, &agent_profiles);
+        let insights = insights_view(
+            &root,
+            &snapshots,
+            &agent_profiles,
+            &domains,
+            &artifact_types,
+        );
         let project = project_view(
             &root,
             &work_items,
@@ -2150,7 +2643,7 @@ fn status_counts(work_items: &[WorkListItem]) -> Vec<StatusCountView> {
     [
         ("要対応・質問", "question"),
         ("要対応・確認", "review"),
-        ("要対応・回復", "recover"),
+        ("要対応", "recover"),
         ("処理中", "running"),
         ("完了", "done"),
     ]
@@ -2171,6 +2664,15 @@ struct AgentInsightAccum {
     agent_id: String,
     agent_name: String,
     role: String,
+    project_name: String,
+    activity_count: usize,
+    dispatch_count: usize,
+    work_count: usize,
+    review_activity_count: usize,
+    synthesis_count: usize,
+    supervision_count: usize,
+    failed_count: usize,
+    score_events: Vec<(String, u8)>,
     score_sum: u32,
     review_count: usize,
     scored_review_count: usize,
@@ -2178,11 +2680,524 @@ struct AgentInsightAccum {
 }
 
 struct IssueAccum {
+    agent_id: String,
     agent_name: String,
+    role: String,
+    project_name: String,
     item: String,
     score_sum: u32,
     occurrences: usize,
     concern_count: usize,
+    domain_name: String,
+    artifact_type_name: String,
+    rubric_version_label: String,
+    knowledge_version_label: String,
+    prompt_version_label: String,
+    direct_assignment_count: usize,
+    organizer_assignment_count: usize,
+    unknown_assignment_count: usize,
+}
+
+#[derive(Clone)]
+struct InsightEpisode {
+    work_id: String,
+    title: String,
+    project_name: String,
+    worker_id: String,
+    worker_name: String,
+    reviewer_id: String,
+    reviewer_name: String,
+    organizer_id: String,
+    organizer_name: String,
+    assignment_mode: String,
+    assignment_label: String,
+    domain_name: String,
+    artifact_type_name: String,
+    rubric_version_label: String,
+    knowledge_version_label: String,
+    prompt_version_label: String,
+    reviewer_prompt_version_label: String,
+    organizer_prompt_version_label: String,
+    review_verdict: String,
+    review_items: BTreeMap<String, u8>,
+    human_decision_type: String,
+    human_decision_rationale: String,
+    worker_questions: Vec<String>,
+    handoff_summaries: Vec<String>,
+    recovery_summaries: Vec<String>,
+    organizer_summary_count: usize,
+}
+
+struct InsightScope {
+    domain_id: String,
+    domain_name: String,
+    artifact_type_id: String,
+    artifact_type_name: String,
+    rubric_version_label: String,
+    knowledge_version_label: String,
+    prompt_version_label: String,
+}
+
+fn agent_activity_entry<'a>(
+    agent_accums: &'a mut BTreeMap<(String, String), AgentInsightAccum>,
+    agents: &[AgentProfile],
+    agent_id: &str,
+    project_name: &str,
+    fallback_name: Option<&str>,
+    fallback_role: &str,
+) -> &'a mut AgentInsightAccum {
+    let profile = agents.iter().find(|agent| agent.id == agent_id);
+    let agent_name = profile
+        .map(|agent| agent.display_name.clone())
+        .or_else(|| fallback_name.filter(|name| !name.trim().is_empty()).map(str::to_string))
+        .unwrap_or_else(|| agent_id.to_string());
+    let role = profile
+        .map(|agent| agent.role.clone())
+        .filter(|role| !role.trim().is_empty())
+        .unwrap_or_else(|| fallback_role.to_string());
+    agent_accums
+        .entry((agent_id.to_string(), project_name.to_string()))
+        .or_insert_with(|| AgentInsightAccum {
+            agent_id: agent_id.to_string(),
+            agent_name,
+            role,
+            project_name: project_name.to_string(),
+            ..AgentInsightAccum::default()
+        })
+}
+
+fn record_agent_activity(agent: &mut AgentInsightAccum, kind: &str, failed: bool) {
+    agent.activity_count += 1;
+    match kind {
+        "organizer_decision" => agent.dispatch_count += 1,
+        "worker_output" => agent.work_count += 1,
+        "reviewer_verdict" => agent.review_activity_count += 1,
+        "organizer_summary" => agent.synthesis_count += 1,
+        "workflow_supervision" => agent.supervision_count += 1,
+        _ => {}
+    }
+    if failed {
+        agent.failed_count += 1;
+    }
+}
+
+fn accumulate_agent_activities(
+    agent_accums: &mut BTreeMap<(String, String), AgentInsightAccum>,
+    snapshot: &WorkItemSnapshot,
+    trace_records: &[TraceRecord],
+    agents: &[AgentProfile],
+    project_name: &str,
+) {
+    let mut traced_kinds = BTreeSet::new();
+    for record in trace_records.iter().filter(|record| {
+        matches!(
+            record.record.as_str(),
+            "organizer_decision" | "worker_output" | "reviewer_verdict" | "organizer_summary"
+        )
+    }) {
+        let Some(agent_id) = value_path_str(&record.payload, &["agent", "id"])
+            .filter(|agent_id| !agent_id.trim().is_empty())
+        else {
+            continue;
+        };
+        let fallback_role = match record.record.as_str() {
+            "organizer_decision" | "organizer_summary" => "organizer",
+            "reviewer_verdict" => "reviewer",
+            _ => "worker",
+        };
+        let agent = agent_activity_entry(
+            agent_accums,
+            agents,
+            &agent_id,
+            project_name,
+            value_path_str(&record.payload, &["agent", "name"]).as_deref(),
+            value_path_str(&record.payload, &["agent", "role"])
+                .as_deref()
+                .unwrap_or(fallback_role),
+        );
+        record_agent_activity(
+            agent,
+            &record.record,
+            value_path_str(&record.payload, &["status"])
+                .is_some_and(|status| status == "failed"),
+        );
+        traced_kinds.insert(record.record.clone());
+    }
+
+    if !traced_kinds.contains("organizer_decision") {
+        for plan in &snapshot.dispatch_plans {
+            let agent = agent_activity_entry(
+                agent_accums,
+                agents,
+                &plan.dispatch_agent_profile_id,
+                project_name,
+                None,
+                "organizer",
+            );
+            record_agent_activity(agent, "organizer_decision", false);
+        }
+    }
+    if !traced_kinds.contains("worker_output") {
+        for output in snapshot
+            .agent_outputs
+            .iter()
+            .filter(|output| output.purpose == AgentRunPurpose::Work)
+        {
+            let agent = agent_activity_entry(
+                agent_accums,
+                agents,
+                &output.agent_profile_id,
+                project_name,
+                None,
+                "worker",
+            );
+            record_agent_activity(agent, "worker_output", false);
+        }
+    }
+    if !traced_kinds.contains("reviewer_verdict") {
+        for review in &snapshot.review_results {
+            let agent = agent_activity_entry(
+                agent_accums,
+                agents,
+                &review.agent_profile_id,
+                project_name,
+                None,
+                "reviewer",
+            );
+            record_agent_activity(agent, "reviewer_verdict", false);
+        }
+    }
+    if !traced_kinds.contains("organizer_summary") {
+        for output in snapshot
+            .agent_outputs
+            .iter()
+            .filter(|output| output.purpose == AgentRunPurpose::Synthesis)
+        {
+            let agent = agent_activity_entry(
+                agent_accums,
+                agents,
+                &output.agent_profile_id,
+                project_name,
+                None,
+                "organizer",
+            );
+            record_agent_activity(agent, "organizer_summary", false);
+        }
+    }
+
+    for run in &snapshot.runs {
+        let kind = match run.purpose {
+            AgentRunPurpose::DispatchPreview => "organizer_decision",
+            AgentRunPurpose::Work => "worker_output",
+            AgentRunPurpose::Review => "reviewer_verdict",
+            AgentRunPurpose::Synthesis => "organizer_summary",
+            AgentRunPurpose::WorkflowSupervision => "workflow_supervision",
+        };
+        let represented = match run.purpose {
+            AgentRunPurpose::DispatchPreview => snapshot
+                .dispatch_plans
+                .iter()
+                .any(|plan| plan.agent_run_id == run.id),
+            AgentRunPurpose::Review => snapshot
+                .review_results
+                .iter()
+                .any(|review| review.agent_run_id == run.id),
+            AgentRunPurpose::Work | AgentRunPurpose::Synthesis => snapshot
+                .agent_outputs
+                .iter()
+                .any(|output| output.agent_run_id == run.id),
+            AgentRunPurpose::WorkflowSupervision => false,
+        } || traced_kinds.contains(kind);
+        if run.status == AgentRunStatus::Failed || !represented {
+            let fallback_role = match run.purpose {
+                AgentRunPurpose::Review => "reviewer",
+                AgentRunPurpose::Work => "worker",
+                _ => "organizer",
+            };
+            let agent = agent_activity_entry(
+                agent_accums,
+                agents,
+                &run.agent_profile_id,
+                project_name,
+                None,
+                fallback_role,
+            );
+            if represented {
+                if run.status == AgentRunStatus::Failed && !traced_kinds.contains(kind) {
+                    agent.failed_count += 1;
+                }
+            } else {
+                record_agent_activity(agent, kind, run.status == AgentRunStatus::Failed);
+            }
+        }
+    }
+}
+
+fn insight_role_kind(role: &str) -> &'static str {
+    let role = role.to_ascii_lowercase();
+    if role.contains("organizer") || role.contains("dispatch") || role.contains("supervisor") {
+        "organizer"
+    } else if role.contains("review") {
+        "reviewer"
+    } else {
+        "worker"
+    }
+}
+
+fn recent_agent_activity_label(agent: &mut AgentInsightAccum) -> String {
+    agent.score_events.sort_by(|left, right| left.0.cmp(&right.0));
+    let score_flow = agent
+        .score_events
+        .iter()
+        .rev()
+        .take(3)
+        .map(|(_, score)| format!("{score}点"))
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<_>>()
+        .join(" → ");
+    let mut label = match insight_role_kind(&agent.role) {
+        "reviewer" if !score_flow.is_empty() => format!("付与した点 {score_flow}"),
+        "reviewer" if agent.review_activity_count > 0 => {
+            format!("レビュー {}件 · 得点未記録", agent.review_activity_count)
+        }
+        "organizer" => {
+            let mut parts = Vec::new();
+            if agent.dispatch_count > 0 {
+                parts.push(format!("割り当て {}件", agent.dispatch_count));
+            }
+            if agent.synthesis_count > 0 {
+                parts.push(format!("まとめ {}件", agent.synthesis_count));
+            }
+            if agent.supervision_count > 0 {
+                parts.push(format!("進行判断 {}件", agent.supervision_count));
+            }
+            if parts.is_empty() {
+                "記録不足".to_string()
+            } else {
+                parts.join(" · ")
+            }
+        }
+        _ if !score_flow.is_empty() => format!("評価された点 {score_flow}"),
+        _ if agent.work_count > 0 => format!("作業 {}件 · 得点未記録", agent.work_count),
+        _ => "記録不足".to_string(),
+    };
+    if agent.failed_count > 0 {
+        label.push_str(&format!(" · 失敗 {}件", agent.failed_count));
+    }
+    label
+}
+
+#[allow(clippy::too_many_arguments)]
+fn insight_episode(
+    snapshot: &WorkItemSnapshot,
+    trace_records: &[TraceRecord],
+    agents: &[AgentProfile],
+    project_name: &str,
+    worker_id: &str,
+    worker_name: &str,
+    review: &ReviewResult,
+    scope: &InsightScope,
+    assignment_mode: &str,
+    review_items: &[(String, u8, bool)],
+) -> InsightEpisode {
+    let organizer_trace = trace_records
+        .iter()
+        .rev()
+        .find(|record| {
+            record.record == "organizer_decision"
+                && record.at.as_str() <= review.created_at.as_str()
+        });
+    let organizer_id = organizer_trace
+        .and_then(|record| value_path_str(&record.payload, &["agent", "id"]))
+        .or_else(|| {
+            snapshot
+                .dispatch_plans
+                .iter()
+                .rev()
+                .filter(|plan| plan.created_at.as_str() <= review.created_at.as_str())
+                .map(|plan| plan.dispatch_agent_profile_id.clone())
+                .find(|id| !id.trim().is_empty())
+        })
+        .unwrap_or_default();
+    let organizer_name = organizer_trace
+        .and_then(|record| value_path_str(&record.payload, &["agent", "name"]))
+        .or_else(|| agent_name(agents, &organizer_id))
+        .unwrap_or_else(|| {
+            if organizer_id.is_empty() {
+                "オーガナイザー未記録".to_string()
+            } else {
+                organizer_id.clone()
+            }
+        });
+    let reviewer_name = agent_name(agents, &review.agent_profile_id)
+        .unwrap_or_else(|| review.agent_profile_id.clone());
+    let work_output = snapshot
+        .agent_outputs
+        .iter()
+        .rev()
+        .find(|output| {
+            output.purpose == AgentRunPurpose::Work
+                && output.agent_profile_id == worker_id
+                && output.created_at.as_str() <= review.created_at.as_str()
+        });
+    let episode_started_at = work_output
+        .map(|output| output.created_at.as_str())
+        .or_else(|| {
+            snapshot
+                .dispatch_plans
+                .iter()
+                .rev()
+                .filter(|plan| plan.created_at.as_str() <= review.created_at.as_str())
+                .map(|plan| plan.created_at.as_str())
+                .next()
+        })
+        .unwrap_or(snapshot.item.created_at.as_str());
+    let human_decision = snapshot
+        .decisions
+        .iter()
+        .rev()
+        .find(|decision| decision.created_at.as_str() >= review.created_at.as_str());
+    let worker_questions = snapshot
+        .agent_outputs
+        .iter()
+        .filter(|output| {
+            output.purpose == AgentRunPurpose::Work
+                && output.agent_profile_id == worker_id
+                && output.created_at.as_str() >= episode_started_at
+                && output.created_at.as_str() <= review.created_at.as_str()
+        })
+        .flat_map(|output| output.questions.clone())
+        .filter(|question| meaningful_text(question))
+        .collect::<Vec<_>>();
+    let handoff_summaries = snapshot
+        .handoffs
+        .iter()
+        .filter(|handoff| {
+            handoff.created_at.as_str() >= episode_started_at
+                && (handoff.from_agent_profile == worker_id
+                    || handoff.to_agent_profile == worker_id)
+        })
+        .map(|handoff| {
+            if meaningful_text(&handoff.summary) {
+                handoff.summary.clone()
+            } else {
+                handoff.reason.clone()
+            }
+        })
+        .collect::<Vec<_>>();
+    let recovery_summaries = snapshot
+        .recovery_plans
+        .iter()
+        .filter(|plan| {
+            plan.created_at.as_str() >= episode_started_at
+                && plan.status != RecoveryPlanStatus::Superseded
+                && plan
+                    .target_agent_profile_id
+                    .as_deref()
+                    .is_none_or(|target| target == worker_id)
+        })
+        .map(|plan| format!("{}: {}", plan.action, plan.reason))
+        .collect::<Vec<_>>();
+    let organizer_summary_count = trace_records
+        .iter()
+        .filter(|record| {
+            record.record == "organizer_summary"
+                && record.at.as_str() >= review.created_at.as_str()
+        })
+        .count()
+        .max(
+            snapshot
+                .agent_outputs
+                .iter()
+                .filter(|output| {
+                    output.purpose == AgentRunPurpose::Synthesis
+                        && output.created_at.as_str() >= review.created_at.as_str()
+                })
+                .count(),
+        );
+    let prompt_version_for = |agent_id: &str, purpose: AgentRunPurpose| {
+        snapshot
+            .resolved_run_packets
+            .iter()
+            .rev()
+            .find(|packet| packet.purpose == purpose && packet.agent_profile_id == agent_id)
+            .map(|packet| packet.prompt_version.trim())
+            .filter(|version| !version.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| "実行時版未記録".to_string())
+    };
+    let reviewer_prompt_version_label =
+        prompt_version_for(&review.agent_profile_id, AgentRunPurpose::Review);
+    let organizer_prompt_version_label = if organizer_id.is_empty() {
+        "実行時版未記録".to_string()
+    } else {
+        prompt_version_for(&organizer_id, AgentRunPurpose::DispatchPreview)
+    };
+
+    InsightEpisode {
+        work_id: snapshot.item.id.clone(),
+        title: snapshot.item.title.clone(),
+        project_name: project_name.to_string(),
+        worker_id: worker_id.to_string(),
+        worker_name: worker_name.to_string(),
+        reviewer_id: review.agent_profile_id.clone(),
+        reviewer_name,
+        organizer_id,
+        organizer_name,
+        assignment_mode: assignment_mode.to_string(),
+        assignment_label: match assignment_mode {
+            "direct" => "担当を明示指定".to_string(),
+            "organizer" => "オーガナイザーが割り当て".to_string(),
+            _ => "割り当て元は記録不足".to_string(),
+        },
+        domain_name: scope.domain_name.clone(),
+        artifact_type_name: scope.artifact_type_name.clone(),
+        rubric_version_label: scope.rubric_version_label.clone(),
+        knowledge_version_label: scope.knowledge_version_label.clone(),
+        prompt_version_label: scope.prompt_version_label.clone(),
+        reviewer_prompt_version_label,
+        organizer_prompt_version_label,
+        review_verdict: review.verdict.to_string(),
+        review_items: review_items
+            .iter()
+            .map(|(item, score, _)| (item.clone(), *score))
+            .collect(),
+        human_decision_type: human_decision
+            .map(|decision| decision.decision_type.clone())
+            .unwrap_or_default(),
+        human_decision_rationale: human_decision
+            .map(|decision| decision.rationale.clone())
+            .unwrap_or_default(),
+        worker_questions,
+        handoff_summaries,
+        recovery_summaries,
+        organizer_summary_count,
+    }
+}
+
+struct PromptComparisonAccum {
+    agent_id: String,
+    agent_name: String,
+    role: String,
+    project_name: String,
+    domain_name: String,
+    artifact_type_name: String,
+    rubric_version_label: String,
+    knowledge_version_label: String,
+    assignment_label: String,
+    item_order: Vec<String>,
+    variants: BTreeMap<String, PromptComparisonVariantAccum>,
+}
+
+#[derive(Default)]
+struct PromptComparisonVariantAccum {
+    score_sum: u32,
+    review_count: usize,
+    scored_review_count: usize,
+    work_refs: Vec<(String, String, Option<u8>)>,
+    item_scores: BTreeMap<String, (u32, usize)>,
 }
 
 fn empty_insights_view() -> InsightsView {
@@ -2191,11 +3206,13 @@ fn empty_insights_view() -> InsightsView {
         average_score_label: "-".to_string(),
         concern_count: 0,
         proposal_count: 0,
+        signals: Vec::new(),
         agent_scores: Vec::new(),
         issue_matrix: Vec::new(),
         proposals: Vec::new(),
         applied_improvements: Vec::new(),
         recent_reviews: Vec::new(),
+        prompt_comparisons: Vec::new(),
     }
 }
 
@@ -2203,47 +3220,142 @@ fn insights_view(
     root: &Path,
     snapshots: &[WorkItemSnapshot],
     agents: &[AgentProfile],
+    domains: &[Domain],
+    artifact_types: &[ArtifactType],
 ) -> InsightsView {
-    let mut agent_accums: BTreeMap<String, AgentInsightAccum> = BTreeMap::new();
-    let mut issue_accums: BTreeMap<(String, String), IssueAccum> = BTreeMap::new();
+    let mut agent_accums: BTreeMap<(String, String), AgentInsightAccum> = BTreeMap::new();
+    let mut issue_accums: BTreeMap<
+        (String, String, String, String, String, String, String, String),
+        IssueAccum,
+    > = BTreeMap::new();
     let mut recent_reviews = Vec::new();
+    let mut episodes = Vec::new();
+    let mut prompt_comparison_accums: BTreeMap<
+        (String, String, String, String, String, String, String),
+        PromptComparisonAccum,
+    > = BTreeMap::new();
     let mut total_score = 0u32;
     let mut review_count = 0usize;
     let mut scored_review_count = 0usize;
     let mut concern_count = 0usize;
+    let root_project_name = analysis_root_project_name(root);
 
     for snapshot in snapshots {
+        let trace_records = list_work_trace(root, &snapshot.item.id).unwrap_or_default();
+        let project_name = analysis_project_name(
+            &root_project_name,
+            snapshot.item.work_folder.as_deref(),
+        );
+        accumulate_agent_activities(
+            &mut agent_accums,
+            snapshot,
+            &trace_records,
+            agents,
+            &project_name,
+        );
         let Some(review) = snapshot.review_results.iter().rev().next() else {
             continue;
         };
-        let trace_records = list_work_trace(root, &snapshot.item.id).unwrap_or_default();
         let agent_id = reviewed_agent_id(snapshot, &trace_records)
             .unwrap_or_else(|| review.agent_profile_id.clone());
         let (agent_name, role) = agent_label(agents, &agent_id);
+        let scope = insight_scope(snapshot, &trace_records, agents, domains, artifact_types, &agent_id);
+        let assignment_mode = insight_assignment_mode(snapshot, &agent_id);
         let score = review_score_percent(review, &trace_records);
         let concerns = review_concerns(review, &trace_records);
         let review_items = insight_review_items(review, &trace_records, score.unwrap_or_default());
+        let review_item_views = review_items
+            .iter()
+            .map(|(item, item_score, is_concern)| InsightReviewItemView {
+                item: item.clone(),
+                score_label: format!("{item_score}%"),
+                concern: *is_concern,
+            })
+            .collect::<Vec<_>>();
+        episodes.push(insight_episode(
+            snapshot,
+            &trace_records,
+            agents,
+            &project_name,
+            &agent_id,
+            &agent_name,
+            review,
+            &scope,
+            assignment_mode,
+            &review_items,
+        ));
+
+        if recorded_prompt_version(&scope.prompt_version_label) {
+            let assignment_label = match assignment_mode {
+                "direct" => "担当を明示指定",
+                "organizer" => "オーガナイザーが割り当て",
+                _ => "割り当て元は記録不足",
+            };
+            let comparison = prompt_comparison_accums
+                .entry((
+                    agent_id.clone(),
+                    project_name.clone(),
+                    scope.domain_id.clone(),
+                    scope.artifact_type_id.clone(),
+                    scope.rubric_version_label.clone(),
+                    scope.knowledge_version_label.clone(),
+                    assignment_mode.to_string(),
+                ))
+                .or_insert_with(|| PromptComparisonAccum {
+                    agent_id: agent_id.clone(),
+                    agent_name: agent_name.clone(),
+                    role: role.clone(),
+                    project_name: project_name.clone(),
+                    domain_name: scope.domain_name.clone(),
+                    artifact_type_name: scope.artifact_type_name.clone(),
+                    rubric_version_label: scope.rubric_version_label.clone(),
+                    knowledge_version_label: scope.knowledge_version_label.clone(),
+                    assignment_label: assignment_label.to_string(),
+                    item_order: Vec::new(),
+                    variants: BTreeMap::new(),
+                });
+            for (item, _, _) in &review_items {
+                if !comparison.item_order.contains(item) {
+                    comparison.item_order.push(item.clone());
+                }
+            }
+            let variant = comparison
+                .variants
+                .entry(scope.prompt_version_label.clone())
+                .or_default();
+            variant.review_count += 1;
+            if let Some(score) = score {
+                variant.score_sum += u32::from(score);
+                variant.scored_review_count += 1;
+            }
+            variant
+                .work_refs
+                .push((snapshot.item.id.clone(), snapshot.item.title.clone(), score));
+            for (item, item_score, _) in &review_items {
+                let item_accum = variant.item_scores.entry(item.clone()).or_default();
+                item_accum.0 += u32::from(*item_score);
+                item_accum.1 += 1;
+            }
+        }
 
         review_count += 1;
         concern_count += concerns.len();
 
-        let agent = agent_accums
-            .entry(agent_id.clone())
-            .or_insert_with(|| AgentInsightAccum {
-                agent_id: agent_id.clone(),
-                agent_name: agent_name.clone(),
-                role: role.clone(),
-                score_sum: 0,
-                review_count: 0,
-                scored_review_count: 0,
-                issue_counts: BTreeMap::new(),
-            });
+        let agent = agent_activity_entry(
+            &mut agent_accums,
+            agents,
+            &agent_id,
+            &project_name,
+            Some(&agent_name),
+            &role,
+        );
         agent.review_count += 1;
         if let Some(score) = score {
             total_score += u32::from(score);
             scored_review_count += 1;
             agent.score_sum += u32::from(score);
             agent.scored_review_count += 1;
+            agent.score_events.push((review.created_at.clone(), score));
         }
 
         for (item, item_score, is_concern) in review_items {
@@ -2251,58 +3363,206 @@ fn insights_view(
                 *agent.issue_counts.entry(item.clone()).or_insert(0) += 1;
             }
             let issue = issue_accums
-                .entry((agent_id.clone(), item.clone()))
+                .entry((
+                    agent_id.clone(),
+                    project_name.clone(),
+                    item.clone(),
+                    scope.domain_id.clone(),
+                    scope.artifact_type_id.clone(),
+                    scope.rubric_version_label.clone(),
+                    scope.knowledge_version_label.clone(),
+                    scope.prompt_version_label.clone(),
+                ))
                 .or_insert_with(|| IssueAccum {
+                    agent_id: agent_id.clone(),
                     agent_name: agent_name.clone(),
+                    role: role.clone(),
+                    project_name: project_name.clone(),
                     item: item.clone(),
                     score_sum: 0,
                     occurrences: 0,
                     concern_count: 0,
+                    domain_name: scope.domain_name.clone(),
+                    artifact_type_name: scope.artifact_type_name.clone(),
+                    rubric_version_label: scope.rubric_version_label.clone(),
+                    knowledge_version_label: scope.knowledge_version_label.clone(),
+                    prompt_version_label: scope.prompt_version_label.clone(),
+                    direct_assignment_count: 0,
+                    organizer_assignment_count: 0,
+                    unknown_assignment_count: 0,
                 });
             issue.score_sum += u32::from(item_score);
             issue.occurrences += 1;
             if is_concern {
                 issue.concern_count += 1;
             }
+            match assignment_mode {
+                "direct" => issue.direct_assignment_count += 1,
+                "organizer" => issue.organizer_assignment_count += 1,
+                _ => issue.unknown_assignment_count += 1,
+            }
+        }
+
+        if let Some(score) = score {
+            let reviewer = agent_activity_entry(
+                &mut agent_accums,
+                agents,
+                &review.agent_profile_id,
+                &project_name,
+                None,
+                "reviewer",
+            );
+            reviewer
+                .score_events
+                .push((review.created_at.clone(), score));
         }
 
         recent_reviews.push(InsightReviewView {
             work_id: snapshot.item.id.clone(),
             title: snapshot.item.title.clone(),
             agent_name,
+            project_name,
             verdict: review.verdict.to_string(),
             score_label: score
                 .map(|score| format!("{score} / 100"))
                 .unwrap_or_else(|| "得点未記録".to_string()),
             concerns,
+            items: review_item_views,
         });
     }
 
     recent_reviews.sort_by(|a, b| b.work_id.cmp(&a.work_id));
     recent_reviews.truncate(5);
 
+    let mut prompt_comparisons = prompt_comparison_accums
+        .into_values()
+        .filter(|comparison| comparison.variants.len() >= 2)
+        .map(|comparison| {
+            let PromptComparisonAccum {
+                agent_id,
+                agent_name,
+                role,
+                project_name,
+                domain_name,
+                artifact_type_name,
+                rubric_version_label,
+                knowledge_version_label,
+                assignment_label,
+                item_order,
+                variants,
+            } = comparison;
+            let variants = variants
+                .into_iter()
+                .map(|(prompt_version_label, variant)| {
+                    let average_score =
+                        average_u8(variant.score_sum, variant.scored_review_count);
+                    let items = item_order
+                        .iter()
+                        .filter_map(|item| {
+                            variant.item_scores.get(item).map(|(score_sum, count)| {
+                                let item_average = average_u8(*score_sum, *count);
+                                PromptComparisonItemView {
+                                    item: item.clone(),
+                                    average_score: item_average,
+                                    score_label: format!("{item_average}%"),
+                                }
+                            })
+                        })
+                        .collect();
+                    let mut work_refs = variant.work_refs;
+                    work_refs.sort_by(|a, b| b.0.cmp(&a.0));
+                    PromptComparisonVariantView {
+                        prompt_version_label,
+                        review_count: variant.review_count,
+                        average_score,
+                        average_score_label: if variant.scored_review_count == 0 {
+                            "得点未記録".to_string()
+                        } else {
+                            format!("{average_score} / 100")
+                        },
+                        work_refs: work_refs
+                            .into_iter()
+                            .take(5)
+                            .map(|(work_id, title, score)| PromptComparisonWorkView {
+                                work_id,
+                                title,
+                                score_label: score
+                                    .map(|score| format!("{score}点"))
+                                    .unwrap_or_else(|| "得点未記録".to_string()),
+                            })
+                            .collect(),
+                        items,
+                    }
+                })
+                .collect();
+            PromptComparisonView {
+                agent_id,
+                agent_name,
+                role,
+                project_name,
+                domain_name,
+                artifact_type_name,
+                rubric_version_label,
+                knowledge_version_label,
+                assignment_label,
+                variants,
+            }
+        })
+        .collect::<Vec<_>>();
+    prompt_comparisons.sort_by(|a, b| {
+        (
+            &a.project_name,
+            &a.agent_name,
+            &a.domain_name,
+            &a.artifact_type_name,
+        )
+            .cmp(&(
+                &b.project_name,
+                &b.agent_name,
+                &b.domain_name,
+                &b.artifact_type_name,
+            ))
+    });
+
     let mut agent_scores = agent_accums
         .into_values()
-        .map(|agent| {
+        .map(|mut agent| {
+            let role_kind = insight_role_kind(&agent.role);
             let average = average_u8(agent.score_sum, agent.scored_review_count);
-            let top_issue = agent
-                .issue_counts
-                .into_iter()
-                .max_by_key(|(_, count)| *count)
-                .map(|(item, count)| format!("{item} ({count}件)"))
-                .unwrap_or_else(|| "目立つ失点なし".to_string());
+            let recent_activity_label = recent_agent_activity_label(&mut agent);
+            let top_issue = if role_kind == "worker" {
+                agent
+                    .issue_counts
+                    .into_iter()
+                    .max_by_key(|(_, count)| *count)
+                    .map(|(item, count)| format!("{item} ({count}件)"))
+                    .unwrap_or_else(|| "目立つ失点なし".to_string())
+            } else if agent.failed_count > 0 {
+                format!("実行失敗 {}件", agent.failed_count)
+            } else {
+                "目立つ実行異常なし".to_string()
+            };
             AgentInsightView {
                 agent_id: agent.agent_id,
                 agent_name: agent.agent_name,
                 role: agent.role,
+                project_name: agent.project_name,
+                activity_count: agent.activity_count,
+                recent_activity_label,
                 review_count: agent.review_count,
-                average_score: average,
-                average_score_label: if agent.scored_review_count == 0 {
+                average_score: if role_kind == "worker" { average } else { 0 },
+                average_score_label: if role_kind != "worker" {
+                    "品質評価未対応".to_string()
+                } else if agent.scored_review_count == 0 {
                     "得点未記録".to_string()
                 } else {
                     format!("{average} / 100")
                 },
-                status_label: if agent.scored_review_count == 0 {
+                status_label: if agent.failed_count > 0 {
+                    "要確認".to_string()
+                } else if role_kind != "worker" && agent.activity_count > 0 {
+                    "動作記録あり".to_string()
+                } else if agent.scored_review_count == 0 {
                     "記録不足".to_string()
                 } else if average < 75 {
                     "要改善".to_string()
@@ -2315,54 +3575,75 @@ fn insights_view(
             }
         })
         .collect::<Vec<_>>();
-    agent_scores.sort_by_key(|agent| agent.average_score);
+    agent_scores.sort_by(|left, right| {
+        let role_order = |role: &str| match insight_role_kind(role) {
+            "organizer" => 0,
+            "worker" => 1,
+            _ => 2,
+        };
+        (
+            &left.project_name,
+            role_order(&left.role),
+            &left.agent_name,
+        )
+            .cmp(&(
+                &right.project_name,
+                role_order(&right.role),
+                &right.agent_name,
+            ))
+    });
 
     let mut issue_matrix = issue_accums
         .into_values()
         .map(|issue| {
             let rate = average_u8(issue.score_sum, issue.occurrences);
+            let (assignment_mode, assignment_label) = if issue.direct_assignment_count == issue.occurrences {
+                (
+                    "direct".to_string(),
+                    format!("担当を明示指定（{}件）", issue.direct_assignment_count),
+                )
+            } else if issue.organizer_assignment_count == issue.occurrences {
+                (
+                    "organizer".to_string(),
+                    format!("オーガナイザーが割り当て（{}件）", issue.organizer_assignment_count),
+                )
+            } else if issue.unknown_assignment_count == issue.occurrences {
+                ("unknown".to_string(), "割り当て元は記録不足".to_string())
+            } else {
+                (
+                    "mixed".to_string(),
+                    format!(
+                        "割り当て元が混在（明示{} / オーガナイザー{} / 不明{}）",
+                        issue.direct_assignment_count,
+                        issue.organizer_assignment_count,
+                        issue.unknown_assignment_count
+                    ),
+                )
+            };
             InsightIssueView {
+                agent_id: issue.agent_id,
                 agent_name: issue.agent_name,
+                role: issue.role,
+                project_name: issue.project_name,
                 item: issue.item.clone(),
                 rate,
                 rate_label: format!("{rate}%"),
                 occurrences: issue.occurrences,
                 suggestion_kind: suggestion_kind_for_issue(&issue.item, rate).to_string(),
+                domain_name: issue.domain_name,
+                artifact_type_name: issue.artifact_type_name,
+                rubric_version_label: issue.rubric_version_label,
+                knowledge_version_label: issue.knowledge_version_label,
+                prompt_version_label: issue.prompt_version_label,
+                assignment_mode,
+                assignment_label,
             }
         })
         .collect::<Vec<_>>();
     issue_matrix.sort_by_key(|issue| (issue.rate, std::cmp::Reverse(issue.occurrences)));
-    issue_matrix.truncate(8);
 
-    let mut proposals = issue_matrix
-        .iter()
-        .filter(|issue| issue.rate < 75)
-        .take(4)
-        .map(|issue| {
-            let kind = issue.suggestion_kind.clone();
-            let current_text = current_improvement_text(&kind, &issue.agent_name, &issue.item);
-            let suggested_text = suggested_improvement_text(&kind, &issue.item);
-            ImprovementProposalView {
-                id: proposal_id(&issue.agent_name, &issue.item, &kind),
-                kind: kind.clone(),
-                title: format!("{} の{}改善", issue.agent_name, kind),
-                target_label: format!("{} / {}", issue.agent_name, issue.item),
-                summary: format!(
-                    "「{}」の獲得率が {} です。該当エージェントの指示、知識、または判定基準の見直し候補として扱います。",
-                    issue.item, issue.rate_label
-                ),
-                evidence: format!("レビュー履歴 {}件から算出。75%未満を改善候補として表示しています。", issue.occurrences),
-                diff_lines: vec![
-                    format!("- {current_text}"),
-                    format!("+ {suggested_text}"),
-                ],
-                current_text,
-                suggested_text,
-                next_step: next_step_for_improvement_kind(&kind).to_string(),
-                action_label: "プレビューで確認".to_string(),
-            }
-        })
-        .collect::<Vec<_>>();
+    let signals = build_insight_signals(&issue_matrix, &episodes);
+    let mut proposals = improvement_proposals_from_signals(&signals);
 
     if scored_review_count >= 10
         && concern_count == 0
@@ -2418,12 +3699,669 @@ fn insights_view(
         },
         concern_count,
         proposal_count,
+        signals,
         agent_scores,
         issue_matrix,
         proposals,
         applied_improvements,
         recent_reviews,
+        prompt_comparisons,
     }
+}
+
+fn build_insight_signals(
+    issue_matrix: &[InsightIssueView],
+    episodes: &[InsightEpisode],
+) -> Vec<InsightSignalView> {
+    let mut signals = issue_matrix
+        .iter()
+        .filter(|issue| issue.rate < 75)
+        .map(|issue| review_issue_signal(issue, issue_matrix, episodes))
+        .map(|signal| (signal.id.clone(), signal))
+        .collect::<BTreeMap<_, _>>()
+        .into_values()
+        .collect::<Vec<_>>();
+    signals.extend(reviewer_override_signals(episodes));
+    signals.extend(organizer_assignment_signals(episodes));
+    signals.sort_by(|left, right| {
+        (
+            !left.proposal_ready,
+            &left.project_name,
+            &left.primary_cause_label,
+            &left.title,
+        )
+            .cmp(&(
+                !right.proposal_ready,
+                &right.project_name,
+                &right.primary_cause_label,
+                &right.title,
+            ))
+    });
+    signals
+}
+
+fn review_issue_signal(
+    issue: &InsightIssueView,
+    issue_matrix: &[InsightIssueView],
+    episodes: &[InsightEpisode],
+) -> InsightSignalView {
+    let matching = episodes
+        .iter()
+        .filter(|episode| {
+            episode.project_name == issue.project_name
+                && episode.worker_id == issue.agent_id
+                && episode.domain_name == issue.domain_name
+                && episode.artifact_type_name == issue.artifact_type_name
+                && episode.rubric_version_label == issue.rubric_version_label
+                && episode.knowledge_version_label == issue.knowledge_version_label
+                && episode.prompt_version_label == issue.prompt_version_label
+                && episode.review_items.contains_key(&issue.item)
+        })
+        .collect::<Vec<_>>();
+    let peer_agents = issue_matrix
+        .iter()
+        .filter(|candidate| {
+            candidate.rate < 75
+                && candidate.project_name == issue.project_name
+                && candidate.domain_name == issue.domain_name
+                && candidate.artifact_type_name == issue.artifact_type_name
+                && candidate.rubric_version_label == issue.rubric_version_label
+                && candidate.knowledge_version_label == issue.knowledge_version_label
+                && candidate.item == issue.item
+        })
+        .map(|candidate| candidate.agent_id.as_str())
+        .collect::<BTreeSet<_>>();
+    let peer_matching = episodes
+        .iter()
+        .filter(|episode| {
+            episode.project_name == issue.project_name
+                && peer_agents.contains(episode.worker_id.as_str())
+                && episode.domain_name == issue.domain_name
+                && episode.artifact_type_name == issue.artifact_type_name
+                && episode.rubric_version_label == issue.rubric_version_label
+                && episode.knowledge_version_label == issue.knowledge_version_label
+                && episode.review_items.contains_key(&issue.item)
+        })
+        .collect::<Vec<_>>();
+    let reviewer_override_count = matching
+        .iter()
+        .filter(|episode| {
+            verdict_is_pass(&episode.review_verdict)
+                && episode.human_decision_type == "reject"
+        })
+        .count();
+    let friction_count = matching
+        .iter()
+        .filter(|episode| {
+            !episode.worker_questions.is_empty()
+                || !episode.handoff_summaries.is_empty()
+                || !episode.recovery_summaries.is_empty()
+        })
+        .count();
+    let shared_cause = peer_agents.len() >= 2;
+    let shared_conflict_count = peer_matching
+        .iter()
+        .filter(|episode| {
+            !episode.worker_questions.is_empty()
+                || !episode.handoff_summaries.is_empty()
+                || !episode.recovery_summaries.is_empty()
+                || (verdict_is_pass(&episode.review_verdict)
+                    && episode.human_decision_type == "reject")
+        })
+        .count();
+    let repeated = issue.occurrences >= 2;
+    let (primary_cause_kind, primary_cause_label, confidence_label, proposal_ready, proposal_status_label, proposal_kind, proposal_target_id, proposal_target_label, history_assessment, competing_causes) =
+        if shared_cause && shared_conflict_count == 0 {
+            (
+                "shared".to_string(),
+                "共有知識・成果物定義".to_string(),
+                "有力".to_string(),
+                true,
+                "改善候補にできます".to_string(),
+                "知識".to_string(),
+                format!("shared:{}:{}", issue.domain_name, issue.artifact_type_name),
+                issue.artifact_type_name.clone(),
+                format!(
+                    "履歴全体を比較すると、同じ知識・ルーブリックを使う{}人のワーカーで「{}」の失点が確認されました。個別ワーカーより、共有知識または成果物指示の不足が有力です。",
+                    peer_agents.len(), issue.item
+                ),
+                vec![
+                    "各ワーカー固有のプロンプト".to_string(),
+                    "ルーブリックの判定条件".to_string(),
+                ],
+            )
+        } else if shared_cause {
+            (
+                "undetermined".to_string(),
+                "判断保留".to_string(),
+                "競合あり".to_string(),
+                false,
+                "複数ワーカーの競合履歴を先に確認します".to_string(),
+                String::new(),
+                String::new(),
+                String::new(),
+                format!(
+                    "同じ知識・ルーブリックを使う{}人のワーカーで「{}」の失点がありますが、質問、handoff、回復、または人の判定覆しが{}件含まれます。共有定義の問題とはまだ断定しません。",
+                    peer_agents.len(), issue.item, shared_conflict_count
+                ),
+                vec![
+                    "共有知識・成果物定義".to_string(),
+                    "オーガナイザーの入力・割り当て".to_string(),
+                    "各ワーカー固有の方策".to_string(),
+                ],
+            )
+        } else if reviewer_override_count > 0 {
+            (
+                "undetermined".to_string(),
+                "判断保留".to_string(),
+                "競合あり".to_string(),
+                false,
+                "人の差し戻し理由を先に確認します".to_string(),
+                String::new(),
+                String::new(),
+                String::new(),
+                format!(
+                    "「{}」の失点に加え、レビュー合格後の人の差し戻しが{}件あります。ワーカー品質とレビュアー較正が競合するため、この失点だけでは改善対象を確定できません。",
+                    issue.item, reviewer_override_count
+                ),
+                vec![
+                    "ワーカーの方策".to_string(),
+                    "レビュアーの判定較正".to_string(),
+                    "依頼目的の変更".to_string(),
+                ],
+            )
+        } else if friction_count > 0 {
+            (
+                "undetermined".to_string(),
+                "判断保留".to_string(),
+                "競合あり".to_string(),
+                false,
+                "質問・handoff・回復理由の確認が必要です".to_string(),
+                String::new(),
+                String::new(),
+                String::new(),
+                format!(
+                    "「{}」の失点がある実行のうち{}件で、質問、handoff、または回復が発生しています。入力不足、割り当て、実行環境が交絡するため、ワーカー改善へ直結させません。",
+                    issue.item, friction_count
+                ),
+                vec![
+                    "オーガナイザーのRun Packet".to_string(),
+                    "担当範囲・実行環境".to_string(),
+                    "ワーカーの方策".to_string(),
+                ],
+            )
+        } else if repeated {
+            (
+                "worker".to_string(),
+                issue.agent_name.clone(),
+                "有力".to_string(),
+                true,
+                "改善候補にできます".to_string(),
+                "プロンプト".to_string(),
+                issue.agent_id.clone(),
+                issue.agent_name.clone(),
+                format!(
+                    "依頼からレビュー後の判断まで確認した範囲では、担当変更、回復、人による判定覆しは記録されず、{}が同じ条件で「{}」を{}件反復して失点しています。ワーカー方策が有力ですが、共有指示は競合候補として残します。",
+                    issue.agent_name, issue.item, issue.occurrences
+                ),
+                vec![
+                    "共有知識・成果物指示".to_string(),
+                    "依頼ごとの難度差".to_string(),
+                ],
+            )
+        } else {
+            (
+                "undetermined".to_string(),
+                "判断保留".to_string(),
+                "記録不足".to_string(),
+                false,
+                "同条件の履歴を追加して確認します".to_string(),
+                String::new(),
+                String::new(),
+                String::new(),
+                format!(
+                    "「{}」の失点は{}件だけです。履歴は確認できましたが、単発事例からワーカー、割り当て、共有指示のいずれかへ帰属する証拠は不足しています。",
+                    issue.item, issue.occurrences
+                ),
+                vec![
+                    "ワーカーの方策".to_string(),
+                    "オーガナイザーの入力・割り当て".to_string(),
+                    "共有知識・成果物定義".to_string(),
+                ],
+            )
+        };
+    let evidence_source = if shared_cause {
+        &peer_matching
+    } else {
+        &matching
+    };
+    let evidence = evidence_source
+        .iter()
+        .flat_map(|episode| issue_episode_evidence(episode, &issue.item))
+        .take(12)
+        .collect::<Vec<_>>();
+    let signal_id_target = if shared_cause {
+        format!("shared:{}:{}", issue.domain_name, issue.artifact_type_name)
+    } else {
+        issue.agent_id.clone()
+    };
+    let observation = if shared_cause {
+        format!(
+            "レビュー項目「{}」の基準未達が{}人のワーカーで確認されました。",
+            issue.item,
+            peer_agents.len()
+        )
+    } else {
+        format!(
+            "レビュー項目「{}」の獲得率は{}（{}件）です。",
+            issue.item, issue.rate_label, issue.occurrences
+        )
+    };
+    let prompt_version_label = if shared_cause {
+        "複数ワーカー".to_string()
+    } else {
+        issue.prompt_version_label.clone()
+    };
+    InsightSignalView {
+        id: proposal_id(
+            &signal_id_target,
+            &format!(
+                "{}-{}-{}-{}",
+                issue.project_name, issue.domain_name, issue.artifact_type_name, issue.item
+            ),
+            "signal",
+        ),
+        agent_id: if primary_cause_kind == "shared" {
+            String::new()
+        } else {
+            issue.agent_id.clone()
+        },
+        agent_name: if primary_cause_kind == "shared" {
+            "共有知識・成果物定義".to_string()
+        } else {
+            issue.agent_name.clone()
+        },
+        role: if primary_cause_kind == "shared" {
+            "shared".to_string()
+        } else {
+            issue.role.clone()
+        },
+        project_name: issue.project_name.clone(),
+        title: format!("{}が基準未達", issue.item),
+        item_label: issue.item.clone(),
+        observation,
+        history_assessment,
+        scope: format!(
+            "{} / {} / {}",
+            issue.project_name, issue.domain_name, issue.artifact_type_name
+        ),
+        scope_detail: format!(
+            "ルーブリック {} · 知識 {} · プロンプト {} · {}",
+            issue.rubric_version_label,
+            issue.knowledge_version_label,
+            prompt_version_label,
+            issue.assignment_label
+        ),
+        primary_cause_kind,
+        primary_cause_label,
+        confidence_label,
+        proposal_ready,
+        proposal_status_label,
+        proposal_kind,
+        proposal_target_id,
+        proposal_target_label,
+        domain_name: issue.domain_name.clone(),
+        artifact_type_name: issue.artifact_type_name.clone(),
+        rubric_version_label: issue.rubric_version_label.clone(),
+        knowledge_version_label: issue.knowledge_version_label.clone(),
+        prompt_version_label,
+        evidence,
+        competing_causes,
+    }
+}
+
+fn issue_episode_evidence(
+    episode: &InsightEpisode,
+    item: &str,
+) -> Vec<InsightSignalEvidenceView> {
+    let mut evidence = vec![InsightSignalEvidenceView {
+        work_id: episode.work_id.clone(),
+        stage: "レビュー".to_string(),
+        summary: format!(
+            "{} · {}が「{}」を{}点と評価",
+            episode.title,
+            episode.reviewer_name,
+            item,
+            episode.review_items.get(item).copied().unwrap_or_default()
+        ),
+    }];
+    evidence.push(InsightSignalEvidenceView {
+        work_id: episode.work_id.clone(),
+        stage: "割り当て".to_string(),
+        summary: format!("{} · 担当 {}", episode.assignment_label, episode.worker_name),
+    });
+    if !episode.worker_questions.is_empty() {
+        evidence.push(InsightSignalEvidenceView {
+            work_id: episode.work_id.clone(),
+            stage: "質問".to_string(),
+            summary: episode.worker_questions.join(" / "),
+        });
+    }
+    if !episode.handoff_summaries.is_empty() {
+        evidence.push(InsightSignalEvidenceView {
+            work_id: episode.work_id.clone(),
+            stage: "handoff".to_string(),
+            summary: episode.handoff_summaries.join(" / "),
+        });
+    }
+    if !episode.recovery_summaries.is_empty() {
+        evidence.push(InsightSignalEvidenceView {
+            work_id: episode.work_id.clone(),
+            stage: "要対応".to_string(),
+            summary: episode.recovery_summaries.join(" / "),
+        });
+    }
+    if !episode.human_decision_type.is_empty() {
+        evidence.push(InsightSignalEvidenceView {
+            work_id: episode.work_id.clone(),
+            stage: "人の判断".to_string(),
+            summary: format!(
+                "{}: {}",
+                episode.human_decision_type, episode.human_decision_rationale
+            ),
+        });
+    }
+    if episode.organizer_summary_count > 0 {
+        evidence.push(InsightSignalEvidenceView {
+            work_id: episode.work_id.clone(),
+            stage: "最終まとめ".to_string(),
+            summary: format!(
+                "オーガナイザーのまとめ {}件を確認",
+                episode.organizer_summary_count
+            ),
+        });
+    }
+    evidence
+}
+
+fn reviewer_override_signals(episodes: &[InsightEpisode]) -> Vec<InsightSignalView> {
+    let mut groups = BTreeMap::<(String, String, String, String, String), Vec<&InsightEpisode>>::new();
+    for episode in episodes.iter().filter(|episode| {
+        verdict_is_pass(&episode.review_verdict) && episode.human_decision_type == "reject"
+    }) {
+        groups
+            .entry((
+                episode.reviewer_id.clone(),
+                episode.project_name.clone(),
+                episode.domain_name.clone(),
+                episode.artifact_type_name.clone(),
+                episode.reviewer_prompt_version_label.clone(),
+            ))
+            .or_default()
+            .push(episode);
+    }
+    groups
+        .into_values()
+        .map(|group| {
+            let first = group[0];
+            let evidence = group
+                .iter()
+                .map(|episode| InsightSignalEvidenceView {
+                    work_id: episode.work_id.clone(),
+                    stage: "レビュー → 人の判断".to_string(),
+                    summary: format!(
+                        "{}は合格、人は差し戻し: {}",
+                        episode.reviewer_name, episode.human_decision_rationale
+                    ),
+                })
+                .collect::<Vec<_>>();
+            InsightSignalView {
+                id: proposal_id(
+                    &first.reviewer_id,
+                    &format!("{}-{}-review-override", first.project_name, first.artifact_type_name),
+                    "signal",
+                ),
+                agent_id: first.reviewer_id.clone(),
+                agent_name: first.reviewer_name.clone(),
+                role: "reviewer".to_string(),
+                project_name: first.project_name.clone(),
+                title: "レビュー合格後に人が差し戻し".to_string(),
+                item_label: "判定較正".to_string(),
+                observation: format!(
+                    "レビュー合格後の人の差し戻しが{}件あります。",
+                    group.len()
+                ),
+                history_assessment: "レビューから人の判断までを照合すると、レビュアーの合格判定と最終判断が一致していません。レビュアーの判定手順が有力ですが、依頼目的の変更とルーブリック不足も確認対象です。".to_string(),
+                scope: format!(
+                    "{} / {} / {}",
+                    first.project_name, first.domain_name, first.artifact_type_name
+                ),
+                scope_detail: format!(
+                    "レビュアー {} · プロンプト {}",
+                    first.reviewer_name, first.reviewer_prompt_version_label
+                ),
+                primary_cause_kind: "reviewer".to_string(),
+                primary_cause_label: first.reviewer_name.clone(),
+                confidence_label: "有力".to_string(),
+                proposal_ready: true,
+                proposal_status_label: "改善候補にできます".to_string(),
+                proposal_kind: "プロンプト".to_string(),
+                proposal_target_id: first.reviewer_id.clone(),
+                proposal_target_label: first.reviewer_name.clone(),
+                domain_name: first.domain_name.clone(),
+                artifact_type_name: first.artifact_type_name.clone(),
+                rubric_version_label: first.rubric_version_label.clone(),
+                knowledge_version_label: first.knowledge_version_label.clone(),
+                prompt_version_label: first.reviewer_prompt_version_label.clone(),
+                evidence,
+                competing_causes: vec![
+                    "依頼目的の変更".to_string(),
+                    "ルーブリック・成果物定義の不足".to_string(),
+                ],
+            }
+        })
+        .collect()
+}
+
+fn organizer_assignment_signals(episodes: &[InsightEpisode]) -> Vec<InsightSignalView> {
+    let mut groups = BTreeMap::<(String, String, String, String, String), Vec<&InsightEpisode>>::new();
+    for episode in episodes.iter().filter(|episode| {
+        episode.assignment_mode == "organizer"
+            && !episode.organizer_id.is_empty()
+            && (!episode.handoff_summaries.is_empty()
+                || episode.recovery_summaries.iter().any(|summary| {
+                    summary.starts_with("handoff") || summary.starts_with("redispatch")
+                }))
+    }) {
+        groups
+            .entry((
+                episode.organizer_id.clone(),
+                episode.project_name.clone(),
+                episode.domain_name.clone(),
+                episode.artifact_type_name.clone(),
+                episode.organizer_prompt_version_label.clone(),
+            ))
+            .or_default()
+            .push(episode);
+    }
+    groups
+        .into_values()
+        .map(|group| {
+            let first = group[0];
+            let ready = group.len() >= 2;
+            let evidence = group
+                .iter()
+                .flat_map(|episode| {
+                    episode
+                        .handoff_summaries
+                        .iter()
+                        .chain(episode.recovery_summaries.iter())
+                        .map(|summary| InsightSignalEvidenceView {
+                            work_id: episode.work_id.clone(),
+                            stage: "割り当て後の見直し".to_string(),
+                            summary: summary.clone(),
+                        })
+                })
+                .collect::<Vec<_>>();
+            InsightSignalView {
+                id: proposal_id(
+                    &first.organizer_id,
+                    &format!("{}-{}-assignment", first.project_name, first.artifact_type_name),
+                    "signal",
+                ),
+                agent_id: first.organizer_id.clone(),
+                agent_name: first.organizer_name.clone(),
+                role: "organizer".to_string(),
+                project_name: first.project_name.clone(),
+                title: "割り当て後に担当見直しが発生".to_string(),
+                item_label: "担当選定とRun Packet".to_string(),
+                observation: format!(
+                    "オーガナイザーの割り当て後にhandoffまたは再割り当てが{}件あります。",
+                    group.len()
+                ),
+                history_assessment: format!(
+                    "割り当てから後続工程までを確認すると、担当見直しが{}件発生しています。反復している場合は担当選定またはRun Packetが有力ですが、専門分業として意図されたhandoffかも確認が必要です。",
+                    group.len()
+                ),
+                scope: format!(
+                    "{} / {} / {}",
+                    first.project_name, first.domain_name, first.artifact_type_name
+                ),
+                scope_detail: format!(
+                    "オーガナイザー {} · プロンプト {}",
+                    first.organizer_name, first.organizer_prompt_version_label
+                ),
+                primary_cause_kind: "organizer".to_string(),
+                primary_cause_label: first.organizer_name.clone(),
+                confidence_label: if ready { "有力" } else { "競合あり" }.to_string(),
+                proposal_ready: ready,
+                proposal_status_label: if ready {
+                    "改善候補にできます"
+                } else {
+                    "同条件での再発を確認します"
+                }
+                .to_string(),
+                proposal_kind: if ready { "プロンプト" } else { "" }.to_string(),
+                proposal_target_id: if ready {
+                    first.organizer_id.clone()
+                } else {
+                    String::new()
+                },
+                proposal_target_label: if ready {
+                    first.organizer_name.clone()
+                } else {
+                    String::new()
+                },
+                domain_name: first.domain_name.clone(),
+                artifact_type_name: first.artifact_type_name.clone(),
+                rubric_version_label: first.rubric_version_label.clone(),
+                knowledge_version_label: first.knowledge_version_label.clone(),
+                prompt_version_label: first.organizer_prompt_version_label.clone(),
+                evidence,
+                competing_causes: vec![
+                    "意図された専門分業のhandoff".to_string(),
+                    "ワーカーの実行能力".to_string(),
+                    "依頼情報の不足".to_string(),
+                ],
+            }
+        })
+        .collect()
+}
+
+fn improvement_proposals_from_signals(
+    signals: &[InsightSignalView],
+) -> Vec<ImprovementProposalView> {
+    let mut groups = BTreeMap::<
+        (String, String, String, String, String, String, String, String),
+        Vec<&InsightSignalView>,
+    >::new();
+    for signal in signals.iter().filter(|signal| {
+        signal.proposal_ready
+            && !signal.proposal_kind.is_empty()
+            && !signal.proposal_target_id.is_empty()
+    }) {
+        groups
+            .entry((
+                signal.proposal_target_id.clone(),
+                signal.proposal_kind.clone(),
+                signal.project_name.clone(),
+                signal.domain_name.clone(),
+                signal.artifact_type_name.clone(),
+                signal.rubric_version_label.clone(),
+                signal.knowledge_version_label.clone(),
+                signal.prompt_version_label.clone(),
+            ))
+            .or_default()
+            .push(signal);
+    }
+    groups
+        .into_values()
+        .take(4)
+        .map(|group| {
+            let first = group[0];
+            let item_label = group
+                .iter()
+                .map(|signal| signal.item_label.as_str())
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>()
+                .join("、");
+            let work_ids = group
+                .iter()
+                .flat_map(|signal| signal.evidence.iter().map(|evidence| evidence.work_id.as_str()))
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>()
+                .join("、");
+            let current_text = current_improvement_text(
+                &first.proposal_kind,
+                &first.proposal_target_label,
+                &item_label,
+            );
+            let suggested_text = suggested_improvement_text(&first.proposal_kind, &item_label);
+            ImprovementProposalView {
+                id: proposal_id(
+                    &first.proposal_target_id,
+                    &format!(
+                        "{}-{}-{}-{}",
+                        first.project_name,
+                        first.domain_name,
+                        first.artifact_type_name,
+                        item_label
+                    ),
+                    &first.proposal_kind,
+                ),
+                kind: first.proposal_kind.clone(),
+                title: format!(
+                    "{} の{}改善",
+                    first.proposal_target_label, first.proposal_kind
+                ),
+                target_label: format!("{} / {}", first.proposal_target_label, item_label),
+                summary: format!(
+                    "履歴全体を照合した結果、{}が有力です。一つの方策変更として「{}」だけを限定的に検証します。",
+                    first.primary_cause_label, item_label
+                ),
+                evidence: format!(
+                    "根拠ワーク: {}。{} 競合候補: {}。",
+                    work_ids,
+                    group
+                        .iter()
+                        .map(|signal| signal.history_assessment.as_str())
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                    first.competing_causes.join("、")
+                ),
+                diff_lines: vec![
+                    format!("- {current_text}"),
+                    format!("+ {suggested_text}"),
+                ],
+                current_text,
+                suggested_text,
+                next_step: next_step_for_improvement_kind(&first.proposal_kind).to_string(),
+                action_label: "根拠と差分を確認".to_string(),
+            }
+        })
+        .collect()
 }
 
 fn applied_improvement_view(
@@ -2479,16 +4417,44 @@ fn improvement_effect_label(
         .map(str::trim)
         .collect::<Vec<_>>();
     let target_agent = target_parts.first().copied().unwrap_or_default();
-    let target_item = target_parts.get(1).copied().unwrap_or_default();
-    if let Some(issue) = issue_matrix.iter().find(|issue| {
-        !target_agent.is_empty()
-            && !target_item.is_empty()
-            && issue.agent_name == target_agent
-            && issue.item == target_item
-    }) {
+    let target_items = target_parts
+        .get(1)
+        .copied()
+        .unwrap_or_default()
+        .split('、')
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .collect::<BTreeSet<_>>();
+    let matching_issues = issue_matrix
+        .iter()
+        .filter(|issue| {
+            !target_agent.is_empty()
+                && issue.agent_name == target_agent
+                && target_items.contains(issue.item.as_str())
+        })
+        .collect::<Vec<_>>();
+    if let [issue] = matching_issues.as_slice() {
         return format!(
             "測定中: {} {}（{}件）",
             issue.item, issue.rate_label, issue.occurrences
+        );
+    }
+    if !matching_issues.is_empty() {
+        let minimum_rate = matching_issues
+            .iter()
+            .map(|issue| issue.rate)
+            .min()
+            .unwrap_or_default();
+        let minimum_occurrences = matching_issues
+            .iter()
+            .map(|issue| issue.occurrences)
+            .min()
+            .unwrap_or_default();
+        return format!(
+            "測定中: {}項目の最低獲得率 {}%（各{}件以上）",
+            matching_issues.len(),
+            minimum_rate,
+            minimum_occurrences
         );
     }
     if review_count > 0 {
@@ -2531,6 +4497,139 @@ fn agent_label(agents: &[AgentProfile], agent_id: &str) -> (String, String) {
         .find(|agent| agent.id == agent_id)
         .map(|agent| (agent.display_name.clone(), agent.role.clone()))
         .unwrap_or_else(|| (agent_id.to_string(), "worker".to_string()))
+}
+
+fn insight_scope(
+    snapshot: &WorkItemSnapshot,
+    trace_records: &[TraceRecord],
+    agents: &[AgentProfile],
+    domains: &[Domain],
+    artifact_types: &[ArtifactType],
+    agent_id: &str,
+) -> InsightScope {
+    let domain_id = snapshot.item.domain_id.clone().unwrap_or_default();
+    let artifact_type_id = snapshot.item.artifact_type_id.clone().unwrap_or_default();
+    let domain_name = domains
+        .iter()
+        .find(|domain| domain.id == domain_id)
+        .map(|domain| domain.display_name.clone())
+        .unwrap_or_else(|| {
+            if domain_id.is_empty() {
+                "ドメイン未指定".to_string()
+            } else {
+                domain_id.clone()
+            }
+        });
+    let artifact_type_name = artifact_types
+        .iter()
+        .find(|artifact_type| artifact_type.id == artifact_type_id)
+        .map(|artifact_type| artifact_type.display_name.clone())
+        .unwrap_or_else(|| {
+            if artifact_type_id.is_empty() {
+                "成果物未指定".to_string()
+            } else {
+                artifact_type_id.clone()
+            }
+        });
+    let reviewer_payload = trace_records
+        .iter()
+        .rev()
+        .find(|record| record.record == "reviewer_verdict")
+        .map(|record| &record.payload);
+    let rubric_version_label = reviewer_payload
+        .and_then(|payload| value_path_u64(payload, &["rubric_ref", "version"]))
+        .map(|version| format!("v{version}"))
+        .unwrap_or_else(|| "版未記録".to_string());
+    let knowledge_version_label = reviewer_payload
+        .and_then(|payload| payload.get("knowledge_refs"))
+        .and_then(|value| value.as_array())
+        .map(|references| {
+            references
+                .iter()
+                .filter_map(|reference| {
+                    let id = reference.get("id")?.as_str()?.trim();
+                    if id.is_empty() {
+                        return None;
+                    }
+                    let name = domains
+                        .iter()
+                        .find(|domain| domain.id == id)
+                        .map(|domain| domain.display_name.as_str())
+                        .or_else(|| {
+                            artifact_types
+                                .iter()
+                                .find(|artifact_type| artifact_type.id == id)
+                                .map(|artifact_type| artifact_type.display_name.as_str())
+                        })
+                        .unwrap_or(id);
+                    let version = reference
+                        .get("version")
+                        .and_then(|value| value.as_u64())
+                        .map(|version| format!(" v{version}"))
+                        .unwrap_or_else(|| " 版未記録".to_string());
+                    Some(format!("{name}{version}"))
+                })
+                .collect::<Vec<_>>()
+                .join(" / ")
+        })
+        .filter(|label| !label.is_empty())
+        .unwrap_or_else(|| "版未記録".to_string());
+    let prompt_version_label = snapshot
+        .resolved_run_packets
+        .iter()
+        .rev()
+        .find(|packet| {
+            packet.purpose == AgentRunPurpose::Work && packet.agent_profile_id == agent_id
+        })
+        .map(|packet| packet.prompt_version.trim())
+        .filter(|version| !version.is_empty())
+        .map(ToOwned::to_owned)
+        .or_else(|| {
+            agents
+                .iter()
+                .find(|agent| agent.id == agent_id)
+                .map(|agent| agent.prompt.version.trim())
+                .filter(|version| !version.is_empty())
+                .map(|version| format!("実行時版未記録（現在 {version}）"))
+        })
+        .unwrap_or_else(|| "実行時版未記録".to_string());
+
+    InsightScope {
+        domain_id,
+        domain_name,
+        artifact_type_id,
+        artifact_type_name,
+        rubric_version_label,
+        knowledge_version_label,
+        prompt_version_label,
+    }
+}
+
+fn recorded_prompt_version(label: &str) -> bool {
+    let label = label.trim();
+    !label.is_empty() && !label.starts_with("実行時版未記録")
+}
+
+fn insight_assignment_mode(snapshot: &WorkItemSnapshot, agent_id: &str) -> &'static str {
+    if let Some(packet) = snapshot.resolved_run_packets.iter().rev().find(|packet| {
+        packet.purpose == AgentRunPurpose::Work && packet.agent_profile_id == agent_id
+    }) {
+        return if packet.dispatch_plan_id.is_some() {
+            "organizer"
+        } else {
+            "direct"
+        };
+    }
+    if snapshot
+        .dispatch_plans
+        .iter()
+        .rev()
+        .any(|plan| plan.target_agent_profile_id == agent_id)
+    {
+        "organizer"
+    } else {
+        "unknown"
+    }
 }
 
 fn review_score_percent(_review: &ReviewResult, trace_records: &[TraceRecord]) -> Option<u8> {
@@ -2584,6 +4683,27 @@ fn insight_review_items(
     trace_records: &[TraceRecord],
     fallback_score: u8,
 ) -> Vec<(String, u8, bool)> {
+    let rubric_status = latest_trace_rubric_complete(trace_records);
+    if rubric_status == Some(false) {
+        return Vec::new();
+    }
+    let rubric_items = latest_trace_rubric_items(trace_records).unwrap_or_default();
+    if rubric_status == Some(true) {
+        return rubric_items
+            .into_iter()
+            .map(|item| {
+                let score = parse_score_label(&item.score_label).unwrap_or_else(|| {
+                    if verdict_is_pass(&item.verdict) {
+                        100
+                    } else {
+                        50
+                    }
+                });
+                let is_concern = !verdict_is_pass(&item.verdict);
+                (item.item, score, is_concern)
+            })
+            .collect();
+    }
     let trace_items = latest_trace_review_items(trace_records).unwrap_or_default();
     if !trace_items.is_empty() {
         return trace_items
@@ -2676,17 +4796,8 @@ fn average_u8(total: u32, count: usize) -> u8 {
     average_score(total, count).round().clamp(0.0, 100.0) as u8
 }
 
-fn suggestion_kind_for_issue(item: &str, rate: u8) -> &'static str {
-    let normalized = item.to_ascii_lowercase();
-    if normalized.contains("用語") || normalized.contains("知識") || normalized.contains("term")
-    {
-        "知識"
-    } else if normalized.contains("基準")
-        || normalized.contains("rubric")
-        || normalized.contains("判定")
-    {
-        "ルーブリック"
-    } else if rate < 75 {
+fn suggestion_kind_for_issue(_item: &str, rate: u8) -> &'static str {
+    if rate < 75 {
         "プロンプト"
     } else {
         "観察"
@@ -2916,8 +5027,8 @@ fn work_detail_view(root: &Path, snapshot: WorkItemSnapshot) -> WorkDetailView {
         artifact_type_id: snapshot.item.artifact_type_id.clone().unwrap_or_default(),
         next_action_kind: snapshot.completion.next_action.clone(),
         approval_ready: snapshot.approval_gate.ready,
-        question: latest_question(&snapshot),
-        question_source: latest_question_source(&snapshot),
+        question: unanswered_question(&snapshot),
+        question_source: unanswered_question_source(&snapshot),
         recovery: current_recovery(&snapshot).map(recovery_view),
         request,
         answer,
@@ -2962,6 +5073,12 @@ fn latest_question(snapshot: &WorkItemSnapshot) -> Option<String> {
         .find_map(|output| output.questions.first().cloned())
 }
 
+fn unanswered_question(snapshot: &WorkItemSnapshot) -> Option<String> {
+    (snapshot.item.status == WorkItemStatus::NeedsInput)
+        .then(|| latest_question(snapshot))
+        .flatten()
+}
+
 fn latest_question_source(snapshot: &WorkItemSnapshot) -> String {
     snapshot
         .agent_outputs
@@ -2977,6 +5094,14 @@ fn latest_question_source(snapshot: &WorkItemSnapshot) -> String {
             }
         })
         .unwrap_or_default()
+}
+
+fn unanswered_question_source(snapshot: &WorkItemSnapshot) -> String {
+    if snapshot.item.status == WorkItemStatus::NeedsInput {
+        latest_question_source(snapshot)
+    } else {
+        String::new()
+    }
 }
 
 fn question_purpose_label(purpose: AgentRunPurpose) -> &'static str {
@@ -3080,7 +5205,7 @@ fn recovery_pending(plan: &RecoveryPlan) -> Vec<String> {
             .cloned(),
     );
     if pending.is_empty() {
-        pending.push("回復案を選ぶと、次の工程へ引き継ぎます。".to_string());
+        pending.push("対応内容を確認すると、次の工程へ進めます。".to_string());
     }
     pending
 }
@@ -3324,12 +5449,48 @@ fn latest_trace_review_items(records: &[TraceRecord]) -> Option<Vec<ReviewItemVi
 }
 
 fn trace_review_item_views(payload: &serde_json::Value) -> Vec<ReviewItemView> {
+    trace_review_item_views_for_key(payload, "item_verdicts", false)
+}
+
+fn latest_trace_rubric_items(records: &[TraceRecord]) -> Option<Vec<ReviewItemView>> {
+    records
+        .iter()
+        .rev()
+        .find(|record| record.record == "reviewer_verdict")
+        .map(|record| {
+            trace_review_item_views_for_key(&record.payload, "rubric_item_verdicts", true)
+        })
+        .filter(|items| !items.is_empty())
+}
+
+fn latest_trace_rubric_complete(records: &[TraceRecord]) -> Option<bool> {
+    records
+        .iter()
+        .rev()
+        .find(|record| record.record == "reviewer_verdict")
+        .and_then(|record| {
+            (value_u64(&record.payload, "rubric_items_expected").unwrap_or_default() > 0)
+                .then(|| value_bool(&record.payload, "rubric_complete").unwrap_or(false))
+        })
+}
+
+fn trace_review_item_views_for_key(
+    payload: &serde_json::Value,
+    key: &str,
+    require_recorded: bool,
+) -> Vec<ReviewItemView> {
     payload
-        .get("item_verdicts")
+        .get(key)
         .and_then(|value| value.as_array())
         .map(|items| {
             items
                 .iter()
+                .filter(|item| {
+                    !require_recorded
+                        || (value_bool(item, "recorded").unwrap_or(false)
+                            && value_u64(item, "points").is_some()
+                            && value_u64(item, "max_points").unwrap_or_default() > 0)
+                })
                 .map(|item| {
                     let points = value_u64(item, "points").unwrap_or_default();
                     let max_points = value_u64(item, "max_points").unwrap_or(1);
@@ -3498,6 +5659,14 @@ fn value_path_str(payload: &serde_json::Value, path: &[&str]) -> Option<String> 
     current.as_str().map(ToOwned::to_owned)
 }
 
+fn value_path_u64(payload: &serde_json::Value, path: &[&str]) -> Option<u64> {
+    let mut current = payload;
+    for segment in path {
+        current = current.get(*segment)?;
+    }
+    current.as_u64()
+}
+
 fn value_str(payload: &serde_json::Value, key: &str) -> Option<String> {
     payload.get(key).and_then(|value| match value {
         serde_json::Value::String(value) if !value.trim().is_empty() => Some(value.clone()),
@@ -3511,17 +5680,24 @@ fn value_u64(payload: &serde_json::Value, key: &str) -> Option<u64> {
     payload.get(key).and_then(|value| value.as_u64())
 }
 
+fn value_bool(payload: &serde_json::Value, key: &str) -> Option<bool> {
+    payload.get(key).and_then(|value| value.as_bool())
+}
+
 fn status_view(status: WorkItemStatus, snapshot: Option<&WorkItemSnapshot>) -> (String, String) {
     let next_action = snapshot
         .map(|snapshot| snapshot.completion.next_action.as_str())
         .unwrap_or("");
+    if status != WorkItemStatus::Done && matches!(next_action, "recover" | "apply_recovery") {
+        return ("要対応".to_string(), "recover".to_string());
+    }
     match status {
         WorkItemStatus::AgentRunning => ("処理中".to_string(), "running".to_string()),
         WorkItemStatus::NeedsInput => ("要対応・質問".to_string(), "question".to_string()),
         WorkItemStatus::ReadyForReview => ("要対応・確認".to_string(), "review".to_string()),
-        WorkItemStatus::ChangesRequested => ("要対応・回復".to_string(), "recover".to_string()),
+        WorkItemStatus::ChangesRequested => ("要対応".to_string(), "recover".to_string()),
         WorkItemStatus::Done => ("完了".to_string(), "done".to_string()),
-        WorkItemStatus::NeedsHandoff => ("要対応・回復".to_string(), "recover".to_string()),
+        WorkItemStatus::NeedsHandoff => ("要対応".to_string(), "recover".to_string()),
         WorkItemStatus::Ready if matches!(next_action, "approve") => {
             ("要対応・確認".to_string(), "review".to_string())
         }
@@ -3533,7 +5709,7 @@ fn next_action_label(next_action: &str) -> String {
     match next_action {
         "answer_question" => "質問に回答".to_string(),
         "approve" => "結果を確認".to_string(),
-        "recover" | "apply_recovery" => "回復方法を選択".to_string(),
+        "recover" | "apply_recovery" => "対応内容を確認".to_string(),
         "review" => "レビューを実行".to_string(),
         "run_agent" => "エージェント実行".to_string(),
         "dispatch" | "accept_dispatch" => "担当を整理".to_string(),
@@ -3920,6 +6096,31 @@ fn project_label(work_folder: Option<&str>) -> String {
             .next()
             .unwrap_or(value)
             .to_string()
+    }
+}
+
+fn analysis_root_project_name(root: &Path) -> String {
+    let root_name = project_name_from_root(root);
+    let metadata_name = get_project_metadata(root.to_path_buf())
+        .ok()
+        .map(|metadata| metadata.name)
+        .unwrap_or_default();
+    let metadata_name = metadata_name.trim();
+    if !metadata_name.is_empty()
+        && !(metadata_name == "nagare-local" && root_name != "nagare-local")
+    {
+        metadata_name.to_string()
+    } else {
+        root_name
+    }
+}
+
+fn analysis_project_name(root_project_name: &str, work_folder: Option<&str>) -> String {
+    let work_folder = work_folder.unwrap_or(".").trim();
+    if work_folder.is_empty() || work_folder == "." || work_folder == "nagare" {
+        root_project_name.to_string()
+    } else {
+        project_label(Some(work_folder))
     }
 }
 
@@ -4412,10 +6613,145 @@ mod tests {
     use super::*;
     use nagare_core::{
         AgentOutputParseStatus, Artifact, CriteriaReviewResult, CriteriaReviewStatus,
-        DomainAgentPolicy, RecoveryAction, WorkItemApprovalGate, WorkItemCompletion,
+        DomainAgentPolicy, DomainSource, RecoveryAction, WorkItemApprovalGate,
+        WorkItemCompletion,
     };
     use std::collections::BTreeMap;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn precise_artifact_definition_json(rubric_detail: &str) -> String {
+        let rubric = (1..=8)
+            .map(|index| {
+                format!(
+                    "## 観点{index} ({}点)\n満点条件: 判定可能な完成条件をすべて満たす。\n部分点条件: 一部の条件のみ満たす場合は確認できた割合で採点する。\n重大な不足: 必須条件が欠ける。\n確認する証跡: 成果物内の対応箇所。{rubric_detail}",
+                    if index <= 4 { 13 } else { 12 }
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        let knowledge = (1..=16)
+            .map(|index| {
+                format!(
+                    "[K{index:02}][内容] 対象: 成果物内の情報単位{index} | 条件: 成果物を作成または更新するとき | 要求: 判定可能な完成条件を一つ明記する | 証跡: 対応する本文と検証記録 | 例外: 非該当の場合は理由を記録する"
+                )
+            })
+            .collect::<Vec<_>>();
+        let coverage = ARTIFACT_COVERAGE_DIMENSIONS
+            .iter()
+            .enumerate()
+            .map(|(index, dimension)| {
+                let mut knowledge_ids = vec![format!("K{:02}", index + 1)];
+                if index == ARTIFACT_COVERAGE_DIMENSIONS.len() - 1 {
+                    knowledge_ids.extend(["K14".to_string(), "K15".to_string(), "K16".to_string()]);
+                }
+                serde_json::json!({
+                    "dimension": dimension,
+                    "applicability": "必須",
+                    "knowledge_ids": knowledge_ids,
+                    "rubric_sections": [format!("観点{}", index.min(7) + 1)],
+                    "reason": format!("成果物の完成性を判定するために{dimension}を確認する必要がある。")
+                })
+            })
+            .collect::<Vec<_>>();
+        serde_json::json!({
+            "description": "利用者が完成状態を判断できる成果物。目的と利用場面を明示する。",
+            "knowledge": knowledge,
+            "rubric": rubric,
+            "dispatch_hints": ["専門知識", "品質保証"],
+            "coverage": coverage
+        })
+        .to_string()
+    }
+
+    #[test]
+    fn artifact_definition_parser_accepts_a_precise_definition() {
+        let raw = precise_artifact_definition_json("");
+
+        let definition =
+            parse_artifact_definition_response(&raw).expect("precise definition should parse");
+
+        assert_eq!(definition.knowledge.len(), 16);
+        assert_eq!(validate_rubric_markdown(&definition.rubric).unwrap().item_count, 8);
+        assert_eq!(definition.coverage.len(), 13);
+    }
+
+    #[test]
+    fn artifact_definition_parser_rejects_shallow_creation_instructions() {
+        let mut value: serde_json::Value =
+            serde_json::from_str(&precise_artifact_definition_json("")).unwrap();
+        value["knowledge"] = serde_json::json!(["指示1", "指示2", "指示3"]);
+
+        let error = parse_artifact_definition_response(&value.to_string())
+            .expect_err("shallow instructions must be rejected");
+
+        assert!(error.contains("16〜40項目"));
+    }
+
+    #[test]
+    fn artifact_definition_parser_rejects_rubric_without_evidence_per_section() {
+        let raw = precise_artifact_definition_json("");
+        let mut value: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        value["rubric"] = serde_json::Value::String(
+            value["rubric"]
+                .as_str()
+                .unwrap()
+                .replacen("確認する証跡:", "証跡:", 1),
+        );
+
+        let error = parse_artifact_definition_response(&value.to_string())
+            .expect_err("every rubric section must identify evidence");
+
+        assert!(error.contains("確認する証跡:"));
+    }
+
+    #[test]
+    fn artifact_definition_parser_rejects_uncovered_atomic_instruction() {
+        let mut value: serde_json::Value =
+            serde_json::from_str(&precise_artifact_definition_json("")).unwrap();
+        value["coverage"].as_array_mut().unwrap().iter_mut().for_each(|entry| {
+            entry["knowledge_ids"]
+                .as_array_mut()
+                .unwrap()
+                .retain(|id| id.as_str() != Some("K16"));
+        });
+
+        let error = parse_artifact_definition_response(&value.to_string())
+            .expect_err("every instruction must be represented in coverage");
+
+        assert!(error.contains("参照されていない作成指示"));
+    }
+
+    #[test]
+    fn artifact_definition_prompt_contains_domain_context_and_quality_dimensions() {
+        let domain = Domain {
+            id: "software-development".to_string(),
+            display_name: "ソフトウェア開発".to_string(),
+            description: "継続的に保守するソフトウェアを開発する。".to_string(),
+            shared_knowledge: vec!["変更理由を追跡可能にする。".to_string()],
+            common_rubric: vec!["検証結果を証跡として残す。".to_string()],
+            knowledge_version: 1,
+            dispatch_hints: vec!["ソフトウェア設計".to_string()],
+            workflow: DomainWorkflowOverride::default(),
+            source: DomainSource::ProjectDomainDirectory,
+        };
+
+        let prompt = artifact_definition_prompt("設計書", &domain, None);
+
+        for expected in [
+            "成果物名: 設計書",
+            "変更理由を追跡可能にする。",
+            "検証結果を証跡として残す。",
+            "網羅性の検査対象（coverageにこの13項目をすべて出力する）",
+            "正常系と異常系",
+            "セキュリティとプライバシー",
+            "アクセシビリティ",
+            "性能と信頼性",
+            "16〜40項目",
+            "部分点条件:",
+        ] {
+            assert!(prompt.contains(expected), "prompt should contain `{expected}`");
+        }
+    }
 
     #[test]
     fn initial_runtime_mapping_supports_default_agent_runtimes() {
@@ -4812,6 +7148,7 @@ mod tests {
         assert_eq!(after.artifact_types, before.artifact_types);
         assert_eq!(after.rubric, before.rubric);
         assert_eq!(after.rubric_version, before.rubric_version);
+        assert_eq!(after.definition_version, before.definition_version);
         assert_eq!(after.dispatch_hints, before.dispatch_hints);
         assert!(
             list_improvement_history(&root)
@@ -4823,6 +7160,167 @@ mod tests {
         let _ = fs::remove_dir_all(root);
     }
 
+    fn sample_insight_issue(agent_id: &str, occurrences: usize) -> InsightIssueView {
+        InsightIssueView {
+            agent_id: agent_id.to_string(),
+            agent_name: format!("{agent_id} name"),
+            role: "worker".to_string(),
+            project_name: "比較プロジェクト".to_string(),
+            item: "目的への適合".to_string(),
+            rate: 50,
+            rate_label: "50 / 100".to_string(),
+            occurrences,
+            suggestion_kind: "プロンプト".to_string(),
+            domain_name: "ソフトウェア開発".to_string(),
+            artifact_type_name: "ソースコード".to_string(),
+            rubric_version_label: "rubric-v1".to_string(),
+            knowledge_version_label: "knowledge-v1".to_string(),
+            prompt_version_label: "prompt-v1".to_string(),
+            assignment_mode: "organizer".to_string(),
+            assignment_label: "オーガナイザーが割り当て".to_string(),
+        }
+    }
+
+    fn sample_insight_episode(work_id: &str, worker_id: &str) -> InsightEpisode {
+        InsightEpisode {
+            work_id: work_id.to_string(),
+            title: format!("検証 {work_id}"),
+            project_name: "比較プロジェクト".to_string(),
+            worker_id: worker_id.to_string(),
+            worker_name: format!("{worker_id} name"),
+            reviewer_id: "reviewer-a".to_string(),
+            reviewer_name: "レビュアーA".to_string(),
+            organizer_id: "organizer-a".to_string(),
+            organizer_name: "オーガナイザーA".to_string(),
+            assignment_mode: "organizer".to_string(),
+            assignment_label: "オーガナイザーが割り当て".to_string(),
+            domain_name: "ソフトウェア開発".to_string(),
+            artifact_type_name: "ソースコード".to_string(),
+            rubric_version_label: "rubric-v1".to_string(),
+            knowledge_version_label: "knowledge-v1".to_string(),
+            prompt_version_label: "prompt-v1".to_string(),
+            reviewer_prompt_version_label: "reviewer-prompt-v1".to_string(),
+            organizer_prompt_version_label: "organizer-prompt-v1".to_string(),
+            review_verdict: "pass".to_string(),
+            review_items: BTreeMap::from([("目的への適合".to_string(), 50)]),
+            human_decision_type: String::new(),
+            human_decision_rationale: String::new(),
+            worker_questions: Vec::new(),
+            handoff_summaries: Vec::new(),
+            recovery_summaries: Vec::new(),
+            organizer_summary_count: 1,
+        }
+    }
+
+    #[test]
+    fn insight_episode_does_not_mix_later_retry_with_reviewed_cycle() {
+        let mut snapshot = sample_completed_snapshot();
+        let mut later_output = snapshot.agent_outputs[0].clone();
+        later_output.id = "output_retry".to_string();
+        later_output.created_at = "2026-07-05T00:03:00+09:00".to_string();
+        later_output.questions = vec!["次サイクルで確認中の質問".to_string()];
+        snapshot.agent_outputs.push(later_output);
+        let review = snapshot.review_results[0].clone();
+        let scope = InsightScope {
+            domain_id: "general".to_string(),
+            domain_name: "ソフトウェア開発".to_string(),
+            artifact_type_id: "docs".to_string(),
+            artifact_type_name: "ソースコード".to_string(),
+            rubric_version_label: "rubric-v1".to_string(),
+            knowledge_version_label: "knowledge-v1".to_string(),
+            prompt_version_label: "prompt-v1".to_string(),
+        };
+
+        let episode = insight_episode(
+            &snapshot,
+            &[],
+            &[],
+            "比較プロジェクト",
+            "worker",
+            "Worker",
+            &review,
+            &scope,
+            "direct",
+            &[("目的への適合".to_string(), 100, false)],
+        );
+
+        assert!(episode.worker_questions.is_empty());
+    }
+
+    #[test]
+    fn insight_signals_attribute_reviewer_override_from_full_history() {
+        let mut episode = sample_insight_episode("work-review-override", "worker-a");
+        episode.human_decision_type = "reject".to_string();
+        episode.human_decision_rationale = "必須要件が成果物にありません".to_string();
+
+        let signals = build_insight_signals(&[], &[episode]);
+
+        assert_eq!(signals.len(), 1);
+        assert_eq!(signals[0].role, "reviewer");
+        assert_eq!(signals[0].primary_cause_kind, "reviewer");
+        assert!(signals[0].proposal_ready);
+        assert!(signals[0].history_assessment.contains("最終判断が一致していません"));
+        let proposals = improvement_proposals_from_signals(&signals);
+        assert_eq!(proposals.len(), 1);
+        assert!(proposals[0].target_label.contains("レビュアーA"));
+    }
+
+    #[test]
+    fn insight_signals_hold_worker_change_when_history_contains_friction() {
+        let issue = sample_insight_issue("worker-a", 2);
+        let first = sample_insight_episode("work-friction-1", "worker-a");
+        let mut second = sample_insight_episode("work-friction-2", "worker-a");
+        second.worker_questions = vec!["対象範囲を確認してください".to_string()];
+
+        let signals = build_insight_signals(&[issue], &[first, second]);
+
+        assert_eq!(signals.len(), 1);
+        assert_eq!(signals[0].primary_cause_kind, "undetermined");
+        assert!(!signals[0].proposal_ready);
+        assert!(signals[0].history_assessment.contains("交絡"));
+        assert!(improvement_proposals_from_signals(&signals).is_empty());
+    }
+
+    #[test]
+    fn insight_signals_merge_shared_definition_issue_across_workers() {
+        let issues = vec![
+            sample_insight_issue("worker-a", 1),
+            sample_insight_issue("worker-b", 1),
+        ];
+        let episodes = vec![
+            sample_insight_episode("work-shared-1", "worker-a"),
+            sample_insight_episode("work-shared-2", "worker-b"),
+        ];
+
+        let signals = build_insight_signals(&issues, &episodes);
+
+        assert_eq!(signals.len(), 1);
+        assert_eq!(signals[0].primary_cause_kind, "shared");
+        assert_eq!(signals[0].role, "shared");
+        assert!(signals[0].proposal_ready);
+        assert_eq!(signals[0].evidence.len(), 6);
+        let proposals = improvement_proposals_from_signals(&signals);
+        assert_eq!(proposals.len(), 1);
+        assert_eq!(proposals[0].kind, "知識");
+    }
+
+    #[test]
+    fn insight_signals_require_repeated_organizer_assignment_friction() {
+        let mut first = sample_insight_episode("work-organizer-1", "worker-a");
+        first.handoff_summaries = vec!["worker-a から worker-b へ担当変更".to_string()];
+        let first_signals = build_insight_signals(&[], &[first.clone()]);
+        assert_eq!(first_signals.len(), 1);
+        assert_eq!(first_signals[0].role, "organizer");
+        assert!(!first_signals[0].proposal_ready);
+
+        let mut second = sample_insight_episode("work-organizer-2", "worker-a");
+        second.handoff_summaries = vec!["worker-a から worker-b へ担当変更".to_string()];
+        let repeated_signals = build_insight_signals(&[], &[first, second]);
+        assert_eq!(repeated_signals.len(), 1);
+        assert!(repeated_signals[0].proposal_ready);
+        assert_eq!(improvement_proposals_from_signals(&repeated_signals).len(), 1);
+    }
+
     #[test]
     fn insights_exclude_applied_improvement_proposals() {
         let root = temp_test_dir("insights-applied-proposals");
@@ -4831,9 +7329,12 @@ mod tests {
         snapshot.review_results[0].criteria_results[0].status = CriteriaReviewStatus::Failed;
         snapshot.review_results[0].criteria_results[0].note =
             "目的への適合が不足しています。".to_string();
-        let snapshots = vec![snapshot];
+        let mut repeated_snapshot = snapshot.clone();
+        repeated_snapshot.item.id = "work_2".to_string();
+        repeated_snapshot.item.title = "README更新の再検証".to_string();
+        let snapshots = vec![snapshot, repeated_snapshot];
 
-        let initial = insights_view(&root, &snapshots, &[]);
+        let initial = insights_view(&root, &snapshots, &[], &[], &[]);
         assert_eq!(initial.proposal_count, 1);
         let proposal = initial.proposals.first().expect("proposal should exist");
         let proposal_id = proposal.id.clone();
@@ -4851,7 +7352,7 @@ mod tests {
         )
         .expect("improvement should record");
 
-        let refreshed = insights_view(&root, &snapshots, &[]);
+        let refreshed = insights_view(&root, &snapshots, &[], &[], &[]);
         assert_eq!(refreshed.proposal_count, 0);
         assert!(
             refreshed
@@ -4872,6 +7373,498 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn insights_hold_single_low_score_for_observation() {
+        let root = temp_test_dir("insights-single-signal");
+        init_project(&root).expect("init project");
+        let mut snapshot = sample_completed_snapshot();
+        snapshot.review_results[0].criteria_results[0].status = CriteriaReviewStatus::Failed;
+        snapshot.review_results[0].criteria_results[0].note =
+            "目的への適合が不足しています。".to_string();
+
+        let insights = insights_view(&root, &[snapshot], &[], &[], &[]);
+
+        let signal = insights
+            .issue_matrix
+            .iter()
+            .find(|issue| issue.item == "目的への適合")
+            .expect("failed criterion should remain observable");
+        assert_eq!(signal.occurrences, 1);
+        assert!(signal.rate < 75);
+        assert_eq!(insights.proposal_count, 0);
+        assert!(insights.proposals.is_empty());
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn insights_include_role_specific_activity_for_all_agent_roles() {
+        let root = temp_test_dir("insights-all-agent-roles");
+        init_project(&root).expect("init project");
+        let snapshot = sample_completed_snapshot();
+        write_trace_records(&root, &snapshot.item.id);
+        let agents = list_agent_profiles(&root).expect("agents");
+        let domains = list_domains(&root).expect("domains");
+        let artifact_types = list_artifact_types(&root).expect("artifact types");
+
+        let insights = insights_view(
+            &root,
+            &[snapshot],
+            &agents,
+            &domains,
+            &artifact_types,
+        );
+
+        let organizer = insights
+            .agent_scores
+            .iter()
+            .find(|agent| agent.agent_id == "organizer")
+            .expect("organizer activity");
+        assert_eq!(organizer.status_label, "動作記録あり");
+        assert_eq!(organizer.recent_activity_label, "割り当て 1件");
+
+        let worker = insights
+            .agent_scores
+            .iter()
+            .find(|agent| agent.agent_id == "writer")
+            .expect("worker activity");
+        assert_eq!(worker.recent_activity_label, "評価された点 92点");
+
+        let reviewer = insights
+            .agent_scores
+            .iter()
+            .find(|agent| agent.agent_id == "reviewer")
+            .expect("reviewer activity");
+        assert_eq!(reviewer.average_score_label, "品質評価未対応");
+        assert_eq!(reviewer.recent_activity_label, "付与した点 92点");
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn analysis_prefers_recorded_rubric_scores_over_acceptance_counts() {
+        let snapshot = sample_completed_snapshot();
+        let trace = vec![TraceRecord {
+            schema: "nagare.trace/1.0".to_string(),
+            record: "reviewer_verdict".to_string(),
+            work_id: snapshot.item.id.clone(),
+            seq: 1,
+            at: "2026-07-05T00:02:00+09:00".to_string(),
+            payload: serde_json::json!({
+                "item_verdicts": [
+                    { "item": "acceptance", "points": 1, "max_points": 1, "verdict": "pass" }
+                ],
+                "rubric_item_verdicts": [
+                    {
+                        "item": "Correctness",
+                        "points": 30,
+                        "max_points": 60,
+                        "verdict": "partial",
+                        "recorded": true,
+                        "evidence": "An edge case is missing."
+                    },
+                    {
+                        "item": "Clarity",
+                        "points": null,
+                        "max_points": 40,
+                        "verdict": "unknown",
+                        "recorded": false,
+                        "evidence": "Not recorded."
+                    }
+                ],
+                "rubric_items_expected": 1,
+                "rubric_complete": true
+            }),
+        }];
+
+        let items = insight_review_items(&snapshot.review_results[0], &trace, 85);
+
+        assert_eq!(items, vec![("Correctness".to_string(), 50, true)]);
+    }
+
+    #[test]
+    fn analysis_does_not_replace_incomplete_rubric_scores_with_acceptance_counts() {
+        let snapshot = sample_completed_snapshot();
+        let trace = vec![TraceRecord {
+            schema: "nagare.trace/1.0".to_string(),
+            record: "reviewer_verdict".to_string(),
+            work_id: snapshot.item.id.clone(),
+            seq: 1,
+            at: "2026-07-05T00:02:00+09:00".to_string(),
+            payload: serde_json::json!({
+                "item_verdicts": [
+                    { "item": "acceptance", "points": 1, "max_points": 1, "verdict": "pass" }
+                ],
+                "rubric_item_verdicts": [],
+                "rubric_items_expected": 8,
+                "rubric_items_recorded": 0,
+                "rubric_complete": false
+            }),
+        }];
+
+        assert!(insight_review_items(&snapshot.review_results[0], &trace, 85).is_empty());
+    }
+
+    #[test]
+    fn insight_scope_uses_recorded_knowledge_versions_and_preserves_legacy_labels() {
+        let snapshot = sample_completed_snapshot();
+        let domains = vec![Domain {
+            id: "general".to_string(),
+            display_name: "汎用".to_string(),
+            description: String::new(),
+            shared_knowledge: Vec::new(),
+            common_rubric: Vec::new(),
+            knowledge_version: 3,
+            dispatch_hints: Vec::new(),
+            workflow: DomainWorkflowOverride::default(),
+            source: DomainSource::ProjectDomainDirectory,
+        }];
+        let artifact_types = vec![ArtifactType {
+            id: "docs".to_string(),
+            domain_id: Some("general".to_string()),
+            display_name: "文書".to_string(),
+            description: String::new(),
+            artifact_types: Vec::new(),
+            rubric: Vec::new(),
+            rubric_version: 2,
+            definition_version: 4,
+            dispatch_hints: Vec::new(),
+            workflow: DomainWorkflowOverride::default(),
+            source: nagare_core::ArtifactTypeSource::ProjectArtifactTypeDirectory,
+        }];
+        let recorded = vec![TraceRecord {
+            schema: "nagare.trace/1.0".to_string(),
+            record: "reviewer_verdict".to_string(),
+            work_id: snapshot.item.id.clone(),
+            seq: 1,
+            at: "2026-07-05T00:02:00+09:00".to_string(),
+            payload: serde_json::json!({
+                "rubric_ref": { "version": 2 },
+                "knowledge_refs": [
+                    { "id": "general", "kind": "domain_knowledge", "version": 3 },
+                    { "id": "docs", "kind": "artifact_definition", "version": 4 }
+                ]
+            }),
+        }];
+
+        let recorded_scope = insight_scope(
+            &snapshot,
+            &recorded,
+            &[],
+            &domains,
+            &artifact_types,
+            "worker",
+        );
+        assert_eq!(recorded_scope.knowledge_version_label, "汎用 v3 / 文書 v4");
+
+        let legacy = vec![TraceRecord {
+            schema: "nagare.trace/1.0".to_string(),
+            record: "reviewer_verdict".to_string(),
+            work_id: snapshot.item.id.clone(),
+            seq: 1,
+            at: "2026-07-05T00:02:00+09:00".to_string(),
+            payload: serde_json::json!({
+                "knowledge_refs": [
+                    { "id": "general", "kind": "domain_knowledge" },
+                    { "id": "docs", "kind": "artifact_definition" }
+                ]
+            }),
+        }];
+        let legacy_scope = insight_scope(
+            &snapshot,
+            &legacy,
+            &[],
+            &domains,
+            &artifact_types,
+            "worker",
+        );
+        assert_eq!(
+            legacy_scope.knowledge_version_label,
+            "汎用 版未記録 / 文書 版未記録"
+        );
+    }
+
+    #[test]
+    fn insights_compare_prompt_versions_without_mixing_fixed_conditions() {
+        fn run_packet(work_id: &str, prompt_version: &str) -> nagare_core::ResolvedRunPacket {
+            nagare_core::ResolvedRunPacket {
+                id: format!("packet-{work_id}"),
+                work_item_id: work_id.to_string(),
+                agent_profile_id: "worker".to_string(),
+                adapter_id: "process.codex-cli".to_string(),
+                purpose: AgentRunPurpose::Work,
+                working_dir: String::new(),
+                goal: String::new(),
+                prompt_version: prompt_version.to_string(),
+                rubric_id: Some("docs".to_string()),
+                rubric_version: Some(2),
+                domain_knowledge_id: Some("general".to_string()),
+                domain_knowledge_version: Some(3),
+                artifact_definition_id: Some("docs".to_string()),
+                artifact_definition_version: Some(4),
+                path: None,
+                work_folder: None,
+                dispatch_plan_id: None,
+                permission_policy_id: None,
+                workspace_policy_id: None,
+                resolved_skill_context_id: String::new(),
+                output_contract: Default::default(),
+                model: Default::default(),
+                external: Default::default(),
+                project_rule_ids: Vec::new(),
+                constraints: Vec::new(),
+                execution_record_uri: String::new(),
+                content_hash: format!("hash-{work_id}"),
+                locale: "ja".to_string(),
+                created_at: "2026-07-05T00:01:00+09:00".to_string(),
+            }
+        }
+
+        fn write_comparison_trace(
+            root: &Path,
+            work_id: &str,
+            overall_score: u8,
+            correctness_points: u8,
+            clarity_points: u8,
+        ) {
+            let trace_path = root
+                .join(".nagare")
+                .join("works")
+                .join(work_id)
+                .join("trace.jsonl");
+            fs::create_dir_all(trace_path.parent().expect("trace parent")).expect("trace dir");
+            let records = [
+                TraceRecord {
+                    schema: "nagare.trace/1.0".to_string(),
+                    record: "worker_output".to_string(),
+                    work_id: work_id.to_string(),
+                    seq: 1,
+                    at: "2026-07-05T00:01:00+09:00".to_string(),
+                    payload: serde_json::json!({
+                        "agent": { "id": "worker", "name": "Worker", "role": "worker" },
+                        "status": "completed"
+                    }),
+                },
+                TraceRecord {
+                    schema: "nagare.trace/1.0".to_string(),
+                    record: "reviewer_verdict".to_string(),
+                    work_id: work_id.to_string(),
+                    seq: 2,
+                    at: "2026-07-05T00:02:00+09:00".to_string(),
+                    payload: serde_json::json!({
+                        "agent": { "id": "reviewer", "name": "Reviewer", "role": "reviewer" },
+                        "overall_score": overall_score,
+                        "overall_max_score": 100,
+                        "rubric_ref": { "id": "docs", "version": 2 },
+                        "knowledge_refs": [
+                            { "id": "general", "kind": "domain_knowledge", "version": 3 },
+                            { "id": "docs", "kind": "artifact_definition", "version": 4 }
+                        ],
+                        "rubric_items_expected": 2,
+                        "rubric_items_recorded": 2,
+                        "rubric_complete": true,
+                        "rubric_item_verdicts": [
+                            {
+                                "item": "正確性",
+                                "points": correctness_points,
+                                "max_points": 50,
+                                "recorded": true,
+                                "verdict": if correctness_points >= 40 { "pass" } else { "fail" },
+                                "evidence": "正確性の根拠"
+                            },
+                            {
+                                "item": "明瞭性",
+                                "points": clarity_points,
+                                "max_points": 50,
+                                "recorded": true,
+                                "verdict": if clarity_points >= 40 { "pass" } else { "fail" },
+                                "evidence": "明瞭性の根拠"
+                            }
+                        ]
+                    }),
+                },
+            ];
+            let raw = records
+                .iter()
+                .map(|record| serde_json::to_string(record).expect("serialize trace"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            fs::write(trace_path, format!("{raw}\n")).expect("write trace");
+        }
+
+        let root = temp_test_dir("insights-prompt-comparison");
+        init_project(&root).expect("init project");
+        let mut v1 = sample_completed_snapshot();
+        v1.item.id = "work_v1".to_string();
+        v1.item.title = "Prompt v1".to_string();
+        v1.resolved_run_packets.push(run_packet("work_v1", "v1"));
+        let mut v2 = sample_completed_snapshot();
+        v2.item.id = "work_v2".to_string();
+        v2.item.title = "Prompt v2".to_string();
+        v2.resolved_run_packets.push(run_packet("work_v2", "v2"));
+        write_comparison_trace(&root, "work_v1", 15, 5, 10);
+        write_comparison_trace(&root, "work_v2", 85, 45, 40);
+
+        let domains = vec![Domain {
+            id: "general".to_string(),
+            display_name: "汎用".to_string(),
+            description: String::new(),
+            shared_knowledge: Vec::new(),
+            common_rubric: Vec::new(),
+            knowledge_version: 3,
+            dispatch_hints: Vec::new(),
+            workflow: DomainWorkflowOverride::default(),
+            source: DomainSource::ProjectDomainDirectory,
+        }];
+        let artifact_types = vec![ArtifactType {
+            id: "docs".to_string(),
+            domain_id: Some("general".to_string()),
+            display_name: "文書".to_string(),
+            description: String::new(),
+            artifact_types: Vec::new(),
+            rubric: Vec::new(),
+            rubric_version: 2,
+            definition_version: 4,
+            dispatch_hints: Vec::new(),
+            workflow: DomainWorkflowOverride::default(),
+            source: nagare_core::ArtifactTypeSource::ProjectArtifactTypeDirectory,
+        }];
+
+        let mut v2_other_project = v2.clone();
+        v2_other_project.item.work_folder = Some("other-project".to_string());
+        let separated = insights_view(
+            &root,
+            &[v1.clone(), v2_other_project],
+            &[],
+            &domains,
+            &artifact_types,
+        );
+        assert!(separated.prompt_comparisons.is_empty());
+
+        let insights = insights_view(&root, &[v1, v2], &[], &domains, &artifact_types);
+
+        assert_eq!(insights.prompt_comparisons.len(), 1);
+        let comparison = &insights.prompt_comparisons[0];
+        assert_eq!(comparison.project_name, analysis_root_project_name(&root));
+        assert_eq!(comparison.rubric_version_label, "v2");
+        assert_eq!(comparison.knowledge_version_label, "汎用 v3 / 文書 v4");
+        assert_eq!(comparison.variants.len(), 2);
+        assert_eq!(comparison.variants[0].prompt_version_label, "v1");
+        assert_eq!(comparison.variants[0].average_score, 15);
+        assert_eq!(comparison.variants[0].work_refs[0].work_id, "work_v1");
+        assert_eq!(comparison.variants[0].work_refs[0].score_label, "15点");
+        assert_eq!(comparison.variants[0].items[0].score_label, "10%");
+        assert_eq!(comparison.variants[1].prompt_version_label, "v2");
+        assert_eq!(comparison.variants[1].average_score, 85);
+        assert_eq!(comparison.variants[1].work_refs[0].work_id, "work_v2");
+        assert_eq!(comparison.variants[1].items[0].score_label, "90%");
+        assert!(insights
+            .issue_matrix
+            .iter()
+            .any(|issue| issue.prompt_version_label == "v1"));
+        assert!(insights
+            .issue_matrix
+            .iter()
+            .any(|issue| issue.prompt_version_label == "v2"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn insights_keep_every_recorded_rubric_dimension() {
+        let root = temp_test_dir("insights-all-rubric-dimensions");
+        init_project(&root).expect("init project");
+        let mut snapshot = sample_completed_snapshot();
+        snapshot.review_results[0].criteria_results = (1..=9)
+            .map(|index| CriteriaReviewResult {
+                criterion: format!("Rubric dimension {index}"),
+                status: CriteriaReviewStatus::Failed,
+                note: format!("Dimension {index} is incomplete."),
+            })
+            .collect();
+
+        let insights = insights_view(&root, &[snapshot], &[], &[], &[]);
+
+        assert_eq!(insights.issue_matrix.len(), 9);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn insights_group_same_target_issues_into_one_experiment() {
+        let root = temp_test_dir("insights-group-target-issues");
+        init_project(&root).expect("init project");
+        let mut snapshot = sample_completed_snapshot();
+        for criterion in &mut snapshot.review_results[0].criteria_results {
+            criterion.status = CriteriaReviewStatus::Failed;
+            criterion.note = format!("{} が不足しています。", criterion.criterion);
+        }
+        let mut repeated_snapshot = snapshot.clone();
+        repeated_snapshot.item.id = "work_2".to_string();
+        repeated_snapshot.item.title = "README更新の再検証".to_string();
+
+        let insights = insights_view(
+            &root,
+            &[snapshot, repeated_snapshot],
+            &[],
+            &[],
+            &[],
+        );
+
+        assert_eq!(insights.issue_matrix.len(), 2);
+        assert_eq!(insights.proposal_count, 1);
+        let proposal = insights.proposals.first().expect("proposal should exist");
+        assert!(proposal.target_label.contains("目的への適合"));
+        assert!(proposal.target_label.contains("読みやすさ"));
+        assert!(proposal.summary.contains("一つの方策変更"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn insights_do_not_mix_different_artifact_scopes() {
+        let root = temp_test_dir("insights-artifact-scope");
+        init_project(&root).expect("init project");
+        let mut docs_snapshot = sample_completed_snapshot();
+        docs_snapshot.review_results[0].criteria_results.truncate(1);
+        docs_snapshot.review_results[0].criteria_results[0].status =
+            CriteriaReviewStatus::Failed;
+        let mut docs_repeat = docs_snapshot.clone();
+        docs_repeat.item.id = "work_docs_2".to_string();
+        let mut faq_snapshot = docs_snapshot.clone();
+        faq_snapshot.item.id = "work_faq_1".to_string();
+        faq_snapshot.item.artifact_type_id = Some("faq".to_string());
+        let mut faq_repeat = faq_snapshot.clone();
+        faq_repeat.item.id = "work_faq_2".to_string();
+
+        let insights = insights_view(
+            &root,
+            &[docs_snapshot, docs_repeat, faq_snapshot, faq_repeat],
+            &[],
+            &[],
+            &[],
+        );
+
+        assert_eq!(insights.issue_matrix.len(), 2);
+        assert!(
+            insights
+                .issue_matrix
+                .iter()
+                .all(|issue| issue.occurrences == 2)
+        );
+        assert_eq!(insights.proposal_count, 2);
+        assert_ne!(insights.proposals[0].id, insights.proposals[1].id);
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn insights_start_with_agent_policy_even_when_issue_mentions_rubric() {
+        assert_eq!(
+            suggestion_kind_for_issue("判定基準の明確さ", 60),
+            "プロンプト"
+        );
     }
 
     #[test]
@@ -5784,6 +8777,29 @@ mod tests {
         );
     }
 
+    #[test]
+    fn completed_work_does_not_reopen_a_historical_question() {
+        let root = temp_test_dir("completed-question");
+        init_project(&root).expect("init project");
+        let mut snapshot = sample_completed_snapshot();
+        snapshot.agent_outputs[0].questions = vec!["公開範囲を確認してください。".to_string()];
+
+        let completed = work_detail_view(&root, snapshot.clone());
+        assert!(completed.question.is_none());
+        assert!(completed.question_source.is_empty());
+
+        snapshot.item.status = WorkItemStatus::NeedsInput;
+        snapshot.completion.next_action = "answer_question".to_string();
+        let waiting = work_detail_view(&root, snapshot);
+        assert_eq!(
+            waiting.question.as_deref(),
+            Some("公開範囲を確認してください。")
+        );
+        assert!(!waiting.question_source.is_empty());
+
+        let _ = fs::remove_dir_all(root);
+    }
+
     fn write_trace_records(root: &Path, work_id: &str) {
         let trace_path = root
             .join(".nagare")
@@ -5954,6 +8970,8 @@ mod tests {
                         note: "手順が短く整理されています。".to_string(),
                     },
                 ],
+                rubric_results: Vec::new(),
+                rubric_expected_count: 0,
                 questions: Vec::new(),
                 next_action: Some("approve".to_string()),
                 execution_record_id: "exec_review".to_string(),

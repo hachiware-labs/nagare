@@ -52,6 +52,23 @@ fn run_codex_cli_exec(
     Ok(run_tool_owned("codex", &args)?)
 }
 
+pub fn run_codex_cli_prompt(
+    working_dir: &Path,
+    prompt: &str,
+    model: Option<&str>,
+) -> Result<String, NagareError> {
+    let output = run_codex_cli_exec(working_dir, prompt, model)?;
+    if !output.status.success() {
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(NagareError::InvalidState(if detail.is_empty() {
+            "Codex CLIによるAI生成に失敗しました。".to_string()
+        } else {
+            format!("Codex CLIによるAI生成に失敗しました: {detail}")
+        }));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
 fn find_windows_codex_js() -> Option<PathBuf> {
     let output = Command::new("where").arg("codex").output().ok()?;
     if !output.status.success() {

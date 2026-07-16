@@ -60,13 +60,47 @@ function baseState(initialized: boolean) {
       average_score_label: "82 / 100",
       concern_count: 3,
       proposal_count: 3,
+      signals: [
+        {
+          id: "signal-reviewer-override",
+          agent_id: "reviewer",
+          agent_name: "Reviewer",
+          role: "reviewer",
+          project_name: "nagare-desktop-e2e",
+          title: "レビュー合格後に人が差し戻し",
+          item_label: "判定較正",
+          observation: "レビュー合格後の人の差し戻しが1件あります。",
+          history_assessment: "レビューから人の判断までを照合すると、Reviewerの合格判定と最終判断が一致していません。レビュアーの判定手順が有力です。",
+          scope: "nagare-desktop-e2e / プロダクト文書 / README",
+          scope_detail: "Reviewer · プロンプト v1 · ルーブリック v2 · 知識 プロダクト文書 v3 / README v4",
+          primary_cause_kind: "reviewer",
+          primary_cause_label: "Reviewer",
+          confidence_label: "有力",
+          proposal_ready: true,
+          proposal_status_label: "改善候補にできます",
+          proposal_kind: "プロンプト",
+          proposal_target_id: "reviewer",
+          proposal_target_label: "Reviewer",
+          domain_name: "プロダクト文書",
+          artifact_type_name: "README",
+          rubric_version_label: "v2",
+          knowledge_version_label: "プロダクト文書 v3 / README v4",
+          prompt_version_label: "v1",
+          evidence: [
+            { work_id: "work_1", stage: "レビュー", summary: "Reviewerが形式の準拠を60点と評価した後、全体を合格と判定" },
+            { work_id: "work_1", stage: "人の判断", summary: "利用者が必須形式の不足を理由に差し戻し" },
+          ],
+          competing_causes: ["オーガナイザーの入力・割り当て", "共有知識・成果物定義・ルーブリック"],
+        },
+      ],
       agent_scores: [
-        { agent_id: "worker", agent_name: "Writer", role: "worker", review_count: 4, average_score: 88, average_score_label: "88 / 100", status_label: "良好", top_issue: "読みやすさ" },
-        { agent_id: "reviewer", agent_name: "Reviewer", role: "reviewer", review_count: 2, average_score: 70, average_score_label: "70 / 100", status_label: "要改善", top_issue: "形式の準拠" },
+        { agent_id: "organizer", agent_name: "Organizer", role: "organizer", project_name: "nagare-desktop-e2e", activity_count: 5, recent_activity_label: "割り当て 4件 · まとめ 1件", review_count: 0, average_score: 0, average_score_label: "品質評価未対応", status_label: "動作記録あり", top_issue: "目立つ実行異常なし" },
+        { agent_id: "worker", agent_name: "Writer", role: "worker", project_name: "nagare-desktop-e2e", activity_count: 4, recent_activity_label: "評価された点 20点 → 90点", review_count: 4, average_score: 88, average_score_label: "88 / 100", status_label: "良好", top_issue: "読みやすさ" },
+        { agent_id: "reviewer", agent_name: "Reviewer", role: "reviewer", project_name: "nagare-desktop-e2e", activity_count: 2, recent_activity_label: "付与した点 20点 → 90点", review_count: 0, average_score: 0, average_score_label: "品質評価未対応", status_label: "動作記録あり", top_issue: "形式の準拠" },
       ],
       issue_matrix: [
-        { agent_name: "Reviewer", item: "形式の準拠", rate: 60, rate_label: "60%", occurrences: 2, suggestion_kind: "プロンプト" },
-        { agent_name: "Writer", item: "読みやすさ", rate: 78, rate_label: "78%", occurrences: 1, suggestion_kind: "ルーブリック" },
+        { agent_id: "reviewer", agent_name: "Reviewer", role: "reviewer", project_name: "nagare-desktop-e2e", item: "形式の準拠", rate: 60, rate_label: "60%", occurrences: 2, suggestion_kind: "プロンプト", domain_name: "プロダクト文書", artifact_type_name: "README", rubric_version_label: "v2", knowledge_version_label: "プロダクト文書 v3 / README v4", prompt_version_label: "v1", assignment_mode: "direct", assignment_label: "担当を明示指定（2件）" },
+        { agent_id: "worker", agent_name: "Writer", role: "worker", project_name: "nagare-desktop-e2e", item: "読みやすさ", rate: 78, rate_label: "78%", occurrences: 1, suggestion_kind: "ルーブリック", domain_name: "プロダクト文書", artifact_type_name: "README", rubric_version_label: "v2", knowledge_version_label: "プロダクト文書 v3 / README v4", prompt_version_label: "v2", assignment_mode: "organizer", assignment_label: "オーガナイザーが割り当て（1件）" },
       ],
       proposals: [
         {
@@ -121,7 +155,44 @@ function baseState(initialized: boolean) {
         },
       ],
       recent_reviews: [
-        { work_id: "work_1", title: "README更新", agent_name: "Reviewer", verdict: "pass", score_label: "92 / 100", concerns: ["補足が長い"] },
+        { work_id: "work_1", title: "README更新", agent_name: "Reviewer", project_name: "nagare-desktop-e2e", verdict: "pass", score_label: "92 / 100", concerns: ["補足が長い"], items: [{ item: "形式の準拠", score_label: "60%", concern: true }] },
+      ],
+      prompt_comparisons: [
+        {
+          agent_id: "worker",
+          agent_name: "Writer",
+          role: "worker",
+          project_name: "nagare-desktop-e2e",
+          domain_name: "プロダクト文書",
+          artifact_type_name: "README",
+          rubric_version_label: "v2",
+          knowledge_version_label: "プロダクト文書 v3 / README v4",
+          assignment_label: "担当を明示指定",
+          variants: [
+            {
+              prompt_version_label: "v1",
+              review_count: 1,
+              average_score: 20,
+              average_score_label: "20 / 100",
+              work_refs: [{ work_id: "work_prompt_v1", title: "Prompt v1", score_label: "20点" }],
+              items: [
+                { item: "正確性", average_score: 20, score_label: "20%" },
+                { item: "明瞭性", average_score: 20, score_label: "20%" },
+              ],
+            },
+            {
+              prompt_version_label: "v2",
+              review_count: 1,
+              average_score: 90,
+              average_score_label: "90 / 100",
+              work_refs: [{ work_id: "work_prompt_v2", title: "Prompt v2", score_label: "90点" }],
+              items: [
+                { item: "正確性", average_score: 90, score_label: "90%" },
+                { item: "明瞭性", average_score: 90, score_label: "90%" },
+              ],
+            },
+          ],
+        },
       ],
     } : {},
   };
@@ -450,10 +521,10 @@ async function installTauriMock(page, initialState, options = {}) {
                 { kind: "worker", title: "作成", state: "質問", actor: workerName, summary: "対象読者の確認が必要です。", rationale: "読者により表現が変わるため", input: payload.request.description, output: "質問を作成", knowledge_refs: [domainName], diagnostics: "", review_items: [] },
               ];
             }
-            if (payload.request.description.includes("回復")) {
-              detail.item.status_label = "要対応・回復";
+            if (payload.request.description.includes("対応が必要")) {
+              detail.item.status_label = "要対応";
               detail.item.status_kind = "recover";
-              detail.item.next_action = "回復方法を選択";
+              detail.item.next_action = "対応内容を確認";
               detail.next_action_kind = "recover";
               detail.approval_ready = false;
               detail.recovery = null;
@@ -554,7 +625,7 @@ async function installTauriMock(page, initialState, options = {}) {
           }
           if (command === "apply_work_recovery") {
             detail.recovery = null;
-            detail.answer = "回復後にREADMEを更新しました。";
+            detail.answer = "再実行後にREADMEを更新しました。";
             detail.item.status_label = "確認待ち";
             detail.item.status_kind = "review";
             detail.item.next_action = "結果を確認";
@@ -766,6 +837,53 @@ async function installTauriMock(page, initialState, options = {}) {
                 "守ること:",
                 "- 不明点を推測で埋めず、必要なら質問として返す",
               ].filter((line) => line !== "").join("\n"),
+            };
+          }
+          if (command === "generate_artifact_definition") {
+            const request = payload.request;
+            const domain = appState.domains.find((item) => item.id === request.domain_id);
+            const rubricSections = [
+              ["目的と利用者", 13],
+              ["範囲と前提", 13],
+              ["構成と責任", 13],
+              ["正確性と根拠", 13],
+              ["例外と境界", 12],
+              ["品質特性", 12],
+              ["運用と保守", 12],
+              ["検証証跡", 12],
+            ];
+            return {
+              description: `${request.artifact_name}を、${domain?.name || "対象ドメイン"}の利用者が作成・確認・保守できる状態にする成果物です。`,
+              knowledge: Array.from({ length: 16 }, (_, index) => {
+                const id = `K${String(index + 1).padStart(2, "0")}`;
+                const requirement = index === 6 ? "正常系、異常系、境界条件を個別に定義する" : `情報単位${index + 1}の完成条件を一つ定義する`;
+                return `[${id}][内容] 対象: ${request.artifact_name}の情報単位${index + 1} | 条件: 成果物を作成または更新するとき | 要求: ${requirement} | 証跡: 対応する本文と検証記録 | 例外: 非該当なら理由を記録する`;
+              }),
+              rubric: rubricSections.flatMap(([name, score]) => [
+                `## ${name} (${score})`,
+                `満点条件: ${name}の判定可能な条件をすべて満たす`,
+                `部分点条件: ${name}の確認済み条件の割合で採点する`,
+                `重大な不足: ${name}の必須条件が欠ける`,
+                `確認する証跡: ${name}に対応する本文と検証記録`,
+                "",
+              ]).join("\n"),
+              dispatch_hints: ["成果物設計", "品質評価"],
+              coverage: [],
+            };
+          }
+          if (command === "refine_artifact_definition") {
+            const request = payload.request;
+            return {
+              description: `${request.description}\n改善方針: ${request.feedback}`,
+              knowledge: request.knowledge.map((item, index) => index === 0
+                ? item.replace("証跡: 対応する本文と検証記録", "証跡: 対応する本文、根拠一覧、検証記録")
+                : item),
+              rubric: request.rubric.replace(
+                "確認する証跡: 目的と利用者に対応する本文と検証記録",
+                "確認する証跡: 目的と利用者に対応する本文、作成指示ID、検証記録",
+              ),
+              dispatch_hints: request.dispatch_hints || [],
+              coverage: [],
             };
           }
           if (command === "generate_rubric_draft") {
@@ -1178,8 +1296,29 @@ test("desktop prototype UI hides stale recovery actions after the work is done",
   const detailScreen = page.locator("#scr-detail-done.screen.active");
   await expect(detailScreen.locator(".status-strip")).toContainText("全工程完了");
   await expect(detailScreen).toContainText("この作業は完了し、結果は採用済みです");
-  await expect(detailScreen).not.toContainText("回復方法を選ぶ");
-  await expect(detailScreen.getByRole("button", { name: "この回復案を採用" })).toHaveCount(0);
+  await expect(detailScreen).not.toContainText("対応内容を確認");
+  await expect(detailScreen.getByRole("button", { name: "この内容で進める" })).toHaveCount(0);
+});
+
+test("desktop prototype UI keeps answered historical questions out of completed work", async ({ page }) => {
+  const initial = baseState(true);
+  const detail = makeDetail("完了済みの表示方針を決めて");
+  detail.item.status_label = "完了";
+  detail.item.status_kind = "done";
+  detail.item.next_action = "操作不要";
+  detail.next_action_kind = "done";
+  detail.approval_ready = false;
+  detail.question = "完了済みタスクは初期表示で隠しますか？";
+  detail.question_source = "Writer / 作業実行";
+  initial.work_items = [detail.item];
+  await installTauriMock(page, initial, { initialDetail: detail });
+  await page.goto(desktopIndexUrl);
+
+  await openWorkDetail(page);
+  const detailScreen = page.locator("#scr-detail-done.screen.active");
+  await expect(detailScreen).toContainText("この作業は完了し、結果は採用済みです");
+  await expect(detailScreen).not.toContainText("質問に回答");
+  await expect(detailScreen.locator('textarea[name="answer"]')).toHaveCount(0);
 });
 
 test("desktop prototype UI runs the main workflow with project, domain, and agents only", async ({ page }) => {
@@ -1208,6 +1347,7 @@ test("desktop prototype UI runs the main workflow with project, domain, and agen
   await expect(page.locator("#scr-detail-review.screen.active .trace")).toContainText("レビュー担当");
 
   await page.getByRole("button", { name: "この結果を採用する" }).click();
+  await expect(page.locator("#app-dynamic-modal")).not.toContainText("採用メモ");
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "採用して完了" }).click();
   await expect(page.locator("#scr-detail-done.screen.active")).toContainText("この作業は完了し、結果は採用済みです");
 
@@ -1251,6 +1391,7 @@ test("desktop prototype UI sets up project domain and agents before completing a
   const onboardingArtifactId = await artifactModal.locator('input[name="id"]').inputValue();
   await expect(artifactModal.locator('input[name="domain_id"]')).toHaveValue(guideDomainId);
   await expect(artifactModal.locator('select[name="domain_id"]')).toHaveCount(0);
+  await artifactModal.getByRole("button", { name: "この名前で定義を生成" }).click();
   await artifactModal.locator('textarea[name="description"]').fill("初回利用者が環境構築から最初の実行まで進めるガイド");
   await artifactModal.locator('textarea[name="knowledge"]').fill("セットアップ順序\n詰まりやすい認証手順");
   await artifactModal.locator('textarea[name="rubric"]').fill("## 完了条件 (60)\n初回利用者が最後まで進められる\n\n## 説明の具体性 (40)\n操作と確認結果が具体的である");
@@ -1610,26 +1751,27 @@ test("desktop prototype UI creates, accepts, and applies recovery plans", async 
   await installTauriMock(page, baseState(true));
   await page.goto(desktopIndexUrl);
 
-  await page.locator('#create-work-form textarea[name="description"]').fill("回復が必要なREADMEを作って");
+  await page.locator('#create-work-form textarea[name="description"]').fill("対応が必要なREADMEを作って");
   await page.getByRole("button", { name: "作業を開始" }).click();
   await openWorkDetail(page);
 
-  await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("回復案を作成");
+  await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("対応内容を整理");
   await expect(page.locator("#scr-detail-recover.screen.active .status-strip")).toContainText("1 / 1工程");
   await expect(page.locator("#scr-detail-recover.screen.active .status-strip")).toContainText("現在: 作成 / Writer");
   await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("発生工程: 作成 / Writer（失敗）");
-  await page.getByRole("button", { name: "回復案を作成" }).click();
+  await page.getByRole("button", { name: "対応内容を整理する" }).click();
   await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("出力契約の必須項目が不足");
-  await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("回復対象: Writer");
-  await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("完了済み: 依頼整理 / 初回実行");
-  await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("次に渡す内容: 不足項目を補う");
+  await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("対応するエージェント: Writer");
+  await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("これまでの実行: 依頼整理 / 初回実行");
+  await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("再実行時の指示: 不足項目を補う");
+  await expect(page.locator("#scr-detail-recover.screen.active")).not.toContainText("回復");
 
-  await page.getByRole("button", { name: "この回復案を採用" }).click();
+  await page.getByRole("button", { name: "この内容で進める" }).click();
   await expect(page.locator('#scr-detail-recover textarea[name="prompt"]')).toHaveValue(/不足項目/);
   await page.locator('#scr-detail-recover textarea[name="prompt"]').fill("不足項目を補って再実行してください");
-  await page.getByRole("button", { name: "回復して再開" }).click();
+  await page.getByRole("button", { name: "この内容で再実行" }).click();
 
-  await expect(page.locator("#scr-detail-review.screen.active")).toContainText("回復後にREADMEを更新しました");
+  await expect(page.locator("#scr-detail-review.screen.active")).toContainText("再実行後にREADMEを更新しました");
   await expect(page.getByRole("button", { name: "この結果を採用する" })).toBeVisible();
 
   const commands = await page.evaluate(() => window.__nagareDesktopCalls.map((call) => call.command));
@@ -1687,35 +1829,35 @@ test("desktop prototype UI keeps work detail operation failures visible in conte
 
   await page.evaluate(() => window.__nagareDesktopSetCommandFailures({}));
   await page.getByRole("link", { name: /ワーク/ }).click();
-  await page.locator('#create-work-form textarea[name="description"]').fill("回復が必要なREADMEを作って");
+  await page.locator('#create-work-form textarea[name="description"]').fill("対応が必要なREADMEを作って");
   await page.getByRole("button", { name: "作業を開始" }).click();
   await openWorkDetail(page);
 
   await page.evaluate(() => window.__nagareDesktopSetCommandFailures({ create_work_recovery: "recovery planner unavailable" }));
-  await page.getByRole("button", { name: "回復案を作成" }).click();
-  await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("回復案を作成できませんでした");
+  await page.getByRole("button", { name: "対応内容を整理する" }).click();
+  await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("対応内容を整理できませんでした");
   await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("recovery planner unavailable");
   await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("失敗した工程と実行環境の状態を確認");
 
   await page.evaluate(() => window.__nagareDesktopSetCommandFailures({}));
-  await page.getByRole("button", { name: "回復案を作成" }).click();
+  await page.getByRole("button", { name: "対応内容を整理する" }).click();
   await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("出力契約の必須項目が不足");
 
   await page.evaluate(() => window.__nagareDesktopSetCommandFailures({ accept_work_recovery: "recovery accept failed" }));
-  await page.getByRole("button", { name: "この回復案を採用" }).click();
-  await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("回復案を採用できませんでした");
+  await page.getByRole("button", { name: "この内容で進める" }).click();
+  await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("対応内容を確定できませんでした");
   await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("recovery accept failed");
-  await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("回復案の状態と現在のワーク状態を確認");
+  await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("対応内容と現在のワーク状態を確認");
 
   await page.evaluate(() => window.__nagareDesktopSetCommandFailures({}));
-  await page.getByRole("button", { name: "この回復案を採用" }).click();
+  await page.getByRole("button", { name: "この内容で進める" }).click();
   await expect(page.locator('#scr-detail-recover textarea[name="prompt"]')).toBeVisible();
 
   await page.evaluate(() => window.__nagareDesktopSetCommandFailures({ apply_work_recovery: "recovery apply failed" }));
-  await page.getByRole("button", { name: "回復して再開" }).click();
-  await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("回復を適用できませんでした");
+  await page.getByRole("button", { name: "この内容で再実行" }).click();
+  await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("再実行できませんでした");
   await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("recovery apply failed");
-  await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("追加指示と回復案の状態を確認");
+  await expect(page.locator("#scr-detail-recover.screen.active")).toContainText("追加の指示と現在のワーク状態を確認");
 });
 
 test("desktop prototype UI filters work history by status and keyword", async ({ page }) => {
@@ -1888,6 +2030,23 @@ test("desktop prototype UI fits the shell inside a short window and scrolls inte
   expect(dimensions.sidebarOverflow).toBe("hidden");
 });
 
+test("desktop prototype UI resets the work surface scroll after navigation", async ({ page }) => {
+  await installTauriMock(page, baseState(true));
+  await page.goto(desktopIndexUrl);
+
+  await page.getByRole("link", { name: /分析・改善/ }).click();
+  await page.locator("#scr-insights").evaluate((screen) => {
+    screen.style.paddingBottom = "1200px";
+  });
+  await page.locator(".content").evaluate((content) => {
+    content.scrollTop = content.scrollHeight;
+  });
+  expect(await page.locator(".content").evaluate((content) => content.scrollTop)).toBeGreaterThan(0);
+
+  await page.getByRole("link", { name: /^ワーク/ }).click();
+  await expect.poll(() => page.locator(".content").evaluate((content) => content.scrollTop)).toBe(0);
+});
+
 test("desktop prototype UI shows insights attention dot only when improvements exist", async ({ page }) => {
   const initial = baseState(true);
   await installTauriMock(page, initial);
@@ -1922,6 +2081,88 @@ test("desktop prototype UI dismisses improvement proposals from the pending list
   await expect(pendingImprovements).not.toContainText("README ルーブリック改善");
   await expect(appliedImprovements).not.toContainText("README ルーブリック改善");
   await expect(page.locator("#insights-dot")).toHaveAttribute("title", "未対応の改善提案 2件");
+});
+
+test("desktop prototype UI keeps a single low score in observation", async ({ page }) => {
+  const state = baseState(true);
+  state.insights.signals = undefined;
+  state.insights.issue_matrix = [
+    { agent_id: "worker", agent_name: "Writer", role: "worker", project_name: "nagare-desktop-e2e", item: "利用側確認", rate: 40, rate_label: "40%", occurrences: 1, suggestion_kind: "プロンプト" },
+  ];
+  state.insights.proposals = [];
+  state.insights.proposal_count = 0;
+  await installTauriMock(page, state);
+  await page.goto(desktopIndexUrl);
+
+  await page.getByRole("link", { name: /分析・改善/ }).click();
+
+  const diagnosis = page.locator("[data-insight-diagnoses]");
+  await expect(diagnosis).toContainText("利用側確認が基準未達");
+  await expect(diagnosis).not.toContainText("単発・経過観察");
+  await diagnosis.getByRole("button", { name: "詳細" }).click();
+  await expect(page.locator("#app-dynamic-modal")).toContainText("改善提案への扱い");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("同条件の履歴を追加して確認します");
+  await expect(page.locator("#app-dynamic-modal").getByRole("button", { name: "改善候補を確認" })).toHaveCount(0);
+});
+
+test("desktop prototype UI lowers organizer attribution for directly assigned evidence", async ({ page }) => {
+  const state = baseState(true);
+  state.insights.signals = undefined;
+  state.insights.issue_matrix = [
+    {
+      agent_id: "reviewer",
+      agent_name: "Reviewer",
+      role: "reviewer",
+      project_name: "nagare-desktop-e2e",
+      item: "形式の準拠",
+      rate: 20,
+      rate_label: "20%",
+      occurrences: 3,
+      suggestion_kind: "プロンプト",
+      domain_name: "プロダクト文書",
+      artifact_type_name: "README",
+      rubric_version_label: "v2",
+      knowledge_version_label: "プロダクト文書 v1 / README v2",
+      prompt_version_label: "実行時版未記録（現在 v3）",
+      assignment_mode: "direct",
+      assignment_label: "担当を明示指定（3件）",
+    },
+    {
+      agent_id: "reviewer",
+      agent_name: "Reviewer",
+      role: "reviewer",
+      project_name: "nagare-desktop-e2e",
+      item: "根拠の明確さ",
+      rate: 30,
+      rate_label: "30%",
+      occurrences: 3,
+      suggestion_kind: "プロンプト",
+      domain_name: "プロダクト文書",
+      artifact_type_name: "README",
+      rubric_version_label: "v2",
+      knowledge_version_label: "プロダクト文書 v1 / README v2",
+      prompt_version_label: "実行時版未記録（現在 v3）",
+      assignment_mode: "direct",
+      assignment_label: "担当を明示指定（3件）",
+    },
+  ];
+  await installTauriMock(page, state);
+  await page.goto(desktopIndexUrl);
+
+  await page.getByRole("link", { name: /分析・改善/ }).click();
+
+  const diagnosis = page.locator("[data-insight-diagnoses]");
+  await expect(diagnosis.locator(".signal-overview-row")).toHaveCount(1);
+  await expect(diagnosis).toContainText("2項目が基準未達");
+  await expect(diagnosis).toContainText("根拠の明確さ");
+  await expect(diagnosis).toContainText("Reviewer · レビュアー / プロダクト文書 / README");
+  await diagnosis.getByRole("button", { name: "詳細" }).click();
+  const detail = page.locator("#app-dynamic-modal");
+  await expect(detail).toContainText("ルーブリック v2");
+  await expect(detail).toContainText("プロンプト 実行時版未記録（現在 v3）");
+  await expect(detail).toContainText("担当を明示指定（3件）");
+  await expect(detail).not.toContainText("今回の優先度は低い");
+  await expect(detail).toContainText("オーガナイザーは担当選択を決めていません");
 });
 
 test("desktop prototype UI keeps improvement dismiss failures visible in context", async ({ page }) => {
@@ -2607,14 +2848,140 @@ test("desktop prototype UI explains unavailable runtimes used by agents", async 
   await expect(openclawRow).toContainText("OpenClaw が見つかりません。インストール後に検出を確認してください。");
 });
 
-test("desktop prototype UI renders insights and routes improvement previews", async ({ page }) => {
-  await installTauriMock(page, baseState(true));
+test("desktop prototype UI groups related insight signals before showing item details", async ({ page }) => {
+  const groupedState = baseState(true);
+  const baseSignal = groupedState.insights.signals[0];
+  groupedState.insights.signals = [
+    {
+      ...baseSignal,
+      id: "signal-review-format",
+      title: "形式の準拠が基準未達",
+      item_label: "形式の準拠",
+      observation: "形式の準拠が2件で基準未達です。",
+    },
+    {
+      ...baseSignal,
+      id: "signal-review-evidence",
+      title: "根拠の明示が基準未達",
+      item_label: "根拠の明示",
+      observation: "根拠の明示が2件で基準未達です。",
+      evidence: [
+        { work_id: "work_2", stage: "レビュー", summary: "Reviewerが根拠の明示を50点と評価" },
+        { work_id: "work_2", stage: "人の判断", summary: "利用者が根拠不足を理由に差し戻し" },
+      ],
+    },
+  ];
+  await installTauriMock(page, groupedState);
   await page.goto(desktopIndexUrl);
 
   await page.getByRole("link", { name: /分析・改善/ }).click();
-  await expect(page.locator("#scr-insights.screen.active")).not.toContainText("現在のプロジェクト");
-  await expect(page.locator("#scr-insights.screen.active")).toContainText("82 / 100");
-  await expect(page.locator("#scr-insights.screen.active")).toContainText("形式の準拠");
+  const insightsPage = page.locator("#scr-insights.screen.active");
+  await expect(insightsPage).toContainText("1グループ / 2件");
+  await expect(insightsPage.locator("[data-insight-diagnoses] .signal-overview-row")).toHaveCount(1);
+  await expect(insightsPage.locator("[data-insight-diagnoses]")).toContainText("形式の準拠、根拠の明示");
+  await insightsPage.getByRole("button", { name: "まとめて確認" }).click();
+
+  const groupModal = page.locator("#app-dynamic-modal");
+  await expect(groupModal).toContainText("シグナルのまとめ");
+  await expect(groupModal.locator("[data-open-group-diagnosis]")).toHaveCount(2);
+  await expect(groupModal).toContainText("形式の準拠が基準未達");
+  await expect(groupModal).toContainText("根拠の明示が基準未達");
+  await groupModal.locator("[data-open-group-diagnosis]").first().click();
+  await expect(page.locator("#app-dynamic-modal")).toContainText("工程別の根拠");
+});
+
+test("desktop prototype UI renders insights and routes improvement previews", async ({ page }) => {
+  const insightsState = baseState(true);
+  insightsState.insights.agent_scores.push({
+    agent_id: "reviewer",
+    agent_name: "Reviewer",
+    role: "reviewer",
+    project_name: "別プロジェクト",
+    review_count: 1,
+    average_score: 50,
+    average_score_label: "50 / 100",
+    status_label: "要改善",
+    top_issue: "根拠の明示",
+    activity_count: 1,
+    recent_activity_label: "付与した点 50点",
+  });
+  insightsState.insights.signals.push({
+    id: "signal-other-project",
+    agent_id: "reviewer",
+    agent_name: "Reviewer",
+    role: "reviewer",
+    project_name: "別プロジェクト",
+    title: "根拠の明示が基準未達",
+    item_label: "根拠の明示",
+    observation: "根拠の明示が1件で基準未達です。",
+    history_assessment: "履歴が1件だけのため、原因はまだ判断できません。",
+    scope: "別プロジェクト / 調査 / 調査報告書",
+    scope_detail: "ルーブリック v1 · 知識 調査 v1 / 調査報告書 v1",
+    primary_cause_kind: "undetermined",
+    primary_cause_label: "判断保留",
+    confidence_label: "記録不足",
+    proposal_ready: false,
+    proposal_status_label: "同条件の履歴を追加して確認します",
+    proposal_kind: "",
+    proposal_target_id: "",
+    proposal_target_label: "",
+    domain_name: "調査",
+    artifact_type_name: "調査報告書",
+    rubric_version_label: "v1",
+    knowledge_version_label: "調査 v1 / 調査報告書 v1",
+    prompt_version_label: "v1",
+    evidence: [{ work_id: "work_other", stage: "レビュー", summary: "根拠の明示を50点と評価" }],
+    competing_causes: ["依頼情報の不足", "ワーカーの方策"],
+  });
+  await installTauriMock(page, insightsState);
+  await page.goto(desktopIndexUrl);
+
+  await page.getByRole("link", { name: /分析・改善/ }).click();
+  const insightsPage = page.locator("#scr-insights.screen.active");
+  await expect(insightsPage).toContainText("分析シグナル");
+  await expect(insightsPage).toContainText("エージェントの動作状況");
+  await expect(insightsPage).toContainText("直近の動き");
+  await expect(insightsPage).not.toContainText("変更後の動き");
+  await expect(insightsPage.getByRole("button", { name: "分析を実行" })).toBeVisible();
+  await expect(insightsPage).not.toContainText("プロンプト版の比較");
+  await expect(insightsPage).not.toContainText("再発パターン");
+  await expect(insightsPage).not.toContainText("反復を確認");
+  await expect(insightsPage).toContainText("履歴からの見立て");
+  await expect(insightsPage.locator("[data-insight-diagnoses] .signal-overview-row")).toHaveCount(2);
+  await insightsPage.locator("[data-insight-project-filter]").selectOption("nagare-desktop-e2e");
+  await expect(insightsPage.locator("[data-insight-diagnoses] .signal-overview-row")).toHaveCount(1);
+  await insightsPage.locator("[data-insight-agent-filter]").selectOption("organizer");
+  await expect(insightsPage).toContainText("割り当て 4件 · まとめ 1件");
+  await expect(insightsPage).toContainText("オーガナイザー");
+  await insightsPage.locator("[data-insight-agent-filter]").selectOption("reviewer");
+  await expect(insightsPage).toContainText("レビュー合格後に人が差し戻し");
+  await expect(insightsPage).toContainText("付与した点 20点 → 90点");
+  await expect(insightsPage).toContainText("Reviewerの合格判定と最終判断が一致していません");
+  await expect(insightsPage).toContainText("改善候補にできます");
+  await insightsPage.locator("[data-open-insight-diagnosis]").click();
+  await expect(page.locator("#app-dynamic-modal")).toContainText("シグナルの詳細");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("工程別の根拠");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("主な原因候補");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("競合する原因候補");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("改善提案への扱い");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("Reviewer");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("オーガナイザーの入力・割り当て");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("共有知識・成果物定義・ルーブリック");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("work_1の履歴を開く");
+  await page.locator("#app-dynamic-modal").getByRole("button", { name: "閉じる" }).click();
+
+  await insightsPage.locator("[data-insight-agent-filter]").selectOption("worker");
+  await expect(insightsPage.locator("[data-insight-diagnoses] .signal-overview-row")).toHaveCount(0);
+  await expect(insightsPage).toContainText("評価された点 20点 → 90点");
+  await insightsPage.locator('[data-open-agent-insight="worker"]').click();
+  await expect(page.locator("#app-dynamic-modal")).toContainText("Writerの動作状況");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("条件を固定した変更比較");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("work_prompt_v1 (20点)");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("正確性");
+  await page.locator("#app-dynamic-modal").getByRole("button", { name: "閉じる" }).click();
+
+  await insightsPage.getByRole("button", { name: "分析を実行" }).click();
+  await expect(insightsPage).toContainText("最終実行");
   await page.locator('[data-insights-tab="improvements"]').click();
 
   await expect(page.locator("#scr-insights.screen.active")).toContainText("Reviewer のプロンプト改善");
@@ -2622,6 +2989,10 @@ test("desktop prototype UI renders insights and routes improvement previews", as
   await expect(page.locator("#scr-insights.screen.active")).toContainText("Writer のプロンプト改善");
   await expect(page.locator("#scr-insights.screen.active")).toContainText("差し戻し率 22% → 12%");
   await page.getByRole("button", { name: "今すぐ見直す" }).click();
+  await expect(page.locator("#app-dynamic-modal")).toContainText("原因はまだ確定していません");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("帰属仮説");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("反証条件");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("成果物定義とルーブリックを固定");
   await expect(page.locator("#app-dynamic-modal")).toContainText("形式基準を先に確認");
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "エージェントを開く" }).click();
   await expect(page.locator("#scr-agent-list.screen.active")).toBeVisible();
@@ -2736,6 +3107,11 @@ test("desktop prototype UI manages agents and capability assignments", async ({ 
   await page.locator("#scr-agent-settings .advanced-settings > summary").click();
   await expect(page.locator('#scr-agent-settings input[name="id"]')).toBeVisible();
   await expect(page.locator('#scr-agent-settings input[name="display_name"]')).toHaveValue("UI Worker");
+  await expect(page.locator('#scr-agent-settings [data-agent-avatar-preset]')).toHaveValue("");
+  await expect(page.locator('#scr-agent-settings [data-agent-avatar-preview] img.agent-avatar')).toHaveAttribute("src", "avatars/writer.svg");
+  await page.locator('#scr-agent-settings [data-agent-avatar-preset]').selectOption("avatars/coder.svg");
+  await expect(page.locator('#scr-agent-settings input[name="avatar"]')).toHaveValue("avatars/coder.svg");
+  await expect(page.locator('#scr-agent-settings [data-agent-avatar-preview] img.agent-avatar')).toHaveAttribute("src", "avatars/coder.svg");
   await page.locator('#scr-agent-settings [data-choose-agent-avatar]').click();
   await expect(page.locator('#scr-agent-settings input[name="avatar"]')).toHaveValue("C:/nagare-desktop-e2e/avatars/ui-worker.svg");
   await page.locator('#scr-agent-settings select[name="role"]').selectOption("worker");
@@ -2952,6 +3328,10 @@ test("desktop prototype UI selects an OpenCode model loaded from local settings"
   await page.goto(desktopIndexUrl);
 
   await page.getByRole("link", { name: /^エージェント$/ }).click();
+  await expect(page.locator('[data-edit-agent="organizer"]').locator("..").locator("img.agent-avatar")).toHaveAttribute("src", "avatars/planner.svg");
+  await expect(page.locator('[data-edit-agent="worker"]').locator("..").locator("img.agent-avatar")).toHaveAttribute("src", "avatars/writer.svg");
+  await expect(page.locator('[data-edit-agent="reviewer"]').locator("..").locator("img.agent-avatar")).toHaveAttribute("src", "avatars/reviewer.svg");
+  await expect(page.locator('#scr-agent-list [data-agent-row] .wr-picon')).toHaveCount(0);
   await page.getByRole("button", { name: "新規エージェント" }).click();
   await page.locator('#app-dynamic-modal input[name="display_name"]').fill("OpenCode Reviewer");
   await page.locator('#app-dynamic-modal select[name="tool_kind"]').selectOption("opencode");
@@ -3135,6 +3515,7 @@ test("desktop prototype UI filters knowledge by domain and keyword", async ({ pa
 
   await page.getByRole("link", { name: /ナレッジ/ }).click();
   await expect(page.locator("#knowledge-filter-result")).toContainText("2件");
+  await expect(page.locator('#scr-knowledge-list [data-knowledge-row] .wr-picon')).toHaveCount(0);
   await expect(page.locator('[data-domain-detail="support-docs"]')).toBeVisible();
   await expect(page.locator("[data-knowledge-row]").filter({ has: page.locator('[data-domain-detail="product-docs"]') })).toContainText("改善提案 1件");
   await expect(page.locator("[data-knowledge-row]").filter({ has: page.locator('[data-domain-detail="product-docs"]') })).toContainText("利用プロジェクト: nagare-desktop-e2e（自動候補）");
@@ -3171,6 +3552,7 @@ test("desktop prototype UI opens domain details on basic information before arti
   await expect(page.locator('#scr-knowledge-domain [data-domain-pane="basic"]')).toHaveClass(/active/);
   await page.locator('#scr-knowledge-domain [data-domain-tab="artifacts"]').click();
   await expect(page.locator('#scr-knowledge-domain [data-domain-pane="artifacts"]')).toHaveClass(/active/);
+  await expect(page.locator('#scr-knowledge-domain [data-domain-pane="artifacts"] .wr-picon')).toHaveCount(0);
   await expect(page.locator('#scr-knowledge-domain [data-edit-artifact="readme"]')).toBeVisible();
   await expect(page.locator("#scr-knowledge-domain")).toContainText("成果物を追加");
   await page.locator('#scr-knowledge-domain [data-edit-artifact="readme"]').click();
@@ -3206,13 +3588,21 @@ test("desktop prototype UI manages domains and artifact types", async ({ page })
   await page.locator("#scr-knowledge-domain").getByRole("button", { name: "成果物を追加" }).click();
   const rubricModal = page.locator("#app-dynamic-modal");
   await expect(rubricModal).toBeVisible();
+  await expect(rubricModal).toContainText("成果物名");
   await rubricModal.locator('input[name="display_name"]').fill("FAQ");
   const faqArtifactId = await rubricModal.locator('input[name="id"]').inputValue();
   await expect(rubricModal.locator('input[name="domain_id"]')).toHaveValue(supportDomainId);
   await expect(rubricModal.locator('select[name="domain_id"]')).toHaveCount(0);
-  await rubricModal.locator('textarea[name="description"]').fill("よくある質問の回答");
-  await rubricModal.locator('textarea[name="knowledge"]').fill("FAQテンプレート");
-  await expect(rubricModal).toContainText("ルーブリックが未入力です");
+  await expect(rubricModal.locator('textarea[name="description"]')).toBeDisabled();
+  await expect(rubricModal.locator('textarea[name="knowledge"]')).toBeDisabled();
+  await expect(rubricModal.locator('textarea[name="rubric"]')).toBeDisabled();
+  await expect(rubricModal.getByRole("button", { name: "保存" })).toBeDisabled();
+  await rubricModal.getByRole("button", { name: "この名前で定義を生成" }).click();
+  await expect(rubricModal.locator('textarea[name="description"]')).toBeEnabled();
+  await expect(rubricModal.locator('textarea[name="knowledge"]')).toHaveValue(/正常系、異常系、境界条件/);
+  await expect(rubricModal.locator('textarea[name="rubric"]')).toHaveValue(/重大な不足/);
+  await expect(rubricModal).toContainText("精密度を検証した初期定義を生成しました");
+  await expect(rubricModal).toContainText("13観点の網羅性を検証済み");
   await expect(rubricModal).toContainText("ルーブリック（評価基準）");
   await expect(rubricModal).not.toContainText("改善案があります");
   await rubricModal.locator('textarea[name="rubric"]').fill("## 正確性 (60)\n具体的である\n\n## 正確性 (40)\n根拠がある");
@@ -3220,15 +3610,41 @@ test("desktop prototype UI manages domains and artifact types", async ({ page })
   await rubricModal.getByRole("button", { name: "保存" }).click();
   await expect(rubricModal).toContainText("ルーブリックを保存できませんでした");
   await expect(rubricModal).toContainText("項目名が重複しています: 正確性");
-  await rubricModal.getByRole("button", { name: "評価基準をAIで作成" }).click();
-  await expect(rubricModal.locator('textarea[name="rubric"]')).toHaveValue(/ドメイン知識の反映/);
+  await rubricModal.getByRole("button", { name: "この名前で定義を生成" }).click();
+  await expect(rubricModal.locator('textarea[name="rubric"]')).toHaveValue(/検証証跡/);
   await expect(rubricModal).toContainText("形式OK");
-  await expect(rubricModal).toContainText("4項目 / 合計100点");
-  await rubricModal.getByRole("button", { name: "保存" }).click();
+  await expect(rubricModal).toContainText("8項目 / 合計100点");
+  await expect(rubricModal.getByText("AIで成果物定義を改善")).toBeVisible();
+  await expect(rubricModal.getByText("AIを使って作成指示を改善")).toHaveCount(0);
+  const descriptionBeforeImprovement = await rubricModal.locator('textarea[name="description"]').inputValue();
+  const knowledgeBeforeImprovement = await rubricModal.locator('textarea[name="knowledge"]').inputValue();
+  const rubricBeforeImprovement = await rubricModal.locator('textarea[name="rubric"]').inputValue();
+  await rubricModal.locator('textarea[name="definition_feedback"]').fill("根拠を具体化し、作成指示と評価基準を対応づけてください");
+  await rubricModal.getByRole("button", { name: "改善案を作成" }).click();
+  const definitionReview = page.locator("#artifact-definition-review");
+  await expect(definitionReview).toBeVisible();
+  await expect(definitionReview).toContainText("AIの改善案を確認");
+  await expect(definitionReview).toContainText("作成指示");
+  await expect(definitionReview).toContainText("ルーブリック（評価基準）");
+  await expect(definitionReview.locator(".diff .del")).not.toHaveCount(0);
+  await expect(definitionReview.locator(".diff .add")).not.toHaveCount(0);
+  await expect(rubricModal.locator('textarea[name="description"]')).toHaveValue(descriptionBeforeImprovement);
+  await expect(rubricModal.locator('textarea[name="knowledge"]')).toHaveValue(knowledgeBeforeImprovement);
+  await expect(rubricModal.locator('textarea[name="rubric"]')).toHaveValue(rubricBeforeImprovement);
+  await definitionReview.getByRole("button", { name: "コメントを修正" }).click();
+  await expect(definitionReview).toHaveCount(0);
+  await expect(rubricModal.locator('textarea[name="definition_feedback"]')).toHaveValue("根拠を具体化し、作成指示と評価基準を対応づけてください");
+  await expect(rubricModal.locator('textarea[name="knowledge"]')).toHaveValue(knowledgeBeforeImprovement);
+  await rubricModal.getByRole("button", { name: "改善案を作成" }).click();
+  await expect(definitionReview).toBeVisible();
+  await definitionReview.locator('input[value="description"]').uncheck();
+  await definitionReview.getByRole("button", { name: "選択した変更を保存" }).click();
+  await expect(definitionReview).toHaveCount(0);
+  await expect(rubricModal).toHaveCount(0);
 
   await expect(domainPage).toContainText("保存結果: FAQ");
   await expect(domainPage).toContainText("成果物の作成指示とルーブリックを更新しました。作成とレビューの両方に渡されます。");
-  await expect(domainPage).toContainText("ドメイン: サポート文書 · 作成指示 1件 · 4項目 / 合計100点");
+  await expect(domainPage).toContainText("ドメイン: サポート文書 · 作成指示 16件 · 8項目 / 合計100点");
   await expect(domainPage).toContainText("FAQ");
   await expect(domainPage).toBeVisible();
   await page.locator('#scr-knowledge-domain [data-domain-tab="basic"]').click();
@@ -3247,8 +3663,8 @@ test("desktop prototype UI manages domains and artifact types", async ({ page })
   await page.locator(`[data-delete-artifact-row="${faqArtifactId}"]`).click();
   await expect(page.locator("#app-dynamic-modal")).toContainText("FAQ を サポート文書 から削除します");
   await expect(page.locator("#app-dynamic-modal")).toContainText("作成指示");
-  await expect(page.locator("#app-dynamic-modal")).toContainText("1件");
-  await expect(page.locator("#app-dynamic-modal")).toContainText("4項目 / 100点");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("16件");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("8項目 / 100点");
   await expect(page.locator("#app-dynamic-modal")).toContainText("過去のワーク履歴と実行記録は残ります");
   await expect(page.locator("#app-dynamic-modal")).toContainText("新しいワークへ自動注入されません");
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "キャンセル" }).click();
@@ -3260,7 +3676,7 @@ test("desktop prototype UI manages domains and artifact types", async ({ page })
   await expect(page.locator(`[data-edit-artifact="${faqArtifactId}"]`)).toHaveCount(0);
   await expect(page.locator("#scr-knowledge-domain.screen.active")).toContainText("削除結果: FAQ");
   await expect(page.locator("#scr-knowledge-domain.screen.active")).toContainText("成果物を削除しました。新しいワークにはこの作成指示とルーブリックは自動注入されません。");
-  await expect(page.locator("#scr-knowledge-domain.screen.active")).toContainText("ドメイン: サポート文書 · 作成指示 1件 · ルーブリック 4項目 / 100点");
+  await expect(page.locator("#scr-knowledge-domain.screen.active")).toContainText("ドメイン: サポート文書 · 作成指示 16件 · ルーブリック 8項目 / 100点");
   await page.locator("#scr-knowledge-domain").getByRole("button", { name: "ナレッジ一覧へ" }).click();
 
   await page.locator(`[data-delete-domain-row="${supportDomainId}"]`).click();
@@ -3272,16 +3688,20 @@ test("desktop prototype UI manages domains and artifact types", async ({ page })
 
   const calls = await page.evaluate(() => window.__nagareDesktopCalls);
   const domainCall = calls.find((call) => call.command === "save_domain");
-  const rubricDraftCall = calls.find((call) => call.command === "generate_rubric_draft");
+  const definitionCall = calls.find((call) => call.command === "generate_artifact_definition");
+  const refinementCall = calls.find((call) => call.command === "refine_artifact_definition");
   const artifactCall = calls.find((call) => call.command === "save_artifact_type");
   expect(domainCall.payload.request.id).toBe(supportDomainId);
   expect(domainCall.payload.request.shared_knowledge).toContain("問い合わせ分類");
-  expect(rubricDraftCall.payload.request.domain_id).toBe(supportDomainId);
-  expect(rubricDraftCall.payload.request.display_name).toBe("FAQ");
-  expect(rubricDraftCall.payload.request.knowledge).toEqual(["FAQテンプレート"]);
+  expect(definitionCall.payload.request.domain_id).toBe(supportDomainId);
+  expect(definitionCall.payload.request.artifact_name).toBe("FAQ");
+  expect(refinementCall.payload.request.target).toBeUndefined();
+  expect(refinementCall.payload.request.feedback).toBe("根拠を具体化し、作成指示と評価基準を対応づけてください");
   expect(artifactCall.payload.request.id).toBe(faqArtifactId);
   expect(artifactCall.payload.request.domain_id).toBe(supportDomainId);
-  expect(artifactCall.payload.request.rubric).toContain("## ドメイン知識の反映 (20)");
+  expect(artifactCall.payload.request.description).toBe(descriptionBeforeImprovement);
+  expect(artifactCall.payload.request.knowledge).toContain("根拠一覧");
+  expect(artifactCall.payload.request.rubric).toContain("作成指示ID");
   expect(calls.map((call) => call.command)).toEqual(expect.arrayContaining([
     "delete_artifact_type_command",
     "delete_domain_command",
@@ -3316,6 +3736,7 @@ test("desktop prototype UI auto-generates domain and artifact ids from display n
   await expect(rubricModal.locator('input[name="id"]')).toHaveValue("faq");
   await expect(rubricModal.locator('input[name="domain_id"]')).toHaveValue("support-docs");
   await expect(rubricModal.locator('select[name="domain_id"]')).toHaveCount(0);
+  await rubricModal.getByRole("button", { name: "この名前で定義を生成" }).click();
   await rubricModal.locator('textarea[name="description"]').fill("Frequently asked questions");
   await rubricModal.locator('textarea[name="knowledge"]').fill("FAQ template");
   await rubricModal.locator('textarea[name="rubric"]').fill("## 正確性 (100)\n具体的である");
@@ -3341,7 +3762,7 @@ test("desktop prototype UI keeps knowledge operation failures visible in context
   await installTauriMock(page, initial, {
     failCommands: {
       save_domain: "domain store locked",
-      generate_rubric_draft: "rubric generator offline",
+      refine_artifact_definition: "artifact definition generator offline",
       save_artifact_type: "artifact store locked",
       delete_artifact_type_command: "artifact is still referenced",
       delete_domain_command: "domain is still referenced",
@@ -3369,17 +3790,18 @@ test("desktop prototype UI keeps knowledge operation failures visible in context
   await page.locator('[data-domain-detail="product-docs"]').click();
   await page.locator('#scr-knowledge-domain [data-domain-tab="artifacts"]').click();
   await page.locator('#scr-knowledge-domain [data-edit-artifact="readme"]').click();
-  await page.locator("#app-dynamic-modal").getByRole("button", { name: "評価基準をAIで作成" }).click();
-  await expect(page.locator("#app-dynamic-modal")).toContainText("評価基準をAIで作成できませんでした");
-  await expect(page.locator("#app-dynamic-modal")).toContainText("rubric generator offline");
-  await expect(page.locator("#app-dynamic-modal")).toContainText("成果物の説明、作成指示、ドメイン共通知識を確認");
+  await page.locator('#app-dynamic-modal textarea[name="definition_feedback"]').fill("重大な不足と対応する作成指示を具体化してください");
+  await page.locator('#app-dynamic-modal [data-propose-artifact-improvement]').click();
+  await expect(page.locator("#app-dynamic-modal")).toContainText("成果物定義の改善案を作成できませんでした");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("artifact definition generator offline");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("現在の定義と修正コメントを確認");
 
   await page.locator('#app-dynamic-modal textarea[name="rubric"]').fill("## 手順の再現性 (100)\n手順が再現できる");
   await expect(page.locator("#app-dynamic-modal")).toContainText("形式OK");
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "保存" }).click();
   await expect(page.locator("#app-dynamic-modal")).toContainText("成果物を保存できませんでした");
   await expect(page.locator("#app-dynamic-modal")).toContainText("artifact store locked");
-  await expect(page.locator("#app-dynamic-modal")).toContainText("表示名、ドメイン、説明、ルーブリック形式を確認");
+  await expect(page.locator("#app-dynamic-modal")).toContainText("成果物名、説明、作成指示、ルーブリック形式を確認");
 
   await page.locator("#app-dynamic-modal").getByRole("button", { name: "閉じる" }).click();
   await page.locator('[data-delete-artifact-row="readme"]').click();

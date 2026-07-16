@@ -102,7 +102,7 @@ fn static_ui_export_writes_board_and_item_detail() {
     assert!(index.contains("確認キュー"));
     assert!(index.contains("attention-row"));
     assert!(index.contains("criteria"));
-    assert!(index.contains("回復案"));
+    assert!(index.contains("要対応"));
     assert!(index.contains("Needs user answer"));
     assert!(index.contains("追加の方針は？"));
     let detail = fs::read_to_string(out_dir.join("items").join(format!("{}.html", item.id)))
@@ -111,9 +111,8 @@ fn static_ui_export_writes_board_and_item_detail() {
     assert!(detail.contains("Human Input Panel"));
     assert!(detail.contains("textarea"));
     assert!(detail.contains("Copy"));
-    assert!(detail.contains(&format!("nagare item run {} --prompt", item.id)));
     assert!(detail.contains(&format!("nagare item recover accept {}", item.id)));
-    assert!(detail.contains("missing_artifact / request_changes"));
+    assert!(detail.contains("review_changes / rerun_same_agent"));
     assert!(detail.contains("Workflow Decision"));
     assert!(detail.contains("Approval Gate"));
     assert!(detail.contains("Agent Output Notes"));

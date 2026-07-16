@@ -170,7 +170,9 @@ pub fn apply_recovery_plan(
     let plan = recovery_plan_for_apply(&ledger, work_item_id, input.recovery_plan_id)?.clone();
     if !matches!(
         plan.action,
-        RecoveryAction::RerunSameAgent | RecoveryAction::RerunWithContractReminder
+        RecoveryAction::RerunSameAgent
+            | RecoveryAction::RerunWithContractReminder
+            | RecoveryAction::RequestChanges
     ) {
         return Err(NagareError::InvalidState(format!(
             "recovery plan `{}` action `{}` cannot be applied as an agent rerun",
@@ -196,6 +198,15 @@ pub fn apply_recovery_plan(
             purpose,
         },
     )?;
+    let mut updated_ledger = load_ledger(&layout)?;
+    if let Some(applied_plan) = updated_ledger
+        .recovery_plans
+        .iter_mut()
+        .find(|candidate| candidate.id == plan.id)
+    {
+        applied_plan.status = RecoveryPlanStatus::Superseded;
+        save_ledger(&layout, &updated_ledger)?;
+    }
     Ok(ApplyRecoveryPlanResult { plan, run })
 }
 
@@ -251,11 +262,15 @@ fn recovery_plans_for_snapshot(
     locale: &str,
 ) -> Result<Vec<RecoveryPlan>, NagareError> {
     let primary = recovery_plan_for_snapshot(snapshot, layout, ledger, locale)?;
-    let mut plans = vec![primary];
-    plans.extend(additional_recovery_candidates(
-        snapshot, layout, ledger, locale,
-    )?);
-    Ok(plans)
+    if primary.failure_class != "continue_workflow" {
+        return Ok(vec![primary]);
+    }
+    let additional = additional_recovery_candidates(snapshot, layout, ledger, locale)?;
+    if additional.is_empty() {
+        Ok(vec![primary])
+    } else {
+        Ok(additional)
+    }
 }
 
 fn recovery_plan_for_snapshot(
@@ -278,9 +293,8 @@ fn recovery_plan_for_snapshot(
     let unparsed = latest_unparsed_output(snapshot);
     let latest_review_change = snapshot
         .review_results
-        .iter()
-        .rev()
-        .find(|review| review.verdict == ReviewVerdict::RequestChanges);
+        .last()
+        .filter(|review| review.verdict == ReviewVerdict::RequestChanges);
     let notes_missing_output = latest_output_missing_notes(snapshot);
 
     let (
@@ -437,10 +451,37 @@ fn additional_recovery_candidates(
         .iter()
         .rev()
         .find(|run| run.purpose == AgentRunPurpose::Work);
-    let has_diff = snapshot
-        .artifacts
-        .iter()
-        .any(|artifact| artifact.artifact_type == "diff_patch");
+    let has_change_evidence = latest_work_run.is_some_and(|run| {
+        snapshot.execution_records.iter().any(|record| {
+            record.agent_run_id.as_deref() == Some(run.id.as_str())
+                && matches!(record.record_type.as_str(), "changed_files" | "diff_patch")
+        })
+    });
+
+    if latest_work_run.is_some()
+        && !has_change_evidence
+        && !snapshot.item.expected_artifacts.is_empty()
+    {
+        plans.push(RecoveryPlan {
+            id: ledger.next_id("recovery"),
+            work_item_id: snapshot.item.id.clone(),
+            status: RecoveryPlanStatus::Draft,
+            action: RecoveryAction::RerunSameAgent,
+            target_agent_profile_id: latest_work_agent,
+            failure_class: "no_diff".to_string(),
+            reason: "no_diff_artifact".to_string(),
+            summary: "No diff artifact was collected after the latest work run.".to_string(),
+            source_event_id: latest_work_run.map(|run| run.id.clone()),
+            command_hint: Some(format!("nagare item run {}", snapshot.item.id)),
+            prompt_hint: Some(
+                "Create concrete workspace changes or explain why no diff is expected.".to_string(),
+            ),
+            warnings: Vec::new(),
+            locale: locale.to_string(),
+            created_at: timestamp(),
+        });
+        return Ok(plans);
+    }
 
     let missing_expected_artifacts = missing_expected_artifacts(snapshot);
     if !missing_expected_artifacts.is_empty() {
@@ -462,27 +503,6 @@ fn additional_recovery_candidates(
                 "Produce or reference the missing expected artifacts: {}.",
                 missing_expected_artifacts.join(", ")
             )),
-            warnings: Vec::new(),
-            locale: locale.to_string(),
-            created_at: timestamp(),
-        });
-    }
-
-    if latest_work_run.is_some() && !has_diff && !snapshot.item.expected_artifacts.is_empty() {
-        plans.push(RecoveryPlan {
-            id: ledger.next_id("recovery"),
-            work_item_id: snapshot.item.id.clone(),
-            status: RecoveryPlanStatus::Draft,
-            action: RecoveryAction::RerunSameAgent,
-            target_agent_profile_id: latest_work_agent,
-            failure_class: "no_diff".to_string(),
-            reason: "no_diff_artifact".to_string(),
-            summary: "No diff artifact was collected after the latest work run.".to_string(),
-            source_event_id: latest_work_run.map(|run| run.id.clone()),
-            command_hint: Some(format!("nagare item run {}", snapshot.item.id)),
-            prompt_hint: Some(
-                "Create concrete workspace changes or explain why no diff is expected.".to_string(),
-            ),
             warnings: Vec::new(),
             locale: locale.to_string(),
             created_at: timestamp(),

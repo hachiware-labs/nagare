@@ -218,7 +218,10 @@ pub(crate) struct DispatchPlanSuggestion {
 pub(crate) fn parse_dispatch_plan_suggestion(output: &str) -> Option<DispatchPlanSuggestion> {
     let text = dispatch_text_output(output);
     let json = extract_json_object(&text).or_else(|| extract_json_object(output))?;
-    let mut suggestion = serde_json::from_str::<DispatchPlanSuggestion>(&json).ok()?;
+    let mut value = serde_json::from_str::<Value>(&json).ok()?;
+    normalize_dispatch_list_field(&mut value, "risks");
+    normalize_dispatch_list_field(&mut value, "missing_information");
+    let mut suggestion = serde_json::from_value::<DispatchPlanSuggestion>(value).ok()?;
     suggestion.target_agent_profile_id = suggestion
         .target_agent_profile_id
         .map(|id| id.trim().to_string())
@@ -230,6 +233,19 @@ pub(crate) fn parse_dispatch_plan_suggestion(output: &str) -> Option<DispatchPla
     suggestion.risks = normalize_text_list(suggestion.risks);
     suggestion.missing_information = normalize_text_list(suggestion.missing_information);
     Some(suggestion)
+}
+
+fn normalize_dispatch_list_field(value: &mut Value, key: &str) {
+    let Some(object) = value.as_object_mut() else {
+        return;
+    };
+    let Some(item) = object.get_mut(key) else {
+        return;
+    };
+    let Some(text) = item.as_str().map(str::trim).filter(|text| !text.is_empty()) else {
+        return;
+    };
+    *item = Value::Array(vec![Value::String(text.to_string())]);
 }
 
 pub(crate) fn dispatch_text_output(output: &str) -> String {

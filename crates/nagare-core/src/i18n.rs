@@ -683,9 +683,15 @@ pub(crate) fn localized_output_contract_instruction(
             ),
         },
         AgentRunPurpose::Review => format!(
-            "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\n{common}\n\n## Nagare Review\nverdict: pass|request_changes|blocked\noverall_score: 0-100\nsummary:\n- concise review summary\ncompleted:\n- what you reviewed, including CI/tests/checks when applicable\ncriteria:\n- <criterion>: passed|failed|unknown - note\nfindings:\n- finding or none\nreferenced_artifacts:\n- requested deliverable artifact id/path or none\nrequested_changes:\n- requested change or none\nquestions:\n- question or none\nnext_notes:\n- handoff hint for the next dispatch or agent\nnext_action: approve|run_agent|answer_question|stop",
+            "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\n{common}\n{review_guard}\n\n## Nagare Review\nverdict: pass|request_changes|blocked\noverall_score: 0-100\nsummary:\n- concise review summary\ncompleted:\n- what you reviewed, including CI/tests/checks when applicable\ncriteria:\n- <copy each acceptance criterion exactly>: passed|failed|unknown - evidence\n- Include every acceptance criterion once. Do not replace them with rubric headings.\nrubric_scores:\n- <copy each artifact rubric heading exactly> | points=<0-max_points> | max_points=<heading points> | verdict=pass|partial|fail|not_applicable | evidence=<specific evidence>\n- When an artifact rubric is provided, include every rubric heading exactly once. Keep the heading name and max_points unchanged, and make the points total equal overall_score.\nfindings:\n- finding or none\nreferenced_artifacts:\n- requested deliverable artifact id/path or none\nrequested_changes:\n- requested change or none\nquestions:\n- question or none\nnext_notes:\n- handoff hint for the next dispatch or agent\nnext_action: approve|run_agent|answer_question|stop",
             contract_id = contract.contract,
             pack = contract.instruction_pack,
+            review_guard = match i18n.language() {
+                NagareLanguage::Ja =>
+                    "レビューは読み取り専用です。成果物やワークスペースのファイルを作成・変更せず、実行開始時点の内容だけを評価してください。",
+                NagareLanguage::En =>
+                    "The review is read-only. Do not create or modify artifacts or workspace files; evaluate only the content present when the run starts.",
+            },
         ),
         AgentRunPurpose::Work => format!(
             "Nagare output contract: {contract_id}\nInstruction pack: {pack}\n{required}\n{common}\n\n## Nagare Result\nstatus: succeeded|blocked|failed\nsummary:\n- final user-facing result or concise answer\ncompleted:\n- completed work item\nartifacts:\n- requested deliverable artifact path/id or none\nevidence:\n- evidence or none\nquestions:\n- question or none\nnext_notes:\n- handoff hint for the next dispatch or agent\nnext_action: review|answer_question|handoff|stop",
@@ -844,7 +850,7 @@ fn toml_escape(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::default_work_output_contract;
+    use crate::{default_review_output_contract, default_work_output_contract};
 
     #[test]
     fn locale_prefix_selects_supported_language() {
@@ -868,5 +874,12 @@ mod tests {
         );
         assert!(instruction.contains("この最終ブロックは必須です。"));
         assert!(instruction.contains("## Nagare Result"));
+
+        let review_instruction = localized_output_contract_instruction(
+            "ja-JP",
+            AgentRunPurpose::Review,
+            &default_review_output_contract(),
+        );
+        assert!(review_instruction.contains("レビューは読み取り専用です。"));
     }
 }

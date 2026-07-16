@@ -11,7 +11,7 @@ use nagare_core::{
     WorkflowMode, accept_dispatch_plan, accept_recovery_plan, add_agent_profile, add_skill_package,
     advance_work_item_once, advance_work_item_until_blocked, agent_doctor, agent_probe,
     answer_work_item, apply_recovery_plan, approve_work_item, create_handoff, create_recovery_plan,
-    create_work_item_with_input, delete_agent_profile, doctor, get_agent_profile,
+    create_work_item_with_input, delete_agent_profile, delete_work_item, doctor, get_agent_profile,
     get_locale_settings, get_nagare_agent_settings, get_work_item_snapshot, init_project,
     list_agent_profiles, list_artifact_types, list_domains, list_skill_packages,
     list_skill_set_catalog, list_work_items, reject_work_item, resolve_rule_for_path,
@@ -740,6 +740,7 @@ fn locale_use_command(args: &[String]) -> Result<(), String> {
 fn item_command(args: &[String]) -> Result<(), String> {
     match args.first().map(String::as_str) {
         Some("create") => item_create_command(&args[1..]),
+        Some("delete") => item_delete_command(&args[1..]),
         Some("list") => item_list_command(&args[1..]),
         Some("show") => item_show_command(&args[1..]),
         Some("preview") => item_preview_command(&args[1..]),
@@ -752,7 +753,7 @@ fn item_command(args: &[String]) -> Result<(), String> {
         Some("answer") => item_answer_command(&args[1..]),
         Some(command) => Err(format!("unknown item command `{command}`")),
         None => Err(
-            "item command required: create, list, show, preview, dispatch, recover, run, review, synthesize, advance, answer"
+            "item command required: create, delete, list, show, preview, dispatch, recover, run, review, synthesize, advance, answer"
                 .to_string(),
         ),
     }
@@ -786,6 +787,17 @@ fn item_create_command(args: &[String]) -> Result<(), String> {
         "created {} {} workflow_mode={} approval_policy={}",
         result.item.id, result.item.status, result.item.workflow_mode, result.item.approval_policy
     );
+    Ok(())
+}
+
+fn item_delete_command(args: &[String]) -> Result<(), String> {
+    let parsed = ParsedArgs::parse(args)?;
+    let work_item_id = parsed
+        .positionals
+        .first()
+        .ok_or_else(|| "item delete requires a work item id".to_string())?;
+    let item = delete_work_item(parsed.root()?, work_item_id).map_err(|error| error.to_string())?;
+    println!("item {} deleted", item.id);
     Ok(())
 }
 

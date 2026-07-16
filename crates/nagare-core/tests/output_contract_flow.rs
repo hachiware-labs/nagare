@@ -585,6 +585,10 @@ fn review_pass_and_request_changes_drive_work_item_status() {
     let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
     assert_eq!(snapshot.item.status, WorkItemStatus::ReadyForReview);
     assert_eq!(snapshot.completion.next_action, "synthesize");
+    assert_ne!(
+        snapshot.completion.blocking_reason.as_deref(),
+        Some("Add review evidence before approval.")
+    );
     assert_eq!(snapshot.review_results.len(), 2);
     assert_eq!(snapshot.review_results[1].verdict, ReviewVerdict::Pass);
     assert_eq!(event_count(&snapshot, "review"), 2);
@@ -669,6 +673,113 @@ fn dispatch_preview_selects_registered_agent_and_records_timeline() {
     assert!(snapshot.timeline.iter().any(|event| {
         event.event_type == "dispatch" && event.actor.as_deref() == Some("worker")
     }));
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn dispatch_preview_limits_candidates_to_the_matching_artifact_worker() {
+    let root = test_root("artifact-worker-routing");
+    init_project(&root).expect("project should init");
+    add_domain(
+        &root,
+        AddDomainInput {
+            id: "software-development",
+            display_name: "Software Development",
+            description: "Software work",
+            shared_knowledge: Vec::new(),
+            common_rubric: Vec::new(),
+            dispatch_hints: Vec::new(),
+            workflow: DomainWorkflowOverride::default(),
+        },
+    )
+    .expect("domain should add");
+    for (id, display_name) in [
+        ("software-requirements", "Requirements"),
+        ("source-code-change", "Source code"),
+    ] {
+        add_artifact_type(
+            &root,
+            AddArtifactTypeInput {
+                id,
+                domain_id: Some("software-development"),
+                display_name,
+                description: "",
+                artifact_types: Vec::new(),
+                rubric: Vec::new(),
+                dispatch_hints: Vec::new(),
+                workflow: DomainWorkflowOverride::default(),
+            },
+        )
+        .expect("artifact type should add");
+    }
+    for (id, artifact_type_id) in [
+        ("requirements-worker", "software-requirements"),
+        ("code-worker", "source-code-change"),
+    ] {
+        add_agent_profile(
+            &root,
+            AddAgentProfileInput {
+                id,
+                display_name: id,
+                runtime: "codex-local",
+                adapter: "process.codex-cli",
+                role: "worker",
+                working_dir: ".",
+                description: "artifact-specific worker",
+                specialties: Vec::new(),
+                skill_set_ids: Vec::new(),
+                domain_ids: vec!["software-development".to_string()],
+                artifact_type_ids: vec![artifact_type_id.to_string()],
+                mcp_connection_ids: Vec::new(),
+                managed_by: None,
+                model: AgentModelSelection::default(),
+                external: ExternalAgentBinding::default(),
+            },
+        )
+        .expect("worker should add");
+    }
+    let item = create_work_item_with_input(
+        &root,
+        CreateWorkItemInput {
+            title: "Define requirements".to_string(),
+            domain_id: Some("software-development".to_string()),
+            artifact_type_id: Some("software-requirements".to_string()),
+            ..CreateWorkItemInput::default()
+        },
+    )
+    .expect("item should create")
+    .item;
+    fs::write(
+        root.join("dispatch.json"),
+        r#"{"target_agent_profile_id":"code-worker","summary":"Incorrect worker selection."}"#,
+    )
+    .expect("dispatch output should write");
+
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "organizer",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(cat_command("dispatch.json").as_str()),
+            purpose: AgentRunPurpose::DispatchPreview,
+        },
+    )
+    .expect("dispatch preview should complete");
+
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
+    let plan = snapshot
+        .dispatch_plans
+        .last()
+        .expect("dispatch plan should exist");
+    assert_eq!(plan.target_agent_profile_id, "requirements-worker");
+    assert!(
+        plan.selection_warnings
+            .iter()
+            .any(|warning| warning.contains("code-worker"))
+    );
     fs::remove_dir_all(root).ok();
 }
 
@@ -1103,6 +1214,139 @@ fn work_run_collects_changed_files_and_diff_execution_records() {
 }
 
 #[test]
+fn recovery_does_not_report_no_diff_when_untracked_changes_are_collected() {
+    let root = test_root("untracked-execution-record-collection");
+    fs::create_dir_all(&root).expect("root should create");
+    Command::new("git")
+        .arg("-C")
+        .arg(&root)
+        .arg("init")
+        .status()
+        .expect("git init should run");
+    init_project(&root).expect("project should init");
+    let item = create_work_item_with_input(
+        &root,
+        CreateWorkItemInput {
+            title: "Collect untracked execution records".to_string(),
+            expected_artifacts: vec!["expected.txt".to_string()],
+            ..CreateWorkItemInput::default()
+        },
+    )
+    .expect("item")
+    .item;
+    let command = if cfg!(windows) {
+        "echo created> created.txt && echo ## Nagare Result && echo status: succeeded && echo summary: && echo - created a file && echo completed: && echo - created an untracked file && echo artifacts: && echo - created.txt && echo evidence: && echo - verified file creation && echo questions: && echo - none && echo next_notes: && echo - ready for review && echo next_action: review"
+    } else {
+        "printf created > created.txt; printf '## Nagare Result\\nstatus: succeeded\\nsummary:\\n- created a file\\ncompleted:\\n- created an untracked file\\nartifacts:\\n- created.txt\\nevidence:\\n- verified file creation\\nquestions:\\n- none\\nnext_notes:\\n- ready for review\\nnext_action: review\\n'"
+    };
+
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "worker",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(command),
+            purpose: AgentRunPurpose::Work,
+        },
+    )
+    .expect("work run should collect untracked changed files");
+
+    create_recovery_plan(&root, &item.id).expect("recovery should create");
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
+    assert!(
+        snapshot
+            .execution_records
+            .iter()
+            .any(|record| record.record_type == "changed_files")
+    );
+    assert!(
+        !snapshot
+            .recovery_plans
+            .iter()
+            .any(|plan| plan.failure_class == "no_diff")
+    );
+    assert!(
+        snapshot
+            .recovery_plans
+            .iter()
+            .any(|plan| plan.failure_class == "missing_artifact")
+    );
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn recovery_records_no_diff_as_the_single_primary_reason_when_git_has_no_changes() {
+    let root = test_root("no-diff-recovery");
+    fs::create_dir_all(&root).expect("root should create");
+    Command::new("git")
+        .arg("-C")
+        .arg(&root)
+        .arg("init")
+        .status()
+        .expect("git init should run");
+    fs::write(
+        root.join("result.md"),
+        "## Nagare Result\nstatus: succeeded\nsummary:\n- verified that no workspace change was made\ncompleted:\n- inspected the requested implementation\nartifacts:\n- none\nevidence:\n- Git working tree has no application change\nquestions:\n- none\nnext_notes:\n- explain or create the expected file\nnext_action: review\n",
+    )
+    .expect("result should write");
+    run_git(&root, &["add", "result.md"]);
+    run_git(
+        &root,
+        &[
+            "-c",
+            "user.email=nagare@example.invalid",
+            "-c",
+            "user.name=Nagare Test",
+            "commit",
+            "-m",
+            "baseline",
+        ],
+    );
+    init_project(&root).expect("project should init");
+    let item = create_work_item_with_input(
+        &root,
+        CreateWorkItemInput {
+            title: "Verify no-diff recovery reason".to_string(),
+            expected_artifacts: vec!["docs/no-change.md".to_string()],
+            ..CreateWorkItemInput::default()
+        },
+    )
+    .expect("item")
+    .item;
+
+    run_work_item_with_input(
+        &root,
+        &item.id,
+        RunWorkItemInput {
+            agent_profile_id: "worker",
+            dispatch_plan_id: None,
+            path: None,
+            prompt: None,
+            dev_command: Some(cat_command("result.md").as_str()),
+            purpose: AgentRunPurpose::Work,
+        },
+    )
+    .expect("work should run");
+    create_recovery_plan(&root, &item.id).expect("recovery should create");
+
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
+    assert_eq!(snapshot.recovery_plans.len(), 1);
+    assert_eq!(snapshot.recovery_plans[0].failure_class, "no_diff");
+    assert_eq!(snapshot.recovery_plans[0].reason, "no_diff_artifact");
+    assert_eq!(snapshot.completion.next_action, "recover");
+    assert!(
+        !snapshot
+            .recovery_plans
+            .iter()
+            .any(|plan| plan.failure_class == "missing_artifact")
+    );
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
 fn completion_state_points_to_work_after_review_changes() {
     let root = test_root("completion-review-changes");
     init_project(&root).expect("project should init");
@@ -1111,9 +1355,16 @@ fn completion_state_points_to_work_after_review_changes() {
         "## Nagare Result\nstatus: succeeded\nsummary:\n- work finished\nnext_action: review\n",
     )
     .expect("done output should write");
-    let item = create_work_item(&root, "Needs recovery", "")
-        .expect("item")
-        .item;
+    let item = create_work_item_with_input(
+        &root,
+        CreateWorkItemInput {
+            title: "Needs recovery".to_string(),
+            expected_artifacts: vec!["docs/output.md".to_string()],
+            ..CreateWorkItemInput::default()
+        },
+    )
+    .expect("item")
+    .item;
     run_work_item_with_input(
         &root,
         &item.id,
@@ -1161,6 +1412,14 @@ fn completion_state_points_to_work_after_review_changes() {
     assert_eq!(first.plan.action, RecoveryAction::RerunSameAgent);
     assert_eq!(first.plan.reason, "changes_requested");
     assert_eq!(first.plan.failure_class, "review_changes");
+    let after_first = get_work_item_snapshot(&root, &item.id).expect("first snapshot");
+    assert_eq!(after_first.recovery_plans.len(), 1);
+    assert!(
+        after_first
+            .recovery_plans
+            .iter()
+            .all(|plan| plan.failure_class != "no_diff")
+    );
     let second = create_recovery_plan(&root, &item.id).expect("second recovery should create");
     assert_eq!(second.plan.status, RecoveryPlanStatus::Draft);
     let accepted =

@@ -767,6 +767,29 @@ fn agent_profile_can_be_updated_as_project_local_override() {
     assert_eq!(profile.description, "Research and writing profile.");
     assert_eq!(profile.specialties, vec!["research", "writing"]);
     assert_eq!(profile.source, AgentProfileSource::ProjectAgentDirectory);
+    assert_eq!(profile.prompt.version, "v1");
+
+    let updated_prompt = update_agent_profile(
+        &root,
+        "draft-agent",
+        UpdateAgentProfileInput {
+            prompt: Some("Write from cited evidence."),
+            ..UpdateAgentProfileInput::default()
+        },
+    )
+    .expect("prompt should update");
+    assert_eq!(updated_prompt.profile.prompt.version, "v2");
+
+    let unchanged_prompt = update_agent_profile(
+        &root,
+        "draft-agent",
+        UpdateAgentProfileInput {
+            prompt: Some("Write from cited evidence."),
+            ..UpdateAgentProfileInput::default()
+        },
+    )
+    .expect("unchanged prompt should save");
+    assert_eq!(unchanged_prompt.profile.prompt.version, "v2");
     fs::remove_dir_all(root).ok();
 }
 
@@ -840,6 +863,7 @@ fn artifact_type_rubric_version_increments_only_when_rubric_changes() {
     .expect("artifact type should be added");
     let profile = get_artifact_type(&root, "faq").expect("artifact type should load");
     assert_eq!(profile.rubric_version, 1);
+    assert_eq!(profile.definition_version, 1);
 
     update_artifact_type(
         &root,
@@ -852,6 +876,7 @@ fn artifact_type_rubric_version_increments_only_when_rubric_changes() {
     .expect("non-rubric update should save");
     let profile = get_artifact_type(&root, "faq").expect("artifact type should load");
     assert_eq!(profile.rubric_version, 1);
+    assert_eq!(profile.definition_version, 2);
 
     update_artifact_type(
         &root,
@@ -869,6 +894,84 @@ fn artifact_type_rubric_version_increments_only_when_rubric_changes() {
     .expect("rubric update should save");
     let profile = get_artifact_type(&root, "faq").expect("artifact type should load");
     assert_eq!(profile.rubric_version, 2);
+    assert_eq!(profile.definition_version, 3);
+
+    update_artifact_type(
+        &root,
+        "faq",
+        UpdateArtifactTypeInput {
+            workflow: Some(DomainWorkflowOverride {
+                progress_mode: Some(WorkflowMode::FinishFirst),
+                approval_policy: None,
+            }),
+            ..UpdateArtifactTypeInput::default()
+        },
+    )
+    .expect("workflow-only update should save");
+    let profile = get_artifact_type(&root, "faq").expect("artifact type should load");
+    assert_eq!(profile.rubric_version, 2);
+    assert_eq!(profile.definition_version, 3);
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn domain_knowledge_version_increments_only_when_prompt_knowledge_changes() {
+    let root = test_root("domain-knowledge-version");
+    init_project(&root).expect("project should init");
+    add_domain(
+        &root,
+        AddDomainInput {
+            id: "knowledge-test",
+            display_name: "Knowledge Test",
+            description: "Initial description",
+            shared_knowledge: vec!["Initial knowledge".to_string()],
+            common_rubric: vec!["Initial rubric".to_string()],
+            dispatch_hints: vec!["Initial hint".to_string()],
+            workflow: DomainWorkflowOverride::default(),
+        },
+    )
+    .expect("domain should be added");
+    assert_eq!(
+        get_domain(&root, "knowledge-test")
+            .expect("domain should load")
+            .knowledge_version,
+        1
+    );
+
+    update_domain(
+        &root,
+        "knowledge-test",
+        UpdateDomainInput {
+            workflow: Some(DomainWorkflowOverride {
+                progress_mode: Some(WorkflowMode::FinishFirst),
+                approval_policy: None,
+            }),
+            ..UpdateDomainInput::default()
+        },
+    )
+    .expect("workflow-only update should save");
+    assert_eq!(
+        get_domain(&root, "knowledge-test")
+            .expect("domain should load")
+            .knowledge_version,
+        1
+    );
+
+    update_domain(
+        &root,
+        "knowledge-test",
+        UpdateDomainInput {
+            shared_knowledge: Some(vec!["Revised knowledge".to_string()]),
+            ..UpdateDomainInput::default()
+        },
+    )
+    .expect("knowledge update should save");
+    assert_eq!(
+        get_domain(&root, "knowledge-test")
+            .expect("domain should load")
+            .knowledge_version,
+        2
+    );
     fs::remove_dir_all(root).ok();
 }
 
@@ -2193,6 +2296,22 @@ fn dispatch_plan_suggestion_parses_agent_json() {
 }
 
 #[test]
+fn dispatch_plan_suggestion_accepts_single_string_diagnostics() {
+    let output = r#"{"target_agent_profile_id":"software-worker","summary":"Use the software worker.","risks":"No blocker.","missing_information":"No additional input."}"#;
+    let suggestion = parse_dispatch_plan_suggestion(output).expect("suggestion should parse");
+
+    assert_eq!(
+        suggestion.target_agent_profile_id.as_deref(),
+        Some("software-worker")
+    );
+    assert_eq!(suggestion.risks, vec!["No blocker.".to_string()]);
+    assert_eq!(
+        suggestion.missing_information,
+        vec!["No additional input.".to_string()]
+    );
+}
+
+#[test]
 fn project_rule_resolution_selects_most_specific_rule() {
     let root = test_root("rule");
     init_project(&root).expect("project should init");
@@ -2294,6 +2413,13 @@ fn run_with_path_records_resolved_skill_context_and_run_packet() {
     assert_eq!(packet.adapter_id, "process.codex-cli");
     assert_eq!(packet.purpose, AgentRunPurpose::DispatchPreview);
     assert_eq!(packet.goal, "Resolve packet");
+    assert_eq!(packet.prompt_version, "v1");
+    assert_eq!(packet.rubric_id, None);
+    assert_eq!(packet.rubric_version, None);
+    assert_eq!(packet.domain_knowledge_id, None);
+    assert_eq!(packet.domain_knowledge_version, None);
+    assert_eq!(packet.artifact_definition_id, None);
+    assert_eq!(packet.artifact_definition_version, None);
     assert!(packet.working_dir.contains("nagare-run-packet"));
     assert_eq!(packet.path.as_deref(), Some("README.md"));
     assert!(packet.project_rule_ids.is_empty());

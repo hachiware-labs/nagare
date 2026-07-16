@@ -596,12 +596,12 @@ fn important_only_policy_stops_for_review_findings() {
 }
 
 #[test]
-fn recovery_classifies_missing_artifact_and_no_diff_candidates() {
+fn recovery_prioritizes_no_diff_over_missing_artifact_symptom() {
     let root = test_root("recovery-intelligence");
     init_project(&root).expect("project should init");
     fs::write(
         root.join("result.md"),
-        "## Nagare Result\nstatus: succeeded\nsummary:\n- work claimed done\nnext_action: review\n",
+        "## Nagare Result\nstatus: succeeded\nsummary:\n- work claimed done\ncompleted:\n- checked the requested work\nartifacts:\n- none\nevidence:\n- no concrete artifact was created\nquestions:\n- none\nnext_notes:\n- recovery should identify missing output\nnext_action: review\n",
     )
     .expect("result should write");
     let item = create_work_item_with_input(
@@ -630,13 +630,11 @@ fn recovery_classifies_missing_artifact_and_no_diff_candidates() {
 
     create_recovery_plan(&root, &item.id).expect("recovery should create candidates");
     let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot");
-    let classes = snapshot
-        .recovery_plans
-        .iter()
-        .map(|plan| plan.failure_class.as_str())
-        .collect::<Vec<_>>();
-    assert!(classes.contains(&"missing_artifact"));
-    assert!(classes.contains(&"no_diff"));
+    assert_eq!(snapshot.completion.state, "blocked");
+    assert_eq!(snapshot.completion.next_action, "recover");
+    assert_eq!(snapshot.recovery_plans.len(), 1);
+    assert_eq!(snapshot.recovery_plans[0].failure_class, "no_diff");
+    assert_eq!(snapshot.recovery_plans[0].reason, "no_diff_artifact");
     fs::remove_dir_all(root).ok();
 }
 
@@ -807,6 +805,8 @@ fn complex_workflow_recovers_from_review_changes_to_approval() {
     assert_eq!(accept_gate.message, "recovery plan acceptance required");
 
     accept_recovery_plan(&root, &item.id, None).expect("recovery should accept");
+    let accepted_snapshot = get_work_item_snapshot(&root, &item.id).expect("accepted snapshot");
+    assert_eq!(accepted_snapshot.completion.next_action, "apply_recovery");
     apply_recovery_plan(
         &root,
         &item.id,
@@ -817,6 +817,14 @@ fn complex_workflow_recovers_from_review_changes_to_approval() {
         },
     )
     .expect("recovery should rerun work");
+    let rerun_snapshot = get_work_item_snapshot(&root, &item.id).expect("rerun snapshot");
+    assert_eq!(rerun_snapshot.completion.next_action, "review");
+    assert!(
+        rerun_snapshot
+            .recovery_plans
+            .iter()
+            .all(|plan| plan.status != RecoveryPlanStatus::Accepted)
+    );
 
     let final_gate = advance_work_item_until_blocked(
         &root,

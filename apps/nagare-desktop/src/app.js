@@ -8,6 +8,10 @@ const NagareApp = (() => {
   let workRefreshTimer = null;
   let activeDetail = null;
   let activeInsightsTab = "analysis";
+  let insightProjectFilter = "";
+  let insightAgentFilter = "";
+  let insightsRunInProgress = false;
+  let lastInsightsRunAt = "";
   let pendingSkillFollowup = null;
   let pendingSkillDeleteResult = null;
   let pendingMcpFollowupId = null;
@@ -29,6 +33,10 @@ const NagareApp = (() => {
     backgroundWorkIds.clear();
     stopWorkRefresh();
     activeDetail = null;
+    insightProjectFilter = "";
+    insightAgentFilter = "";
+    insightsRunInProgress = false;
+    lastInsightsRunAt = "";
     pendingSkillFollowup = null;
     pendingSkillDeleteResult = null;
     pendingMcpFollowupId = null;
@@ -892,7 +900,7 @@ const NagareApp = (() => {
     const displaySteps = detailDisplaySteps(detail);
     const progress = detailProgress(detail);
     const action = actionSurface(detail);
-    const actionBeforeResult = detail.question || hasActiveRecovery(detail);
+    const actionBeforeResult = hasOpenQuestion(detail) || hasActiveRecovery(detail);
     el.innerHTML = `
       <div class="detail-head">
         <h2>${escapeHtml(detail.item.title)}</h2>
@@ -1068,8 +1076,8 @@ const NagareApp = (() => {
   }
 
   function statusSentence(detail) {
-    if (detail.question) return "エージェントから質問が届いています";
-    if (hasActiveRecovery(detail)) return "実行が止まったため、回復方法を選べます";
+    if (hasOpenQuestion(detail)) return "エージェントから質問が届いています";
+    if (hasActiveRecovery(detail)) return "対応が必要です。内容を確認して進めてください";
     if (detail.approval_ready) return primaryResultText(detail) || "レビューが完了し、あなたの確認待ちです";
     if (detail.item.status_kind === "done" && approvalPolicyValue(detail) === "auto_complete_on_review_pass") return "レビュー合格により自動完了しました";
     if (detail.item.status_kind === "done" && approvalPolicyValue(detail) === "manual_on_review_concern") return "レビュー懸念がないため自動完了しました";
@@ -1181,8 +1189,8 @@ const NagareApp = (() => {
   function organizerResultText(detail, resultText, dispatching) {
     if (dispatching && detail.review) return "差し戻し内容を受け取りました。担当エージェントへ再実行の指示として渡します。";
     if (dispatching) return "依頼内容を整理し、担当エージェントを決めています。";
-    if (detail.question) return "作業を進めるために、追加の確認が必要です。";
-    if (hasActiveRecovery(detail)) return "実行が止まっています。回復方法を選ぶと、このワークを続きから再開できます。";
+    if (hasOpenQuestion(detail)) return "作業を進めるために、追加の確認が必要です。";
+    if (hasActiveRecovery(detail)) return "対応が必要です。内容を確認すると、このワークを続きから進められます。";
     if (resultText) return resultText;
     return detail.item?.next_action || "結果が出ると、ここに依頼への回答を表示します。";
   }
@@ -1190,8 +1198,8 @@ const NagareApp = (() => {
   function organizerConclusion(detail, resultText, dispatching) {
     if (dispatching && detail.review) return "差し戻しを受け取り、再実行待ちです";
     if (dispatching) return "担当を整理しています";
-    if (detail.question) return "確認が必要です";
-    if (hasActiveRecovery(detail)) return "回復が必要です";
+    if (hasOpenQuestion(detail)) return "確認が必要です";
+    if (hasActiveRecovery(detail)) return "対応が必要です";
     if (detail.item?.status_kind === "done") return "依頼への対応が完了しました";
     if (resultText) return "依頼への回答を作成しました";
     return "結果を作成中です";
@@ -1234,7 +1242,7 @@ const NagareApp = (() => {
   }
 
   function actionSurface(detail) {
-    if (detail.question) {
+    if (hasOpenQuestion(detail)) {
       const options = questionOptions(detail);
       return `
         <div class="action-panel" style="margin-top:16px;">
@@ -1262,23 +1270,23 @@ const NagareApp = (() => {
       const failed = recoveryFailedStep(detail);
       return `
         <div class="action-panel recover-panel" style="margin-top:16px;">
-          <h3>回復方法を選ぶ</h3>
+          <h3>対応内容を確認</h3>
           <div class="q-body">
             ${failed ? `<b>発生工程:</b> ${escapeHtml(failed.title)} / ${escapeHtml(failed.actor)}（${escapeHtml(failed.state)}）<br>` : ""}
-            ${detail.recovery.target_agent ? `<b>回復対象:</b> ${escapeHtml(detail.recovery.target_agent)}<br>` : ""}
-            <b>原因:</b> ${escapeHtml(detail.recovery.reason || detail.recovery.failure_class)}<br>
-            <b>影響:</b> ${escapeHtml(detail.recovery.impact || "")}<br>
-            <b>完了済み:</b> ${escapeHtml(lines(detail.recovery.handoff_completed).join(" / ") || "-")}<br>
-            <b>次に渡す内容:</b> ${escapeHtml(lines(detail.recovery.handoff_pending).join(" / ") || detail.recovery.summary || "-")}
+            ${detail.recovery.target_agent ? `<b>対応するエージェント:</b> ${escapeHtml(detail.recovery.target_agent)}<br>` : ""}
+            <b>状況:</b> ${escapeHtml(detail.recovery.reason || detail.recovery.failure_class)}<br>
+            <b>対応内容:</b> ${escapeHtml(detail.recovery.impact || "")}<br>
+            <b>これまでの実行:</b> ${escapeHtml(lines(detail.recovery.handoff_completed).join(" / ") || "-")}<br>
+            <b>再実行時の指示:</b> ${escapeHtml(lines(detail.recovery.handoff_pending).join(" / ") || detail.recovery.summary || "-")}
           </div>
           ${detail.recovery.warnings?.length ? `<div class="card" style="padding:8px 10px;margin-top:10px;border-color:var(--warning-line);background:var(--warning-soft);">${detail.recovery.warnings.map((warning) => escapeHtml(warning)).join("<br>")}</div>` : ""}
           ${accepted ? `
             <form data-apply-recovery class="field" style="margin:12px 0 0;">
-              <textarea name="prompt" placeholder="回復時に追加で伝えること（任意）">${escapeHtml(detail.recovery.prompt_hint || "")}</textarea>
-              <div style="display:flex;justify-content:flex-end;margin-top:10px;"><button class="btn btn-primary" type="submit">回復して再開</button></div>
+              <textarea name="prompt" placeholder="追加の指示（任意）">${escapeHtml(detail.recovery.prompt_hint || "")}</textarea>
+              <div style="display:flex;justify-content:flex-end;margin-top:10px;"><button class="btn btn-primary" type="submit">この内容で再実行</button></div>
             </form>
           ` : `
-            <button class="btn btn-primary" style="margin-top:12px;" data-accept-recovery>この回復案を採用</button>
+            <button class="btn btn-primary" style="margin-top:12px;" data-accept-recovery>この内容で進める</button>
           `}
         </div>`;
     }
@@ -1286,12 +1294,12 @@ const NagareApp = (() => {
       const failed = recoveryFailedStep(detail);
       return `
         <div class="action-panel recover-panel" style="margin-top:16px;">
-          <h3>回復案を作成</h3>
+          <h3>対応内容を整理</h3>
           <p class="q-body">
-            実行が止まっています。原因、影響、引き継ぎ内容を整理した回復案を作成します。<br>
+            対応が必要な状況です。次に何をするかを整理します。<br>
             ${failed ? `<b>発生工程:</b> ${escapeHtml(failed.title)} / ${escapeHtml(failed.actor)}（${escapeHtml(failed.state)}）` : ""}
           </p>
-          <button class="btn btn-primary" type="button" data-create-recovery>回復案を作成</button>
+          <button class="btn btn-primary" type="button" data-create-recovery>対応内容を整理する</button>
         </div>`;
     }
     if (detail.approval_ready || detail.next_action_kind === "approve") {
@@ -1378,6 +1386,12 @@ const NagareApp = (() => {
     modal.querySelectorAll("[data-artifact-list-item]").forEach((button) => {
       button.addEventListener("click", () => openArtifactPreview(detail, Number(button.dataset.artifactListItem)));
     });
+  }
+
+  function hasOpenQuestion(detail) {
+    return Boolean(detail?.question)
+      && detail?.item?.status_kind === "question"
+      && detail?.next_action_kind === "answer_question";
   }
 
   async function openArtifactPreview(detail, index) {
@@ -1679,7 +1693,7 @@ const NagareApp = (() => {
       if (/fail|error|失敗|停止/.test(fallback)) return "fail";
       if (/running|progress|処理中|実行中/.test(fallback)) return "now";
       if (/done|complete|完了/.test(fallback)) return "done";
-      if (/question|質問|回答待ち|差し戻し|回復/.test(fallback)) return "wait";
+      if (/question|質問|回答待ち|差し戻し|対応/.test(fallback)) return "wait";
     }
     return "";
   }
@@ -1840,9 +1854,9 @@ const NagareApp = (() => {
       await loadState({ navigate: false });
       renderDetail(updated);
       goDetail(updated);
-      toast("回復案を作成しました。");
+      toast("対応内容を整理しました。");
     } catch (error) {
-      showOperationError(document.querySelector(".screen.active"), "回復案を作成できませんでした", error, "失敗した工程と実行環境の状態を確認してから、もう一度作成してください。");
+      showOperationError(document.querySelector(".screen.active"), "対応内容を整理できませんでした", error, "失敗した工程と実行環境の状態を確認してから、もう一度試してください。");
       toast(String(error), "error");
     }
   }
@@ -1853,9 +1867,9 @@ const NagareApp = (() => {
       await loadState({ navigate: false });
       renderDetail(updated);
       goDetail(updated);
-      toast("回復案を採用しました。");
+      toast("対応内容を確定しました。");
     } catch (error) {
-      showOperationError(document.querySelector(".screen.active"), "回復案を採用できませんでした", error, "回復案の状態と現在のワーク状態を確認してから、もう一度採用してください。");
+      showOperationError(document.querySelector(".screen.active"), "対応内容を確定できませんでした", error, "対応内容と現在のワーク状態を確認してから、もう一度試してください。");
       toast(String(error), "error");
     }
   }
@@ -1875,9 +1889,9 @@ const NagareApp = (() => {
       await loadState({ navigate: false });
       renderDetail(updated);
       goDetail(updated);
-      toast("回復を適用しました。");
+      toast("再実行を開始しました。");
     } catch (error) {
-      showOperationError(event.currentTarget, "回復を適用できませんでした", error, "追加指示と回復案の状態を確認してから、もう一度再開してください。");
+      showOperationError(event.currentTarget, "再実行できませんでした", error, "追加の指示と現在のワーク状態を確認してから、もう一度試してください。");
       toast(String(error), "error");
     }
   }
@@ -1887,14 +1901,13 @@ const NagareApp = (() => {
       <div class="modal">
         <div class="modal-head"><h3>この結果を採用する</h3><div class="m-sub">採用すると作業は完了になります。</div></div>
         <form class="modal-body" data-approve-form>
-          <div class="field"><label>採用メモ（任意）</label><textarea name="rationale" placeholder="確認内容を残せます"></textarea></div>
           <div class="modal-foot"><button class="btn btn-secondary" type="button" data-close>戻る</button><button class="btn btn-primary" type="submit">採用して完了</button></div>
         </form>
       </div>`);
     modal.querySelector("[data-close]").addEventListener("click", closeDynamicModal);
     modal.querySelector("[data-approve-form]").addEventListener("submit", async (event) => {
       event.preventDefault();
-      await humanDecision("approve_work", detail, new FormData(event.currentTarget).get("rationale"));
+      await humanDecision("approve_work", detail, "");
     });
   }
 
@@ -2450,7 +2463,6 @@ const NagareApp = (() => {
         : "成果物なし";
       return `
         <div class="list-item">
-          <div class="wr-picon">知</div>
           <div class="wr-body">
             <div class="wr-title">${escapeHtml(domain.name)} <span class="wr-projtag">${escapeHtml(String(artifacts.length))}種別</span></div>
             <div class="wr-sum">${escapeHtml(domain.description || "説明なし")} · ${escapeHtml(artifactSummary)}</div>
@@ -2679,7 +2691,7 @@ const NagareApp = (() => {
       <div class="card" style="padding:16px;margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;">
         <span class="badge badge-run"><span class="bdot"></span>処理中</span>
         <span class="badge badge-ask"><span class="bdot"></span>要対応</span>
-        <span class="badge badge-fix"><span class="bdot"></span>回復が必要</span>
+        <span class="badge badge-fix"><span class="bdot"></span>対応が必要</span>
         <span class="badge badge-done">完了</span>
         <span class="badge badge-neutral">未確認</span>
       </div>
@@ -4044,7 +4056,7 @@ const NagareApp = (() => {
     return `
       <div class="card" style="margin:0 0 14px;padding:14px 16px;border-color:${border};background:${background};">
         <div style="display:flex;gap:14px;align-items:flex-start;">
-          <div class="wr-picon" style="background:#fff;">${escapeHtml((result.name || result.id || "A").slice(0, 1))}</div>
+          ${agentAvatarMarkup(result)}
           <div style="flex:1;min-width:0;">
             <div style="font-size:13.5px;font-weight:800;color:var(--text-body);">${escapeHtml(title)}</div>
             <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px;">${escapeHtml(summary)}</div>
@@ -4086,12 +4098,30 @@ const NagareApp = (() => {
 
   function agentAvatarMarkup(agent, options = {}) {
     const value = String(agent?.avatar || "").trim();
-    const name = agent?.name || agent?.display_name || agent?.id || "A";
-    if (isAvatarImage(value)) {
-      const sizeClass = options.large ? " lg" : "";
-      return `<img class="agent-avatar${sizeClass}" src="${escapeHtml(avatarImageSource(value))}" alt="">`;
-    }
-    return `<div class="${escapeHtml(options.className || "wr-picon")}">${escapeHtml(value || name.slice(0, 1) || "A")}</div>`;
+    const source = isAvatarImage(value) ? avatarImageSource(value) : defaultAgentAvatarSource(agent?.role);
+    const sizeClass = options.large ? " lg" : "";
+    return `<img class="agent-avatar${sizeClass}" src="${escapeHtml(source)}" alt="">`;
+  }
+
+  function defaultAgentAvatarSource(role) {
+    return {
+      organizer: "avatars/planner.svg",
+      reviewer: "avatars/reviewer.svg",
+      worker: "avatars/writer.svg",
+    }[role] || "avatars/writer.svg";
+  }
+
+  function agentAvatarPresetOptions(currentValue) {
+    const current = String(currentValue || "").trim();
+    const presets = [
+      ["", "ロールの既定"],
+      ["avatars/planner.svg", "整理・計画"],
+      ["avatars/writer.svg", "文書作成"],
+      ["avatars/coder.svg", "実装"],
+      ["avatars/reviewer.svg", "レビュー"],
+    ];
+    if (current && !presets.some(([value]) => value === current)) presets.push([current, "選択した画像"]);
+    return presets.map(([value, label]) => `<option value="${escapeHtml(value)}" ${value === current ? "selected" : ""}>${escapeHtml(label)}</option>`).join("");
   }
 
   function isAvatarImage(value) {
@@ -4215,16 +4245,16 @@ const NagareApp = (() => {
           <div class="tabpane ${active("basic")}" data-agent-pane="basic">
             <div class="card" style="padding:12px;margin-bottom:14px;">
               <div style="display:flex;gap:14px;align-items:flex-start;">
-                <div data-agent-avatar-preview>${agentAvatarMarkup(agent || { name: title }, { large: true })}</div>
+                <div data-agent-avatar-preview>${agentAvatarMarkup(agent || { name: title, role: "worker" }, { large: true })}</div>
                 <div style="flex:1;min-width:0;">
                   <div class="field" style="margin-bottom:8px;">
-                    <label>アイコン画像</label>
+                    <label>アイコン</label>
                     <div style="display:flex;gap:8px;align-items:center;">
-                      <input name="avatar" type="text" value="${escapeHtml(agent?.avatar || "")}" placeholder="PNG / JPG / SVG ファイルを選択">
-                      <button class="btn btn-secondary btn-sm" type="button" data-choose-agent-avatar>画像を選択</button>
-                      <button class="btn btn-secondary btn-sm" type="button" data-clear-agent-avatar>クリア</button>
+                      <input name="avatar" type="hidden" value="${escapeHtml(agent?.avatar || "")}">
+                      <select data-agent-avatar-preset style="max-width:220px;">${agentAvatarPresetOptions(agent?.avatar || "")}</select>
+                      <button class="btn btn-secondary btn-sm" type="button" data-choose-agent-avatar>画像ファイルを選択</button>
                     </div>
-                    <div class="hint">未設定の場合は表示名の先頭文字を使います。画像はPNG/JPG/SVGを選択できます。</div>
+                    <div class="hint">未設定ではロールに応じた既定アイコンを表示します。個別に変える場合はプリセットまたはPNG/JPG/SVGを選択します。</div>
                   </div>
                 </div>
               </div>
@@ -4316,14 +4346,14 @@ const NagareApp = (() => {
     modal.querySelector("[data-agent-prompt-draft]").addEventListener("click", () => insertAgentPromptDraft(modal));
     modal.querySelector("[data-insert-proposal]")?.addEventListener("click", () => insertProposalDraft(modal, proposal, "agent"));
     modal.querySelector("[data-agent-tool]").addEventListener("input", () => refreshAgentRuntimeFields(modal));
-    modal.querySelector('[name="avatar"]')?.addEventListener("input", () => updateAgentAvatarPreview(modal));
-    modal.querySelector('[name="display_name"]')?.addEventListener("input", () => updateAgentAvatarPreview(modal));
-    modal.querySelector("[data-choose-agent-avatar]")?.addEventListener("click", () => chooseAgentAvatar(modal));
-    modal.querySelector("[data-clear-agent-avatar]")?.addEventListener("click", () => {
+    modal.querySelector("[data-agent-avatar-preset]")?.addEventListener("input", (event) => {
       const input = modal.querySelector('[name="avatar"]');
-      if (input) input.value = "";
+      if (input) input.value = event.currentTarget.value;
       updateAgentAvatarPreview(modal);
     });
+    modal.querySelector('[name="display_name"]')?.addEventListener("input", () => updateAgentAvatarPreview(modal));
+    modal.querySelector('[name="role"]')?.addEventListener("input", () => updateAgentAvatarPreview(modal));
+    modal.querySelector("[data-choose-agent-avatar]")?.addEventListener("click", () => chooseAgentAvatar(modal));
     modal.querySelectorAll("[data-agent-tab]").forEach((button) => {
       button.addEventListener("click", () => switchAgentTab(modal, button.dataset.agentTab));
     });
@@ -4336,7 +4366,8 @@ const NagareApp = (() => {
     if (!target) return;
     const avatar = modal.querySelector('[name="avatar"]')?.value || "";
     const name = modal.querySelector('[name="display_name"]')?.value || modal.querySelector('[name="id"]')?.value || "A";
-    target.innerHTML = agentAvatarMarkup({ avatar, name }, { large: true });
+    const role = modal.querySelector('[name="role"]')?.value || "worker";
+    target.innerHTML = agentAvatarMarkup({ avatar, name, role }, { large: true });
   }
 
   async function chooseAgentAvatar(modal) {
@@ -4345,6 +4376,16 @@ const NagareApp = (() => {
       if (!file) return;
       const input = modal.querySelector('[name="avatar"]');
       if (input) input.value = file;
+      const preset = modal.querySelector("[data-agent-avatar-preset]");
+      if (preset) {
+        preset.querySelector('[data-custom-avatar]')?.remove();
+        const option = document.createElement("option");
+        option.value = file;
+        option.textContent = "選択した画像";
+        option.dataset.customAvatar = "true";
+        option.selected = true;
+        preset.appendChild(option);
+      }
       updateAgentAvatarPreview(modal);
     } catch (error) {
       showOperationError(modal.querySelector("[data-agent-form]") || modal, "アイコン画像を選択できませんでした", error, "PNG/JPG/SVGの画像ファイルを選択してから、もう一度試してください。");
@@ -4637,6 +4678,7 @@ const NagareApp = (() => {
       kind: "save",
       id: request.id,
       name: request.display_name || request.id,
+      avatar: request.avatar,
       role: request.role,
       tool_kind: request.tool_kind,
       model: request.model || "実行環境既定",
@@ -4673,6 +4715,7 @@ const NagareApp = (() => {
           kind: "delete",
           id,
           name: agent?.name || id,
+          avatar: agent?.avatar || "",
           role: agent?.role || "",
           tool_kind: agent?.tool_kind || "",
           model: agent?.model || "実行環境既定",
@@ -4742,9 +4785,8 @@ const NagareApp = (() => {
         ].join(" ").toLowerCase();
         return `
         <div class="list-item" data-knowledge-row data-search="${escapeHtml(searchText)}">
-          <div class="wr-picon">知</div>
-            <div class="wr-body">
-              <div class="wr-title">${escapeHtml(domain.name)}${proposalCount ? ` <span class="badge badge-ask" style="margin-left:4px;"><span class="bdot"></span>改善提案 ${proposalCount}件</span>` : ""}</div>
+          <div class="wr-body">
+            <div class="wr-title">${escapeHtml(domain.name)}${proposalCount ? ` <span class="badge badge-ask" style="margin-left:4px;"><span class="bdot"></span>改善提案 ${proposalCount}件</span>` : ""}</div>
             <div class="wr-sum">${escapeHtml(domain.description || "")} · 知識 ${knowledgeCount}件 · 成果物 ${artifactCount}件${artifactNames ? `（${escapeHtml(artifactNames)}）` : ""} · ルーブリック ${rubricCount}項目 · ${escapeHtml(usage.label)}</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;">
@@ -4864,7 +4906,6 @@ const NagareApp = (() => {
     return `
       <div class="card" style="margin:0 0 14px;padding:14px 16px;border-color:var(--primary-line);background:var(--primary-soft);">
         <div style="display:flex;gap:14px;align-items:flex-start;">
-          <div class="wr-picon" style="background:#fff;">知</div>
           <div style="flex:1;min-width:0;">
             <div style="font-size:13.5px;font-weight:800;color:var(--text-body);">次の操作: 成果物を追加</div>
             <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px;">
@@ -4887,7 +4928,6 @@ const NagareApp = (() => {
     return `
       <div class="card" style="margin:0 0 14px;padding:14px 16px;border-color:${border};background:${background};">
         <div style="display:flex;gap:14px;align-items:flex-start;">
-          <div class="wr-picon" style="background:#fff;">${escapeHtml(result.entity === "artifact" ? "成" : "知")}</div>
           <div style="flex:1;min-width:0;">
             <div style="font-size:13.5px;font-weight:800;color:var(--text-body);">${escapeHtml(title)}</div>
             <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px;">${escapeHtml(result.summary || "")}</div>
@@ -5025,7 +5065,6 @@ const NagareApp = (() => {
               <div class="list">
                 ${!isEdit ? `<div class="list-empty">先に基本情報を保存してください。保存後もこの編集画面に留まり、成果物とルーブリックを追加できます。</div>` : domainArtifacts.map((artifact) => `
                   <div class="list-item">
-                    <div class="wr-picon">成</div>
                     <div class="wr-body">
                       <div class="wr-title">${escapeHtml(artifact.name)}</div>
                       <div class="wr-sum">${escapeHtml(artifact.description || "")} · ルーブリック ${artifact.rubric_count || 0}項目 / ${artifact.rubric_score_total || 0}点</div>
@@ -5283,35 +5322,55 @@ const NagareApp = (() => {
     const title = isEdit ? (artifact.name || artifact.id) : "成果物を追加";
     const formBody = `
           ${proposalHiddenInputs(proposal)}
-          <div class="field"><label>表示名</label><input name="display_name" type="text" value="${escapeHtml(artifact?.name || "")}" placeholder="例: README"></div>
+          <div class="field">
+            <label>成果物名</label>
+            <input name="display_name" type="text" value="${escapeHtml(artifact?.name || "")}" placeholder="例: 要件定義書" autocomplete="off">
+            ${isEdit ? "" : `<div class="hint">成果物名とドメインのナレッジから、精密な作成指示と評価基準をAIが生成します。</div>
+            <div style="margin-top:10px;"><button class="btn btn-primary" type="button" data-generate-artifact-definition disabled>この名前で定義を生成</button></div>`}
+          </div>
           <input name="domain_id" type="hidden" value="${escapeHtml(selectedDomainId)}">
-          <div class="field"><label>説明</label><textarea name="description" style="min-height:72px;" placeholder="何を、誰に、どこへ出す成果物かを書いてください">${escapeHtml(artifact?.description || "")}</textarea></div>
-          <div class="field"><label>作成指示（1行に1つ）</label><textarea name="knowledge" style="min-height:160px;" placeholder="例: 読み手が判断に必要な前提と結論を明記する&#10;指定テンプレートと表記規則に従う">${escapeHtml((artifact?.knowledge || []).join("\n"))}</textarea><div class="hint">この成果物を作るエージェントへ、ドメインの共通知識と一緒に渡されます。</div></div>
           <input name="id" type="hidden" value="${escapeHtml(artifact?.id || "")}">
           <textarea name="dispatch_hints" hidden>${escapeHtml((artifact?.dispatch_hints || []).join("\n"))}</textarea>
-          <div class="field">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-              <label style="margin:0;">ルーブリック（評価基準）</label>
-              <span style="flex:1"></span>
-              <button class="btn btn-secondary btn-sm" type="button" data-rubric-draft>評価基準をAIで作成</button>
-            </div>
-            <textarea name="rubric" class="mono" style="min-height:260px;">${escapeHtml((artifact?.rubric || []).join("\n"))}</textarea>
-            <div class="hint">成果物の合格条件をMarkdownで記述します。AIで作成すると現在の入力を置き換えますが、保存するまでは確定しません。</div>
-            <div class="card" data-rubric-status style="padding:10px 12px;margin-top:8px;"></div>
-            ${proposal ? `
-              <div class="card" style="padding:10px 12px;margin-top:8px;border-color:var(--warning-line);background:var(--warning-soft);">
-                <div style="display:flex;align-items:center;gap:10px;">
-                  <div style="flex:1;min-width:0;">
-                    <div style="font-size:12.5px;font-weight:700;">過去のレビューに基づく評価基準の改善案</div>
-                    <div class="hint" style="margin-top:3px;">${escapeHtml(proposal.summary || proposal.evidence || proposal.title || "評価基準に追加できる改善案があります。")} 反映後も、保存するまでは確定しません。</div>
-                  </div>
-                  <button class="btn btn-secondary btn-sm" type="button" data-insert-proposal>評価基準に追加</button>
-                </div>
-              </div>` : ""}
+          <div class="card" data-artifact-generation-status style="padding:10px 12px;margin-bottom:12px;${isEdit ? "display:none;" : ""}">
+            <div style="font-size:12.5px;font-weight:700;">成果物名を入力してください</div>
+            <div class="hint" style="margin-top:3px;">生成が完了すると、説明・作成指示・評価基準を編集できます。</div>
           </div>
+          <fieldset data-artifact-definition-fields ${isEdit ? "" : "disabled"} style="border:0;padding:0;margin:0;min-width:0;">
+            <div class="field"><label>説明</label><textarea name="description" style="min-height:96px;" placeholder="成果物の目的、利用者、利用場面、完成状態">${escapeHtml(artifact?.description || "")}</textarea></div>
+            <div class="field">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><label style="margin:0;">作成指示（1行に1つ）</label><span style="flex:1"></span></div>
+              <textarea name="knowledge" style="min-height:260px;" placeholder="成果物固有の構成、内容、証跡、検証条件">${escapeHtml((artifact?.knowledge || []).join("\n"))}</textarea>
+              <div class="hint">作成エージェントへドメインの共通知識と一緒に渡されます。</div>
+            </div>
+            <div class="field">
+              <label>ルーブリック（評価基準）</label>
+              <textarea name="rubric" class="mono" style="min-height:420px;">${escapeHtml((artifact?.rubric || []).join("\n"))}</textarea>
+              <div class="hint">各項目に満点条件、部分点条件、重大な不足、確認する証跡を記述し、合計100点にします。</div>
+              <div class="card" data-rubric-status style="padding:10px 12px;margin-top:8px;"></div>
+              ${proposal ? `
+                <div class="card" style="padding:10px 12px;margin-top:8px;border-color:var(--warning-line);background:var(--warning-soft);">
+                  <div style="display:flex;align-items:center;gap:10px;">
+                    <div style="flex:1;min-width:0;">
+                      <div style="font-size:12.5px;font-weight:700;">過去のレビューに基づく評価基準の改善案</div>
+                      <div class="hint" style="margin-top:3px;">${escapeHtml(proposal.summary || proposal.evidence || proposal.title || "評価基準に追加できる改善案があります。")} 反映後も、保存するまでは確定しません。</div>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" type="button" data-insert-proposal>評価基準に追加</button>
+                  </div>
+                </div>` : ""}
+            </div>
+            <div class="card" style="padding:14px;margin-bottom:16px;">
+              <div style="font-size:13px;font-weight:800;">AIで成果物定義を改善</div>
+              <div class="hint" style="margin-top:4px;">説明・作成指示・評価基準をまとめて見直します。現在の内容は、改善案を確認して反映するまで変わりません。</div>
+              <div class="field" style="margin:12px 0 10px;">
+                <label>修正コメント</label>
+                <textarea name="definition_feedback" style="min-height:88px;" placeholder="例: 異常系の作成指示と、未検証を合格にしない評価条件を対応づけて具体化してください"></textarea>
+              </div>
+              <button class="btn btn-secondary btn-sm" type="button" data-propose-artifact-improvement>改善案を作成</button>
+            </div>
+          </fieldset>
           <div class="modal-foot">
             <button class="btn btn-secondary" type="button" data-close>閉じる</button>
-            <button class="btn btn-primary" type="submit">保存</button>
+            <button class="btn btn-primary" type="submit" data-save-artifact ${isEdit ? "" : "disabled"}>保存</button>
           </div>`;
     let modal;
     if (usePage) {
@@ -5341,10 +5400,239 @@ const NagareApp = (() => {
     const artifactForm = modal.querySelector("[data-artifact-form]");
     bindGeneratedId(artifactForm, generatedArtifactId);
     artifactForm.addEventListener("submit", saveArtifactFromDialog);
-    modal.querySelector("[data-rubric-draft]").addEventListener("click", () => insertRubricDraft(modal));
+    const nameInput = artifactForm.querySelector('input[name="display_name"]');
+    const generateButton = artifactForm.querySelector("[data-generate-artifact-definition]");
+    if (generateButton) {
+      const syncGenerateButton = () => {
+        generateButton.disabled = !String(nameInput?.value || "").trim();
+        if (artifactForm.dataset.generatedName && artifactForm.dataset.generatedName !== String(nameInput?.value || "").trim()) {
+          setArtifactDefinitionReady(artifactForm, false, "成果物名が変更されました", "新しい名前で定義を再生成してください。");
+        }
+      };
+      nameInput?.addEventListener("input", syncGenerateButton);
+      syncGenerateButton();
+      generateButton.addEventListener("click", () => generateArtifactDefinition(modal));
+    }
+    modal.querySelector("[data-propose-artifact-improvement]")?.addEventListener("click", () => proposeArtifactDefinitionImprovement(modal));
     modal.querySelector('textarea[name="rubric"]')?.addEventListener("input", () => updateRubricStatus(modal));
     modal.querySelector("[data-insert-proposal]")?.addEventListener("click", () => insertProposalDraft(modal, proposal, "artifact"));
     updateRubricStatus(modal);
+  }
+
+  function setArtifactDefinitionReady(form, ready, title, detail) {
+    const fields = form.querySelector("[data-artifact-definition-fields]");
+    const saveButton = form.querySelector("[data-save-artifact]");
+    const status = form.querySelector("[data-artifact-generation-status]");
+    if (fields) fields.disabled = !ready;
+    if (saveButton) saveButton.disabled = !ready;
+    if (status) {
+      status.style.display = "block";
+      status.style.borderColor = ready ? "var(--success-line)" : "var(--line)";
+      status.style.background = ready ? "var(--success-soft)" : "var(--surface)";
+      status.innerHTML = `<div style="font-size:12.5px;font-weight:700;">${escapeHtml(title)}</div><div class="hint" style="margin-top:3px;">${escapeHtml(detail)}</div>`;
+    }
+  }
+
+  async function generateArtifactDefinition(modal) {
+    const form = modal.querySelector("[data-artifact-form]");
+    const button = form?.querySelector("[data-generate-artifact-definition]");
+    if (!form || !button) return;
+    const data = new FormData(form);
+    const artifactName = String(data.get("display_name") || "").trim();
+    if (!artifactName) return;
+    const originalLabel = button.textContent;
+    try {
+      button.disabled = true;
+      button.textContent = "精密な定義を生成中…";
+      form.setAttribute("aria-busy", "true");
+      setArtifactDefinitionReady(form, false, "AIが成果物定義を生成しています", "要求を原子的な作成指示へ分解し、13の品質観点と評価基準の対応を検査しています。");
+      const response = await call("generate_artifact_definition", {
+        request: {
+          root: rootValue(),
+          domain_id: String(data.get("domain_id") || ""),
+          artifact_name: artifactName,
+        },
+      });
+      form.querySelector('textarea[name="description"]').value = response.description || "";
+      form.querySelector('textarea[name="knowledge"]').value = (response.knowledge || []).join("\n");
+      form.querySelector('textarea[name="rubric"]').value = response.rubric || "";
+      form.querySelector('textarea[name="dispatch_hints"]').value = (response.dispatch_hints || []).join("\n");
+      form.dataset.generatedName = artifactName;
+      setArtifactDefinitionReady(form, true, "精密度を検証した初期定義を生成しました", "原子的な作成指示、評価基準、13観点の網羅性を検証済みです。必要なら直接編集またはコメント付きで再生成してください。");
+      updateRubricStatus(modal);
+    } catch (error) {
+      setArtifactDefinitionReady(form, false, "成果物定義を生成できませんでした", "成果物名とドメインのナレッジを確認して、もう一度実行してください。");
+      showOperationError(form, "成果物定義をAIで生成できませんでした", error, "成果物名とドメインのナレッジを確認してから、もう一度実行してください。");
+      toast(String(error), "error");
+    } finally {
+      form.removeAttribute("aria-busy");
+      button.textContent = originalLabel;
+      button.disabled = !String(form.querySelector('input[name="display_name"]')?.value || "").trim();
+    }
+  }
+
+  async function proposeArtifactDefinitionImprovement(modal) {
+    const form = modal.querySelector("[data-artifact-form]");
+    const button = form?.querySelector("[data-propose-artifact-improvement]");
+    const feedbackInput = form?.querySelector('textarea[name="definition_feedback"]');
+    const feedback = String(feedbackInput?.value || "").trim();
+    if (!form || !button) return;
+    if (!feedback) {
+      toast("AIへの改善コメントを入力してください。", "error");
+      feedbackInput?.focus();
+      return;
+    }
+    const data = new FormData(form);
+    const current = {
+      description: String(data.get("description") || ""),
+      knowledge: textLines(data.get("knowledge")),
+      rubric: String(data.get("rubric") || ""),
+      dispatch_hints: textLines(data.get("dispatch_hints")),
+    };
+    const originalLabel = button.textContent;
+    try {
+      button.disabled = true;
+      button.textContent = "改善案を作成中…";
+      form.setAttribute("aria-busy", "true");
+      const response = await call("refine_artifact_definition", {
+        request: {
+          root: rootValue(),
+          domain_id: String(data.get("domain_id") || ""),
+          artifact_name: String(data.get("display_name") || "").trim(),
+          ...current,
+          feedback,
+        },
+      });
+      openArtifactDefinitionReview(modal, current, response, feedbackInput);
+    } catch (error) {
+      showOperationError(form, "成果物定義の改善案を作成できませんでした", error, "現在の定義と修正コメントを確認してから、もう一度実行してください。");
+      toast(String(error), "error");
+    } finally {
+      form.removeAttribute("aria-busy");
+      button.textContent = originalLabel;
+      button.disabled = false;
+    }
+  }
+
+  function openArtifactDefinitionReview(source, current, proposed, feedbackInput) {
+    document.getElementById("artifact-definition-review")?.remove();
+    const sections = [
+      { key: "description", label: "説明", before: current.description, after: String(proposed.description || "") },
+      { key: "knowledge", label: "作成指示", before: current.knowledge.join("\n"), after: (proposed.knowledge || []).join("\n") },
+      { key: "rubric", label: "ルーブリック（評価基準）", before: current.rubric, after: String(proposed.rubric || "") },
+      { key: "dispatch_hints", label: "担当の手がかり", before: current.dispatch_hints.join("\n"), after: (proposed.dispatch_hints || []).join("\n") },
+    ].filter((section) => section.before !== section.after);
+    const overlay = document.createElement("div");
+    overlay.id = "artifact-definition-review";
+    overlay.className = "overlay open";
+    overlay.style.zIndex = "60";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-labelledby", "artifact-definition-review-title");
+    overlay.innerHTML = `
+      <div class="modal definition-review-modal">
+        <div class="modal-head">
+          <h3 id="artifact-definition-review-title">AIの改善案を確認</h3>
+          <div class="m-sub">変更前の内容はまだ保持されています。保存する項目を選び、差分を確認してください。</div>
+        </div>
+        <div class="modal-body">
+          ${sections.some((section) => section.key === "knowledge") && sections.some((section) => section.key === "rubric") ? `<div class="definition-review-note">作成指示と評価基準は対応関係を持つため、通常は両方の変更を保存してください。片方だけを外す場合は、判定条件との整合性を確認してください。</div>` : ""}
+          <div class="definition-review-list">
+            ${sections.length ? sections.map((section) => artifactDefinitionDiffSection(section)).join("") : `<div class="card" style="padding:16px;"><b>変更は提案されませんでした。</b><div class="hint" style="margin-top:4px;">修正コメントを変えて、もう一度改善案を作成してください。</div></div>`}
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-secondary left" type="button" data-review-cancel>コメントを修正</button>
+          <button class="btn btn-primary" type="button" data-review-apply ${sections.length ? "" : "disabled"}>選択した変更を保存</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector("[data-review-cancel]")?.addEventListener("click", () => {
+      overlay.remove();
+      feedbackInput?.focus();
+    });
+    overlay.querySelector("[data-review-apply]")?.addEventListener("click", () => {
+      const form = source.querySelector("[data-artifact-form]");
+      const selected = [...overlay.querySelectorAll("[data-definition-change]:checked")].map((input) => input.value);
+      if (!selected.length) {
+        toast("保存する変更を1つ以上選んでください。", "error");
+        return;
+      }
+      if (selected.includes("description")) form.querySelector('textarea[name="description"]').value = proposed.description || "";
+      if (selected.includes("knowledge")) form.querySelector('textarea[name="knowledge"]').value = (proposed.knowledge || []).join("\n");
+      if (selected.includes("rubric")) form.querySelector('textarea[name="rubric"]').value = proposed.rubric || "";
+      if (selected.includes("dispatch_hints")) form.querySelector('textarea[name="dispatch_hints"]').value = (proposed.dispatch_hints || []).join("\n");
+      feedbackInput.value = "";
+      overlay.remove();
+      updateRubricStatus(source);
+      form.requestSubmit(form.querySelector("[data-save-artifact]"));
+    });
+    overlay.querySelector("[data-review-cancel]")?.focus();
+  }
+
+  function artifactDefinitionDiffSection(section) {
+    const rows = compactLineDiff(lineDiff(section.before, section.after));
+    return `
+      <section class="definition-review-section">
+        <label>
+          <input type="checkbox" value="${escapeHtml(section.key)}" data-definition-change checked>
+          <span><b>${escapeHtml(section.label)}</b><span class="hint" style="display:block;margin-top:2px;">この変更を保存</span></span>
+        </label>
+        <div class="diff" aria-label="${escapeHtml(section.label)}の差分">
+          ${rows.map((row) => row.kind === "hunk"
+            ? `<div class="hunk">変更のない行を省略</div>`
+            : `<div class="dl ${row.kind === "remove" ? "del" : row.kind === "add" ? "add" : "ctx"}">${escapeHtml(row.text || " ")}</div>`).join("")}
+        </div>
+      </section>`;
+  }
+
+  function lineDiff(before, after) {
+    const left = String(before || "").split("\n");
+    const right = String(after || "").split("\n");
+    const table = Array.from({ length: left.length + 1 }, () => Array(right.length + 1).fill(0));
+    for (let i = left.length - 1; i >= 0; i -= 1) {
+      for (let j = right.length - 1; j >= 0; j -= 1) {
+        table[i][j] = left[i] === right[j] ? table[i + 1][j + 1] + 1 : Math.max(table[i + 1][j], table[i][j + 1]);
+      }
+    }
+    const rows = [];
+    let i = 0;
+    let j = 0;
+    while (i < left.length || j < right.length) {
+      if (i < left.length && j < right.length && left[i] === right[j]) {
+        rows.push({ kind: "same", text: left[i] });
+        i += 1;
+        j += 1;
+      } else if (j < right.length && (i === left.length || table[i][j + 1] >= table[i + 1][j])) {
+        rows.push({ kind: "add", text: right[j] });
+        j += 1;
+      } else {
+        rows.push({ kind: "remove", text: left[i] });
+        i += 1;
+      }
+    }
+    return rows;
+  }
+
+  function compactLineDiff(rows) {
+    const keep = new Set();
+    rows.forEach((row, index) => {
+      if (row.kind === "same") return;
+      for (let offset = -2; offset <= 2; offset += 1) keep.add(index + offset);
+    });
+    const compact = [];
+    let omitted = false;
+    rows.forEach((row, index) => {
+      if (row.kind !== "same" || keep.has(index)) {
+        if (omitted) compact.push({ kind: "hunk", text: "" });
+        compact.push(row);
+        omitted = false;
+      } else {
+        omitted = true;
+      }
+    });
+    if (omitted) compact.push({ kind: "hunk", text: "" });
+    return compact;
   }
 
   function aiSupportPanel({ generateTitle, generateDescription, generateAttr, proposal, proposalEmptyText, proposalActionLabel }) {
@@ -5499,7 +5787,7 @@ const NagareApp = (() => {
       }
       toast("成果物を保存しました。");
     } catch (error) {
-      showOperationError(event.currentTarget, "成果物を保存できませんでした", error, "表示名、ドメイン、説明、ルーブリック形式を確認してから、もう一度保存してください。");
+      showOperationError(event.currentTarget, "成果物を保存できませんでした", error, "成果物名、説明、作成指示、ルーブリック形式を確認してから、もう一度保存してください。");
       toast(String(error), "error");
     }
   }
@@ -5520,6 +5808,7 @@ const NagareApp = (() => {
   }
 
   function closeArtifactDialog() {
+    document.getElementById("artifact-definition-review")?.remove();
     if (artifactReturnContext?.kind === "domain") {
       const domainId = artifactReturnContext.domainId;
       const tab = artifactReturnContext.tab || "artifacts";
@@ -5600,96 +5889,570 @@ const NagareApp = (() => {
     });
   }
 
+  function insightDiagnosticCases(insights) {
+    if (Array.isArray(insights.signals)) {
+      return insights.signals.map((signal, index) => {
+        const evidence = signal.evidence || [];
+        const competing = signal.competing_causes || [];
+        return {
+          id: signal.id || `signal-${index}`,
+          issue: {
+            agent_id: signal.agent_id || "",
+            agent_name: signal.agent_name || signal.primary_cause_label || "対象未確定",
+            project_name: signal.project_name || "",
+            role: signal.role || "worker",
+            item: signal.item_label || signal.title || "分析シグナル",
+            domain_name: signal.domain_name || "",
+            artifact_type_name: signal.artifact_type_name || "",
+            rubric_version_label: signal.rubric_version_label || "",
+            knowledge_version_label: signal.knowledge_version_label || "",
+            prompt_version_label: signal.prompt_version_label || "",
+            primary_cause_kind: signal.primary_cause_kind || "undetermined",
+          },
+          title: signal.title || "分析シグナル",
+          role: signal.role || "worker",
+          projectName: signal.project_name || state?.project?.name || "プロジェクト未記録",
+          experimentReady: Boolean(signal.proposal_ready),
+          observation: signal.observation || "観測内容は記録されていません。",
+          historyAssessment: signal.history_assessment || "履歴からの見立てはまだありません。",
+          scope: signal.scope || "比較範囲は記録されていません。",
+          scopeDetail: signal.scope_detail || "比較条件は記録されていません。",
+          confidenceLabel: signal.confidence_label || "判断保留",
+          proposalStatusLabel: signal.proposal_status_label || "追加確認が必要です",
+          groupKey: [
+            signal.project_name || "",
+            signal.agent_id || signal.primary_cause_label || "",
+            signal.role || "worker",
+            signal.primary_cause_kind || "undetermined",
+            signal.domain_name || "",
+            signal.artifact_type_name || "",
+            signal.rubric_version_label || "",
+            signal.knowledge_version_label || "",
+            signal.prompt_version_label || "",
+            signal.proposal_ready ? "ready" : "observe",
+            signal.proposal_status_label || "",
+          ].join("\u001f"),
+          evidence,
+          relatedReviews: evidence.map((item) => ({
+            work_id: item.work_id,
+            evidenceLabel: `${item.stage}: ${item.summary}`,
+          })),
+          hypotheses: [
+            {
+              target: signal.primary_cause_label || "判断保留",
+              summary: signal.history_assessment || "原因を確定できる履歴が不足しています。",
+              uncertainty: competing.length
+                ? `競合候補: ${competing.join("、")}`
+                : "明示的な競合候補は記録されていません。",
+              first: true,
+            },
+            ...competing.map((target) => ({
+              target,
+              summary: `${target}も履歴と矛盾しないため、改善実験では条件を固定して切り分けます。`,
+              uncertainty: "現在の履歴だけでは第一候補を完全には否定または確定できません。",
+            })),
+          ],
+        };
+      });
+    }
+    const scores = insights.agent_scores || [];
+    const reviews = insights.recent_reviews || [];
+    const groupedIssues = new Map();
+    (insights.issue_matrix || [])
+      .filter((issue) => Number(issue.rate || 0) < 75)
+      .forEach((issue) => {
+        const key = [
+          issue.agent_id || issue.agent_name,
+          issue.project_name || state?.project?.name || "プロジェクト未記録",
+          issue.role || "worker",
+          issue.domain_name || "",
+          issue.artifact_type_name || "",
+          issue.rubric_version_label || "",
+          issue.knowledge_version_label || "",
+          issue.assignment_mode || "unknown",
+        ].join("\u001f");
+        if (!groupedIssues.has(key)) groupedIssues.set(key, []);
+        groupedIssues.get(key).push(issue);
+      });
+    return Array.from(groupedIssues.values()).map((issues, index) => {
+        issues.sort((left, right) => Number(left.rate || 0) - Number(right.rate || 0) || String(left.item || "").localeCompare(String(right.item || ""), "ja"));
+        const issue = issues[0];
+        const agent = scores.find((candidate) => candidate.agent_name === issue.agent_name) || {};
+        const role = issue.role || agent.role || "worker";
+        const itemLabel = issues.map((candidate) => candidate.item).join("、");
+        const projectName = issue.project_name || state?.project?.name || "プロジェクト未記録";
+        const relatedReviews = reviews
+          .map((review) => ({
+            ...review,
+            itemEvidence: (review.items || []).filter((item) => issues.some((candidate) => candidate.item === item.item)),
+          }))
+          .filter((review) =>
+            review.agent_name === issue.agent_name
+            && (review.project_name || state?.project?.name || "プロジェクト未記録") === projectName
+            && (review.itemEvidence.length || !(review.items || []).length),
+          )
+          .map((review) => ({
+            ...review,
+            evidenceLabel: issues.length === 1 ? review.itemEvidence[0]?.score_label || review.score_label : review.score_label,
+          }))
+          .slice(0, 3);
+        const occurrences = Math.min(...issues.map((candidate) => Number(candidate.occurrences || 0)));
+        const rateSummary = issues
+          .map((candidate) => `「${candidate.item}」${candidate.rate_label || `${candidate.rate}%`}`)
+          .join(" / ");
+        return {
+          id: `diagnosis-${index}`,
+          groupKey: `legacy-diagnosis-${index}`,
+          issue: { ...issue, item: itemLabel },
+          title: issues.length > 1 ? `${issues.length}項目が基準未達` : `${issue.item}が基準未達`,
+          role,
+          projectName,
+          experimentReady: occurrences >= 2,
+          observation: issues.length > 1
+            ? `同じ比較条件の${occurrences}件で、${rateSummary}が反復しています。これは総合点や原因の確定ではなく、関連する改善シグナルです。`
+            : `レビュー項目「${issue.item}」の獲得率が ${issue.rate_label || `${issue.rate}%`}（${occurrences}件）です。これは総合点や原因の確定ではなく、通常の期待から外れた改善シグナルです。`,
+          historyAssessment: occurrences >= 2
+            ? `対象: ${itemLabel}。同じ条件で失点が反復していますが、旧記録には依頼から最終判断までの構造化履歴がありません。原因候補を比較してから改善対象を決めます。`
+            : `対象: ${itemLabel}。失点は1件だけで、依頼から最終判断までの構造化履歴もありません。原因を帰属せず、同条件の記録を追加します。`,
+          scope: `${projectName} / ${issue.agent_name} · ${roleLabel(role)} / ${issue.domain_name || "ドメイン未記録"} / ${issue.artifact_type_name || "成果物未記録"}`,
+          scopeDetail: `比較記録: ルーブリック ${issue.rubric_version_label || "版未記録"} · 知識 ${issue.knowledge_version_label || "版未記録"} · プロンプト ${issue.prompt_version_label || "実行時版未記録"} · ${issue.assignment_label || "割り当て元は記録不足"}`,
+          confidenceLabel: occurrences >= 2 ? "仮説" : "記録不足",
+          proposalStatusLabel: occurrences >= 2
+            ? "原因候補を確認してから改善案を検討します"
+            : "同条件の履歴を追加して確認します",
+          evidence: relatedReviews.map((review) => ({
+            work_id: review.work_id,
+            stage: "レビュー",
+            summary: `${review.title || review.work_id} · ${review.evidenceLabel || review.score_label || "得点未記録"}`,
+          })),
+          relatedReviews,
+          hypotheses: insightHypotheses({ ...issue, item: itemLabel }, role),
+        };
+      });
+  }
+
+  function insightHypotheses(issue, role) {
+    const agentTarget = role === "reviewer" ? "レビュアー" : role === "organizer" ? "オーガナイザー" : "ワーカー";
+    const directAssignment = issue.assignment_mode === "direct";
+    return [
+      {
+        target: `${agentTarget}の方策`,
+        summary: `${issue.agent_name} のプロンプト、注入知識、または作業手順に「${issue.item}」を満たす具体的な確認条件が不足している可能性があります。`,
+        uncertainty: "依頼の難度や入力内容が異なる場合、このエージェント固有の問題とは限りません。",
+        first: true,
+      },
+      {
+        target: "オーガナイザーの入力・割り当て",
+        summary: directAssignment
+          ? `${issue.assignment_label || "担当が明示指定されています"}。今回の記録では、オーガナイザーは担当選択を決めていません。`
+          : `Run Packet、担当選択、handoff条件に「${issue.item}」を判断する前提が渡っていない可能性があります。`,
+        uncertainty: directAssignment
+          ? "依頼の整理内容までオーガナイザーが生成した記録が別にある場合は、その入力品質を改めて確認します。"
+          : "下流の成果物不足だけでは、上流の整理や割り当てが原因とは断定できません。",
+        lowPriority: directAssignment,
+      },
+      {
+        target: "共有知識・成果物定義・ルーブリック",
+        summary: `複数の担当が同じ失点をするなら、共通知識、作成指示、または「${issue.item}」の判定条件が曖昧な可能性があります。`,
+        uncertainty: "単一エージェントの少数事例だけでは、共有資産の変更根拠として不足します。",
+      },
+    ];
+  }
+
+  function promptComparisonMarkup(comparison) {
+    const variants = comparison.variants || [];
+    if (variants.length < 2) return "";
+    const first = variants[0];
+    const latest = variants[variants.length - 1];
+    const delta = Number(latest.average_score || 0) - Number(first.average_score || 0);
+    const deltaLabel = `${delta > 0 ? "+" : ""}${delta}点`;
+    const outcome = delta > 0
+      ? `${latest.prompt_version_label} は追加検証する改善候補です。`
+      : delta < 0
+        ? `${latest.prompt_version_label} で悪化しています。採用せず原因確認が必要です。`
+        : "得点差がないため、観点別得点と根拠を確認してください。";
+    const itemNames = unique(variants.flatMap((variant) => (variant.items || []).map((item) => item.item)));
+    const scoreForItem = (variant, itemName) => (variant.items || []).find((item) => item.item === itemName)?.score_label || "-";
+    const versionFlow = variants.map((variant) => variant.prompt_version_label).join(" → ");
+    return `
+      <section class="card diagnosis-case prompt-comparison-card">
+        <div class="diagnosis-head">
+          <div style="flex:1;min-width:0;">
+            <div class="diagnosis-title">条件を固定した変更比較</div>
+            <div class="diagnosis-scope">変更対象: プロンプト ${escapeHtml(versionFlow)}</div>
+            <div class="diagnosis-scope">固定条件: ${escapeHtml(comparison.domain_name)} / ${escapeHtml(comparison.artifact_type_name)} · ルーブリック ${escapeHtml(comparison.rubric_version_label)} · 知識 ${escapeHtml(comparison.knowledge_version_label)} · ${escapeHtml(comparison.assignment_label)}</div>
+          </div>
+          <span class="badge ${delta > 0 ? "badge-ok" : delta < 0 ? "badge-ask" : "badge-neutral"}">${escapeHtml(deltaLabel)}</span>
+        </div>
+        <div class="diagnosis-observation"><b>観測</b><span>${escapeHtml(`${first.prompt_version_label} ${first.average_score_label} から ${latest.prompt_version_label} ${latest.average_score_label}。${outcome} 各版 ${variants.map((variant) => `${variant.review_count}件`).join(" / ")}のため、まだ因果は確定しません。`)}</span></div>
+        <table class="itable" style="margin-top:12px;">
+          <thead><tr><th>比較項目</th>${variants.map((variant) => `<th class="num">${escapeHtml(variant.prompt_version_label)}</th>`).join("")}</tr></thead>
+          <tbody>
+            <tr><td><b>総合得点</b></td>${variants.map((variant) => `<td class="num"><b>${escapeHtml(variant.average_score_label)}</b></td>`).join("")}</tr>
+            ${itemNames.map((itemName) => `<tr><td>${escapeHtml(itemName)}</td>${variants.map((variant) => `<td class="num">${escapeHtml(scoreForItem(variant, itemName))}</td>`).join("")}</tr>`).join("")}
+            <tr><td><b>根拠ワーク</b></td>${variants.map((variant) => `<td class="num">${(variant.work_refs || []).map((work) => `<span><button class="text-link" type="button" data-open-insight-work="${escapeHtml(work.work_id)}" title="${escapeHtml(`${work.title} / ${work.score_label || "得点未記録"}`)}">${escapeHtml(work.work_id)}</button> (${escapeHtml(work.score_label || "得点未記録")})</span>`).join(" / ") || "-"}</td>`).join("")}</tr>
+          </tbody>
+        </table>
+      </section>
+    `;
+  }
+
+  function insightProjectName(value) {
+    return value || state?.project?.name || "プロジェクト未記録";
+  }
+
+  function matchesInsightFilters(item) {
+    const projectName = insightProjectName(item.project_name || item.projectName);
+    const agentId = item.agent_id || item.issue?.agent_id || "";
+    return (!insightProjectFilter || projectName === insightProjectFilter)
+      && (!insightAgentFilter || agentId === insightAgentFilter);
+  }
+
+  function insightGroupId(key) {
+    let hash = 2166136261;
+    for (let index = 0; index < key.length; index += 1) {
+      hash ^= key.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    return `insight-group-${(hash >>> 0).toString(36)}`;
+  }
+
+  function insightDiagnosisGroups(diagnoses) {
+    const grouped = new Map();
+    diagnoses.forEach((diagnosis) => {
+      const key = diagnosis.groupKey || diagnosis.id;
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(diagnosis);
+    });
+    return Array.from(grouped.entries()).map(([key, items]) => {
+      const first = items[0];
+      const itemLabels = unique(items.map((item) => item.issue?.item || item.title).filter(Boolean));
+      const itemPreview = itemLabels.slice(0, 3).join("、");
+      const remaining = Math.max(0, itemLabels.length - 3);
+      const causeLabel = first.hypotheses[0]?.target || first.issue?.agent_name || "原因未確定";
+      const experimentReady = items.some((item) => item.experimentReady);
+      return {
+        id: insightGroupId(key),
+        diagnoses: items,
+        projectName: first.projectName,
+        agentId: first.issue?.agent_id || "",
+        scope: first.scope,
+        experimentReady,
+        title: items.length === 1
+          ? first.title
+          : experimentReady
+            ? `${causeLabel}の改善シグナル ${items.length}件`
+            : `経過観察 ${items.length}件`,
+        itemSummary: `${itemPreview}${remaining ? `、ほか${remaining}項目` : ""}`,
+        historyAssessment: items.length === 1
+          ? first.historyAssessment
+          : `同じ原因候補と比較条件の${items.length}件をまとめています。対象: ${itemPreview}${remaining ? `、ほか${remaining}項目` : ""}。`,
+        proposalStatusLabel: first.proposalStatusLabel,
+      };
+    });
+  }
+
+  function openInsightDiagnosisGroupDialog(id) {
+    const diagnoses = insightDiagnosticCases(state?.insights || {});
+    const group = insightDiagnosisGroups(diagnoses).find((item) => item.id === id);
+    if (!group) return;
+    if (group.diagnoses.length === 1) {
+      openInsightDiagnosisDialog(group.diagnoses[0].id);
+      return;
+    }
+    const modal = dynamicModal(`
+      <div class="modal insight-detail-modal">
+        <div class="modal-head">
+          <h3>シグナルのまとめ</h3>
+          <div class="m-sub">${escapeHtml(group.title)}</div>
+        </div>
+        <div class="modal-body">
+          <div class="insight-detail-scope">${escapeHtml(group.scope)}</div>
+          <div class="diagnosis-observation"><b>対象</b><span>${escapeHtml(group.itemSummary)}</span></div>
+          <div class="diagnosis-plan"><b>まとめ方</b><span>${escapeHtml(group.historyAssessment)}</span></div>
+          <div class="diagnosis-subhead">含まれるシグナル <span>項目ごとの観測と履歴を確認できます</span></div>
+          <div class="signal-overview-list">
+            ${group.diagnoses.map((diagnosis) => `
+              <div class="signal-overview-row">
+                <div class="signal-overview-main">
+                  <div class="li-title">${escapeHtml(diagnosis.title)}</div>
+                  <div class="li-desc">${escapeHtml(diagnosis.observation)}</div>
+                </div>
+                <div class="signal-overview-action"><span>${escapeHtml(diagnosis.proposalStatusLabel)}</span><button class="btn btn-secondary btn-sm" type="button" data-open-group-diagnosis="${escapeHtml(diagnosis.id)}">詳細</button></div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-secondary" type="button" data-close>閉じる</button>
+          ${group.experimentReady ? `<button class="btn btn-primary" type="button" data-open-group-improvements>改善候補を確認</button>` : ""}
+        </div>
+      </div>
+    `);
+    modal.querySelector("[data-close]").addEventListener("click", closeDynamicModal);
+    modal.querySelectorAll("[data-open-group-diagnosis]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const diagnosisId = button.dataset.openGroupDiagnosis;
+        closeDynamicModal();
+        openInsightDiagnosisDialog(diagnosisId);
+      });
+    });
+    modal.querySelector("[data-open-group-improvements]")?.addEventListener("click", () => {
+      closeDynamicModal();
+      activeInsightsTab = "improvements";
+      renderInsights();
+    });
+  }
+
+  function openInsightDiagnosisDialog(id) {
+    const diagnosis = insightDiagnosticCases(state?.insights || {}).find((item) => item.id === id);
+    if (!diagnosis) return;
+    const modal = dynamicModal(`
+      <div class="modal insight-detail-modal">
+        <div class="modal-head">
+          <h3>シグナルの詳細</h3>
+          <div class="m-sub">${escapeHtml(diagnosis.title)}</div>
+        </div>
+        <div class="modal-body">
+          <div class="insight-detail-scope">${escapeHtml(diagnosis.scope)}</div>
+          <div class="diagnosis-observation"><b>観測</b><span>${escapeHtml(diagnosis.observation)}</span></div>
+          <div class="diagnosis-plan"><b>履歴からの見立て</b><span>${escapeHtml(diagnosis.historyAssessment)}</span></div>
+          <div class="diagnosis-scope" style="margin:8px 0 16px;">${escapeHtml(diagnosis.scopeDetail)}</div>
+          <div class="diagnosis-subhead">工程別の根拠 <span>依頼から判断までを時系列で確認</span></div>
+          <div class="hypothesis-list">
+            ${diagnosis.evidence.length ? diagnosis.evidence.map((evidence) => `
+              <div class="hypothesis-row">
+                <div class="evidence-stage">${escapeHtml(evidence.stage || "記録")}</div>
+                <div style="flex:1;min-width:0;">
+                  <div class="hypothesis-summary">${escapeHtml(evidence.summary || "記録内容はありません")}</div>
+                  <button class="text-link" type="button" data-open-modal-insight-work="${escapeHtml(evidence.work_id)}">${escapeHtml(evidence.work_id)}の履歴を開く</button>
+                </div>
+              </div>
+            `).join("") : `<div class="list-empty">このシグナルと結び付いた工程記録が不足しています。</div>`}
+          </div>
+          <div class="diagnosis-subhead">主な原因候補 <span>${escapeHtml(diagnosis.confidenceLabel)} · 因果はまだ確定していません</span></div>
+          <div class="hypothesis-list">
+            ${diagnosis.hypotheses.slice(0, 1).map((hypothesis) => `
+              <div class="hypothesis-row">
+                <div class="hypothesis-index">1</div>
+                <div style="flex:1;min-width:0;">
+                  <div class="hypothesis-target">${escapeHtml(hypothesis.target)}</div>
+                  <div class="hypothesis-summary">${escapeHtml(hypothesis.summary)}</div>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+          <div class="diagnosis-subhead">競合する原因候補 <span>反証できていない可能性</span></div>
+          <div class="hypothesis-list">
+            ${diagnosis.hypotheses.slice(1).length ? diagnosis.hypotheses.slice(1).map((hypothesis, index) => `
+              <div class="hypothesis-row">
+                <div class="hypothesis-index">${index + 2}</div>
+                <div style="flex:1;min-width:0;">
+                  <div class="hypothesis-target">${escapeHtml(hypothesis.target)}</div>
+                  <div class="hypothesis-summary">${escapeHtml(hypothesis.summary)}</div>
+                  <div class="hypothesis-uncertainty">反証できていない点: ${escapeHtml(hypothesis.uncertainty)}</div>
+                </div>
+              </div>
+            `).join("") : `<div class="list-empty">明示的な競合候補は記録されていません。</div>`}
+          </div>
+          <div class="diagnosis-plan"><b>改善提案への扱い</b><span>${escapeHtml(diagnosis.proposalStatusLabel)} ${diagnosis.experimentReady ? "対象を一つだけ変更し、同種ワークで比較できる改善候補を用意しました。" : "原因の切り分けに必要な履歴がそろうまでは設定を変更しません。"}</span></div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-secondary" type="button" data-close>閉じる</button>
+          ${diagnosis.experimentReady ? `<button class="btn btn-primary" type="button" data-open-modal-improvements>改善候補を確認</button>` : ""}
+        </div>
+      </div>
+    `);
+    modal.querySelector("[data-close]").addEventListener("click", closeDynamicModal);
+    modal.querySelectorAll("[data-open-modal-insight-work]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const workId = button.dataset.openModalInsightWork;
+        closeDynamicModal();
+        openWork(workId);
+      });
+    });
+    modal.querySelector("[data-open-modal-improvements]")?.addEventListener("click", () => {
+      closeDynamicModal();
+      activeInsightsTab = "improvements";
+      renderInsights();
+    });
+  }
+
+  function openAgentInsightDialog(agentId, projectName) {
+    const insights = state?.insights || {};
+    const agent = (insights.agent_scores || []).find((item) =>
+      item.agent_id === agentId && insightProjectName(item.project_name) === projectName,
+    );
+    if (!agent) return;
+    const diagnoses = insightDiagnosticCases(insights).filter((item) =>
+      item.issue?.agent_id === agentId && item.projectName === projectName,
+    );
+    const diagnosisGroups = insightDiagnosisGroups(diagnoses);
+    const comparisons = (insights.prompt_comparisons || []).filter((item) =>
+      item.agent_id === agentId && insightProjectName(item.project_name) === projectName,
+    );
+    const modal = dynamicModal(`
+      <div class="modal insight-detail-modal">
+        <div class="modal-head">
+          <h3>${escapeHtml(agent.agent_name)}の動作状況</h3>
+          <div class="m-sub">${escapeHtml(projectName)} · ${escapeHtml(roleLabel(agent.role))}</div>
+        </div>
+        <div class="modal-body">
+          <div class="agent-analysis-summary">
+            <div><span>動作状態</span><b>${escapeHtml(agent.status_label || "記録不足")}</b></div>
+            <div><span>実行記録</span><b>${escapeHtml(`${agent.activity_count ?? agent.review_count ?? 0}件`)}</b></div>
+            <div><span>直近の動き</span><b>${escapeHtml(agent.recent_activity_label || "記録不足")}</b></div>
+          </div>
+          <div class="group-head"><h3>確認されたシグナル</h3><span class="count">${diagnosisGroups.length}グループ / ${diagnoses.length}件</span></div>
+          <div class="signal-overview-list">
+            ${diagnosisGroups.length ? diagnosisGroups.map((group) => `<div class="signal-overview-row"><div style="flex:1;min-width:0;"><div class="li-title">${escapeHtml(group.title)}</div><div class="li-desc">${group.diagnoses.length > 1 ? `対象項目: ${escapeHtml(group.itemSummary)}` : `履歴からの見立て: ${escapeHtml(group.historyAssessment)}`}</div></div><button class="btn btn-secondary btn-sm" type="button" ${group.diagnoses.length > 1 ? `data-open-modal-insight-group="${escapeHtml(group.id)}"` : `data-open-modal-diagnosis="${escapeHtml(group.diagnoses[0].id)}"`}>${group.diagnoses.length > 1 ? "まとめて確認" : "詳細"}</button></div>`).join("") : `<div class="list-empty">原因分析が必要なシグナルはありません。</div>`}
+          </div>
+          <div class="group-head"><h3>条件を固定した変更の影響</h3><span class="count">${comparisons.length}件</span></div>
+          <div class="diagnosis-list">${comparisons.length ? comparisons.map(promptComparisonMarkup).join("") : `<div class="list-empty">同じ条件で設定版だけを変えた比較記録はありません。</div>`}</div>
+        </div>
+        <div class="modal-foot"><button class="btn btn-secondary" type="button" data-close>閉じる</button></div>
+      </div>
+    `);
+    modal.querySelector("[data-close]").addEventListener("click", closeDynamicModal);
+    modal.querySelectorAll("[data-open-modal-diagnosis]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const diagnosisId = button.dataset.openModalDiagnosis;
+        closeDynamicModal();
+        openInsightDiagnosisDialog(diagnosisId);
+      });
+    });
+    modal.querySelectorAll("[data-open-modal-insight-group]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const groupId = button.dataset.openModalInsightGroup;
+        closeDynamicModal();
+        openInsightDiagnosisGroupDialog(groupId);
+      });
+    });
+    modal.querySelectorAll("[data-open-insight-work]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const workId = button.dataset.openInsightWork;
+        closeDynamicModal();
+        openWork(workId);
+      });
+    });
+  }
+
+  async function runInsightsAnalysis() {
+    if (insightsRunInProgress) return;
+    insightsRunInProgress = true;
+    renderInsights();
+    try {
+      const refreshed = await call("app_state", { root: currentRoot || null });
+      if (!refreshed?.initialized) throw new Error("分析対象のプロジェクトを読み込めませんでした。");
+      state = refreshed;
+      currentRoot = state.root || currentRoot;
+      if (currentRoot) localStorage.setItem("nagare.root", currentRoot);
+      lastInsightsRunAt = new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit" }).format(new Date());
+      refreshNavigationIndicators();
+      insightsRunInProgress = false;
+      renderInsights();
+      toast("最新の実行履歴を分析しました。");
+    } catch (error) {
+      insightsRunInProgress = false;
+      renderInsights();
+      showOperationError(document.getElementById("scr-insights"), "分析を実行できませんでした", error, "プロジェクトの保存場所と実行履歴を確認してから、もう一度実行してください。");
+      toast(String(error), "error");
+    }
+  }
+
   function renderInsights() {
     const el = document.getElementById("scr-insights");
     if (!el || !state) return;
     const insights = state.insights || {};
     const proposalCount = insights.proposal_count ?? insights.proposals?.length ?? 0;
+    const diagnoses = insightDiagnosticCases(insights);
+    const projectOptions = unique([
+      ...diagnoses.map((item) => item.projectName),
+      ...(insights.agent_scores || []).map((item) => insightProjectName(item.project_name)),
+      ...(insights.prompt_comparisons || []).map((item) => insightProjectName(item.project_name)),
+    ].filter(Boolean));
+    const agentOptions = unique([
+      ...diagnoses.map((item) => item.issue?.agent_id),
+      ...(insights.agent_scores || []).map((item) => item.agent_id),
+      ...(insights.prompt_comparisons || []).map((item) => item.agent_id),
+    ].filter(Boolean)).map((id) => ({
+      id,
+      name: (insights.agent_scores || []).find((item) => item.agent_id === id)?.agent_name
+        || diagnoses.find((item) => item.issue?.agent_id === id)?.issue?.agent_name
+        || (insights.prompt_comparisons || []).find((item) => item.agent_id === id)?.agent_name
+        || id,
+    }));
+    if (insightProjectFilter && !projectOptions.includes(insightProjectFilter)) insightProjectFilter = "";
+    if (insightAgentFilter && !agentOptions.some((item) => item.id === insightAgentFilter)) insightAgentFilter = "";
+    const filteredDiagnoses = diagnoses.filter(matchesInsightFilters);
+    const filteredDiagnosisGroups = insightDiagnosisGroups(filteredDiagnoses);
+    const filteredAgents = (insights.agent_scores || []).filter(matchesInsightFilters);
     el.innerHTML = `
-      <h2 class="page-title" style="margin-bottom:0;">分析・改善</h2>
-      <p class="page-sub" style="margin-top:4px;">レビュー履歴から、成績が落ちているエージェントと失点の原因を見つけ、プロンプトやルーブリックの改善につなげます。</p>
+      <div class="insights-page-head">
+        <div>
+          <h2 class="page-title" style="margin-bottom:0;">分析・改善</h2>
+          <p class="page-sub" style="margin:4px 0 0;">実行履歴から問題のまとまりを見つけ、考えられる原因と確認方法を整理します。</p>
+        </div>
+        <div class="insights-run-actions">
+          ${lastInsightsRunAt ? `<span>最終実行 ${escapeHtml(lastInsightsRunAt)}</span>` : ""}
+          <button class="btn btn-primary" type="button" data-run-insights ${insightsRunInProgress ? "disabled" : ""}>${insightsRunInProgress ? "分析中..." : "分析を実行"}</button>
+        </div>
+      </div>
 
       <div class="tabs">
-        <button class="tab ${activeInsightsTab === "analysis" ? "active" : ""}" type="button" data-insights-tab="analysis">分析</button>
-        <button class="tab ${activeInsightsTab === "improvements" ? "active" : ""}" type="button" data-insights-tab="improvements">改善 ${proposalCount ? `<span class="badge badge-ask" style="margin-left:4px;"><span class="bdot"></span>${proposalCount}件</span>` : ""}</button>
+        <button class="tab ${activeInsightsTab === "analysis" ? "active" : ""}" type="button" data-insights-tab="analysis">分析結果</button>
+        <button class="tab ${activeInsightsTab === "improvements" ? "active" : ""}" type="button" data-insights-tab="improvements">改善候補 ${proposalCount ? `<span class="badge badge-ask" style="margin-left:4px;"><span class="bdot"></span>${proposalCount}件</span>` : ""}</button>
       </div>
 
       <div class="tabpane ${activeInsightsTab === "analysis" ? "active" : ""}" data-insights-pane="analysis">
-        <div class="kpi-row">
-          <div class="card stat-tile"><div class="st-label">レビュー済みワーク</div><div class="st-value">${escapeHtml(insights.review_count ?? 0)}<span class="unit">件</span></div><div class="st-delta up">現在の記録</div></div>
-          <div class="card stat-tile"><div class="st-label">平均評価点</div><div class="st-value">${escapeHtml(insights.average_score_label || "-")}</div><div class="st-delta up">レビュー集計</div></div>
-          <div class="card stat-tile"><div class="st-label">懸念</div><div class="st-value">${escapeHtml(insights.concern_count ?? 0)}<span class="unit">件</span></div><div class="st-delta ${Number(insights.concern_count || 0) ? "" : "up"}">${Number(insights.concern_count || 0) ? "確認対象" : "懸念なし"}</div></div>
-          <div class="card stat-tile"><div class="st-label">改善提案</div><div class="st-value">${escapeHtml(proposalCount)}<span class="unit">件</span></div><div class="st-delta ${proposalCount ? "" : "up"}">${proposalCount ? "未対応" : "対応不要"}</div></div>
+        <div class="group-head" style="margin-top:4px;"><h3>分析シグナル</h3><span class="count">${filteredDiagnosisGroups.length}グループ / ${filteredDiagnoses.length}件</span></div>
+        <div class="insight-filter-bar">
+          <label><span>プロジェクト</span><select data-insight-project-filter><option value="">すべて</option>${projectOptions.map((name) => `<option value="${escapeHtml(name)}" ${insightProjectFilter === name ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}</select></label>
+          <label><span>エージェント</span><select data-insight-agent-filter><option value="">すべて</option>${agentOptions.map((agent) => `<option value="${escapeHtml(agent.id)}" ${insightAgentFilter === agent.id ? "selected" : ""}>${escapeHtml(agent.name)}</option>`).join("")}</select></label>
+          <span class="filter-result">${filteredDiagnosisGroups.length}グループを表示</span>
         </div>
-
-        <div class="group-head" style="margin-top:6px;"><h3>エージェント別成績</h3></div>
-        <div class="card" style="overflow:hidden;margin-bottom:16px;">
-          ${insights.agent_scores?.length ? `
-            <table class="itable">
-              <thead><tr><th>エージェント</th><th class="num">レビュー</th><th class="num">平均評価点</th><th>状態</th><th>最も失点する項目</th><th></th></tr></thead>
-              <tbody>${insights.agent_scores.map((agent) => `
-                <tr ${agent.status_label === "要改善" ? `style="background:#fffdf5;"` : ""}>
-                  <td><b>${escapeHtml(agent.agent_name)}</b> · ${escapeHtml(roleLabel(agent.role))}</td>
-                  <td class="num">${escapeHtml(agent.review_count)}</td>
-                  <td class="num"><b>${escapeHtml(agent.average_score_label || `${agent.average_score ?? "-"} / 100`)}</b></td>
-                  <td>${agent.status_label ? `<span class="${agent.status_label === "要改善" ? "badge badge-ask" : "badge badge-neutral"}">${escapeHtml(agent.status_label)}</span>` : ""}</td>
-                  <td>${escapeHtml(agent.top_issue || "-")}</td>
-                  <td style="text-align:right;">${agent.status_label === "要改善" ? `<button class="btn btn-primary btn-sm" type="button" data-open-improvements>改善案を見る</button>` : ""}</td>
-                </tr>
-              `).join("")}</tbody>
-            </table>
-          ` : `<div class="list-empty">レビュー履歴が増えると、エージェント別の傾向が表示されます。</div>`}
-        </div>
-
-        <div class="group-head"><h3>失点の内訳</h3><span class="count">75%未満が改善候補</span></div>
-        <div class="card" style="overflow:hidden;margin-bottom:16px;">
-          ${insights.issue_matrix?.length ? `
-            <table class="itable">
-              <thead><tr><th>エージェント</th><th>項目</th><th class="num">獲得率</th><th class="num">発生</th><th>改善候補</th></tr></thead>
-              <tbody>${insights.issue_matrix.map((issue) => `
-                <tr ${Number(issue.rate || 0) < 75 ? `style="background:var(--warning-soft);"` : ""}>
-                  <td><b>${escapeHtml(issue.agent_name)}</b></td>
-                  <td>${escapeHtml(issue.item)}</td>
-                  <td class="num"><b>${escapeHtml(issue.rate_label || `${issue.rate}%`)}</b></td>
-                  <td class="num">${escapeHtml(issue.occurrences)}件</td>
-                  <td>${escapeHtml(issue.suggestion_kind || "-")}</td>
-                </tr>
-              `).join("")}</tbody>
-            </table>
-          ` : `<div class="list-empty">失点傾向はまだありません。</div>`}
-        </div>
-
-        <div class="group-head"><h3>最近のレビュー</h3></div>
-        <div class="list">${insights.recent_reviews?.length ? insights.recent_reviews.map((review) => `
-          <div class="list-item">
-            <div class="wr-picon">評</div>
-            <div class="wr-body">
-              <div class="wr-title">${escapeHtml(review.title)} <span class="wr-projtag">${escapeHtml(review.score_label || review.verdict)}</span></div>
-              <div class="wr-sum">${escapeHtml(review.agent_name)} · ${escapeHtml((review.concerns || []).join(" / ") || "懸念なし")}</div>
+        <div class="signal-overview-list" data-insight-diagnoses>
+          ${filteredDiagnosisGroups.length ? filteredDiagnosisGroups.map((group) => `
+            <div class="signal-overview-row">
+              <div class="signal-overview-main">
+                <div class="li-title">${escapeHtml(group.title)}</div>
+                <div class="li-desc">${escapeHtml(group.scope)}</div>
+                <div class="signal-cause"><b>${group.diagnoses.length > 1 ? "対象項目" : "履歴からの見立て"}</b><span>${escapeHtml(group.diagnoses.length > 1 ? group.itemSummary : group.historyAssessment)}</span></div>
+              </div>
+              <div class="signal-overview-action"><span>${escapeHtml(group.proposalStatusLabel)}</span><button class="btn btn-secondary btn-sm" type="button" ${group.diagnoses.length > 1 ? `data-open-insight-group="${escapeHtml(group.id)}"` : `data-open-insight-diagnosis="${escapeHtml(group.diagnoses[0].id)}"`}>${group.diagnoses.length > 1 ? "まとめて確認" : "詳細"}</button></div>
             </div>
-          </div>
-        `).join("") : `<div class="list-empty">最近のレビューはありません。</div>`}</div>
+          `).join("") : `<div class="list-empty">この条件で原因分析が必要なシグナルはありません。</div>`}
+        </div>
+
+        <div class="group-head"><h3>エージェントの動作状況</h3><span class="count">${filteredAgents.length}件</span></div>
+        <div class="agent-analysis-list">
+          ${filteredAgents.length ? filteredAgents.map((agent) => {
+            const agentDiagnoses = filteredDiagnoses.filter((item) => item.issue?.agent_id === agent.agent_id && item.projectName === insightProjectName(agent.project_name));
+            const agentDiagnosisGroups = insightDiagnosisGroups(agentDiagnoses);
+            const activityCount = agent.activity_count ?? agent.review_count ?? 0;
+            return `<div class="agent-analysis-row"><div class="agent-analysis-name"><b>${escapeHtml(agent.agent_name)}</b><span>${escapeHtml(roleLabel(agent.role))} · ${escapeHtml(insightProjectName(agent.project_name))}</span></div><div class="agent-analysis-state"><b>${escapeHtml(agent.status_label || "記録不足")}</b><span>実行記録 ${escapeHtml(activityCount)}件</span></div><div class="agent-analysis-findings"><b>${escapeHtml(agentDiagnoses.length ? `${agentDiagnosisGroups.length}グループ / ${agentDiagnoses.length}件` : "目立つシグナルなし")}</b><span>${escapeHtml(agent.top_issue || "-")}</span></div><div class="agent-analysis-change"><b>直近の動き</b><span>${escapeHtml(agent.recent_activity_label || "記録不足")}</span></div><button class="btn btn-secondary btn-sm" type="button" data-open-agent-insight="${escapeHtml(agent.agent_id)}" data-agent-project="${escapeHtml(insightProjectName(agent.project_name))}">詳細</button></div>`;
+          }).join("") : `<div class="list-empty">この条件に該当するエージェント記録はありません。</div>`}
+        </div>
       </div>
 
       <div class="tabpane ${activeInsightsTab === "improvements" ? "active" : ""}" data-insights-pane="improvements">
         <div class="card" style="padding:12px 16px;margin:4px 0 14px;display:flex;gap:10px;align-items:center;background:var(--primary-soft);border-color:var(--primary-line);">
-          <span style="font-size:14px;">!</span>
-          <span style="font-size:12.5px;color:var(--text-body);">改善提案は自動適用しません。Diffと根拠を確認し、対象画面で人が編集します。</span>
+          <span style="font-size:12.5px;color:var(--text-body);">改善候補は原因の確定ではありません。一度に一つの対象だけを変更し、Diff、根拠、反証条件を確認してから限定的に試します。</span>
         </div>
         <div class="group-head" style="margin-top:4px;">
-          <h3>未対応の改善提案</h3>
+          <h3>検証前の改善候補</h3>
           <span class="count">${escapeHtml(proposalCount)}件</span>
           <span style="flex:1"></span>
           ${insights.proposals?.length ? `<button class="btn btn-secondary btn-sm" type="button" data-open-first-proposal>今すぐ見直す</button>` : ""}
         </div>
         <div class="list" data-pending-improvements>${insights.proposals?.length ? insights.proposals.map((proposal) => `
           <div class="list-item" style="background:#fffdf5;">
-            <div class="li-icon" style="background:var(--warning-soft);color:var(--warning);">!</div>
             <div style="flex:1;">
-              <div class="li-title">${escapeHtml(proposal.title)} <span class="badge badge-neutral" style="margin-left:4px;">${escapeHtml(proposal.kind)}</span></div>
-              <div class="li-desc">${escapeHtml(proposal.summary)} · 根拠: ${escapeHtml(proposal.evidence)}</div>
+              <div class="li-title">${escapeHtml(proposal.title)} <span class="badge badge-neutral" style="margin-left:4px;">仮説: ${escapeHtml(proposal.kind)}</span></div>
+              <div class="li-desc">${escapeHtml(proposal.summary)}</div>
+              <div class="li-desc" style="margin-top:3px;"><b>観測根拠:</b> ${escapeHtml(proposal.evidence)}</div>
             </div>
-            <button class="btn btn-primary btn-sm" type="button" data-preview-proposal="${escapeHtml(proposal.id)}">プレビュー</button>
+            <button class="btn btn-primary btn-sm" type="button" data-preview-proposal="${escapeHtml(proposal.id)}">根拠と差分</button>
           </div>
         `).join("") : `<div class="list-empty">未対応の改善提案はありません。</div>`}</div>
         <div class="group-head">
@@ -5720,11 +6483,32 @@ const NagareApp = (() => {
         renderInsights();
       });
     });
+    el.querySelector("[data-run-insights]")?.addEventListener("click", runInsightsAnalysis);
+    el.querySelector("[data-insight-project-filter]")?.addEventListener("change", (event) => {
+      insightProjectFilter = event.currentTarget.value;
+      renderInsights();
+    });
+    el.querySelector("[data-insight-agent-filter]")?.addEventListener("change", (event) => {
+      insightAgentFilter = event.currentTarget.value;
+      renderInsights();
+    });
+    el.querySelectorAll("[data-open-insight-diagnosis]").forEach((button) => {
+      button.addEventListener("click", () => openInsightDiagnosisDialog(button.dataset.openInsightDiagnosis));
+    });
+    el.querySelectorAll("[data-open-insight-group]").forEach((button) => {
+      button.addEventListener("click", () => openInsightDiagnosisGroupDialog(button.dataset.openInsightGroup));
+    });
+    el.querySelectorAll("[data-open-agent-insight]").forEach((button) => {
+      button.addEventListener("click", () => openAgentInsightDialog(button.dataset.openAgentInsight, button.dataset.agentProject));
+    });
     el.querySelectorAll("[data-open-improvements]").forEach((button) => {
       button.addEventListener("click", () => {
         activeInsightsTab = "improvements";
         renderInsights();
       });
+    });
+    el.querySelectorAll("[data-open-insight-work]").forEach((button) => {
+      button.addEventListener("click", () => openWork(button.dataset.openInsightWork));
     });
     el.querySelectorAll("[data-preview-proposal]").forEach((button) => {
       button.addEventListener("click", () => openImprovementProposalDialog(button.dataset.previewProposal));
@@ -5748,22 +6532,23 @@ const NagareApp = (() => {
     const proposal = (state?.insights?.proposals || []).find((item) => item.id === id);
     if (!proposal) return;
     const modal = dynamicModal(`
-      <div class="modal" style="width:640px;">
+      <div class="modal" style="width:760px;">
         <div class="modal-head">
-          <div class="m-step">改善プレビュー</div>
+          <div class="m-step">限定的な改善実験</div>
           <h3>${escapeHtml(proposal.title)}</h3>
-          <div class="m-sub">対象: ${escapeHtml(proposal.target_label || proposal.kind)}</div>
+          <div class="m-sub">変更対象: ${escapeHtml(proposal.target_label || proposal.kind)}。原因はまだ確定していません。</div>
         </div>
         <div class="modal-body">
+          <div class="diagnosis-observation"><b>観測</b><span>${escapeHtml(proposal.evidence || "比較できる記録が不足しています。")}</span></div>
+          <div class="diagnosis-observation"><b>帰属仮説</b><span>${escapeHtml(improvementHypothesisText(proposal))}</span></div>
           <div style="margin-bottom:12px;">
-            <div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--text-faint);text-transform:uppercase;margin-bottom:5px;">変更内容</div>
+            <div style="font-size:12px;font-weight:700;color:var(--text-body);margin:10px 0 5px;">提案する一対象の差分</div>
             <div class="diff" style="max-height:340px;overflow-y:auto;">
               ${(proposal.diff_lines?.length ? proposal.diff_lines : diffFromProposal(proposal)).map(diffLine).join("")}
             </div>
           </div>
-          <div style="font-size:12.5px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:10px;">
-            <b style="color:var(--text-body);">提案の根拠:</b> ${escapeHtml(proposal.evidence || "")}
-          </div>
+          <div class="diagnosis-observation"><b>反証条件</b><span>同じ条件群で変更前後の差が再現しない、または複数エージェントで同じ問題が続く場合、この対象への帰属を見直します。</span></div>
+          <div class="diagnosis-plan"><b>評価方法</b><span>この対象だけを変更し、成果物定義とルーブリックを固定した同種ワークで比較します。悪化した場合は以前の設定へ戻します。</span></div>
           ${proposal.next_step ? `<div class="hint" style="margin-top:10px;">次の操作: ${escapeHtml(proposal.next_step)}</div>` : ""}
         </div>
         <div class="modal-foot">
@@ -5895,6 +6680,14 @@ const NagareApp = (() => {
       }
       await loadState();
     }
+  }
+
+  function improvementHypothesisText(proposal) {
+    const kind = String(proposal.kind || "");
+    if (kind.includes("ルーブリック")) return "判定基準の例示、閾値、重大な不足の条件が曖昧で、レビュー結果が目的と一致していない可能性があります。";
+    if (kind.includes("知識")) return "複数の担当が必要とする前提や参照例が共有知識へ集約されていない可能性があります。";
+    if (kind.includes("運用")) return "処理上の摩擦が現在の確認・handoff方策から生じている可能性があります。人間承認の緩和は自動採用しません。";
+    return "対象エージェントのプロンプトまたは作業手順に、観測された項目を満たす確認条件が不足している可能性があります。";
   }
 
   return { init, loadState, openSetup };

@@ -24,6 +24,25 @@ fn cat_command(path: &str) -> String {
 fn trace_jsonl_records_nf2_decision_flow() {
     let root = test_root("trace-contract");
     init_project(&root).expect("project should init");
+    add_artifact_type(
+        &root,
+        AddArtifactTypeInput {
+            id: "trace-report",
+            domain_id: Some("general"),
+            display_name: "Trace Report",
+            description: "A report backed by execution trace evidence.",
+            artifact_types: vec!["markdown".to_string()],
+            rubric: vec![
+                "## Correctness (60)".to_string(),
+                "- The report matches the recorded execution.".to_string(),
+                "## Clarity (40)".to_string(),
+                "- The report explains the decision trail.".to_string(),
+            ],
+            dispatch_hints: Vec::new(),
+            workflow: DomainWorkflowOverride::default(),
+        },
+    )
+    .expect("artifact type should be added");
     fs::write(
         root.join("dispatch.json"),
         r#"{"target_agent_profile_id":"worker","summary":"Use the worker because it matches the general implementation request.","risks":[],"missing_information":[]}"#,
@@ -36,7 +55,7 @@ fn trace_jsonl_records_nf2_decision_flow() {
     .expect("work fixture should write");
     fs::write(
         root.join("review.md"),
-        "## Nagare Review\nverdict: pass\nsummary:\n- trace criterion satisfied\ncriteria:\n- trace criterion: pass\nfindings:\n- no blockers\nquestions:\nnext_action: approve\n",
+        "## Nagare Review\nverdict: pass\noverall_score: 85\nsummary:\n- trace criterion satisfied\ncompleted:\n- reviewed the trace report\ncriteria:\n- trace criterion: passed - trace evidence is present\nrubric_scores:\n- Correctness | points=50 | max_points=60 | verdict=partial | evidence=One edge case is not explained.\n- Clarity | points=35 | max_points=40 | verdict=pass | evidence=The decision trail is readable.\nfindings:\n- no blockers\nquestions:\nnext_notes:\n- ready for approval\nnext_action: approve\n",
     )
     .expect("review fixture should write");
     fs::write(
@@ -52,6 +71,7 @@ fn trace_jsonl_records_nf2_decision_flow() {
             description: "Record the human-readable decision trail.".to_string(),
             acceptance_criteria: vec!["trace criterion".to_string()],
             expected_artifacts: vec!["work.md".to_string()],
+            artifact_type_id: Some("trace-report".to_string()),
             ..CreateWorkItemInput::default()
         },
     )
@@ -190,6 +210,37 @@ fn trace_jsonl_records_nf2_decision_flow() {
     assert_eq!(reviewer.payload["item_verdicts"][0]["verdict"], "pass");
     assert_eq!(reviewer.payload["item_verdicts"][0]["points"], 1);
     assert_eq!(reviewer.payload["item_verdicts"][0]["max_points"], 1);
+    assert_eq!(reviewer.payload["rubric_ref"]["id"], "trace-report");
+    assert_eq!(reviewer.payload["rubric_ref"]["version"], 1);
+    assert_eq!(
+        reviewer.payload["rubric_item_verdicts"]
+            .as_array()
+            .map(Vec::len),
+        Some(2)
+    );
+    assert_eq!(
+        reviewer.payload["rubric_item_verdicts"][0]["item"],
+        "Correctness"
+    );
+    assert_eq!(reviewer.payload["rubric_item_verdicts"][0]["points"], 50);
+    assert_eq!(reviewer.payload["rubric_total_score"], 85);
+    assert_eq!(reviewer.payload["rubric_max_score"], 100);
+    assert_eq!(reviewer.payload["rubric_items_expected"], 2);
+    assert_eq!(reviewer.payload["rubric_items_recorded"], 2);
+    assert_eq!(reviewer.payload["rubric_complete"], true);
+    assert_eq!(reviewer.payload["diagnostics"]["prompt_version"], "v1");
+    assert_eq!(reviewer.payload["knowledge_refs"][0]["id"], "general");
+    assert_eq!(reviewer.payload["knowledge_refs"][0]["version"], 1);
+    assert_eq!(
+        reviewer.payload["knowledge_refs"][0]["kind"],
+        "domain_knowledge"
+    );
+    assert_eq!(reviewer.payload["knowledge_refs"][1]["id"], "trace-report");
+    assert_eq!(reviewer.payload["knowledge_refs"][1]["version"], 1);
+    assert_eq!(
+        reviewer.payload["knowledge_refs"][1]["kind"],
+        "artifact_definition"
+    );
     assert!(
         reviewer.payload["target_artifacts"][0]
             .as_str()
@@ -200,6 +251,31 @@ fn trace_jsonl_records_nf2_decision_flow() {
     assert_eq!(reviewer.payload["max_score"], 1);
     assert_eq!(reviewer.payload["recommendation"], "approve");
     assert_eq!(reviewer.payload["summary"], "trace criterion satisfied");
+
+    let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot should load");
+    assert_eq!(snapshot.review_results[0].rubric_expected_count, 2);
+    assert_eq!(
+        snapshot.review_results[0].rubric_results[0].points,
+        Some(50)
+    );
+    let review_packet = snapshot
+        .resolved_run_packets
+        .iter()
+        .find(|packet| packet.purpose == AgentRunPurpose::Review)
+        .expect("review run packet should exist");
+    assert_eq!(review_packet.prompt_version, "v1");
+    assert_eq!(review_packet.rubric_id.as_deref(), Some("trace-report"));
+    assert_eq!(review_packet.rubric_version, Some(1));
+    assert_eq!(
+        review_packet.domain_knowledge_id.as_deref(),
+        Some("general")
+    );
+    assert_eq!(review_packet.domain_knowledge_version, Some(1));
+    assert_eq!(
+        review_packet.artifact_definition_id.as_deref(),
+        Some("trace-report")
+    );
+    assert_eq!(review_packet.artifact_definition_version, Some(1));
 
     let trace_path = root
         .join(".nagare")

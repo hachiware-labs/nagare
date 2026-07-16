@@ -138,6 +138,8 @@ pub(crate) struct ArtifactTypeFileEntry {
     pub(crate) rubric: Vec<String>,
     #[serde(default = "default_rubric_version")]
     pub(crate) rubric_version: u32,
+    #[serde(default = "default_resource_version")]
+    pub(crate) definition_version: u32,
     #[serde(default)]
     pub(crate) dispatch_hints: Vec<String>,
     #[serde(default)]
@@ -155,6 +157,8 @@ pub(crate) struct DomainFileEntry {
     pub(crate) shared_knowledge: Vec<String>,
     #[serde(default)]
     pub(crate) common_rubric: Vec<String>,
+    #[serde(default = "default_resource_version")]
+    pub(crate) knowledge_version: u32,
     #[serde(default)]
     pub(crate) dispatch_hints: Vec<String>,
     #[serde(default)]
@@ -368,6 +372,7 @@ impl ArtifactTypeFileEntry {
             artifact_types: normalize_specialties(self.artifact_types),
             rubric: normalize_specialties(self.rubric),
             rubric_version: self.rubric_version.max(1),
+            definition_version: self.definition_version.max(1),
             dispatch_hints: normalize_specialties(self.dispatch_hints),
             workflow: self.workflow,
             source,
@@ -376,6 +381,10 @@ impl ArtifactTypeFileEntry {
 }
 
 fn default_rubric_version() -> u32 {
+    1
+}
+
+fn default_resource_version() -> u32 {
     1
 }
 
@@ -388,6 +397,7 @@ impl DomainFileEntry {
             description: self.description.trim().to_string(),
             shared_knowledge: normalize_specialties(self.shared_knowledge),
             common_rubric: normalize_specialties(self.common_rubric),
+            knowledge_version: self.knowledge_version.max(1),
             dispatch_hints: normalize_specialties(self.dispatch_hints),
             workflow: self.workflow,
             source,

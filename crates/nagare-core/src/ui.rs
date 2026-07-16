@@ -209,7 +209,7 @@ fn render_board(
             attention,
             h(ui_text(locale, "Failed", "失敗")),
             failed,
-            h(ui_text(locale, "Recovery", "回復案")),
+            h(ui_text(locale, "Required action", "要対応")),
             recovery,
             h(ui_text(locale, "Running", "実行中")),
             running,
@@ -772,11 +772,11 @@ fn render_recovery_inspector(snapshot: &WorkItemSnapshot, locale: &str) -> Strin
         .find(|plan| plan.status != RecoveryPlanStatus::Superseded)
     else {
         return inspector_empty(
-            ui_text(locale, "Recovery", "Recovery"),
+            ui_text(locale, "Required action", "対応内容"),
             ui_text(
                 locale,
-                "No active recovery plan.",
-                "有効な recovery plan はありません。",
+                "No action is currently required.",
+                "現在対応が必要な項目はありません。",
             ),
         );
     };
@@ -788,7 +788,7 @@ fn render_recovery_inspector(snapshot: &WorkItemSnapshot, locale: &str) -> Strin
   <p>{}</p>
   <dl><dt>action</dt><dd>{}</dd><dt>target</dt><dd>{}</dd><dt>hint</dt><dd>{}</dd></dl>
 </div>"#,
-        h(ui_text(locale, "Recovery", "Recovery")),
+        h(ui_text(locale, "Required action", "対応内容")),
         h(&plan.status.to_string()),
         h(&plan.failure_class),
         h(&plan.summary),

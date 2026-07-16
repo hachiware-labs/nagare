@@ -457,6 +457,7 @@ Usage:
   nagare agent doctor <agent_profile_id> [--root <path>]
   nagare agent probe <agent_profile_id> [--root <path>]
   nagare item create --title <title> [--description <text>] [--acceptance <csv>] [--artifact <csv>] [--work-folder <relative_path>] [--constraint <csv>] [--domain <domain_id>] [--artifact-type <artifact_type_id>] [--domain-agent-policy auto_general_fallback|confirm_general_fallback|require_domain_agent] [--workflow-mode confirm_first|finish_first] [--approval-policy manual_final_approval|manual_on_review_concern|auto_complete_on_review_pass] [--root <path>]
+  nagare item delete <work_id> [--root <path>]
   nagare item list [--root <path>]
   nagare item show <work_id> [--root <path>]
   nagare item answer <work_id> --answer <text> [--question <text>] [--root <path>]

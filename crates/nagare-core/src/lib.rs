@@ -23,6 +23,7 @@ mod workflow_types;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+pub use adapters::run_codex_cli_prompt;
 pub use dispatch::*;
 pub use handoff::*;
 pub use i18n::{I18n, NagareLanguage, UiTextKey, detect_environment_locale, language_from_locale};

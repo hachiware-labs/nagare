@@ -20,6 +20,10 @@ pub struct ReviewResult {
     #[serde(default)]
     pub criteria_results: Vec<CriteriaReviewResult>,
     #[serde(default)]
+    pub rubric_results: Vec<RubricReviewResult>,
+    #[serde(default)]
+    pub rubric_expected_count: usize,
+    #[serde(default)]
     pub questions: Vec<String>,
     pub next_action: Option<String>,
     pub execution_record_id: String,
@@ -33,6 +37,44 @@ pub struct CriteriaReviewResult {
     pub criterion: String,
     pub status: CriteriaReviewStatus,
     pub note: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RubricReviewResult {
+    pub item: String,
+    #[serde(default)]
+    pub points: Option<u32>,
+    pub max_points: u32,
+    #[serde(default)]
+    pub verdict: RubricReviewVerdict,
+    #[serde(default)]
+    pub evidence: String,
+    #[serde(default)]
+    pub recorded: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RubricReviewVerdict {
+    Pass,
+    Partial,
+    Fail,
+    NotApplicable,
+    #[default]
+    Unknown,
+}
+
+impl std::fmt::Display for RubricReviewVerdict {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let value = match self {
+            Self::Pass => "pass",
+            Self::Partial => "partial",
+            Self::Fail => "fail",
+            Self::NotApplicable => "not_applicable",
+            Self::Unknown => "unknown",
+        };
+        f.write_str(value)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -79,7 +121,10 @@ pub(crate) fn review_result_from_agent_output(
     id: String,
     output: &AgentOutputRecord,
     acceptance_criteria: &[String],
+    rubric: &[String],
 ) -> ReviewResult {
+    let rubric_definitions = rubric_definitions(rubric);
+    let rubric_expected_count = rubric_definitions.len();
     ReviewResult {
         id,
         work_item_id: output.work_item_id.clone(),
@@ -104,12 +149,187 @@ pub(crate) fn review_result_from_agent_output(
             .cloned()
             .unwrap_or_default(),
         criteria_results: criteria_results_from_output(output, acceptance_criteria),
+        rubric_results: rubric_results_from_output(output, &rubric_definitions),
+        rubric_expected_count,
         questions: output.questions.clone(),
         next_action: output.next_action.clone(),
         execution_record_id: output.execution_record_id.clone(),
         locale: output.locale.clone(),
         created_at: output.created_at.clone(),
     }
+}
+
+#[derive(Clone)]
+struct RubricDefinition {
+    item: String,
+    max_points: u32,
+}
+
+#[derive(Clone)]
+struct ParsedRubricResult {
+    item: String,
+    points: Option<u32>,
+    max_points: u32,
+    verdict: RubricReviewVerdict,
+    evidence: String,
+}
+
+fn rubric_definitions(rubric: &[String]) -> Vec<RubricDefinition> {
+    rubric
+        .iter()
+        .flat_map(|entry| entry.lines())
+        .filter_map(|line| {
+            let heading = line.trim().strip_prefix("## ")?.trim();
+            let (item, score) = heading.rsplit_once('(')?;
+            let max_points = score.trim().strip_suffix(')')?.trim().parse().ok()?;
+            let item = item.trim();
+            (!item.is_empty()).then(|| RubricDefinition {
+                item: item.to_string(),
+                max_points,
+            })
+        })
+        .collect()
+}
+
+fn rubric_results_from_output(
+    output: &AgentOutputRecord,
+    definitions: &[RubricDefinition],
+) -> Vec<RubricReviewResult> {
+    let parsed = output
+        .fields
+        .get("rubric_scores")
+        .or_else(|| output.fields.get("rubric_results"))
+        .into_iter()
+        .flatten()
+        .filter_map(|line| parse_rubric_result(line))
+        .collect::<Vec<_>>();
+
+    if definitions.is_empty() {
+        return parsed
+            .into_iter()
+            .map(|result| RubricReviewResult {
+                item: result.item,
+                points: result.points,
+                max_points: result.max_points,
+                verdict: result.verdict,
+                evidence: result.evidence,
+                recorded: result.points.is_some() && result.max_points > 0,
+            })
+            .collect();
+    }
+
+    definitions
+        .iter()
+        .map(|definition| {
+            let matched = parsed.iter().find(|result| {
+                normalize_rubric_item(&result.item) == normalize_rubric_item(&definition.item)
+            });
+            let Some(result) = matched else {
+                return RubricReviewResult {
+                    item: definition.item.clone(),
+                    points: None,
+                    max_points: definition.max_points,
+                    verdict: RubricReviewVerdict::Unknown,
+                    evidence: "ルーブリック観点別得点が未記録です。".to_string(),
+                    recorded: false,
+                };
+            };
+            let max_mismatch = result.max_points != definition.max_points;
+            let points = result
+                .points
+                .map(|points| points.min(definition.max_points));
+            let evidence = if max_mismatch {
+                format!(
+                    "{} [出力配点 {}/定義配点 {}]",
+                    result.evidence, result.max_points, definition.max_points
+                )
+            } else {
+                result.evidence.clone()
+            };
+            RubricReviewResult {
+                item: definition.item.clone(),
+                points,
+                max_points: definition.max_points,
+                verdict: result.verdict,
+                evidence,
+                recorded: points.is_some() && result.max_points > 0,
+            }
+        })
+        .collect()
+}
+
+fn parse_rubric_result(line: &str) -> Option<ParsedRubricResult> {
+    let mut segments = line.split('|').map(str::trim);
+    let item = segments.next()?.trim();
+    if item.is_empty() || is_empty_rubric_value(item) {
+        return None;
+    }
+    let mut points = None;
+    let mut max_points = None;
+    let mut verdict = RubricReviewVerdict::Unknown;
+    let mut evidence = String::new();
+    for segment in segments {
+        let Some((key, value)) = segment.split_once('=').or_else(|| segment.split_once(':')) else {
+            continue;
+        };
+        let key = key.trim().to_ascii_lowercase().replace('-', "_");
+        let value = value.trim();
+        match key.as_str() {
+            "points" | "score" => points = value.parse::<u32>().ok(),
+            "max_points" | "max" => max_points = value.parse::<u32>().ok(),
+            "verdict" | "status" => verdict = parse_rubric_verdict(value),
+            "evidence" | "reason" => evidence = value.to_string(),
+            _ => {}
+        }
+    }
+    let max_points = max_points?;
+    Some(ParsedRubricResult {
+        item: item.to_string(),
+        points,
+        max_points,
+        verdict,
+        evidence,
+    })
+}
+
+fn parse_rubric_verdict(value: &str) -> RubricReviewVerdict {
+    match value
+        .trim()
+        .to_ascii_lowercase()
+        .replace([' ', '-'], "_")
+        .as_str()
+    {
+        "pass" | "passed" | "ok" => RubricReviewVerdict::Pass,
+        "partial" | "partially_met" | "minor_concern" => RubricReviewVerdict::Partial,
+        "fail" | "failed" | "concern" => RubricReviewVerdict::Fail,
+        "not_applicable" | "na" | "n_a" => RubricReviewVerdict::NotApplicable,
+        _ => RubricReviewVerdict::Unknown,
+    }
+}
+
+fn normalize_rubric_item(value: &str) -> String {
+    rubric_item_name(value)
+        .trim()
+        .to_ascii_lowercase()
+        .replace([' ', '　', '-', '_', '・'], "")
+}
+
+fn rubric_item_name(value: &str) -> String {
+    let value = value.trim().trim_start_matches('#').trim();
+    if let Some((item, score)) = value.rsplit_once('(') {
+        let score = score.trim().strip_suffix(')').unwrap_or(score).trim();
+        if score.parse::<u32>().is_ok() {
+            return item.trim().to_string();
+        }
+    }
+    value.to_string()
+}
+
+fn is_empty_rubric_value(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "" | "none" | "n/a" | "na" | "なし"
+    )
 }
 
 pub(crate) fn review_work_item_status(
@@ -281,6 +501,7 @@ mod tests {
             "review_test".to_string(),
             &output,
             &["The guide includes no more than three steps".to_string()],
+            &[],
         );
 
         assert_eq!(review.criteria_results.len(), 1);
@@ -288,5 +509,83 @@ mod tests {
             review.criteria_results[0].status,
             CriteriaReviewStatus::Passed
         );
+    }
+
+    #[test]
+    fn rubric_results_are_recorded_against_expected_headings() {
+        let mut output = sample_review_output();
+        output.fields.insert(
+            "rubric_scores".to_string(),
+            vec![
+                "## Correctness (40) | points=35 | max_points=40 | verdict=partial | evidence=One edge case is missing.".to_string(),
+                "## Clarity (60) | points=60 | max_points=60 | verdict=pass | evidence=The structure is explicit.".to_string(),
+            ],
+        );
+
+        let review = review_result_from_agent_output(
+            "review_test".to_string(),
+            &output,
+            &[],
+            &[
+                "## Correctness (40)".to_string(),
+                "## Clarity (60)".to_string(),
+            ],
+        );
+
+        assert_eq!(review.rubric_expected_count, 2);
+        assert_eq!(review.rubric_results.len(), 2);
+        assert_eq!(review.rubric_results[0].points, Some(35));
+        assert_eq!(review.rubric_results[0].max_points, 40);
+        assert_eq!(
+            review.rubric_results[0].verdict,
+            RubricReviewVerdict::Partial
+        );
+        assert!(review.rubric_results[0].recorded);
+    }
+
+    #[test]
+    fn omitted_rubric_result_is_marked_unrecorded_instead_of_zero() {
+        let mut output = sample_review_output();
+        output.fields.insert(
+            "rubric_scores".to_string(),
+            vec![
+                "Correctness | points=40 | max_points=40 | verdict=pass | evidence=Covered."
+                    .to_string(),
+            ],
+        );
+
+        let review = review_result_from_agent_output(
+            "review_test".to_string(),
+            &output,
+            &[],
+            &[
+                "## Correctness (40)".to_string(),
+                "## Clarity (60)".to_string(),
+            ],
+        );
+
+        assert_eq!(review.rubric_results[1].item, "Clarity");
+        assert_eq!(review.rubric_results[1].points, None);
+        assert!(!review.rubric_results[1].recorded);
+    }
+
+    fn sample_review_output() -> AgentOutputRecord {
+        AgentOutputRecord {
+            id: "out_test".to_string(),
+            work_item_id: "work_test".to_string(),
+            agent_run_id: "run_test".to_string(),
+            agent_profile_id: "reviewer".to_string(),
+            purpose: AgentRunPurpose::Review,
+            contract: "nagare.review.v1".to_string(),
+            instruction_pack: "nagare-review-writer.v1".to_string(),
+            parse_status: AgentOutputParseStatus::Parsed,
+            fields: BTreeMap::from([("verdict".to_string(), vec!["pass".to_string()])]),
+            questions: Vec::new(),
+            next_action: Some("approve".to_string()),
+            warnings: Vec::new(),
+            execution_record_id: "exec_test".to_string(),
+            locale: "en-US".to_string(),
+            created_at: "1".to_string(),
+        }
     }
 }

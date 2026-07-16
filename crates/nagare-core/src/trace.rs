@@ -75,7 +75,7 @@ pub(crate) fn append_agent_run_trace(
                     "runtime": trace_runtime(profile, run_packet),
                     "duration_ms": duration_ms(&run.started_at, &run.ended_at),
                     "status": trace_run_status(run.status),
-                    "knowledge_refs": knowledge_refs(item),
+                    "knowledge_refs": knowledge_refs(item, run_packet),
                     "diagnostics": diagnostics(run, run_packet),
                     "interpreted_request": plan.summary,
                     "domain_id": item.domain_id.as_deref().unwrap_or("general"),
@@ -108,7 +108,7 @@ pub(crate) fn append_agent_run_trace(
                     "runtime": trace_runtime(profile, run_packet),
                     "duration_ms": duration_ms(&run.started_at, &run.ended_at),
                     "status": trace_run_status(run.status),
-                    "knowledge_refs": knowledge_refs(item),
+                    "knowledge_refs": knowledge_refs(item, run_packet),
                     "diagnostics": diagnostics(run, run_packet),
                     "inputs": {
                         "summary": run_packet.goal,
@@ -139,7 +139,7 @@ pub(crate) fn append_agent_run_trace(
                     "runtime": trace_runtime(profile, run_packet),
                     "duration_ms": duration_ms(&run.started_at, &run.ended_at),
                     "status": trace_run_status(run.status),
-                    "knowledge_refs": knowledge_refs(item),
+                    "knowledge_refs": knowledge_refs(item, run_packet),
                     "diagnostics": diagnostics(run, run_packet),
                     "inputs": {
                         "summary": run_packet.goal,
@@ -162,6 +162,7 @@ pub(crate) fn append_agent_run_trace(
             };
             let step_no = next_trace_step_no(layout, &item.id)?;
             let item_verdicts = trace_review_items(review);
+            let rubric_item_verdicts = trace_rubric_items(review);
             let max_score = item_verdicts.len() as u64;
             let total_score = review
                 .criteria_results
@@ -169,6 +170,25 @@ pub(crate) fn append_agent_run_trace(
                 .filter(|result| result.status == CriteriaReviewStatus::Passed)
                 .count() as u64;
             let overall_score = output.and_then(review_overall_score);
+            let rubric_total_score = review
+                .rubric_results
+                .iter()
+                .filter(|result| result.recorded)
+                .filter_map(|result| result.points)
+                .map(u64::from)
+                .sum::<u64>();
+            let rubric_max_score = review
+                .rubric_results
+                .iter()
+                .map(|result| u64::from(result.max_points))
+                .sum::<u64>();
+            let rubric_items_recorded = review
+                .rubric_results
+                .iter()
+                .filter(|result| result.recorded)
+                .count();
+            let rubric_complete = review.rubric_expected_count > 0
+                && rubric_items_recorded == review.rubric_expected_count;
             Ok(Some(append_trace_record(
                 layout,
                 &item.id,
@@ -181,16 +201,26 @@ pub(crate) fn append_agent_run_trace(
                     "runtime": trace_runtime(profile, run_packet),
                     "duration_ms": duration_ms(&run.started_at, &run.ended_at),
                     "status": trace_run_status(run.status),
-                    "knowledge_refs": knowledge_refs(item),
+                    "knowledge_refs": knowledge_refs(item, run_packet),
                     "diagnostics": diagnostics(run, run_packet),
                     "rubric_ref": {
-                        "id": item.artifact_type_id.as_deref().unwrap_or("acceptance_criteria"),
-                        "version": 1,
+                        "id": run_packet
+                            .rubric_id
+                            .as_deref()
+                            .or(item.artifact_type_id.as_deref())
+                            .unwrap_or("acceptance_criteria"),
+                        "version": run_packet.rubric_version,
                     },
                     "target_artifacts": trace_artifact_paths(artifacts, &item.id),
                     "item_verdicts": item_verdicts,
+                    "rubric_item_verdicts": rubric_item_verdicts,
                     "total_score": total_score,
                     "max_score": max_score,
+                    "rubric_total_score": rubric_total_score,
+                    "rubric_max_score": rubric_max_score,
+                    "rubric_items_expected": review.rubric_expected_count,
+                    "rubric_items_recorded": rubric_items_recorded,
+                    "rubric_complete": rubric_complete,
                     "overall_score": overall_score,
                     "overall_max_score": overall_score.map(|_| 100),
                     "recommendation": review_recommendation(review),
@@ -425,12 +455,31 @@ fn trace_run_status(status: AgentRunStatus) -> &'static str {
     }
 }
 
-fn knowledge_refs(item: &WorkItem) -> Vec<Value> {
-    item.domain_id
-        .iter()
-        .chain(item.artifact_type_id.iter())
-        .map(|id| json!({ "id": id, "version": 1 }))
-        .collect()
+fn knowledge_refs(item: &WorkItem, run_packet: &ResolvedRunPacket) -> Vec<Value> {
+    let domain_id = run_packet
+        .domain_knowledge_id
+        .as_ref()
+        .or(item.domain_id.as_ref());
+    let artifact_definition_id = run_packet
+        .artifact_definition_id
+        .as_ref()
+        .or(item.artifact_type_id.as_ref());
+    let mut refs = Vec::new();
+    if let Some(id) = domain_id {
+        refs.push(json!({
+            "id": id,
+            "kind": "domain_knowledge",
+            "version": run_packet.domain_knowledge_version,
+        }));
+    }
+    if let Some(id) = artifact_definition_id {
+        refs.push(json!({
+            "id": id,
+            "kind": "artifact_definition",
+            "version": run_packet.artifact_definition_version,
+        }));
+    }
+    refs
 }
 
 fn diagnostics(run: &AgentRun, run_packet: &ResolvedRunPacket) -> Value {
@@ -439,6 +488,7 @@ fn diagnostics(run: &AgentRun, run_packet: &ResolvedRunPacket) -> Value {
         "session_ref": run.id,
         "hint": run.command,
         "run_packet": run_packet.id,
+        "prompt_version": run_packet.prompt_version,
     })
 }
 
@@ -569,6 +619,28 @@ fn trace_review_items(review: &ReviewResult) -> Vec<Value> {
                 "verdict": if passed { "pass" } else { "concern" },
                 "evidence": if result.note.trim().is_empty() { result.status.to_string() } else { result.note.clone() },
                 "concern_note": if passed { Value::Null } else { Value::String(result.note.clone()) },
+            })
+        })
+        .collect()
+}
+
+fn trace_rubric_items(review: &ReviewResult) -> Vec<Value> {
+    review
+        .rubric_results
+        .iter()
+        .map(|result| {
+            let concern = !matches!(
+                result.verdict,
+                RubricReviewVerdict::Pass | RubricReviewVerdict::NotApplicable
+            );
+            json!({
+                "item": result.item,
+                "max_points": result.max_points,
+                "points": result.points,
+                "verdict": result.verdict.to_string(),
+                "evidence": result.evidence,
+                "recorded": result.recorded,
+                "concern_note": if concern { Value::String(result.evidence.clone()) } else { Value::Null },
             })
         })
         .collect()

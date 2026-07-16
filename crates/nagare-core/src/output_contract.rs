@@ -312,6 +312,8 @@ fn known_contract_key(key: &str) -> bool {
             | "referenced_artifacts"
             | "criteria"
             | "criteria_results"
+            | "rubric_scores"
+            | "rubric_results"
             | "action"
             | "reason"
             | "target_agent_profile_id"
@@ -353,6 +355,9 @@ fn has_nested_contract_keys(fields: &BTreeMap<String, Vec<String>>) -> bool {
         "findings:",
         "requested_changes:",
         "referenced_artifacts:",
+        "criteria:",
+        "rubric_scores:",
+        "rubric_results:",
     ];
     fields.iter().any(|(key, values)| {
         values.iter().any(|value| {
@@ -479,6 +484,32 @@ mod tests {
             output
                 .warnings
                 .contains(&"missing_overall_score".to_string())
+        );
+    }
+
+    #[test]
+    fn review_contract_preserves_structured_rubric_score_lines() {
+        let contract = default_review_output_contract();
+        let output = parse_agent_output_record(AgentOutputRecordInput {
+            id: "out_test".to_string(),
+            work_item_id: "work_test",
+            agent_run_id: "run_test",
+            agent_profile_id: "reviewer",
+            purpose: AgentRunPurpose::Review,
+            contract: &contract,
+            stdout: "## Nagare Review\nverdict: pass\noverall_score: 85\nsummary:\n- acceptable\ncompleted:\n- reviewed\ncriteria:\n- criterion: passed - evidence\nrubric_scores:\n- Correctness | points=50 | max_points=60 | verdict=partial | evidence=edge case missing\n- Clarity | points=35 | max_points=40 | verdict=pass | evidence=clear\nfindings:\n- none\nnext_notes:\n- approve\nnext_action: approve\n",
+            execution_record_id: "exec_test",
+            locale: "en-US",
+            created_at: "1",
+        });
+
+        assert_eq!(output.parse_status, AgentOutputParseStatus::Parsed);
+        assert_eq!(
+            output.fields.get("rubric_scores"),
+            Some(&vec![
+                "Correctness | points=50 | max_points=60 | verdict=partial | evidence=edge case missing".to_string(),
+                "Clarity | points=35 | max_points=40 | verdict=pass | evidence=clear".to_string(),
+            ])
         );
     }
 }
