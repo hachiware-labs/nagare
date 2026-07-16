@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
@@ -1208,6 +1208,109 @@ pub(crate) fn resolve_skill_sets_for_run(
     })
 }
 
+/// Return the concrete SKILL.md files that can be handed to an agent for the
+/// already-resolved skill set IDs.  A catalog entry may be useful for runtime
+/// setup without containing a local instruction file, so missing paths are not
+/// an error here; the caller records only paths that were actually available.
+pub(crate) fn skill_instruction_paths_for_run(
+    layout: &ProjectLayout,
+    skill_set_ids: &[String],
+) -> Result<Vec<String>, NagareError> {
+    let config = load_project_config(layout)?;
+    let mut paths = Vec::new();
+    for skill_set_id in skill_set_ids {
+        let Some(skill_set) = config.skill_sets.get(skill_set_id) else {
+            continue;
+        };
+        for path in &skill_set.paths {
+            let path = skill_package_path(layout, path);
+            let skill_file = if path.is_dir() {
+                path.join("SKILL.md")
+            } else {
+                path
+            };
+            if skill_file.is_file() {
+                let value = skill_file.to_string_lossy().to_string();
+                if !paths.contains(&value) {
+                    paths.push(value);
+                }
+            }
+        }
+    }
+    Ok(paths)
+}
+
+/// Materialize Codex's `skills.config` as a complete allowlist for one run.
+///
+/// Codex discovers Skills from its home directory and installed plugins.  A
+/// prompt-only scope is not sufficient: any discovered Skill that is not
+/// explicitly disabled remains available to the model.  Nagare therefore
+/// enumerates the local Codex and project Skill roots for every run, enables
+/// only the selected agent's SKILL.md files, and disables every other file.
+pub(crate) fn codex_skill_config_for_run(
+    layout: &ProjectLayout,
+    allowed_skill_paths: &[String],
+) -> Result<Vec<CodexSkillConfigEntry>, NagareError> {
+    let config = load_project_config(layout)?;
+    let all_skill_set_ids = config.skill_sets.keys().cloned().collect::<Vec<_>>();
+    let mut paths = BTreeSet::new();
+    for path in skill_instruction_paths_for_run(layout, &all_skill_set_ids)? {
+        paths.insert(normalize_skill_instruction_path(Path::new(&path)));
+    }
+
+    let mut roots = vec![
+        layout.root.join(".agents").join("skills"),
+        layout.root.join(".codex").join("skills"),
+    ];
+    if let Some(codex_home) = codex_home_directory() {
+        roots.push(codex_home.join("skills"));
+        roots.push(codex_home.join("plugins"));
+    }
+    for root in roots {
+        discover_skill_instruction_paths(&root, &mut paths);
+    }
+
+    let allowed = allowed_skill_paths
+        .iter()
+        .map(|path| normalize_skill_instruction_path(Path::new(path)))
+        .collect::<BTreeSet<_>>();
+    paths.extend(allowed.iter().cloned());
+    Ok(paths
+        .into_iter()
+        .map(|path| CodexSkillConfigEntry {
+            enabled: allowed.contains(&path),
+            path,
+        })
+        .collect())
+}
+
+fn codex_home_directory() -> Option<PathBuf> {
+    std::env::var_os("CODEX_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("USERPROFILE").map(|home| PathBuf::from(home).join(".codex")))
+}
+
+fn discover_skill_instruction_paths(root: &Path, paths: &mut BTreeSet<String>) {
+    let Ok(entries) = fs::read_dir(root) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() && entry.file_name() == "SKILL.md" {
+            paths.insert(normalize_skill_instruction_path(&path));
+        } else if path.is_dir() {
+            discover_skill_instruction_paths(&path, paths);
+        }
+    }
+}
+
+fn normalize_skill_instruction_path(path: &Path) -> String {
+    path.canonicalize()
+        .unwrap_or_else(|_| path.to_path_buf())
+        .to_string_lossy()
+        .to_string()
+}
+
 fn skill_package_path(layout: &ProjectLayout, path: &str) -> PathBuf {
     let path = Path::new(path.trim());
     if path.is_absolute() {
@@ -1625,10 +1728,41 @@ pub(crate) fn skill_modes_for_adapter(adapter_id: &str) -> Result<Vec<String>, N
     Ok(modes.into_iter().map(ToOwned::to_owned).collect())
 }
 
-pub(crate) fn instruction_sources(layout: &ProjectLayout) -> Vec<String> {
-    ["AGENTS.md", ".codex/config.toml"]
-        .iter()
-        .filter(|source| layout.root.join(source).exists())
-        .map(|source| source.to_string())
-        .collect()
+pub(crate) fn instruction_sources_for_profile(
+    layout: &ProjectLayout,
+    profile: &AgentProfile,
+) -> Vec<String> {
+    let mut candidates = vec!["AGENTS.md".to_string()];
+    match profile.tool_kind {
+        AgentToolKind::Codex | AgentToolKind::CodexCli => {
+            candidates.push(".codex/config.toml".to_string());
+            candidates.push(format!(".codex/agents/{}.toml", profile.external.agent_id));
+        }
+        AgentToolKind::ClaudeCode => {
+            candidates.push("CLAUDE.md".to_string());
+            candidates.push(format!(".claude/agents/{}.md", profile.external.agent_id));
+        }
+        AgentToolKind::OpenCode => {
+            candidates.push(".opencode/opencode.json".to_string());
+            candidates.push(format!(".opencode/agents/{}.md", profile.external.agent_id));
+        }
+        AgentToolKind::OpenClaw => {
+            candidates.push("openclaw.json".to_string());
+        }
+    }
+    if !profile.external.source.trim().is_empty() {
+        candidates.push(profile.external.source.clone());
+    }
+    candidates
+        .into_iter()
+        .filter(|source| {
+            !source.trim().is_empty()
+                && (Path::new(source).is_file() || layout.root.join(source).is_file())
+        })
+        .fold(Vec::new(), |mut sources, source| {
+            if !sources.contains(&source) {
+                sources.push(source);
+            }
+            sources
+        })
 }

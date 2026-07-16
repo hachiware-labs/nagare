@@ -1682,6 +1682,40 @@ fn prompt_with_agent_instructions(prompt: &str, instructions: &str, locale: &str
     )
 }
 
+fn prompt_with_assigned_skill_context(
+    prompt: &str,
+    skill_set_ids: &[String],
+    skill_paths: &[String],
+    locale: &str,
+) -> String {
+    let is_japanese = locale.starts_with("ja");
+    if skill_set_ids.is_empty() {
+        let rule = if is_japanese {
+            "この実行には Skill を割り当てていません。グローバル、プロジェクト、または別エージェント用の Skill 指示を使わないでください。"
+        } else {
+            "No skills are assigned to this run. Do not use instructions from global, project, or other-agent skills."
+        };
+        return format!("{prompt}\n\n## Nagare Skill Scope\n{rule}");
+    }
+
+    let skill_lines = skill_set_ids
+        .iter()
+        .map(|skill_set_id| format!("- {skill_set_id}"))
+        .chain(
+            skill_paths
+                .iter()
+                .map(|path| format!("  - SKILL.md: {path}")),
+        )
+        .collect::<Vec<_>>()
+        .join("\n");
+    let rule = if is_japanese {
+        "この実行で使える Skill は次だけです。各ローカル SKILL.md を実行前に読み、そこから必要な参照をたどってください。列挙されていないグローバル、プロジェクト、または別エージェント用の Skill は使わないでください。"
+    } else {
+        "Only the following skills are in scope for this run. Read each local SKILL.md before work and follow its required references. Do not use global, project, or other-agent skills that are not listed."
+    };
+    format!("{prompt}\n\n## Nagare Skill Scope\n{rule}\n{skill_lines}")
+}
+
 fn prompt_with_nagare_agent_context(
     prompt: &str,
     profile: &AgentProfile,
@@ -3417,7 +3451,7 @@ fn create_capability_probe(
         runtime_version: health.detail.clone(),
         available: health.available,
         discovered_capabilities: capabilities_for_adapter(&profile.adapter)?,
-        instruction_sources: instruction_sources(layout),
+        instruction_sources: instruction_sources_for_profile(layout, profile),
         supported_skill_modes: skill_modes_for_adapter(&profile.adapter)?,
         warnings: if health.available {
             Vec::new()
@@ -3451,7 +3485,7 @@ fn ensure_fresh_capability_probe(
         runtime_version: health.detail.clone(),
         available: health.available,
         discovered_capabilities: capabilities_for_adapter(&profile.adapter)?,
-        instruction_sources: instruction_sources(layout),
+        instruction_sources: instruction_sources_for_profile(layout, profile),
         supported_skill_modes: skill_modes_for_adapter(&profile.adapter)?,
         warnings: if health.available {
             Vec::new()
@@ -3573,10 +3607,39 @@ pub fn run_work_item_with_input(
     let capability_probe =
         ensure_fresh_capability_probe(&layout, &mut ledger, &locale, &agent_profile)?;
     let capabilities_in_force = capability_probe.discovered_capabilities.clone();
-    let skill_set_ids =
-        merged_skill_set_ids(&rule_resolution.skill_set_ids, &agent_profile.skill_set_ids);
+    // Project rules may choose an agent, but they must not grant it skills.
+    // Otherwise every agent that happens to touch a path silently receives the
+    // global rule's workflow and cannot be audited as an agent-scoped run.
+    let skill_set_ids = agent_profile.skill_set_ids.clone();
     let skill_set_resolution =
         resolve_skill_sets_for_run(&layout, &skill_set_ids, &capabilities_in_force)?;
+    let effective_skill_paths =
+        skill_instruction_paths_for_run(&layout, &skill_set_resolution.applied_skill_set_ids)?;
+    let mut scope_diagnostics = rule_resolution
+        .skill_set_ids
+        .iter()
+        .map(|skill_set_id| {
+            format!(
+                "project rule skill `{skill_set_id}` was not inherited; assign it to the selected agent to enable it"
+            )
+        })
+        .collect::<Vec<_>>();
+    let codex_skill_config = match agent_profile.tool_kind {
+        AgentToolKind::Codex | AgentToolKind::CodexCli => {
+            codex_skill_config_for_run(&layout, &effective_skill_paths)?
+        }
+        _ => Vec::new(),
+    };
+    if !codex_skill_config.is_empty() {
+        let allowed = codex_skill_config
+            .iter()
+            .filter(|entry| entry.enabled)
+            .count();
+        let blocked = codex_skill_config.len().saturating_sub(allowed);
+        scope_diagnostics.push(format!(
+            "Codex strict Skill allowlist materialized: {allowed} allowed, {blocked} disabled"
+        ));
+    }
     let instruction_sources = capability_probe.instruction_sources.clone();
     let default_goal = work_item_goal_prompt_for_locale(&item, &locale);
     let goal = input
@@ -3598,6 +3661,9 @@ pub fn run_work_item_with_input(
         skipped_skill_set_ids: skill_set_resolution.skipped_skill_set_ids.clone(),
         capabilities_in_force,
         instruction_sources,
+        effective_skill_paths: effective_skill_paths.clone(),
+        codex_skill_config: codex_skill_config.clone(),
+        scope_diagnostics: scope_diagnostics.clone(),
         execution_record_uri: path_uri(&layout.logs_dir.join(format!("{skill_context_id}.json"))),
         content_hash: format!("local:{}", skill_context_id),
         locale: locale.clone(),
@@ -3633,6 +3699,7 @@ pub fn run_work_item_with_input(
             .iter()
             .chain(skill_set_resolution.warnings.iter())
             .cloned()
+            .chain(scope_diagnostics.iter().cloned())
             .chain(
                 (!human_feedback_context.is_empty())
                     .then(|| "human_feedback_context_applied".to_string()),
@@ -3655,19 +3722,24 @@ pub fn run_work_item_with_input(
         .unwrap_or(goal.as_str());
     let prompt = prompt_with_output_contract(
         &prompt_with_nagare_agent_context(
-            &prompt_with_agent_instructions(
-                &prompt_with_domain_context(
-                    &prompt_with_handoff_context(
-                        &prompt_with_human_feedback(prompt, &human_feedback_context, &locale),
-                        &handoff_context,
+            &prompt_with_assigned_skill_context(
+                &prompt_with_agent_instructions(
+                    &prompt_with_domain_context(
+                        &prompt_with_handoff_context(
+                            &prompt_with_human_feedback(prompt, &human_feedback_context, &locale),
+                            &handoff_context,
+                            &locale,
+                        ),
+                        &domain_context,
                         &locale,
                     ),
-                    &domain_context,
+                    agent_profile
+                        .prompt
+                        .effective_instructions(&agent_profile.description),
                     &locale,
                 ),
-                agent_profile
-                    .prompt
-                    .effective_instructions(&agent_profile.description),
+                &skill_set_resolution.applied_skill_set_ids,
+                &effective_skill_paths,
                 &locale,
             ),
             &agent_profile,
@@ -3682,6 +3754,7 @@ pub fn run_work_item_with_input(
         working_dir: &working_dir,
         run_packet: &resolved_run_packet,
         prompt: &prompt,
+        codex_skill_config: &codex_skill_config,
         dev_command: input.dev_command,
     };
     let started_at = timestamp();
@@ -3993,23 +4066,31 @@ pub fn run_work_item_with_input(
     })
 }
 
-fn merged_skill_set_ids(
-    rule_skill_set_ids: &[String],
-    agent_skill_set_ids: &[String],
-) -> Vec<String> {
-    let mut seen = std::collections::BTreeSet::new();
-    let mut merged = Vec::new();
-    for id in rule_skill_set_ids.iter().chain(agent_skill_set_ids.iter()) {
-        if seen.insert(id.clone()) {
-            merged.push(id.clone());
-        }
-    }
-    merged
-}
-
 struct DomainFallbackConfirmation {
     target_agent_profile_id: String,
     message: String,
+}
+
+#[cfg(test)]
+mod skill_scope_tests {
+    use super::*;
+
+    #[test]
+    fn prompt_scope_exposes_only_the_assigned_skills() {
+        let prompt = prompt_with_assigned_skill_context(
+            "Create the requested screen.",
+            &["hachi-ui".to_string()],
+            &["C:/skills/hachi-ui/SKILL.md".to_string()],
+            "en-US",
+        );
+        assert!(prompt.contains("hachi-ui"));
+        assert!(prompt.contains("C:/skills/hachi-ui/SKILL.md"));
+        assert!(!prompt.contains("hachi-readable-writing"));
+
+        let no_skill_prompt =
+            prompt_with_assigned_skill_context("Create the requested screen.", &[], &[], "en-US");
+        assert!(no_skill_prompt.contains("No skills are assigned"));
+    }
 }
 
 fn effective_domain_agent_policy(item: &WorkItem) -> DomainAgentPolicy {

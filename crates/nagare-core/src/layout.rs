@@ -211,7 +211,13 @@ pub(crate) fn check_command(command: &str, args: &[String]) -> ToolStatus {
 pub(crate) fn run_tool(name: &str, args: &[&str]) -> io::Result<std::process::Output> {
     match Command::new(name).args(args).output() {
         Ok(output) => Ok(output),
-        Err(error) if cfg!(windows) && error.kind() == io::ErrorKind::NotFound => {
+        Err(error)
+            if cfg!(windows)
+                && matches!(
+                    error.kind(),
+                    io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied
+                ) =>
+        {
             Command::new(format!("{name}.cmd")).args(args).output()
         }
         Err(error) => Err(error),

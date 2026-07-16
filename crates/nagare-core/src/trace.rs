@@ -77,6 +77,8 @@ pub(crate) fn append_agent_run_trace(
                     "status": trace_run_status(run.status),
                     "knowledge_refs": knowledge_refs(item, run_packet),
                     "diagnostics": diagnostics(run, run_packet),
+                    "effective_capabilities": trace_effective_capabilities(profile, skill_context),
+                    "context_refs": trace_context_refs(skill_context),
                     "interpreted_request": plan.summary,
                     "domain_id": item.domain_id.as_deref().unwrap_or("general"),
                     "artifact_type_id": item.artifact_type_id.as_deref().unwrap_or("general"),
@@ -110,6 +112,8 @@ pub(crate) fn append_agent_run_trace(
                     "status": trace_run_status(run.status),
                     "knowledge_refs": knowledge_refs(item, run_packet),
                     "diagnostics": diagnostics(run, run_packet),
+                    "effective_capabilities": trace_effective_capabilities(profile, skill_context),
+                    "context_refs": trace_context_refs(skill_context),
                     "inputs": {
                         "summary": run_packet.goal,
                         "refs": worker_input_refs(item, skill_context, run_packet),
@@ -141,6 +145,8 @@ pub(crate) fn append_agent_run_trace(
                     "status": trace_run_status(run.status),
                     "knowledge_refs": knowledge_refs(item, run_packet),
                     "diagnostics": diagnostics(run, run_packet),
+                    "effective_capabilities": trace_effective_capabilities(profile, skill_context),
+                    "context_refs": trace_context_refs(skill_context),
                     "inputs": {
                         "summary": run_packet.goal,
                         "refs": worker_input_refs(item, skill_context, run_packet),
@@ -203,6 +209,8 @@ pub(crate) fn append_agent_run_trace(
                     "status": trace_run_status(run.status),
                     "knowledge_refs": knowledge_refs(item, run_packet),
                     "diagnostics": diagnostics(run, run_packet),
+                    "effective_capabilities": trace_effective_capabilities(profile, skill_context),
+                    "context_refs": trace_context_refs(skill_context),
                     "rubric_ref": {
                         "id": run_packet
                             .rubric_id
@@ -430,6 +438,33 @@ fn trace_runtime(profile: &AgentProfile, run_packet: &ResolvedRunPacket) -> Valu
         "id": profile.runtime,
         "model": model_label(&run_packet.model),
     })
+}
+
+fn trace_effective_capabilities(
+    profile: &AgentProfile,
+    skill_context: &ResolvedSkillContext,
+) -> Value {
+    json!({
+        "skills": skill_context.applied_skill_set_ids,
+        "skill_paths": skill_context.effective_skill_paths,
+        "codex_skill_config": skill_context.codex_skill_config,
+        "mcp_connections": profile.mcp_connection_ids,
+        "scope_diagnostics": skill_context.scope_diagnostics,
+    })
+}
+
+fn trace_context_refs(skill_context: &ResolvedSkillContext) -> Vec<Value> {
+    skill_context
+        .instruction_sources
+        .iter()
+        .map(|source| json!({ "kind": "project_instructions", "ref": source }))
+        .chain(
+            skill_context
+                .effective_skill_paths
+                .iter()
+                .map(|path| json!({ "kind": "skill_instructions", "ref": path })),
+        )
+        .collect()
 }
 
 fn model_label(model: &AgentModelSelection) -> String {

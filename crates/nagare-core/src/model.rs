@@ -457,11 +457,29 @@ pub struct ResolvedSkillContext {
     pub capabilities_in_force: Vec<String>,
     #[serde(default)]
     pub instruction_sources: Vec<String>,
+    /// Absolute SKILL.md references that Nagare supplied to the selected agent.
+    /// This is intentionally a reference list, not a copy of the skill body.
+    #[serde(default)]
+    pub effective_skill_paths: Vec<String>,
+    /// Codex CLI settings materialized for this run.  The list is an
+    /// allowlist: every discovered Skill has an explicit enabled state.
+    #[serde(default)]
+    pub codex_skill_config: Vec<CodexSkillConfigEntry>,
+    /// Scope warnings found while resolving the run.  In particular, project
+    /// rule skills are never silently inherited by an agent.
+    #[serde(default)]
+    pub scope_diagnostics: Vec<String>,
     pub execution_record_uri: String,
     pub content_hash: String,
     #[serde(default = "default_locale_language")]
     pub locale: String,
     pub resolved_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CodexSkillConfigEntry {
+    pub path: String,
+    pub enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1530,6 +1548,7 @@ pub struct AdapterRunRequest<'a> {
     pub working_dir: &'a Path,
     pub run_packet: &'a ResolvedRunPacket,
     pub prompt: &'a str,
+    pub codex_skill_config: &'a [CodexSkillConfigEntry],
     pub dev_command: Option<&'a str>,
 }
 

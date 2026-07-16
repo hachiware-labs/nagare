@@ -1,0 +1,162 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Nagare 担当AIのSkill割当を確認する設定画面</title>
+  <desc id="desc">グローバル継承の警告、担当AIごとの有効Skill、優先して修正すべき割当を確認するモノクロのデスクトップワイヤーフレーム。</desc>
+  <style>
+    .ui { font-family: Inter, 'Segoe UI', Arial, sans-serif; fill: #202020; }
+    .title { font-size: 23px; font-weight: 700; }
+    .section { font-size: 16px; font-weight: 700; }
+    .body { font-size: 14px; }
+    .small { font-size: 12px; fill: #5a5a5a; }
+    .tiny { font-size: 11px; fill: #5a5a5a; }
+    .label { font-size: 12px; font-weight: 700; }
+    .inverse { fill: #ffffff; }
+    .muted { fill: #f3f3f3; }
+    .line { stroke: #232323; stroke-width: 1; }
+    .softline { stroke: #b8b8b8; stroke-width: 1; }
+    .dash { stroke: #4d4d4d; stroke-width: 1.5; stroke-dasharray: 4 3; }
+  </style>
+  <g id="canvas">
+    <rect x="0" y="0" width="1440" height="1024" fill="#ffffff"/>
+  </g>
+  <g id="sidebar">
+    <rect x="0" y="0" width="216" height="1024" fill="#f3f3f3"/>
+    <line x1="216" y1="0" x2="216" y2="1024" class="line"/>
+    <text x="28" y="43" class="ui title">Nagare</text>
+    <text x="28" y="68" class="ui small">ワークスペース設定</text>
+    <text x="28" y="123" class="ui label">設定</text>
+    <text x="28" y="158" class="ui body">一般</text>
+    <text x="28" y="194" class="ui body">担当AI</text>
+    <rect x="16" y="211" width="184" height="38" rx="4" fill="#202020"/>
+    <text x="30" y="236" class="ui body inverse">Skill 割当</text>
+    <text x="28" y="284" class="ui body">グローバル設定</text>
+    <text x="28" y="320" class="ui body">変更履歴</text>
+    <line x1="16" y1="903" x2="200" y2="903" class="softline"/>
+    <text x="28" y="934" class="ui small">管理者</text>
+    <text x="28" y="958" class="ui body">山田 花子</text>
+  </g>
+  <g id="topbar">
+    <rect x="216" y="0" width="1224" height="76" fill="#ffffff"/>
+    <line x1="216" y1="76" x2="1440" y2="76" class="line"/>
+    <text x="248" y="47" class="ui small">設定 / 担当AI / Skill 割当</text>
+    <rect x="1260" y="22" width="144" height="32" rx="4" fill="#ffffff" stroke="#232323"/>
+    <text x="1280" y="43" class="ui label">変更履歴を見る</text>
+  </g>
+  <g id="page-header">
+    <text x="248" y="120" class="ui title">担当AIの Skill 割当</text>
+    <text x="248" y="145" class="ui small">担当ごとの有効Skillと継承元を確認し、必要な割当だけを修正します。</text>
+    <rect x="1185" y="106" width="219" height="38" rx="4" fill="#202020"/>
+    <text x="1205" y="130" class="ui body inverse">グローバル設定を見る</text>
+  </g>
+  <g id="global-warning">
+    <rect x="248" y="170" width="1156" height="82" rx="6" fill="#eeeeee" stroke="#232323" stroke-width="1.5"/>
+    <rect x="266" y="187" width="88" height="24" rx="3" fill="#202020"/>
+    <text x="279" y="204" class="ui label inverse">要確認 2件</text>
+    <text x="374" y="199" class="ui section">グローバル継承の確認が必要です</text>
+    <text x="374" y="223" class="ui small">2人の担当AIに、個別に許可していないSkillが有効です。先に影響が大きい割当を確認してください。</text>
+    <line x1="1130" y1="183" x2="1130" y2="238" class="softline"/>
+    <text x="1150" y="199" class="ui tiny">継承元</text>
+    <text x="1150" y="220" class="ui body">ワークスペース既定</text>
+    <text x="1304" y="199" class="ui tiny">最終確認</text>
+    <text x="1304" y="220" class="ui body">今日 10:42</text>
+  </g>
+  <g id="filters">
+    <text x="248" y="290" class="ui section">割当の一覧</text>
+    <text x="248" y="313" class="ui small">警告がある担当AIを優先度順に表示</text>
+    <rect x="652" y="278" width="190" height="34" rx="4" fill="#ffffff" stroke="#707070"/>
+    <text x="666" y="300" class="ui small">表示: 要確認を優先</text>
+    <path d="M817 291 l8 8 l8 -8" fill="none" class="line"/>
+    <rect x="856" y="278" width="147" height="34" rx="4" fill="#ffffff" stroke="#707070"/>
+    <text x="870" y="300" class="ui small">担当で絞り込み</text>
+    <path d="M979 291 l8 8 l8 -8" fill="none" class="line"/>
+    <text x="1029" y="300" class="ui small">5件中 5件を表示</text>
+  </g>
+  <g id="assignment-table">
+    <rect x="248" y="334" width="806" height="492" fill="#ffffff" stroke="#232323"/>
+    <rect x="249" y="335" width="804" height="49" fill="#f3f3f3"/>
+    <text x="267" y="365" class="ui label">優先</text>
+    <text x="334" y="365" class="ui label">担当AI / 担当</text>
+    <text x="554" y="365" class="ui label">有効Skill</text>
+    <text x="800" y="365" class="ui label">適用元</text>
+    <text x="932" y="365" class="ui label">状態</text>
+    <line x1="248" y1="384" x2="1054" y2="384" class="line"/>
+    <rect x="249" y="385" width="804" height="88" fill="#e8e8e8"/>
+    <rect x="267" y="408" width="52" height="23" rx="3" fill="#202020"/>
+    <text x="279" y="424" class="ui label inverse">最優先</text>
+    <text x="334" y="411" class="ui body" font-weight="700">資料調査AI</text>
+    <text x="334" y="435" class="ui small">調査・根拠の確認</text>
+    <text x="554" y="410" class="ui body">hachi-search</text>
+    <text x="554" y="435" class="ui body">browser</text>
+    <text x="800" y="410" class="ui small">個別</text>
+    <text x="800" y="435" class="ui small">グローバルから継承</text>
+    <rect x="932" y="404" width="92" height="25" rx="3" fill="#ffffff" stroke="#232323"/>
+    <text x="945" y="421" class="ui label">要修正</text>
+    <line x1="248" y1="473" x2="1054" y2="473" class="softline"/>
+    <rect x="267" y="497" width="46" height="23" rx="3" fill="#ffffff" stroke="#232323"/>
+    <text x="279" y="514" class="ui label">次点</text>
+    <text x="334" y="500" class="ui body" font-weight="700">設計支援AI</text>
+    <text x="334" y="524" class="ui small">画面設計・SVG</text>
+    <text x="554" y="500" class="ui body">hachi-ui</text>
+    <text x="554" y="524" class="ui body">imagegen</text>
+    <text x="800" y="500" class="ui small">個別</text>
+    <text x="800" y="524" class="ui small">グローバルから継承</text>
+    <rect x="932" y="496" width="92" height="25" rx="3" fill="#ffffff" stroke="#232323"/>
+    <text x="945" y="513" class="ui label">要確認</text>
+    <line x1="248" y1="565" x2="1054" y2="565" class="softline"/>
+    <rect x="267" y="589" width="52" height="23" rx="3" fill="#f3f3f3" stroke="#707070"/>
+    <text x="278" y="606" class="ui label">確認済</text>
+    <text x="334" y="592" class="ui body" font-weight="700">実装支援AI</text>
+    <text x="334" y="616" class="ui small">コード変更・検証</text>
+    <text x="554" y="592" class="ui body">vercel-react-best-practices</text>
+    <text x="554" y="616" class="ui small">ほか 2件</text>
+    <text x="800" y="592" class="ui small">個別</text>
+    <text x="800" y="616" class="ui small">個別</text>
+    <text x="932" y="605" class="ui small">問題なし</text>
+    <line x1="248" y1="657" x2="1054" y2="657" class="softline"/>
+    <rect x="267" y="681" width="52" height="23" rx="3" fill="#f3f3f3" stroke="#707070"/>
+    <text x="278" y="698" class="ui label">確認済</text>
+    <text x="334" y="684" class="ui body" font-weight="700">文章編集AI</text>
+    <text x="334" y="708" class="ui small">文書作成・校正</text>
+    <text x="554" y="684" class="ui body">hachi-readable-writing</text>
+    <text x="554" y="708" class="ui small">Skill は 1件</text>
+    <text x="800" y="684" class="ui small">個別</text>
+    <text x="932" y="697" class="ui small">問題なし</text>
+    <line x1="248" y1="749" x2="1054" y2="749" class="softline"/>
+    <text x="267" y="784" class="ui small">残り 1件を表示</text>
+    <path d="M394 776 l8 8 l8 -8" fill="none" class="line"/>
+    <rect x="1019" y="400" width="5" height="48" fill="#202020"/>
+  </g>
+  <g id="selected-fix-panel">
+    <rect x="1080" y="334" width="324" height="492" fill="#ffffff" stroke="#232323"/>
+    <rect x="1080" y="334" width="324" height="54" fill="#202020"/>
+    <text x="1100" y="367" class="ui section inverse">次に修正する割当</text>
+    <text x="1100" y="420" class="ui small">選択中の担当AI</text>
+    <text x="1100" y="446" class="ui section">資料調査AI</text>
+    <text x="1100" y="469" class="ui small">調査・根拠の確認</text>
+    <line x1="1100" y1="490" x2="1384" y2="490" class="softline"/>
+    <text x="1100" y="518" class="ui tiny">確認が必要なSkill</text>
+    <text x="1100" y="544" class="ui body" font-weight="700">browser</text>
+    <text x="1100" y="567" class="ui small">ワークスペース既定から継承</text>
+    <rect x="1100" y="587" width="258" height="68" rx="4" fill="#f3f3f3" stroke="#707070"/>
+    <text x="1114" y="612" class="ui label">なぜ先に確認するか</text>
+    <text x="1114" y="635" class="ui small">調査担当の許可範囲外で、</text>
+    <text x="1114" y="652" class="ui small">3件の作業に影響します。</text>
+    <text x="1100" y="685" class="ui tiny">推奨する修正</text>
+    <text x="1100" y="710" class="ui body">この担当AIだけ継承を除外</text>
+    <rect x="1100" y="735" width="258" height="38" rx="4" fill="#202020"/>
+    <text x="1178" y="760" class="ui body inverse">割当を修正</text>
+    <text x="1100" y="803" class="ui small">詳細を開く　・　変更を取り消す</text>
+  </g>
+  <g id="provenance-strip">
+    <rect x="248" y="852" width="1156" height="114" rx="6" fill="#ffffff" stroke="#707070"/>
+    <text x="268" y="881" class="ui section">選択中の割当の根拠</text>
+    <text x="268" y="907" class="ui small">継承元</text>
+    <text x="268" y="930" class="ui body">ワークスペース既定 / ブラウザ操作を許可</text>
+    <line x1="663" y1="870" x2="663" y2="948" class="softline"/>
+    <text x="683" y="907" class="ui small">影響する作業</text>
+    <text x="683" y="930" class="ui body">調査依頼 3件　次回の実行前に確認</text>
+    <line x1="1042" y1="870" x2="1042" y2="948" class="softline"/>
+    <text x="1062" y="907" class="ui small">確認状況</text>
+    <text x="1062" y="930" class="ui body">今日 10:42 に検出</text>
+    <path d="M1360 899 l13 13 l-13 13" fill="none" class="line"/>
+  </g>
+</svg>

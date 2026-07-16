@@ -196,6 +196,9 @@ fn trace_jsonl_records_nf2_decision_flow() {
         "worker trace should include concrete artifact file paths for the result section"
     );
     assert_eq!(worker.payload["artifacts"][0]["change"], "modified");
+    assert!(worker.payload["effective_capabilities"]["skills"].is_array());
+    assert!(worker.payload["effective_capabilities"]["mcp_connections"].is_array());
+    assert!(worker.payload["context_refs"].is_array());
 
     let reviewer = trace
         .iter()

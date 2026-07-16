@@ -14,13 +14,21 @@ impl AgentAdapter for ProcessCodexCliAdapter {
             return run_dev_command(command, request.working_dir);
         }
 
+        let prompt =
+            codex_prompt_for_selected_agent(request.prompt, &request.run_packet.external.agent_id);
         let output = run_codex_cli_exec(
             request.working_dir,
-            request.prompt,
+            &prompt,
             request.run_packet.model.model_ref().as_deref(),
+            request.codex_skill_config,
         )?;
         Ok(AdapterRunOutput {
-            command: format!("codex exec --cd {} <prompt>", request.working_dir.display()),
+            command: format!(
+                "codex exec{} --cd {} <prompt>{}",
+                codex_skill_config_command_suffix(request.codex_skill_config),
+                request.working_dir.display(),
+                selected_agent_command_suffix(&request.run_packet.external.agent_id),
+            ),
             stdout: String::from_utf8_lossy(&output.stdout).to_string(),
             stderr: String::from_utf8_lossy(&output.stderr).to_string(),
             exit_code: output.status.code(),
@@ -32,18 +40,21 @@ fn run_codex_cli_exec(
     working_dir: &Path,
     prompt: &str,
     model: Option<&str>,
+    codex_skill_config: &[CodexSkillConfigEntry],
 ) -> Result<Output, NagareError> {
     let cd = working_dir.display().to_string();
-    let mut args = vec![
-        "exec".to_string(),
-        "--cd".to_string(),
-        cd,
-        prompt.to_string(),
-    ];
+    let mut args = vec!["exec".to_string()];
     if let Some(model) = model.filter(|value| !value.trim().is_empty()) {
-        args.insert(1, "--model".to_string());
-        args.insert(2, model.to_string());
+        args.push("--model".to_string());
+        args.push(model.to_string());
     }
+    if let Some(override_value) = codex_skill_config_override(codex_skill_config) {
+        args.push("--config".to_string());
+        args.push(override_value);
+    }
+    args.push("--cd".to_string());
+    args.push(cd);
+    args.push(prompt.to_string());
     if cfg!(windows) {
         if let Some(script) = find_windows_codex_js() {
             return Ok(Command::new("node").arg(script).args(&args).output()?);
@@ -57,7 +68,7 @@ pub fn run_codex_cli_prompt(
     prompt: &str,
     model: Option<&str>,
 ) -> Result<String, NagareError> {
-    let output = run_codex_cli_exec(working_dir, prompt, model)?;
+    let output = run_codex_cli_exec(working_dir, prompt, model, &[])?;
     if !output.status.success() {
         let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(NagareError::InvalidState(if detail.is_empty() {
@@ -67,6 +78,31 @@ pub fn run_codex_cli_prompt(
         }));
     }
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn codex_skill_config_override(entries: &[CodexSkillConfigEntry]) -> Option<String> {
+    if entries.is_empty() {
+        return None;
+    }
+    let values = entries
+        .iter()
+        .map(|entry| {
+            let path = entry.path.replace('\\', "\\\\").replace('"', "\\\"");
+            format!("{{ path = \"{path}\", enabled = {} }}", entry.enabled)
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    Some(format!("skills.config=[{values}]"))
+}
+
+fn codex_skill_config_command_suffix(entries: &[CodexSkillConfigEntry]) -> String {
+    if entries.is_empty() {
+        String::new()
+    } else {
+        let enabled = entries.iter().filter(|entry| entry.enabled).count();
+        let disabled = entries.len().saturating_sub(enabled);
+        format!(" --config skills.config=<allow:{enabled}, deny:{disabled}>")
+    }
 }
 
 fn find_windows_codex_js() -> Option<PathBuf> {
@@ -164,6 +200,10 @@ impl AgentAdapter for ProcessClaudeCodeAdapter {
             args.push("--model".to_string());
             args.push(model);
         }
+        if let Some(agent_id) = selected_external_agent_id(&request.run_packet.external.agent_id) {
+            args.push("--agent".to_string());
+            args.push(agent_id.to_string());
+        }
         args.push(request.prompt.to_string());
         let output = Command::new(&command)
             .args(&args)
@@ -194,6 +234,10 @@ impl AgentAdapter for ProcessOpenCodeAdapter {
             args.push(model);
         }
         args.push("run".to_string());
+        if let Some(agent_id) = selected_external_agent_id(&request.run_packet.external.agent_id) {
+            args.push("--agent".to_string());
+            args.push(agent_id.to_string());
+        }
         args.push(request.prompt.to_string());
         let output = Command::new(&command)
             .args(&args)
@@ -205,6 +249,59 @@ impl AgentAdapter for ProcessOpenCodeAdapter {
             stderr: String::from_utf8_lossy(&output.stderr).to_string(),
             exit_code: output.status.code(),
         })
+    }
+}
+
+fn selected_external_agent_id(agent_id: &str) -> Option<&str> {
+    (!agent_id.trim().is_empty()).then_some(agent_id.trim())
+}
+
+fn selected_agent_command_suffix(agent_id: &str) -> String {
+    selected_external_agent_id(agent_id)
+        .map(|id| format!(" [requested_subagent={id}]"))
+        .unwrap_or_default()
+}
+
+fn codex_prompt_for_selected_agent(prompt: &str, agent_id: &str) -> String {
+    let Some(agent_id) = selected_external_agent_id(agent_id) else {
+        return prompt.to_string();
+    };
+    format!(
+        "Delegate the task below to the project-scoped Codex custom subagent `{agent_id}`. Do not replace it with a built-in or different custom agent. Wait for its result, then return that result using the required Nagare output contract.\n\n{prompt}"
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn named_agent_is_passed_only_when_the_profile_has_a_binding() {
+        assert_eq!(selected_external_agent_id("  writer  "), Some("writer"));
+        assert_eq!(selected_external_agent_id("  "), None);
+        assert!(codex_prompt_for_selected_agent("task", "writer").contains("`writer`"));
+        assert_eq!(codex_prompt_for_selected_agent("task", ""), "task");
+    }
+
+    #[test]
+    fn codex_skill_config_override_is_an_explicit_allowlist() {
+        let entries = vec![
+            CodexSkillConfigEntry {
+                path: "C:/skills/writer/SKILL.md".to_string(),
+                enabled: true,
+            },
+            CodexSkillConfigEntry {
+                path: "C:/skills/ui/SKILL.md".to_string(),
+                enabled: false,
+            },
+        ];
+        let override_value = codex_skill_config_override(&entries).expect("override");
+        assert!(override_value.contains("writer/SKILL.md\", enabled = true"));
+        assert!(override_value.contains("ui/SKILL.md\", enabled = false"));
+        assert_eq!(
+            codex_skill_config_command_suffix(&entries),
+            " --config skills.config=<allow:1, deny:1>"
+        );
     }
 }
 

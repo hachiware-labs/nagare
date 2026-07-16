@@ -2439,7 +2439,7 @@ fn run_with_path_records_resolved_skill_context_and_run_packet() {
 }
 
 #[test]
-fn run_records_skipped_skill_sets_when_required_capabilities_are_missing() {
+fn run_does_not_inherit_skill_sets_from_project_rules() {
     let root = test_root("skill-skip");
     init_project(&root).expect("project should init");
     let layout = ProjectLayout::new(&root);
@@ -2476,30 +2476,24 @@ skill_sets = ["network-only"]
             purpose: AgentRunPurpose::DispatchPreview,
         },
     )
-    .expect("run should succeed with skipped skill recorded");
+    .expect("run should succeed without inheriting the rule skill");
 
     let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot should load");
     let context = &snapshot.resolved_skill_contexts[0];
-    assert_eq!(
-        context.declared_skill_set_ids,
-        vec!["network-only".to_string()]
-    );
+    assert!(context.declared_skill_set_ids.is_empty());
     assert!(context.applied_skill_set_ids.is_empty());
-    assert_eq!(
-        context.skipped_skill_set_ids,
-        vec!["network-only".to_string()]
-    );
+    assert!(context.skipped_skill_set_ids.is_empty());
     assert!(
-        snapshot.resolved_run_packets[0]
-            .constraints
+        context
+            .scope_diagnostics
             .iter()
-            .any(|constraint| constraint.contains("network_access"))
+            .any(|diagnostic| diagnostic.contains("network-only"))
     );
     fs::remove_dir_all(root).ok();
 }
 
 #[test]
-fn run_merges_project_rule_and_agent_skill_sets() {
+fn run_applies_only_skill_sets_assigned_to_the_selected_agent() {
     let root = test_root("agent-skill-merge");
     init_project(&root).expect("project should init");
     let layout = ProjectLayout::new(&root);
@@ -2547,7 +2541,7 @@ skill_sets = ["rule-rust"]
     )
     .expect("profile should be added");
 
-    let item = create_work_item(&root, "Merge skill sets", "")
+    let item = create_work_item(&root, "Scope skill sets", "")
         .expect("item should create")
         .item;
     run_work_item_with_input(
@@ -2558,7 +2552,7 @@ skill_sets = ["rule-rust"]
             dispatch_plan_id: None,
             path: Some("crates/nagare-core/src/lib.rs"),
             prompt: None,
-            dev_command: Some(scenario_command("skill merge", true).as_str()),
+            dev_command: Some(scenario_command("skill scope", true).as_str()),
             purpose: AgentRunPurpose::DispatchPreview,
         },
     )
@@ -2568,13 +2562,123 @@ skill_sets = ["rule-rust"]
     let context = &snapshot.resolved_skill_contexts[0];
     assert_eq!(
         context.declared_skill_set_ids,
-        vec!["rule-rust".to_string(), "agent-review".to_string()]
+        vec!["agent-review".to_string()]
     );
     assert_eq!(
         context.applied_skill_set_ids,
-        vec!["rule-rust".to_string(), "agent-review".to_string()]
+        vec!["agent-review".to_string()]
     );
     assert!(context.skipped_skill_set_ids.is_empty());
+    assert!(
+        context
+            .scope_diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.contains("rule-rust"))
+    );
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn separate_agents_receive_only_their_minimal_local_skill() {
+    let root = test_root("minimal-agent-skills");
+    init_project(&root).expect("project should init");
+    let writer_skill = root.join(".agents/skills/minimal-writer");
+    let designer_skill = root.join(".agents/skills/minimal-designer");
+    fs::create_dir_all(&writer_skill).expect("writer skill directory should create");
+    fs::create_dir_all(&designer_skill).expect("designer skill directory should create");
+    fs::write(writer_skill.join("SKILL.md"), "# Minimal Writer\n")
+        .expect("writer skill should write");
+    fs::write(designer_skill.join("SKILL.md"), "# Minimal Designer\n")
+        .expect("designer skill should write");
+
+    let layout = ProjectLayout::new(&root);
+    let mut config = fs::read_to_string(&layout.config_path).expect("config should read");
+    config.push_str(
+        r#"
+
+[skill_sets.minimal-writer]
+paths = [".agents/skills/minimal-writer"]
+required_capabilities = []
+optional_capabilities = []
+
+[skill_sets.minimal-designer]
+paths = [".agents/skills/minimal-designer"]
+required_capabilities = []
+optional_capabilities = []
+"#,
+    );
+    fs::write(&layout.config_path, config).expect("config should write");
+
+    for (id, skill_set_id) in [
+        ("minimal-writer-agent", "minimal-writer"),
+        ("minimal-designer-agent", "minimal-designer"),
+    ] {
+        add_agent_profile(
+            &root,
+            AddAgentProfileInput {
+                id,
+                display_name: id,
+                runtime: "codex-local",
+                adapter: "process.codex-cli",
+                role: "worker",
+                working_dir: ".",
+                description: "minimal skill scope test",
+                specialties: Vec::new(),
+                skill_set_ids: vec![skill_set_id.to_string()],
+                domain_ids: Vec::new(),
+                artifact_type_ids: Vec::new(),
+                mcp_connection_ids: Vec::new(),
+                managed_by: Some("nagare"),
+                model: AgentModelSelection::default(),
+                external: ExternalAgentBinding::default(),
+            },
+        )
+        .expect("profile should be added");
+    }
+
+    for (agent_id, expected_skill_id, expected_path) in [
+        (
+            "minimal-writer-agent",
+            "minimal-writer",
+            writer_skill.join("SKILL.md"),
+        ),
+        (
+            "minimal-designer-agent",
+            "minimal-designer",
+            designer_skill.join("SKILL.md"),
+        ),
+    ] {
+        let item = create_work_item(&root, agent_id, "")
+            .expect("item should create")
+            .item;
+        run_work_item_with_input(
+            &root,
+            &item.id,
+            RunWorkItemInput {
+                agent_profile_id: agent_id,
+                dispatch_plan_id: None,
+                path: None,
+                prompt: None,
+                dev_command: Some(scenario_command("minimal skill", true).as_str()),
+                purpose: AgentRunPurpose::Work,
+            },
+        )
+        .expect("run should succeed");
+        let snapshot = get_work_item_snapshot(&root, &item.id).expect("snapshot should load");
+        let context = &snapshot.resolved_skill_contexts[0];
+        assert_eq!(context.applied_skill_set_ids, vec![expected_skill_id]);
+        assert_eq!(
+            context.effective_skill_paths,
+            vec![expected_path.to_string_lossy().to_string()]
+        );
+        assert!(
+            !context
+                .applied_skill_set_ids
+                .iter()
+                .any(|skill| skill != expected_skill_id)
+        );
+    }
+
     fs::remove_dir_all(root).ok();
 }
 
