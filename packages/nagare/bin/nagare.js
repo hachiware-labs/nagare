@@ -3,7 +3,7 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { spawn, spawnSync } = require("node:child_process");
+const { spawnSync } = require("node:child_process");
 
 function main() {
   const args = process.argv.slice(2);
@@ -20,15 +20,17 @@ function main() {
   }
 
   if (!isCliCommand) {
-    const child = spawn(binary, [], {
-      stdio: "ignore",
+    const result = spawnSync(binary, [], {
+      stdio: "inherit",
       windowsHide: false,
       env: desktopEnvironment(process.env),
     });
-    child.on("error", (error) => {
-      console.error(error.message);
+    if (result.error) {
+      console.error(result.error.message);
       process.exitCode = 1;
-    });
+    } else if (result.status !== 0) {
+      process.exitCode = result.status ?? 1;
+    }
     return;
   }
 
@@ -57,7 +59,9 @@ function resolveBinary(kind) {
 function desktopEnvironment(environment) {
   const next = { ...environment };
   if (!String(next.NAGARE_ROOT || "").trim()) {
-    next.NAGARE_ROOT = defaultDesktopRoot(environment);
+    const root = defaultDesktopRoot(environment);
+    fs.mkdirSync(root, { recursive: true });
+    next.NAGARE_ROOT = root;
   }
   return next;
 }

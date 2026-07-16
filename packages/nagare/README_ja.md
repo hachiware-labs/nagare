@@ -17,7 +17,7 @@ nagare doctor
 `nagare` は Tauri デスクトップアプリを起動します。`nagare doctor` や
 `nagare item list` のように引数を付けた場合だけ CLI を実行します。
 
-デスクトップアプリの既定データは `%LOCALAPPDATA%\Nagare\workspace` に保存されます。起動したフォルダのデータは自動で読み込みません。既存プロジェクトを意図して開く場合だけ、起動前に `NAGARE_ROOT` を指定してください。
+デスクトップアプリの既定データは `%LOCALAPPDATA%\Nagare\workspace` に保存されます。初回起動時にこのフォルダを自動作成し、起動したフォルダのデータは自動で読み込みません。既存プロジェクトを意図して開く場合だけ、起動前に `NAGARE_ROOT` を指定してください。
 
 初回公開は Windows x64 を対象にします。対応外の OS / CPU では npm metadata によりインストールされません。
 
