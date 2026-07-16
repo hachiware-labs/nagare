@@ -2,9 +2,18 @@
 
 [English](README.md)
 
-Nagare Rust CLI のための薄い npm launcher です。
+Nagare Rust CLI を Windows x64 に配布する npm package です。
 
-この package は MVP 0 の配布経路を準備するためのものです。CI release build が用意できた段階で、platform binary package を追加します。
+`nagare` 実行ファイルを package に同梱するため、インストール先に Rust は不要です。
+
+## インストール
+
+```powershell
+npm install -g @hachiware-labs/nagare
+nagare doctor
+```
+
+初回公開は Windows x64 を対象にします。対応外の OS / CPU では npm metadata によりインストールされません。
 
 リポジトリルートからのローカル開発では以下のように実行します。
 

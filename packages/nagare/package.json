@@ -15,6 +15,12 @@
   "bin": {
     "nagare": "bin/nagare.js"
   },
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
   "files": [
     "bin",
     "README.md",

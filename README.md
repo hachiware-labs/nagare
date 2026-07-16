@@ -26,7 +26,7 @@ decisions, not transport: no raw API traffic is captured.
 # 1. Install the skill into your agent environment
 npx skills add hachiware-labs/nagare
 
-# 2. Install the CLI the skill drives
+# 2. Install the CLI the skill drives (Windows x64)
 npm install -g @hachiware-labs/nagare
 nagare doctor
 ```

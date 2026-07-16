@@ -24,7 +24,7 @@ Nagare が記録するのは判断であり、通信ではありません(生の
 # 1. スキルをエージェント環境に追加
 npx skills add hachiware-labs/nagare
 
-# 2. スキルが操作する CLI を導入
+# 2. スキルが操作する CLI を導入（Windows x64）
 npm install -g @hachiware-labs/nagare
 nagare doctor
 ```
