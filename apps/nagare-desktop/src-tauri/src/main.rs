@@ -6,6 +6,7 @@ use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::{Mutex, OnceLock};
 
 use nagare_core::{
     AcceptRecoveryPlanResult, AddAgentProfileInput, AddArtifactTypeInput, AddDomainInput,
@@ -309,12 +310,22 @@ struct RuntimeView {
     id: &'static str,
     label: &'static str,
     command: &'static str,
+    checked: bool,
     available: bool,
     detail: String,
     model_note: &'static str,
     model_mode: &'static str,
     model_choices: Vec<String>,
 }
+
+#[derive(Clone)]
+struct RuntimeCommandStatus {
+    available: bool,
+    detail: String,
+}
+
+static RUNTIME_STATUS_CACHE: OnceLock<Mutex<BTreeMap<String, RuntimeCommandStatus>>> =
+    OnceLock::new();
 
 #[derive(Serialize)]
 struct InsightsView {
@@ -6382,7 +6393,7 @@ struct RuntimeCatalogEntry {
 fn runtime_views(agents: &[AgentView]) -> Vec<RuntimeView> {
     runtime_catalog()
         .into_iter()
-        .map(|entry| runtime_view_from_catalog(entry, agents))
+        .map(|entry| runtime_view_from_cached_status(entry, agents))
         .collect()
 }
 
@@ -6392,7 +6403,7 @@ fn runtime_view_by_id(runtime_id: &str, agents: &[AgentView]) -> Result<RuntimeV
     runtime_catalog()
         .into_iter()
         .find(|entry| entry.id == runtime_id)
-        .map(|entry| runtime_view_from_catalog(entry, agents))
+        .map(|entry| runtime_view_after_check(entry, agents))
         .ok_or_else(|| format!("unknown runtime `{requested}`"))
 }
 
@@ -6407,18 +6418,53 @@ fn ensure_initial_runtime_available(runtime_id: &str) -> Result<(), String> {
     ))
 }
 
-fn runtime_view_from_catalog(entry: RuntimeCatalogEntry, _agents: &[AgentView]) -> RuntimeView {
+fn runtime_view_from_cached_status(
+    entry: RuntimeCatalogEntry,
+    _agents: &[AgentView],
+) -> RuntimeView {
+    let status = runtime_status_cache()
+        .lock()
+        .ok()
+        .and_then(|cache| cache.get(entry.id).cloned());
+    runtime_view_from_status(entry, status)
+}
+
+fn runtime_view_after_check(entry: RuntimeCatalogEntry, _agents: &[AgentView]) -> RuntimeView {
     let (available, detail) = command_status(entry.command, entry.args);
+    let status = RuntimeCommandStatus { available, detail };
+    if let Ok(mut cache) = runtime_status_cache().lock() {
+        cache.insert(entry.id.to_string(), status.clone());
+    }
+    runtime_view_from_status(entry, Some(status))
+}
+
+fn runtime_view_from_status(
+    entry: RuntimeCatalogEntry,
+    status: Option<RuntimeCommandStatus>,
+) -> RuntimeView {
+    let (checked, available, detail) = match status {
+        Some(status) => (true, status.available, status.detail),
+        None => (
+            false,
+            false,
+            "未確認です。必要なランタイムを選択して接続確認してください。".to_string(),
+        ),
+    };
     RuntimeView {
         id: entry.id,
         label: entry.label,
         command: entry.command,
+        checked,
         available,
         detail,
         model_note: entry.model_note,
         model_mode: entry.model_mode,
         model_choices: runtime_model_choices(&entry),
     }
+}
+
+fn runtime_status_cache() -> &'static Mutex<BTreeMap<String, RuntimeCommandStatus>> {
+    RUNTIME_STATUS_CACHE.get_or_init(|| Mutex::new(BTreeMap::new()))
 }
 
 fn runtime_catalog_id(runtime_id: &str) -> &'static str {
@@ -6673,7 +6719,7 @@ fn remove_jsonc_comments(input: &str) -> String {
 fn command_status(command: &str, args: &[&str]) -> (bool, String) {
     let mut last_error = None;
     for candidate in command_candidates(command) {
-        match Command::new(&candidate).args(args).output() {
+        match background_command(&candidate).args(args).output() {
             Ok(output) if output.status.success() => {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 let stderr = String::from_utf8_lossy(&output.stderr);
@@ -6699,6 +6745,18 @@ fn command_status(command: &str, args: &[&str]) -> (bool, String) {
             .map(|error| error.to_string())
             .unwrap_or_else(|| "command not found".to_string()),
     )
+}
+
+fn background_command(program: &str) -> Command {
+    let mut command = Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    command
 }
 
 fn command_candidates(command: &str) -> Vec<String> {
@@ -6732,6 +6790,26 @@ mod tests {
     };
     use std::collections::BTreeMap;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn unchecked_runtime_is_returned_as_pending_without_a_command_probe() {
+        let runtime = runtime_view_from_cached_status(
+            RuntimeCatalogEntry {
+                id: "test-pending-runtime",
+                label: "Test runtime",
+                command: "this-command-must-not-run",
+                args: &[],
+                model_note: "",
+                model_mode: "",
+                model_choices: &[],
+            },
+            &[],
+        );
+
+        assert!(!runtime.checked);
+        assert!(!runtime.available);
+        assert!(runtime.detail.contains("未確認"));
+    }
 
     fn precise_artifact_definition_json(rubric_detail: &str) -> String {
         let rubric = (1..=8)

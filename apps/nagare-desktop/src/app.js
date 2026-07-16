@@ -394,7 +394,9 @@ const NagareApp = (() => {
   }
 
   function availableRuntimes() {
-    return (state?.runtimes || []).filter((runtime) => runtime.available);
+    // 未確認のランタイムは選択時にだけ接続確認する。状態読み込みや保存で
+    // 全CLIを起動しないため、初期状態でも候補として表示する。
+    return (state?.runtimes || []).filter((runtime) => runtime.available || !runtime.checked);
   }
 
   function openSetup(step = 1, draft = {}) {
@@ -428,14 +430,18 @@ const NagareApp = (() => {
               <div class="hint">あとからプロジェクト設定で変更できます。</div>
             </div>
           ` : step === 2 ? `
-            ${runtimes.length ? runtimes.map((runtime) => `
+          ${runtimes.length ? runtimes.map((runtime) => {
+              const runtimeState = runtime.available ? "利用可能" : runtime.checked ? "未検出" : "未確認";
+              const runtimeBadge = runtime.available ? "badge-done" : "badge-neutral";
+              return `
               <label class="rt-opt ${runtime.id === runtimeId ? "sel" : ""}" data-runtime-option="${escapeHtml(runtime.id)}">
                 <input class="visually-hidden" type="radio" name="setup-runtime" value="${escapeHtml(runtime.id)}" ${runtime.id === runtimeId ? "checked" : ""}>
                 <div class="rt-icon">${runtimeIcon(runtime.id)}</div>
                 <div><div class="rt-name">${escapeHtml(runtime.label)}</div><div class="rt-desc">${escapeHtml(runtime.detail || runtime.model_note || "")}</div></div>
-                <span class="rt-state badge badge-done">利用可能</span>
+                <span class="rt-state badge ${runtimeBadge}">${runtimeState}</span>
               </label>
-            `).join("") : `
+            `;
+            }).join("") : `
               <div class="card" style="padding:14px;border-color:var(--warning-line);background:var(--warning-soft);">
                 <b>利用できる実行環境が見つかりません</b>
                 <p style="font-size:12.5px;color:var(--text-muted);margin-top:4px;">Claude Code / Codex CLI / OpenCode / OpenClaw のいずれかを PATH から実行できる状態にしてください。</p>
@@ -2170,7 +2176,7 @@ const NagareApp = (() => {
           ${runtime ? `
             <div class="card" style="padding:10px 12px;background:#f8fafc;margin-bottom:12px;">
               <div style="font-size:12.5px;font-weight:700;color:var(--text-body);">使用する実行環境: ${escapeHtml(runtime.label || runtime.id)}</div>
-              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">実行環境の変更は、作成後に「実行環境」またはエージェント設定で行います。</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">未確認の場合は、作成時にこの実行環境だけを接続確認します。変更は作成後にもできます。</div>
             </div>
           ` : `
             <div class="card" style="padding:12px;border-color:var(--warning-line);background:var(--warning-soft);margin-bottom:12px;">
@@ -3700,6 +3706,7 @@ const NagareApp = (() => {
         <select id="runtime-status-filter" style="width:auto;min-width:150px;">
           <option value="all">状態: すべて</option>
           <option value="available">利用可能</option>
+          <option value="pending">未確認</option>
           <option value="missing">未検出</option>
         </select>
         <label class="visually-hidden" for="runtime-search-filter">実行環境検索</label>
@@ -3709,17 +3716,20 @@ const NagareApp = (() => {
       </div>
       <div class="list">${(state.runtimes || []).map((runtime) => {
         const agentNames = runtimeAgentNames(runtime);
+        const runtimeStatus = runtime.available ? "available" : runtime.checked ? "missing" : "pending";
+        const runtimeBadge = runtime.available ? "badge-done" : "badge-neutral";
+        const runtimeLabel = runtime.available ? "利用可能" : runtime.checked ? "未検出" : "未確認";
         return `
-        <div class="list-item" data-runtime-row data-status="${runtime.available ? "available" : "missing"}" data-search="${escapeHtml([runtime.id, runtime.label, runtime.command, runtime.detail, ...agentNames].join(" ").toLowerCase())}">
+        <div class="list-item" data-runtime-row data-status="${runtimeStatus}" data-search="${escapeHtml([runtime.id, runtime.label, runtime.command, runtime.detail, ...agentNames].join(" ").toLowerCase())}">
           <div class="wr-picon">${runtimeIcon(runtime.id)}</div>
           <div class="wr-body">
-            <div class="wr-title">${escapeHtml(runtime.label)} <span class="${runtime.available ? "badge badge-done" : "badge badge-neutral"}">${runtime.available ? "利用可能" : "未検出"}</span></div>
+            <div class="wr-title">${escapeHtml(runtime.label)} <span class="badge ${runtimeBadge}">${runtimeLabel}</span></div>
             <div class="wr-sum">${escapeHtml(runtimeGuidance(runtime, agentNames))}</div>
             <div style="font-size:11.5px;color:${runtime.available || !agentNames.length ? "var(--text-faint)" : "var(--warning)"};margin-top:3px;">利用エージェント: ${escapeHtml(agentNames.length ? agentNames.join("、") : "なし")}</div>
             <div style="font-size:11.5px;color:var(--text-faint);margin-top:3px;">モデル: エージェント設定で個別に選択</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;">
-            <button class="btn ${runtime.available ? "btn-secondary" : "btn-primary"} btn-sm" type="button" data-refresh-runtime="${escapeHtml(runtime.id)}">${runtime.available ? "再確認" : "検出を確認"}</button>
+            <button class="btn ${runtime.available ? "btn-secondary" : "btn-primary"} btn-sm" type="button" data-refresh-runtime="${escapeHtml(runtime.id)}">${runtime.checked ? (runtime.available ? "再確認" : "検出を確認") : "接続確認"}</button>
           </div>
         </div>
       `;
@@ -3784,6 +3794,9 @@ const NagareApp = (() => {
     const agents = agentNames.length ? `${agentNames.join("、")} は` : "この実行環境は";
     if (runtime.available) {
       return `${agents}ワークで利用できます。接続が不安定な場合は再確認してください。`;
+    }
+    if (!runtime.checked) {
+      return `${agents}はまだ接続確認していません。必要になったら接続確認を実行してください。`;
     }
     if (agentNames.length) {
       return `${runtime.label || runtime.id} が見つかりません。インストール後に検出を確認してください。${agents}接続確認までワークに割り当てられません。`;

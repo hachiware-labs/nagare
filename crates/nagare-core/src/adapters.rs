@@ -24,7 +24,7 @@ impl AgentAdapter for ProcessCodexCliAdapter {
         )?;
         Ok(AdapterRunOutput {
             command: format!(
-                "codex exec{} --cd {} <prompt>{}",
+                "codex exec --skip-git-repo-check{} --cd {} <prompt>{}",
                 codex_skill_config_command_suffix(request.codex_skill_config),
                 request.working_dir.display(),
                 selected_agent_command_suffix(&request.run_packet.external.agent_id),
@@ -42,8 +42,23 @@ fn run_codex_cli_exec(
     model: Option<&str>,
     codex_skill_config: &[CodexSkillConfigEntry],
 ) -> Result<Output, NagareError> {
+    let args = codex_cli_exec_args(working_dir, prompt, model, codex_skill_config);
+    if cfg!(windows) {
+        if let Some(script) = find_windows_codex_js() {
+            return Ok(Command::new("node").arg(script).args(&args).output()?);
+        }
+    }
+    Ok(run_tool_owned("codex", &args)?)
+}
+
+fn codex_cli_exec_args(
+    working_dir: &Path,
+    prompt: &str,
+    model: Option<&str>,
+    codex_skill_config: &[CodexSkillConfigEntry],
+) -> Vec<String> {
     let cd = working_dir.display().to_string();
-    let mut args = vec!["exec".to_string()];
+    let mut args = vec!["exec".to_string(), "--skip-git-repo-check".to_string()];
     if let Some(model) = model.filter(|value| !value.trim().is_empty()) {
         args.push("--model".to_string());
         args.push(model.to_string());
@@ -55,12 +70,7 @@ fn run_codex_cli_exec(
     args.push("--cd".to_string());
     args.push(cd);
     args.push(prompt.to_string());
-    if cfg!(windows) {
-        if let Some(script) = find_windows_codex_js() {
-            return Ok(Command::new("node").arg(script).args(&args).output()?);
-        }
-    }
-    Ok(run_tool_owned("codex", &args)?)
+    args
 }
 
 pub fn run_codex_cli_prompt(
@@ -302,6 +312,20 @@ mod tests {
             codex_skill_config_command_suffix(&entries),
             " --config skills.config=<allow:1, deny:1>"
         );
+    }
+
+    #[test]
+    fn codex_exec_allows_nagare_projects_without_a_git_repository() {
+        let args = codex_cli_exec_args(
+            Path::new("C:/Nagare/workspace"),
+            "成果物定義を生成する",
+            Some("gpt-5-codex"),
+            &[],
+        );
+
+        assert_eq!(args[0], "exec");
+        assert!(args.iter().any(|arg| arg == "--skip-git-repo-check"));
+        assert!(args.windows(2).any(|pair| pair == ["--cd", "C:/Nagare/workspace"]));
     }
 }
 
