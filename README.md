@@ -28,6 +28,7 @@ npx skills add hachiware-labs/nagare
 
 # 2. Install the CLI the skill drives (Windows x64)
 npm install -g @hachiware-labs/nagare
+nagare
 nagare doctor
 ```
 
@@ -138,8 +139,9 @@ nagare item list
 nagare item show work_0001
 ```
 
-The npm package is only the installation/distribution path. The product
-interface is the `nagare` command.
+The npm package bundles the Tauri desktop app and the CLI. Running `nagare`
+opens the desktop app; supplying a command such as `nagare doctor` runs the
+CLI.
 
 ## Documentation Language Policy
 

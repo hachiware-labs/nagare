@@ -1,7 +1,7 @@
 {
   "name": "@hachiware-labs/nagare",
-  "version": "0.1.0",
-  "description": "Adapter-first execution ledger for coding agents",
+  "version": "0.1.1",
+  "description": "Nagare desktop app and CLI for auditable coding-agent workflows",
   "license": "MIT",
   "repository": {
     "type": "git",

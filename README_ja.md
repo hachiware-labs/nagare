@@ -26,6 +26,7 @@ npx skills add hachiware-labs/nagare
 
 # 2. スキルが操作する CLI を導入（Windows x64）
 npm install -g @hachiware-labs/nagare
+nagare
 nagare doctor
 ```
 
@@ -132,7 +133,7 @@ nagare item list
 nagare item show work_0001
 ```
 
-npm package は install / distribution の経路に限定し、製品としての操作面は `nagare` コマンドに寄せます。
+npm package は Tauri デスクトップアプリと CLI を同梱します。`nagare` はデスクトップアプリを起動し、`nagare doctor` のようにコマンドを指定した場合は CLI を実行します。
 
 ## ドキュメント言語ポリシー
 

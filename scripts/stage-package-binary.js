@@ -6,23 +6,47 @@ const { spawnSync } = require("node:child_process");
 
 const repoRoot = path.resolve(__dirname, "..");
 const extension = process.platform === "win32" ? ".exe" : "";
-const source = path.join(repoRoot, "target", "release", `nagare${extension}`);
-const target = path.join(
-  repoRoot,
-  "packages",
-  "nagare",
-  "bin",
-  `nagare-${process.platform}-${process.arch}${extension}`
-);
+const targets = [
+  {
+    kind: "cli",
+    source: path.join(repoRoot, "target", "release", `nagare${extension}`),
+  },
+  {
+    kind: "desktop",
+    source: path.join(
+      repoRoot,
+      "apps",
+      "nagare-desktop",
+      "src-tauri",
+      "target",
+      "release",
+      `nagare-desktop${extension}`
+    ),
+  },
+];
 
 run("cargo", ["build", "--release", "-p", "nagare-cli"], repoRoot);
+run(
+  "cargo",
+  ["build", "--manifest-path", "apps/nagare-desktop/src-tauri/Cargo.toml", "--release"],
+  repoRoot
+);
 
-fs.copyFileSync(source, target);
-if (process.platform !== "win32") {
-  fs.chmodSync(target, 0o755);
+for (const { kind, source } of targets) {
+  const target = path.join(
+    repoRoot,
+    "packages",
+    "nagare",
+    "bin",
+    `nagare-${kind}-${process.platform}-${process.arch}${extension}`
+  );
+  fs.copyFileSync(source, target);
+  if (process.platform !== "win32") {
+    fs.chmodSync(target, 0o755);
+  }
+
+  console.log(`staged ${path.relative(repoRoot, target)}`);
 }
-
-console.log(`staged ${path.relative(repoRoot, target)}`);
 
 function run(command, args, cwd) {
   const result = spawnSync(command, args, {

@@ -2,17 +2,21 @@
 
 [日本語](README_ja.md)
 
-Windows x64 npm distribution for the Nagare Rust CLI.
+Windows x64 npm distribution for the Nagare desktop app and CLI.
 
-The `nagare` executable is bundled in the package, so Rust is not required on
-the machine that installs it.
+The Tauri desktop app and `nagare` CLI are bundled in the package, so Rust is
+not required on the machine that installs it.
 
 ## Install
 
 ```powershell
 npm install -g @hachiware-labs/nagare
+nagare
 nagare doctor
 ```
+
+`nagare` opens the Tauri desktop app. Commands with arguments, such as
+`nagare doctor` and `nagare item list`, run the CLI.
 
 This initial release supports Windows x64. The npm metadata prevents installs
 on unsupported operating systems and CPU architectures.

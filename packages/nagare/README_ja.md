@@ -2,16 +2,20 @@
 
 [English](README.md)
 
-Nagare Rust CLI を Windows x64 に配布する npm package です。
+Nagare の Tauri デスクトップアプリと CLI を Windows x64 に配布する npm package です。
 
-`nagare` 実行ファイルを package に同梱するため、インストール先に Rust は不要です。
+Tauri デスクトップアプリと `nagare` CLI を package に同梱するため、インストール先に Rust は不要です。
 
 ## インストール
 
 ```powershell
 npm install -g @hachiware-labs/nagare
+nagare
 nagare doctor
 ```
+
+`nagare` は Tauri デスクトップアプリを起動します。`nagare doctor` や
+`nagare item list` のように引数を付けた場合だけ CLI を実行します。
 
 初回公開は Windows x64 を対象にします。対応外の OS / CPU では npm metadata によりインストールされません。
 
