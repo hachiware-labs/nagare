@@ -1,6 +1,6 @@
 {
   "name": "@hachiware-labs/nagare",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Nagare desktop app and CLI for auditable coding-agent workflows",
   "license": "MIT",
   "repository": {
