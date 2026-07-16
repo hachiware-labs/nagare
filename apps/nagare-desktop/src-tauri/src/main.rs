@@ -13,7 +13,7 @@ use nagare_core::{
     AgentModelSelection, AgentOutputRecord, AgentProfile, AgentProfileSource, AgentRunPurpose,
     AgentRunStatus, AgentToolKind, ApplyRecoveryPlanInput, ApprovalPolicy, Artifact, ArtifactType,
     CreateRecoveryPlanResult,
-    CreateWorkItemInput, DeleteSkillPackageInput, DeleteSkillPackageResult, Domain,
+    CreateWorkItemInput, CriteriaReviewStatus, DeleteSkillPackageInput, DeleteSkillPackageResult, Domain,
     DomainWorkflowOverride, ExternalAgentBinding, ImprovementHistoryEntry,
     McpConnectionCatalogEntry, McpConnectionTestResult, NagareAgentSettings, ProjectLayout,
     ProjectMetadata, RUNTIME_MCP_CAPABILITIES, RecordImprovementInput, RecoveryPlan,
@@ -218,8 +218,31 @@ struct WorkDetailView {
     request: String,
     answer: String,
     artifacts: Vec<ArtifactView>,
+    effective_capabilities: Vec<EffectiveCapabilityView>,
+    prohibited_task_gate: Option<ProhibitedTaskGateView>,
     review: Option<ReviewView>,
     steps: Vec<StepView>,
+}
+
+#[derive(Serialize)]
+struct EffectiveCapabilityView {
+    purpose: String,
+    agent_id: String,
+    agent_label: String,
+    skills: Vec<String>,
+    mcp_connections: Vec<String>,
+    allowed_skill_count: usize,
+    disabled_skill_count: usize,
+    scope_diagnostics: Vec<String>,
+    skill_paths: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct ProhibitedTaskGateView {
+    rules: Vec<String>,
+    status: String,
+    summary: String,
+    evidence: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -473,6 +496,7 @@ struct CreateWorkRequest {
     artifact_type_id: Option<String>,
     workflow_mode: Option<String>,
     approval_policy: Option<String>,
+    constraints: Option<String>,
 }
 
 #[derive(Clone, Deserialize)]
@@ -2166,6 +2190,7 @@ fn create_work(request: CreateWorkRequest) -> Result<WorkDetailView, String> {
                 .map(ApprovalPolicy::parse)
                 .transpose()
                 .map_err(|error| error.to_string())?,
+            constraints: text_lines(request.constraints.as_deref()),
             ..CreateWorkItemInput::default()
         },
     )
@@ -5033,9 +5058,98 @@ fn work_detail_view(root: &Path, snapshot: WorkItemSnapshot) -> WorkDetailView {
         request,
         answer,
         artifacts,
+        effective_capabilities: effective_capability_views(root, &snapshot),
+        prohibited_task_gate: prohibited_task_gate_view(&snapshot),
         review,
         steps,
     }
+}
+
+fn effective_capability_views(
+    root: &Path,
+    snapshot: &WorkItemSnapshot,
+) -> Vec<EffectiveCapabilityView> {
+    snapshot
+        .resolved_skill_contexts
+        .iter()
+        .rev()
+        .map(|context| {
+            let packet = snapshot
+                .resolved_run_packets
+                .iter()
+                .rev()
+                .find(|packet| packet.resolved_skill_context_id == context.id);
+            let profile = get_agent_profile(root, &context.agent_profile_id).ok();
+            let agent_label = profile
+                .as_ref()
+                .map(|profile| profile.display_name.trim())
+                .filter(|name| !name.is_empty())
+                .map(ToOwned::to_owned)
+                .unwrap_or_else(|| context.agent_profile_id.clone());
+            let allowed_skill_count = context
+                .codex_skill_config
+                .iter()
+                .filter(|entry| entry.enabled)
+                .count();
+            let disabled_skill_count = context
+                .codex_skill_config
+                .len()
+                .saturating_sub(allowed_skill_count);
+            EffectiveCapabilityView {
+                purpose: packet
+                    .map(|packet| question_purpose_label(packet.purpose).to_string())
+                    .unwrap_or_else(|| "実行工程".to_string()),
+                agent_id: context.agent_profile_id.clone(),
+                agent_label,
+                skills: context.applied_skill_set_ids.clone(),
+                mcp_connections: profile
+                    .map(|profile| profile.mcp_connection_ids)
+                    .unwrap_or_default(),
+                allowed_skill_count,
+                disabled_skill_count,
+                scope_diagnostics: context.scope_diagnostics.clone(),
+                skill_paths: context.effective_skill_paths.clone(),
+            }
+        })
+        .collect()
+}
+
+fn prohibited_task_gate_view(snapshot: &WorkItemSnapshot) -> Option<ProhibitedTaskGateView> {
+    let rules = nagare_core::prohibited_task_constraints(&snapshot.item.constraints);
+    if rules.is_empty() {
+        return None;
+    }
+    let Some(review) = snapshot.review_results.last() else {
+        return Some(ProhibitedTaskGateView {
+            summary: "禁止タスクの Reviewer 確認待ちです。".to_string(),
+            status: "pending".to_string(),
+            rules,
+            evidence: Vec::new(),
+        });
+    };
+    let policy_items = review
+        .criteria_results
+        .iter()
+        .filter(|result| nagare_core::is_prohibited_task_criterion(&result.criterion))
+        .collect::<Vec<_>>();
+    let passed = policy_items.len() == rules.len()
+        && policy_items
+            .iter()
+            .all(|result| result.status == CriteriaReviewStatus::Passed);
+    let evidence = policy_items
+        .iter()
+        .map(|result| format!("{} — {}", result.criterion, result.note))
+        .collect::<Vec<_>>();
+    Some(ProhibitedTaskGateView {
+        status: if passed { "passed" } else { "failed" }.to_string(),
+        summary: if passed {
+            "Reviewer がすべての禁止タスクルールを確認しました。".to_string()
+        } else {
+            "禁止タスクの確認が未記録、または違反のためレビューを差し戻します。".to_string()
+        },
+        rules,
+        evidence,
+    })
 }
 
 fn artifact_views(artifacts: &[Artifact]) -> Vec<ArtifactView> {
@@ -8482,6 +8596,7 @@ mod tests {
             artifact_type_id: Some("general".to_string()),
             workflow_mode: Some("confirm_first".to_string()),
             approval_policy: Some("manual_final_approval".to_string()),
+            constraints: Some("禁止: 本番環境へ書き込まない\n通常の制約: README を対象にする".to_string()),
         })
         .expect("work should be created");
 
@@ -8490,6 +8605,13 @@ mod tests {
         let snapshot = get_work_item_snapshot(&root, &detail.item.id).expect("work snapshot");
         assert_eq!(snapshot.item.domain_id.as_deref(), Some("general"));
         assert_eq!(snapshot.item.artifact_type_id.as_deref(), Some("general"));
+        assert_eq!(snapshot.item.constraints.len(), 2);
+        let gate = detail
+            .prohibited_task_gate
+            .as_ref()
+            .expect("prohibited task gate");
+        assert_eq!(gate.status, "pending");
+        assert_eq!(gate.rules, vec!["禁止: 本番環境へ書き込まない"]);
 
         let _ = fs::remove_dir_all(root);
     }
@@ -8506,6 +8628,7 @@ mod tests {
             artifact_type_id: Some("general".to_string()),
             workflow_mode: Some("confirm_first".to_string()),
             approval_policy: Some("manual_final_approval".to_string()),
+            constraints: None,
         })
         .expect("work should be created");
 
@@ -8576,6 +8699,52 @@ mod tests {
                 && step.output == "92 / 100"
                 && step.score_label == "92 / 100"
         }));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn work_detail_exposes_effective_agent_skill_and_mcp_scope() {
+        let root = temp_test_dir("work-detail-effective-capabilities");
+        init_project(&root).expect("init project");
+        let mut snapshot = sample_completed_snapshot();
+        snapshot.resolved_skill_contexts.push(nagare_core::ResolvedSkillContext {
+            id: "skillctx_1".to_string(),
+            work_item_id: snapshot.item.id.clone(),
+            agent_profile_id: "writer".to_string(),
+            capability_probe_id: None,
+            project_rule_ids: Vec::new(),
+            declared_skill_set_ids: vec!["hachi-readable-writing".to_string()],
+            applied_skill_set_ids: vec!["hachi-readable-writing".to_string()],
+            skipped_skill_set_ids: Vec::new(),
+            capabilities_in_force: Vec::new(),
+            instruction_sources: Vec::new(),
+            effective_skill_paths: vec!["C:/skills/hachi-readable-writing/SKILL.md".to_string()],
+            codex_skill_config: vec![
+                nagare_core::CodexSkillConfigEntry {
+                    path: "C:/skills/hachi-readable-writing/SKILL.md".to_string(),
+                    enabled: true,
+                },
+                nagare_core::CodexSkillConfigEntry {
+                    path: "C:/skills/hachi-ui/SKILL.md".to_string(),
+                    enabled: false,
+                },
+            ],
+            scope_diagnostics: vec!["Codex strict Skill allowlist materialized: 1 allowed, 1 disabled".to_string()],
+            execution_record_uri: String::new(),
+            content_hash: String::new(),
+            locale: "ja".to_string(),
+            resolved_at: "1".to_string(),
+        });
+
+        let detail = work_detail_view(&root, snapshot);
+        assert_eq!(detail.effective_capabilities.len(), 1);
+        let capability = &detail.effective_capabilities[0];
+        assert_eq!(capability.agent_id, "writer");
+        assert_eq!(capability.skills, vec!["hachi-readable-writing"]);
+        assert_eq!(capability.allowed_skill_count, 1);
+        assert_eq!(capability.disabled_skill_count, 1);
+        assert!(capability.mcp_connections.is_empty());
 
         let _ = fs::remove_dir_all(root);
     }

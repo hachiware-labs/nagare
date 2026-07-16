@@ -570,6 +570,11 @@ const NagareApp = (() => {
       <div class="group-head" style="margin-top:0;"><h3>新規ワーク依頼</h3></div>
       <form class="ask-box" id="create-work-form">
         <textarea name="description" required placeholder="依頼を書いてください。例: リリースノート v0.4 の下書きを作成して"></textarea>
+        <details class="work-constraints">
+          <summary>禁止・制約を追加（任意）</summary>
+          <textarea name="constraints" placeholder="1行に1件。例: 禁止: 本番環境へ書き込まない\n禁止: 外部サービスへ送信しない"></textarea>
+          <p>「禁止」を含む制約は、Reviewer の確認が記録されない限り承認に進みません。</p>
+        </details>
         <div class="ask-foot">
           <div class="dd" style="display:flex;align-items:center;gap:6px;">
             <label class="visually-hidden" for="work-project-select">対象プロジェクト</label>
@@ -609,6 +614,7 @@ const NagareApp = (() => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
       const description = String(form.get("description") || "").trim();
+      const constraints = String(form.get("constraints") || "").trim();
       const selectedProject = String(form.get("project") || currentProject);
       if (!description) return toast("依頼内容を入力してください。", "error");
       const artifact = primaryArtifact();
@@ -620,6 +626,7 @@ const NagareApp = (() => {
         artifact_type_id: artifact?.id || "",
         workflow_mode: state?.project?.workflow_mode || "confirm_first",
         approval_policy: state?.project?.approval_policy || "manual_final_approval",
+        constraints,
       };
       startWork(event.currentTarget.querySelector('button[type="submit"]'));
     });
@@ -793,6 +800,7 @@ const NagareApp = (() => {
           artifact_type_id: pendingWork.artifact_type_id,
           workflow_mode: pendingWork.workflow_mode,
           approval_policy: pendingWork.approval_policy,
+          constraints: pendingWork.constraints,
         },
       });
       activeDetail = detail;
@@ -917,6 +925,7 @@ const NagareApp = (() => {
           <div>${escapeHtml(progress.elapsed)}</div>
         </div>
       </div>
+      ${effectiveCapabilitySection(detail)}
       ${actionBeforeResult ? action : ""}
       ${detailResultSections(detail)}
       ${!actionBeforeResult && !needsApproval ? action : ""}
@@ -965,6 +974,53 @@ const NagareApp = (() => {
 
   function detailNeedsHuman(detail) {
     return Boolean(detail?.question || hasActiveRecovery(detail) || detail?.approval_ready || ["answer_question", "approve"].includes(detail?.next_action_kind));
+  }
+
+  function effectiveCapabilitySection(detail) {
+    const capabilities = lines(detail?.effective_capabilities);
+    const gate = detail?.prohibited_task_gate;
+    if (!capabilities.length && !gate) return "";
+    const capabilityCards = capabilities.length
+      ? capabilities.map((capability) => {
+          const skills = lines(capability.skills);
+          const mcps = lines(capability.mcp_connections);
+          const scope = [
+            Number(capability.allowed_skill_count || 0) > 0 ? `Skill 許可 ${capability.allowed_skill_count}` : "Skill 許可 0",
+            Number(capability.disabled_skill_count || 0) > 0 ? `無効化 ${capability.disabled_skill_count}` : "境界設定なし",
+          ].join(" · ");
+          const diagnostics = lines(capability.scope_diagnostics);
+          const paths = lines(capability.skill_paths);
+          return `
+            <article class="capability-run">
+              <div class="capability-run-head">
+                <div><strong>${escapeHtml(capability.purpose || "実行工程")}</strong><span>${escapeHtml(capability.agent_label || capability.agent_id)}</span></div>
+                <code>${escapeHtml(capability.agent_id)}</code>
+              </div>
+              <div class="capability-grid">
+                <div><span>Effective Skills</span><div class="capability-tags">${skills.length ? skills.map((skill) => `<b class="capability-tag">${escapeHtml(skill)}</b>`).join("") : `<em>割当なし</em>`}</div></div>
+                <div><span>Effective MCP</span><div class="capability-tags">${mcps.length ? mcps.map((mcp) => `<b class="capability-tag capability-tag-mcp">${escapeHtml(mcp)}</b>`).join("") : `<em>割当なし</em>`}</div></div>
+              </div>
+              <div class="capability-boundary">${escapeHtml(scope)}${diagnostics.length ? ` <span>${escapeHtml(diagnostics.join(" / "))}</span>` : ""}</div>
+              ${paths.length ? `<details class="capability-paths"><summary>Skill 指示の参照</summary>${paths.map((path) => `<code>${escapeHtml(path)}</code>`).join("")}</details>` : ""}
+            </article>`;
+        }).join("")
+      : `<p class="page-sub">実行記録が作成されると、エージェントと実効能力を表示します。</p>`;
+    const gateBlock = gate ? prohibitedTaskGateBlock(gate) : "";
+    return `
+      <div class="group-head" style="margin-top:18px;"><h3>実行構成</h3><span class="count">実効スコープ</span></div>
+      <section class="card capability-scope">${capabilityCards}${gateBlock}</section>`;
+  }
+
+  function prohibitedTaskGateBlock(gate) {
+    const status = String(gate.status || "pending");
+    const label = status === "passed" ? "確認済み" : status === "pending" ? "確認待ち" : "差し戻し";
+    const evidence = lines(gate.evidence);
+    return `
+      <section class="prohibited-task-gate prohibited-task-${escapeHtml(status)}">
+        <div class="prohibited-task-head"><div><strong>禁止タスクのレビューゲート</strong><span>${escapeHtml(gate.summary || "")}</span></div><b>${label}</b></div>
+        <ul>${lines(gate.rules).map((rule) => `<li>${escapeHtml(rule)}</li>`).join("")}</ul>
+        ${evidence.length ? `<div class="prohibited-task-evidence">${evidence.map((item) => `<p>${escapeHtml(item)}</p>`).join("")}</div>` : ""}
+      </section>`;
   }
 
   function hasActiveRecovery(detail) {

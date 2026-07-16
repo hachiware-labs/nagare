@@ -1716,6 +1716,33 @@ fn prompt_with_assigned_skill_context(
     format!("{prompt}\n\n## Nagare Skill Scope\n{rule}\n{skill_lines}")
 }
 
+fn prompt_with_prohibited_task_review_gate(
+    prompt: &str,
+    purpose: AgentRunPurpose,
+    constraints: &[String],
+    locale: &str,
+) -> String {
+    if purpose != AgentRunPurpose::Review {
+        return prompt.to_string();
+    }
+    let rules = prohibited_task_constraints(constraints);
+    if rules.is_empty() {
+        return prompt.to_string();
+    }
+    let is_japanese = locale.starts_with("ja");
+    let instructions = if is_japanese {
+        "以下は承認を妨げる禁止タスクルールです。各ルールについて、実行内容・成果物・外部操作のいずれにも違反がないかを確認してください。`## Nagare Review` の `criteria` に、ルール文を含む 1 行を必ず出し、`pass / fail` と具体的な根拠を記録してください。1 件でも fail、または確認不能なら verdict は request_changes（人間の判断が必要なら blocked）にしてください。禁止タスクの確認を省略して pass にしてはいけません。"
+    } else {
+        "The following are hard prohibited-task rules. Check each rule against execution, artifacts, and external actions. In `criteria` under `## Nagare Review`, emit one line per rule containing the rule text, `pass` or `fail`, and concrete evidence. Any fail or unverifiable rule must produce verdict request_changes (or blocked when human input is needed). Never pass while omitting this check."
+    };
+    let rule_lines = rules
+        .iter()
+        .map(|rule| format!("- {rule}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("{prompt}\n\n## Nagare Prohibited Task Review Gate\n{instructions}\n\n{rule_lines}")
+}
+
 fn prompt_with_nagare_agent_context(
     prompt: &str,
     profile: &AgentProfile,
@@ -3722,24 +3749,33 @@ pub fn run_work_item_with_input(
         .unwrap_or(goal.as_str());
     let prompt = prompt_with_output_contract(
         &prompt_with_nagare_agent_context(
-            &prompt_with_assigned_skill_context(
-                &prompt_with_agent_instructions(
-                    &prompt_with_domain_context(
-                        &prompt_with_handoff_context(
-                            &prompt_with_human_feedback(prompt, &human_feedback_context, &locale),
-                            &handoff_context,
+            &prompt_with_prohibited_task_review_gate(
+                &prompt_with_assigned_skill_context(
+                    &prompt_with_agent_instructions(
+                        &prompt_with_domain_context(
+                            &prompt_with_handoff_context(
+                                &prompt_with_human_feedback(
+                                    prompt,
+                                    &human_feedback_context,
+                                    &locale,
+                                ),
+                                &handoff_context,
+                                &locale,
+                            ),
+                            &domain_context,
                             &locale,
                         ),
-                        &domain_context,
+                        agent_profile
+                            .prompt
+                            .effective_instructions(&agent_profile.description),
                         &locale,
                     ),
-                    agent_profile
-                        .prompt
-                        .effective_instructions(&agent_profile.description),
+                    &skill_set_resolution.applied_skill_set_ids,
+                    &effective_skill_paths,
                     &locale,
                 ),
-                &skill_set_resolution.applied_skill_set_ids,
-                &effective_skill_paths,
+                input.purpose,
+                &item.constraints,
                 &locale,
             ),
             &agent_profile,
@@ -3831,7 +3867,13 @@ pub fn run_work_item_with_input(
     let review_result = review_result_id
         .zip(agent_output.as_ref())
         .map(|(id, output)| {
-            review_result_from_agent_output(id, output, &item.acceptance_criteria, &review_rubric)
+            review_result_from_agent_output(
+                id,
+                output,
+                &item.acceptance_criteria,
+                &review_rubric,
+                &item.constraints,
+            )
         });
     let mut item_status = if matches!(
         input.purpose,
@@ -4090,6 +4132,29 @@ mod skill_scope_tests {
         let no_skill_prompt =
             prompt_with_assigned_skill_context("Create the requested screen.", &[], &[], "en-US");
         assert!(no_skill_prompt.contains("No skills are assigned"));
+    }
+
+    #[test]
+    fn review_prompt_requires_prohibited_task_evidence() {
+        let prompt = prompt_with_prohibited_task_review_gate(
+            "Review the work.",
+            AgentRunPurpose::Review,
+            &["禁止: 本番環境へ書き込まない".to_string()],
+            "ja-JP",
+        );
+
+        assert!(prompt.contains("Nagare Prohibited Task Review Gate"));
+        assert!(prompt.contains("本番環境へ書き込まない"));
+        assert!(prompt.contains("pass / fail"));
+        assert_eq!(
+            prompt_with_prohibited_task_review_gate(
+                "Do the work.",
+                AgentRunPurpose::Work,
+                &["禁止: 本番環境へ書き込まない".to_string()],
+                "ja-JP",
+            ),
+            "Do the work."
+        );
     }
 }
 

@@ -122,10 +122,18 @@ pub(crate) fn review_result_from_agent_output(
     output: &AgentOutputRecord,
     acceptance_criteria: &[String],
     rubric: &[String],
+    constraints: &[String],
 ) -> ReviewResult {
     let rubric_definitions = rubric_definitions(rubric);
     let rubric_expected_count = rubric_definitions.len();
-    ReviewResult {
+    let prohibited_task_rules = prohibited_task_constraints(constraints);
+    let mut criteria_results = criteria_results_from_output(output, acceptance_criteria);
+    let prohibited_task_results = prohibited_task_review_results(output, &prohibited_task_rules);
+    let policy_gate_passed = prohibited_task_results
+        .iter()
+        .all(|result| result.status == CriteriaReviewStatus::Passed);
+    criteria_results.extend(prohibited_task_results);
+    let mut result = ReviewResult {
         id,
         work_item_id: output.work_item_id.clone(),
         agent_run_id: output.agent_run_id.clone(),
@@ -148,7 +156,7 @@ pub(crate) fn review_result_from_agent_output(
             .get("referenced_artifacts")
             .cloned()
             .unwrap_or_default(),
-        criteria_results: criteria_results_from_output(output, acceptance_criteria),
+        criteria_results,
         rubric_results: rubric_results_from_output(output, &rubric_definitions),
         rubric_expected_count,
         questions: output.questions.clone(),
@@ -156,7 +164,96 @@ pub(crate) fn review_result_from_agent_output(
         execution_record_id: output.execution_record_id.clone(),
         locale: output.locale.clone(),
         created_at: output.created_at.clone(),
+    };
+    if !prohibited_task_rules.is_empty()
+        && !policy_gate_passed
+        && result.verdict != ReviewVerdict::Blocked
+    {
+        result.verdict = ReviewVerdict::RequestChanges;
+        result
+            .findings
+            .push("禁止タスクの確認が未記録、またはルール違反として判定されました。".to_string());
+        result.requested_changes.push(
+            "各禁止タスクルールについて、根拠付きで pass / fail を記録してください。".to_string(),
+        );
     }
+    result
+}
+
+/// Returns only explicitly marked prohibition rules. Ordinary constraints stay
+/// informative; this small, explicit vocabulary avoids treating every request
+/// preference as a hard approval gate.
+pub fn prohibited_task_constraints(constraints: &[String]) -> Vec<String> {
+    constraints
+        .iter()
+        .map(|rule| rule.trim())
+        .filter(|rule| !rule.is_empty())
+        .filter(|rule| {
+            let normalized = rule.to_ascii_lowercase();
+            rule.contains("禁止")
+                || normalized.contains("[forbidden]")
+                || normalized.contains("forbidden:")
+                || normalized.contains("prohibited:")
+        })
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
+fn prohibited_task_review_results(
+    output: &AgentOutputRecord,
+    prohibited_task_rules: &[String],
+) -> Vec<CriteriaReviewResult> {
+    if prohibited_task_rules.is_empty() {
+        return Vec::new();
+    }
+    let lines = output
+        .fields
+        .get("criteria")
+        .or_else(|| output.fields.get("criteria_results"))
+        .cloned()
+        .unwrap_or_default();
+    prohibited_task_rules
+        .iter()
+        .map(|rule| {
+            let recorded_note = lines
+                .iter()
+                .find(|line| contains_normalized(line, rule))
+                .cloned()
+                .or_else(|| {
+                    (prohibited_task_rules.len() == 1)
+                        .then(|| {
+                            lines
+                                .iter()
+                                .find(|line| is_prohibited_task_criterion(line))
+                                .cloned()
+                        })
+                        .flatten()
+                });
+            let note = recorded_note.clone().unwrap_or_else(|| {
+                format!(
+                    "禁止タスクの確認結果がありません: {rule}. Reviewer はこのルールを pass / fail で記録する必要があります。"
+                )
+            });
+            let status = match recorded_note {
+                Some(note) if parse_criteria_status(&note) == CriteriaReviewStatus::Passed => {
+                    CriteriaReviewStatus::Passed
+                }
+                _ => CriteriaReviewStatus::Failed,
+            };
+            CriteriaReviewResult {
+                criterion: format!("禁止タスク: {rule}"),
+                status,
+                note,
+            }
+        })
+        .collect()
+}
+
+pub fn is_prohibited_task_criterion(criterion: &str) -> bool {
+    let normalized = criterion.to_ascii_lowercase();
+    criterion.contains("禁止タスク")
+        || normalized.contains("prohibited task")
+        || normalized.contains("forbidden task")
 }
 
 #[derive(Clone)]
@@ -436,13 +533,21 @@ fn normalized_tokens(value: &str) -> Vec<String> {
 
 fn parse_criteria_status(value: &str) -> CriteriaReviewStatus {
     let normalized = value.to_ascii_lowercase();
-    if normalized.contains("pass") || normalized.contains("ok") || normalized.contains("satisfied")
+    if normalized.contains("pass")
+        || normalized.contains("ok")
+        || normalized.contains("satisfied")
+        || value.contains("合格")
+        || value.contains("適合")
+        || value.contains("問題なし")
     {
         CriteriaReviewStatus::Passed
     } else if normalized.contains("fail")
         || normalized.contains("missing")
         || normalized.contains("request")
         || normalized.contains("not satisfied")
+        || value.contains("不合格")
+        || value.contains("違反")
+        || value.contains("未確認")
     {
         CriteriaReviewStatus::Failed
     } else {
@@ -502,6 +607,7 @@ mod tests {
             &output,
             &["The guide includes no more than three steps".to_string()],
             &[],
+            &[],
         );
 
         assert_eq!(review.criteria_results.len(), 1);
@@ -530,6 +636,7 @@ mod tests {
                 "## Correctness (40)".to_string(),
                 "## Clarity (60)".to_string(),
             ],
+            &[],
         );
 
         assert_eq!(review.rubric_expected_count, 2);
@@ -562,11 +669,93 @@ mod tests {
                 "## Correctness (40)".to_string(),
                 "## Clarity (60)".to_string(),
             ],
+            &[],
         );
 
         assert_eq!(review.rubric_results[1].item, "Clarity");
         assert_eq!(review.rubric_results[1].points, None);
         assert!(!review.rubric_results[1].recorded);
+    }
+
+    #[test]
+    fn prohibited_task_rule_without_reviewer_evidence_forces_changes_requested() {
+        let output = AgentOutputRecord {
+            id: "out_test".to_string(),
+            work_item_id: "work_test".to_string(),
+            agent_run_id: "run_test".to_string(),
+            agent_profile_id: "reviewer".to_string(),
+            purpose: AgentRunPurpose::Review,
+            contract: "nagare.review.v1".to_string(),
+            instruction_pack: "nagare-review-writer.v1".to_string(),
+            parse_status: AgentOutputParseStatus::Parsed,
+            fields: BTreeMap::from([("verdict".to_string(), vec!["pass".to_string()])]),
+            questions: Vec::new(),
+            next_action: Some("approve".to_string()),
+            warnings: Vec::new(),
+            execution_record_id: "exec_test".to_string(),
+            locale: "ja-JP".to_string(),
+            created_at: "1".to_string(),
+        };
+
+        let review = review_result_from_agent_output(
+            "review_test".to_string(),
+            &output,
+            &[],
+            &[],
+            &["禁止: 本番環境へ書き込まない".to_string()],
+        );
+
+        assert_eq!(review.verdict, ReviewVerdict::RequestChanges);
+        assert_eq!(review.criteria_results.len(), 1);
+        assert_eq!(
+            review.criteria_results[0].status,
+            CriteriaReviewStatus::Failed
+        );
+        assert!(review.criteria_results[0].criterion.contains("禁止タスク"));
+    }
+
+    #[test]
+    fn prohibited_task_rule_with_passed_evidence_can_pass_review() {
+        let output = AgentOutputRecord {
+            id: "out_test".to_string(),
+            work_item_id: "work_test".to_string(),
+            agent_run_id: "run_test".to_string(),
+            agent_profile_id: "reviewer".to_string(),
+            purpose: AgentRunPurpose::Review,
+            contract: "nagare.review.v1".to_string(),
+            instruction_pack: "nagare-review-writer.v1".to_string(),
+            parse_status: AgentOutputParseStatus::Parsed,
+            fields: BTreeMap::from([
+                ("verdict".to_string(), vec!["pass".to_string()]),
+                (
+                    "criteria".to_string(),
+                    vec![
+                        "禁止: 本番環境へ書き込まない | pass | 外部書き込みは実行されていない"
+                            .to_string(),
+                    ],
+                ),
+            ]),
+            questions: Vec::new(),
+            next_action: Some("approve".to_string()),
+            warnings: Vec::new(),
+            execution_record_id: "exec_test".to_string(),
+            locale: "ja-JP".to_string(),
+            created_at: "1".to_string(),
+        };
+
+        let review = review_result_from_agent_output(
+            "review_test".to_string(),
+            &output,
+            &[],
+            &[],
+            &["禁止: 本番環境へ書き込まない".to_string()],
+        );
+
+        assert_eq!(review.verdict, ReviewVerdict::Pass);
+        assert_eq!(
+            review.criteria_results[0].status,
+            CriteriaReviewStatus::Passed
+        );
     }
 
     fn sample_review_output() -> AgentOutputRecord {
