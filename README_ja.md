@@ -133,7 +133,7 @@ nagare item list
 nagare item show work_0001
 ```
 
-npm package は Tauri デスクトップアプリと CLI を同梱します。`nagare` はデスクトップアプリを起動し、`nagare doctor` のようにコマンドを指定した場合は CLI を実行します。
+npm package は Tauri デスクトップアプリと CLI を同梱します。`nagare` はデスクトップアプリを起動し、`nagare doctor` のようにコマンドを指定した場合は CLI を実行します。デスクトップ版の既定プロジェクトは `%LOCALAPPDATA%\Nagare\workspace` に保存され、リポジトリの開発データとは分離されます。
 
 ## ドキュメント言語ポリシー
 

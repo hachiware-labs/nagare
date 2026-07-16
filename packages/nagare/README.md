@@ -18,6 +18,11 @@ nagare doctor
 `nagare` opens the Tauri desktop app. Commands with arguments, such as
 `nagare doctor` and `nagare item list`, run the CLI.
 
+By default, the desktop app keeps its Nagare project under
+`%LOCALAPPDATA%\Nagare\workspace`; it never adopts the folder from which the
+command was launched. To open an existing project deliberately, set
+`NAGARE_ROOT` before launching the app.
+
 This initial release supports Windows x64. The npm metadata prevents installs
 on unsupported operating systems and CPU architectures.
 

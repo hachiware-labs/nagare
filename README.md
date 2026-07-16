@@ -141,7 +141,8 @@ nagare item show work_0001
 
 The npm package bundles the Tauri desktop app and the CLI. Running `nagare`
 opens the desktop app; supplying a command such as `nagare doctor` runs the
-CLI.
+CLI. The desktop app stores its default project under
+`%LOCALAPPDATA%\Nagare\workspace`, separate from a repository checkout.
 
 ## Documentation Language Policy
 

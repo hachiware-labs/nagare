@@ -1,38 +1,41 @@
 #!/usr/bin/env node
 
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 
-const args = process.argv.slice(2);
-const extension = process.platform === "win32" ? ".exe" : "";
-const isCliCommand = args.length > 0;
-const binary = resolveBinary(isCliCommand ? "cli" : "desktop");
+function main() {
+  const args = process.argv.slice(2);
+  const isCliCommand = args.length > 0;
+  const binary = resolveBinary(isCliCommand ? "cli" : "desktop");
 
-if (!binary) {
-  const target = isCliCommand ? "CLI" : "desktop";
-  console.error(
-    `Nagare ${target} binary not found. Reinstall @hachiware-labs/nagare, or set NAGARE_${isCliCommand ? "CLI" : "DESKTOP"}_BINARY.`
-  );
-  process.exit(1);
-}
-
-if (!isCliCommand) {
-  const child = spawn(binary, [], {
-    stdio: "ignore",
-    windowsHide: false,
-    env: process.env,
-  });
-  child.on("error", (error) => {
-    console.error(error.message);
+  if (!binary) {
+    const target = isCliCommand ? "CLI" : "desktop";
+    console.error(
+      `Nagare ${target} binary not found. Reinstall @hachiware-labs/nagare, or set NAGARE_${isCliCommand ? "CLI" : "DESKTOP"}_BINARY.`
+    );
     process.exitCode = 1;
-  });
-} else {
+    return;
+  }
+
+  if (!isCliCommand) {
+    const child = spawn(binary, [], {
+      stdio: "ignore",
+      windowsHide: false,
+      env: desktopEnvironment(process.env),
+    });
+    child.on("error", (error) => {
+      console.error(error.message);
+      process.exitCode = 1;
+    });
+    return;
+  }
+
   const result = spawnSync(binary, args, {
     stdio: "inherit",
     env: process.env,
   });
-
   if (result.error) {
     console.error(result.error.message);
     process.exitCode = 1;
@@ -42,6 +45,7 @@ if (!isCliCommand) {
 }
 
 function resolveBinary(kind) {
+  const extension = process.platform === "win32" ? ".exe" : "";
   const override = process.env[`NAGARE_${kind.toUpperCase()}_BINARY`];
   const packaged = path.join(
     __dirname,
@@ -49,3 +53,22 @@ function resolveBinary(kind) {
   );
   return [override, packaged].filter(Boolean).find((candidate) => fs.existsSync(candidate));
 }
+
+function desktopEnvironment(environment) {
+  const next = { ...environment };
+  if (!String(next.NAGARE_ROOT || "").trim()) {
+    next.NAGARE_ROOT = defaultDesktopRoot(environment);
+  }
+  return next;
+}
+
+function defaultDesktopRoot(environment = process.env) {
+  const appData = environment.LOCALAPPDATA || environment.APPDATA || os.homedir();
+  return path.join(appData, "Nagare", "workspace");
+}
+
+if (require.main === module) {
+  main();
+}
+
+module.exports = { defaultDesktopRoot, desktopEnvironment };
